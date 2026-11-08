@@ -1565,7 +1565,8 @@ def search_transactions(family_id: str, viewer_user_id: str, q: str,
 def precheck_transaction(family_id: str, viewer_user_id: str, body: dict, today=None) -> dict:
     """מה לשאול לפני שמירה של עסקה חדשה (מתן, 30.9 — סבב 6, פריטים 6–7).
 
-    ‎duplicate‎ — עסקה עם אותו סכום, סוג וקטגוריה, באותו יום או יום לפני/אחרי.
+    ‎duplicate‎ — עסקה זהה בכל: סוג, קטגוריה, סכום, תאריך (אותו יום בדיוק),
+    הערה, פרויקט ומשויך. שינוי בשדה אחד מספיק כדי לא להתריע.
     הכי נפוץ: שני בני הזוג מזינים את אותה קנייה. ‎by‎ — רק כשמישהו אחר הזין.
 
     ‎unusual‎ — הסכום פי 5 ומעלה מהגדול בקטגוריה בחצי השנה האחרונה, כשיש
@@ -1593,13 +1594,25 @@ def precheck_transaction(family_id: str, viewer_user_id: str, body: dict, today=
     def same(r):
         return str(r.get(cat_key) or "") == str(cat)
 
+    def _norm_text(v):
+        return str(v or "").strip().casefold()
+
+    def _norm_owner(v):
+        return None if (not v or v == "shared") else str(v)
+
+    want_desc = _norm_text(body.get("description"))
+    want_project = str(body.get("project_id") or "")
+    want_owner = _norm_owner(body.get("owner"))
+
     try:
         near = client.table("transactions").select("*, projects(owner_id)") \
             .eq("family_id", family_id).eq("type", type_) \
-            .gte("date", (day - timedelta(days=1)).isoformat()) \
-            .lte("date", (day + timedelta(days=1)).isoformat()).execute().data or []
+            .eq("date", day.isoformat()).execute().data or []
         near = [r for r in _filter_hidden_personal_projects(near, viewer_user_id)
-                if same(r) and abs(float(r.get("amount") or 0) - amount) < 0.005]
+                if same(r) and abs(float(r.get("amount") or 0) - amount) < 0.005
+                and _norm_text(r.get("description")) == want_desc
+                and str(r.get("project_id") or "") == want_project
+                and _norm_owner(r.get("user_id")) == want_owner]
         duplicate = None
         if near:
             r = sorted(near, key=lambda x: str(x.get("created_at") or ""), reverse=True)[0]

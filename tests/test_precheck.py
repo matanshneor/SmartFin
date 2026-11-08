@@ -1,6 +1,6 @@
 """בדיקה לפני שמירה של עסקה חדשה (מתן, 30.9 — סבב 6, פריטים 6 ו-7).
 
-6 — כפילות: אותו סכום, אותו סוג ואותה קטגוריה, באותו יום או יום לפני/אחרי.
+6 — כפילות: הכל זהה — סוג, קטגוריה, סכום, יום, הערה, פרויקט ומשויך.
     שאלה ולא חסימה; "הוזנה ע״י אור" רק כשמישהו אחר הזין.
 7 — סכום חריג: פי 5 ומעלה מהעסקה הגדולה בקטגוריה בחצי השנה האחרונה, רק
     כשיש לפחות 5 קודמות, ולא בהכנסות.
@@ -39,16 +39,36 @@ def _check(rows, monkeypatch, **payload):
 # ── 6. כפילות ─────────────────────────────────────────────────────────
 
 def test_the_same_purchase_entered_by_her_is_a_duplicate(monkeypatch):
-    r = _check([_tx(320, "2026-09-30", by=_HER, desc="רמי לוי")], monkeypatch)
+    r = _check([_tx(320, "2026-09-30", by=_HER, desc="רמי לוי")], monkeypatch, description="רמי לוי")
 
     d = r["duplicate"]
     assert d["amount"] == 320 and d["description"] == "רמי לוי" and d["date"] == "2026-09-30"
     assert d["by"] == "אור" and d["time"] == "18:40"          # שעון ישראל
 
 
-def test_a_day_apart_still_counts_two_days_do_not(monkeypatch):
-    assert _check([_tx(320, "2026-09-29")], monkeypatch)["duplicate"]
-    assert _check([_tx(320, "2026-09-28")], monkeypatch)["duplicate"] is None
+def test_a_different_day_is_not_a_duplicate(monkeypatch):
+    assert _check([_tx(320, "2026-09-29")], monkeypatch)["duplicate"] is None
+    assert _check([_tx(320, "2026-09-30")], monkeypatch)["duplicate"]
+
+
+def test_a_different_description_is_not_a_duplicate(monkeypatch):
+    assert _check([_tx(320, "2026-09-30", desc="דלק")], monkeypatch, description="סופר")["duplicate"] is None
+    # רווחים והבדל אותיות לא נחשבים
+    assert _check([_tx(320, "2026-09-30", desc="Super")], monkeypatch, description=" super ")["duplicate"]
+
+
+def test_a_different_project_is_not_a_duplicate(monkeypatch):
+    assert _check([_tx(320, "2026-09-30", project="p1")], monkeypatch)["duplicate"] is None
+    assert _check([_tx(320, "2026-09-30", project="p1")], monkeypatch, project_id="p2")["duplicate"] is None
+    assert _check([_tx(320, "2026-09-30", project="p1")], monkeypatch, project_id="p1")["duplicate"]
+
+
+def test_a_different_owner_is_not_a_duplicate(monkeypatch):
+    row = _tx(320, "2026-09-30")
+    row["user_id"] = _HER
+    assert _check([row], monkeypatch, owner=_ME)["duplicate"] is None
+    assert _check([row], monkeypatch)["duplicate"] is None
+    assert _check([row], monkeypatch, owner=_HER)["duplicate"]
 
 
 def test_my_own_duplicate_does_not_name_me(monkeypatch):
