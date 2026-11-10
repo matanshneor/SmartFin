@@ -1,8 +1,10 @@
-"""סיסמה חדשה: לפחות 8 תווים, ולא אחת שדלפה (מתן, 10.11.2026).
+"""A new password: at least 8 characters, and not one that leaked (Matan,
+10.11.2026).
 
-ראו ‎backend/passwords.py‎. כאן: הכלל עצמו, שהסיסמה לא יוצאת מהשרת,
-שהשירות החיצוני לא תוקע הרשמה כשהוא נופל — ושכל שלושת המקומות שבהם
-נבחרת סיסמה (הרשמה, איפוס, החלפה) באמת בודקים.
+See backend/passwords.py. Here: the rule itself, that the password doesn't leave
+the server, that the external service doesn't block sign-up when it is down, and
+that all three places where a password is chosen (sign-up, reset, change) really
+check.
 """
 import hashlib
 import re
@@ -18,9 +20,9 @@ from backend.app import app, limiter
 pytestmark = pytest.mark.unit
 
 _ROOT = Path(__file__).resolve().parent.parent
-_LEAKED = "Password123!"          # כאילו דלפה — נקבע בתשובה המזויפת
+_LEAKED = "Password123!"          # as if leaked: set in the fake response
 _FINE = "a-fine-long-passphrase"
-# נלכדת בזמן הייבוא, לפני שה-conftest מחליף אותה לכל בדיקת יחידה
+# captured at import time, before conftest replaces it for every unit test
 _REAL_FETCH = passwords._fetch_range
 
 
@@ -30,7 +32,7 @@ def _sha(pw):
 
 @pytest.fixture
 def pwned(monkeypatch):
-    """שירות מזויף: ‎_LEAKED‎ דלפה 42 פעמים; ‎_FINE‎ מופיעה רק כשורת ריפוד."""
+    """A fake service: _LEAKED leaked 42 times; _FINE appears only as a padding row."""
     asked = []
 
     def fake(prefix):
@@ -45,7 +47,7 @@ def pwned(monkeypatch):
     return asked
 
 
-# ─── הכלל ────────────────────────────────────────────────────────────────────
+# ─── The rule ────────────────────────────────────────────────────────────────
 
 def test_seven_is_too_short_eight_is_enough(pwned):
     assert passwords.problem("1234567x"[:7]) == passwords.TOO_SHORT
@@ -58,7 +60,7 @@ def test_a_leaked_password_is_refused(pwned):
 
 
 def test_padding_rows_are_not_leaks(pwned):
-    """‎Add-Padding‎ מחזיר שורות עם ספירה 0 — הן לא סיסמאות אמיתיות."""
+    """Add-Padding returns rows with count 0: they aren't real passwords."""
     assert passwords.is_leaked(_FINE) is False
 
 
@@ -85,13 +87,14 @@ def test_the_request_asks_for_padding(monkeypatch):
     assert seen["headers"].get("Add-Padding") == "true"
 
 
-# ─── מי שכבר רשום (מתן, 10.11: "מי שכבר מחובר שיישאר מחובר עם הסיסמה שלו") ──
+# ─── Already registered (Matan, 10.11: "whoever is signed in stays signed in with their password") ──
 
 def test_sign_in_never_checks_the_password_rules(client, monkeypatch):
-    """סיסמה קצרה או כזו שדלפה — מי שכבר רשום איתה נכנס כרגיל, בלי בקשה
-    להחליף. הכללים חלים רק על סיסמה **חדשה**."""
+    """A short or leaked password: whoever is already registered with it signs in as
+    usual, with no request to change it. The rules apply only to a **new**
+    password."""
     def boom(*a, **k):
-        pytest.fail("ההתחברות בדקה את כללי הסיסמה החדשה")
+        pytest.fail("sign-in checked the new-password rules")
     monkeypatch.setattr(passwords, "is_leaked", boom)
     monkeypatch.setattr(passwords, "problem", boom)
     from types import SimpleNamespace
@@ -115,7 +118,7 @@ def test_when_the_service_is_down_signup_is_not_stuck(monkeypatch):
     assert passwords.problem(_LEAKED) is None
 
 
-# ─── שלושת המקומות ───────────────────────────────────────────────────────────
+# ─── The three places ────────────────────────────────────────────────────────
 
 @pytest.fixture
 def client():
@@ -136,12 +139,12 @@ def _signup(client, password):
     (_LEAKED, passwords.LEAKED),
 ])
 def test_signup_checks(client, monkeypatch, pwned, password, message):
-    monkeypatch.setattr(app_module.db, "sign_up", lambda *a, **k: pytest.fail("נרשם"))
+    monkeypatch.setattr(app_module.db, "sign_up", lambda *a, **k: pytest.fail("signed up"))
     assert message in _signup(client, password)
 
 
 def test_reset_checks(client, monkeypatch, pwned):
-    monkeypatch.setattr(app_module.db, "update_password", lambda *a: pytest.fail("הוחלפה"))
+    monkeypatch.setattr(app_module.db, "update_password", lambda *a: pytest.fail("changed"))
     for pw, msg in (("seven77", passwords.TOO_SHORT), (_LEAKED, passwords.LEAKED)):
         res = client.post("/api/auth/reset", json={
             "access_token": "t", "password": pw, "password_confirm": pw})
@@ -149,8 +152,8 @@ def test_reset_checks(client, monkeypatch, pwned):
 
 
 def test_change_in_settings_checks(client, monkeypatch, pwned):
-    monkeypatch.setattr(app_module.db, "sign_in", lambda *a: pytest.fail("נבדקה הסיסמה הנוכחית"))
-    monkeypatch.setattr(app_module.db, "update_password", lambda *a: pytest.fail("הוחלפה"))
+    monkeypatch.setattr(app_module.db, "sign_in", lambda *a: pytest.fail("the current password was checked"))
+    monkeypatch.setattr(app_module.db, "update_password", lambda *a: pytest.fail("changed"))
     monkeypatch.setattr(app_module.db, "set_auth_token", lambda t: None)
     with client.session_transaction() as s:
         s["user_id"], s["access_token"] = "u1", "tok"

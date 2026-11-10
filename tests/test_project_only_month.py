@@ -1,9 +1,10 @@
-"""חודש שיש בו רק עסקאות של פרויקט נראה ריק.
+"""A month with only project transactions looked empty.
 
-רשימת העסקאות של עמוד החודש מסוננת מעסקאות פרויקט (הן מוצגות בנפרד),
-והתבנית בדקה "אין עסקאות" על הרשימה המסוננת. חודש שכולו שיפוץ הציג "לא
-נרשמו עסקאות" — ואזור "פרויקטים החודש", שיושב בתוך ה-else, לא הוצג בכלל.
-כל הכסף של החודש קיים, ואין דרך לראות אותו מעמוד החודש.
+The month page's transaction list is filtered of project transactions (they are
+shown separately), and the template checked "no transactions" on the filtered
+list. A month that was all renovation showed "לא נרשמו עסקאות", and the
+"פרויקטים החודש" area, which sits inside the else, wasn't shown at all. All the
+month's money exists, and there is no way to see it from the month page.
 """
 import pytest
 
@@ -65,7 +66,7 @@ def test_a_month_of_only_project_spending_shows_it(month_page):
 
 
 def test_a_truly_empty_month_still_says_so(month_page):
-    """בקרת-נגד."""
+    """Control."""
     html = month_page([])
 
     assert "לא נרשמו עסקאות" in html

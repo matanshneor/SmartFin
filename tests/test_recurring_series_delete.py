@@ -1,20 +1,24 @@
 """
-מחיקת עסקה שחוזרת — השאלה של יומן.
+Deleting a recurring transaction: the calendar question.
 
-מתן ניסח את המודל: "כל עסקה קבועה שאני מוחק צריך לשאול אותי אם למחוק
-את כל המופעים מכאן והלאה או רק את המופע הנוכחי. לא צריך להיות הבדל
-בין עסקה קבועה מקורית לבין מופע שלה."
+Matan phrased the model: "every recurring transaction I delete should ask me
+whether to delete all occurrences from here on or only the current occurrence.
+There shouldn't be a difference between an original recurring transaction and an
+occurrence of it."
 
-הוא צודק. ההבחנה בין "תבנית" למופע היא פנימית לגמרי — שורת התבנית
-היא עסקה רגילה שבמקרה גם מגדירה את הסדרה — ולמי שמוחק את שכר הדירה
-של מרץ לא אמור להיות אכפת אם מרץ הוא במקרה החודש שבו הסדרה נפתחה.
+He is right. The distinction between "template" and occurrence is entirely
+internal (the template row is a normal transaction that happens to also define
+the series) and whoever deletes March's rent shouldn't care whether March happens
+to be the month the series started.
 
-הגרסה הקודמת שאלה "לעצור או למחוק הכול", ורק על שורת התבנית. במקרה
-של מתן כל חמש התבניות מיולי, אז מדשבורד ספטמבר אי אפשר היה להגיע
-לשאלה בכלל — הוא ניסה, לא קרה כלום, ודיווח שזה לא עובד.
+The previous version asked "stop or delete everything", and only on the template
+row. In Matan's case all five templates are from July, so from the September
+dashboard the question couldn't be reached at all: he tried, nothing happened,
+and he reported it doesn't work.
 
-"רק את זו" דורש שהמנוע יזכור שדילגו: הוא מחליט מה חסר לפי מה שקיים,
-אז מופע שנמחק נראה לו כמו חודש שעוד לא נוצר — והוא משלים אותו למחרת.
+"רק את זו" requires the engine to remember the skip: it decides what is missing by
+what exists, so a deleted occurrence looks to it like a month not created yet, and
+it fills it in the next day.
 """
 import pytest
 
@@ -32,23 +36,25 @@ _CAT = "55555555-5555-5555-5555-555555555555"
 
 @pytest.fixture
 def client(monkeypatch):
-    # השעון קבוע: התאריכים כאן כתובים ביד (ספטמבר 2026), ובשעון האמיתי סדרה
-    # קבועה מ-15.9 "מתמלאת אחורה" יותר ויותר עם הזמן — והבדיקות נשברו לבד
-    # (נמצא בסקירה של 1.10: בנובמבר אחת, בינואר שבע).
+    # The clock is fixed: the dates here are written by hand (September 2026), and
+    # on the real clock a recurring series from 15.9 "backfills" more and more as
+    # time passes, and the tests broke by themselves (found in the review of
+    # 1.10: one in November, seven in January).
     import datetime as _dt
     from backend import clock as _clock
     monkeypatch.setattr(_clock, "today", lambda: _dt.date(2026, 9, 30))
     monkeypatch.setattr(_clock, "now", lambda: _dt.datetime(2026, 9, 30, 12, 0))
-    # העסקה אינה בפרויקט אישי של מישהו אחר (ראו tx_visible_required)
+    # the transaction isn't in someone else's personal project (see tx_visible_required)
     monkeypatch.setattr(app_module.db, "personal_project_owner", lambda *a: None)
-    # עריכה בודקת את השיוכים הנוכחיים — כאן עסקה משפחתית רגילה
+    # editing checks the current attributions: here a normal family transaction
     monkeypatch.setattr(app_module.db, "transaction_links",
                         lambda *a: {"user_id": None, "project_id": None})
-    # אזהרת המילוי-אחורה בעריכה בודקת מה הסדרה כבר תפסה; כאן אין סדרה
+    # the backfill warning on edit checks what the series already covers; here
+    # there is no series
     monkeypatch.setattr(app_module.db, "existing_occurrence_dates", lambda *a: None)
     app.config["TESTING"] = True
     monkeypatch.setattr(app_module.db, "get_transaction_receipt_path", lambda *a: None)
-    # מסלול העריכה מאמת קטגוריה ובעלים לפני שהוא כותב
+    # the edit route validates category and owner before it writes
     monkeypatch.setattr(app_module.db, "get_categories",
                         lambda *a, **k: [{"id": _CAT, "name": "מכולת", "type": "expense"}])
     monkeypatch.setattr(app_module, "family_settings",
@@ -67,14 +73,14 @@ def _occurrence(monkeypatch, info):
 _SERIES = {"template_id": "tpl-1", "date": "2026-09-01", "later": 4}
 
 
-# ─── אין הבדל בין "מקורית" למופע ────────────────────────────────────────────
+# ─── No difference between "original" and occurrence ────────────────────────
 
 def test_any_recurring_transaction_asks_the_same_question(client, monkeypatch):
-    """הלב של מה שמתן ביקש. קודם רק שורת התבנית שאלה, וכל המופעים
-    נמחקו בשקט."""
+    """The heart of what Matan asked. Before, only the template row asked, and all the
+    occurrences were deleted silently."""
     _occurrence(monkeypatch, _SERIES)
     monkeypatch.setattr(app_module.db, "delete_transaction",
-                        lambda *a: pytest.fail("נמחק בלי לשאול"))
+                        lambda *a: pytest.fail("deleted without asking"))
 
     res = client.delete(f"/api/transactions/{_TX}")
 
@@ -91,8 +97,8 @@ def test_the_question_carries_the_real_number(client, monkeypatch):
 # ─── "רק את זו" ─────────────────────────────────────────────────────────────
 
 def test_deleting_one_occurrence_records_the_skip(client, monkeypatch):
-    """בלי הרישום המנוע משלים את החודש הזה מחדש למחרת, והמחיקה
-    מתבטלת מעצמה."""
+    """Without the record the engine fills this month in again the next day, and the
+    delete undoes itself."""
     called = []
     _occurrence(monkeypatch, _SERIES)
     monkeypatch.setattr(app_module.db, "delete_one_occurrence",
@@ -108,7 +114,7 @@ def test_deleting_one_occurrence_does_not_touch_the_rest(client, monkeypatch):
     _occurrence(monkeypatch, _SERIES)
     monkeypatch.setattr(app_module.db, "delete_one_occurrence", lambda *a: (True, None))
     monkeypatch.setattr(app_module.db, "delete_occurrences_from",
-                        lambda *a: pytest.fail("נמחקה כל הסדרה"))
+                        lambda *a: pytest.fail("the whole series was deleted"))
 
     assert client.delete(f"/api/transactions/{_TX}?mode=one").status_code == 200
 
@@ -125,11 +131,11 @@ def test_deleting_from_here_onward_reports_how_many_went(client, monkeypatch):
     assert res.get_json() == {"status": "ok", "deleted": 4}
 
 
-# ─── עסקה רגילה לא השתנתה ───────────────────────────────────────────────────
+# ─── A normal transaction didn't change ─────────────────────────────────────
 
 def test_an_ordinary_transaction_is_untouched(client, monkeypatch):
-    """בקרת-נגד, והחשובה כאן: רוב המחיקות הן של עסקה רגילה, והן חייבות
-    להמשיך לעבוד בדיוק כמו קודם — כולל "בטל"."""
+    """Control, and the important one here: most deletes are of a normal transaction,
+    and they must keep working exactly as before, including "בטל"."""
     _occurrence(monkeypatch, None)
     deleted = []
     monkeypatch.setattr(app_module.db, "delete_transaction",
@@ -147,12 +153,12 @@ def test_an_unknown_series_state_refuses_rather_than_guessing(client, monkeypatc
         raise app_module.db.DataUnavailable("recurring_occurrence")
     monkeypatch.setattr(app_module.db, "recurring_occurrence", _boom)
     monkeypatch.setattr(app_module.db, "delete_transaction",
-                        lambda *a: pytest.fail("נמחק בלי לדעת אם יש סדרה"))
+                        lambda *a: pytest.fail("deleted without knowing whether there is a series"))
 
     assert client.delete(f"/api/transactions/{_TX}").status_code == 503
 
 
-# ─── מופע לא יכול להפוך לתבנית שנייה ────────────────────────────────────────
+# ─── An occurrence can't become a second template ───────────────────────────
 
 def _edit(client, is_recurring):
     return client.put(f"/api/transactions/{_TX}", json={
@@ -162,11 +168,11 @@ def _edit(client, is_recurring):
 
 
 def test_marking_an_instance_as_recurring_is_refused(client, monkeypatch):
-    """"שיהיה קבוע מעכשיו" על מופע קיים יצר סדרה שנייה שרצה במקביל
-    לראשונה — אותו כסף פעמיים בחודש, לתמיד."""
+    """"Make it recurring from now" on an existing occurrence created a second series
+    running in parallel to the first: the same money twice a month, forever."""
     monkeypatch.setattr(app_module.db, "is_recurring_instance", lambda *a: True)
     monkeypatch.setattr(app_module.db, "update_transaction",
-                        lambda *a, **k: pytest.fail("נוצרה סדרה שנייה"))
+                        lambda *a, **k: pytest.fail("a second series was created"))
 
     res = _edit(client, True)
 
@@ -175,9 +181,9 @@ def test_marking_an_instance_as_recurring_is_refused(client, monkeypatch):
 
 
 def test_an_instance_can_still_be_edited_normally(client, monkeypatch):
-    """בקרת-נגד: החסימה היא על הפיכתו לתבנית, לא על עריכתו."""
+    """Control: the block is on turning it into a template, not on editing it."""
     monkeypatch.setattr(app_module.db, "is_recurring_instance",
-                        lambda *a: pytest.fail("נבדקה סדרה על עריכה רגילה"))
+                        lambda *a: pytest.fail("a series was checked on a normal edit"))
     monkeypatch.setattr(app_module.db, "update_transaction",
                         lambda *a, **k: ({"id": _TX}, None))
 
@@ -185,7 +191,7 @@ def test_an_instance_can_still_be_edited_normally(client, monkeypatch):
 
 
 def test_an_ordinary_transaction_can_still_become_recurring(client, monkeypatch):
-    """בקרת-נגד: זו התכונה עצמה — אסור לחסום אותה."""
+    """Control: this is the feature itself: it mustn't be blocked."""
     monkeypatch.setattr(app_module.db, "is_recurring_instance", lambda *a: False)
     monkeypatch.setattr(app_module.db, "update_transaction",
                         lambda *a, **k: ({"id": _TX}, None))
@@ -199,12 +205,12 @@ def test_an_unknown_instance_state_refuses(client, monkeypatch):
         raise app_module.db.DataUnavailable("is_recurring_instance")
     monkeypatch.setattr(app_module.db, "is_recurring_instance", _boom)
     monkeypatch.setattr(app_module.db, "update_transaction",
-                        lambda *a, **k: pytest.fail("נכתב בלי לדעת"))
+                        lambda *a, **k: pytest.fail("written without knowing"))
 
     assert _edit(client, True).status_code == 503
 
 
-# ─── מה שהמשתמש רואה ────────────────────────────────────────────────────────
+# ─── What the user sees ─────────────────────────────────────────────────────
 
 def _js():
     from pathlib import Path
@@ -227,8 +233,8 @@ def test_the_dialog_asks_the_calendar_question():
 
 
 def test_the_safe_option_is_the_confirm_button():
-    """מחיקת מופע אחד היא הפעולה הצפויה; מחיקת כל השאר עוברת אישור
-    שני שמציג את המספר."""
+    """Deleting one occurrence is the expected action; deleting all the rest goes
+    through a second confirmation that shows the number."""
     block = _dialog()
 
     assert "confirmText: 'רק את זו'" in block
@@ -236,8 +242,8 @@ def test_the_safe_option_is_the_confirm_button():
 
 
 def test_backing_out_of_either_dialog_deletes_nothing():
-    """נסיגה מחזירה ‎null‎. דיאלוג שני שמפרש ‎null‎ כאישור הוא בדיוק
-    הבאג שכבר היה במחיקת פרויקט."""
+    """Backing out returns null. A second dialog interpreting null as confirmation is
+    exactly the bug that was already in project deletion."""
     block = _dialog()
 
     assert "if (onlyThis === null) return;" in block
@@ -245,8 +251,8 @@ def test_backing_out_of_either_dialog_deletes_nothing():
 
 
 def test_no_undo_is_offered_for_either():
-    """שחזור של מופע בודד היה מחזיר גם את הדילוג שנרשם עליו, ושל
-    סדרה שלמה — עשרות שורות."""
+    """Restoring a single occurrence would also bring back the skip recorded on it,
+    and of a whole series: dozens of rows."""
     js = _js()
     block = js[js.index("function sendSeriesDelete("):]
     block = block[:block.index("function deleteWithUndo(")]
@@ -255,14 +261,15 @@ def test_no_undo_is_offered_for_either():
     assert "שאר החודשים של העסקה הקבועה נשארו" in block
 
 
-# ─── שתי שאלות במקום אחת ────────────────────────────────────────────────────
+# ─── Two questions instead of one ───────────────────────────────────────────
 
 def test_a_recurring_transaction_is_not_asked_the_generic_question_first():
-    """מתן ראה "למחוק את העסקה? / הפעולה תסיר את העסקה מכל הדוחות
-    והגרפים" — משפט שנכון לעסקה בודדת ומטעה לחלוטין כשמאחוריה סדרה.
+    """Matan saw "למחוק את העסקה? / הפעולה תסיר את העסקה מכל הדוחות והגרפים": a
+    sentence that is true for a single transaction and completely misleading when
+    a series is behind it.
 
-    השאלה האמיתית מגיעה אחריה, מהשרת, אבל מי שרואה שאלה מנוסחת
-    ומוחלטת מניח שזו השאלה היחידה — ולוחץ ביטול."""
+    The real question comes after it, from the server, but whoever sees a worded,
+    absolute question assumes it is the only question, and taps cancel."""
     js = _js()
     block = js[js.index("function confirmDelete("):]
     block = block[:block.index("function deleteWithUndo(")]
@@ -272,16 +279,18 @@ def test_a_recurring_transaction_is_not_asked_the_generic_question_first():
 
 
 def test_every_delete_path_goes_through_the_same_gate():
-    """מסלולי המחיקה — המודאל וההחלקה (העורך בשורה הוסר ב-5.10). כולם
-    שאלו את השאלה הגנרית בנפרד, וכל אחד היה יכול להישאר מאחור."""
+    """The delete paths: the modal and the swipe (the inline editor was removed on
+    5.10). Each asked the generic question separately, and each could be left
+    behind."""
     js = _js()
 
-    assert js.count("title: 'למחוק את העסקה?'") == 1, "נשארה שאלה גנרית מקומית"
-    assert js.count("confirmDelete(") == 3, "לא כל מסלולי המחיקה עוברים בשער"
+    assert js.count("title: 'למחוק את העסקה?'") == 1, "a local generic question remained"
+    assert js.count("confirmDelete(") == 3, "not all delete paths go through the gate"
 
 
 def test_an_ordinary_transaction_still_gets_asked():
-    """בקרת-נגד: רוב המחיקות הן של עסקה רגילה, ושם השאלה נחוצה."""
+    """Control: most deletes are of a normal transaction, and there the question is
+    needed."""
     js = _js()
     block = js[js.index("function confirmDelete("):]
     block = block[:block.index("function deleteWithUndo(")]

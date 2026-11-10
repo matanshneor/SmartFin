@@ -1,14 +1,16 @@
 """
-בדיקות לאשף ההרשמה — המסך הראשון שמשתמש חדש רואה.
+Tests for the sign-up wizard: the first screen a new user sees.
 
-האשף בנוי משישה ‎<section class="onboarding-step">‎ באותו עמוד, וה-JS מחליף
-ביניהם. ההסתרה הייתה ‎style="display:none"‎ שנכתב ידנית על כל שלב בנפרד,
-ובאחד מהם זה נשכח — כך שמשתמש חדש קיבל את מסך הבחירה ואת השאלה על שם
-המשפחה זה על גבי זה, ברגע הכי רגיש במוצר.
+The wizard is built from six <section class="onboarding-step"> on the same page,
+and the JS switches between them. Hiding was a style="display:none" written by
+hand on each step separately, and on one of them it was forgotten, so a new user
+got the choice screen and the family-name question on top of each other, at the
+most sensitive moment in the product.
 
-הבדיקות כאן לא בודקות "האם ל-step1 יש display:none" אלא את התכונה עצמה:
-שלב אחד בדיוק גלוי. זה מה שיתפוס גם את השלב השביעי שמישהו יוסיף בעתיד
-וישכח להסתיר, וזו הסיבה שהבאג הזה היה אפשרי מלכתחילה.
+The tests here don't check "does step1 have display:none" but the property
+itself: exactly one step visible. That is what will also catch the seventh step
+someone adds in the future and forgets to hide, and that is why this bug was
+possible in the first place.
 """
 import re
 
@@ -30,11 +32,12 @@ _FAM = "11111111-1111-1111-1111-111111111111"
 
 
 def _render(repo_root, waiting_for):
-    """מרנדרת את העמוד כפי שהוא מוגש בפועל.
+    """Renders the page as it is actually served.
 
-    התבנית מחזיקה שני מסכי-פתיחה בלעדיים ‎({% if waiting_for %})‎, אז
-    קריאת הקובץ כטקסט סופרת את שניהם ומדווחת על התנגשות שלא קיימת.
-    מה שצריך להיבדק הוא מה שמגיע לדפדפן, בשתי ההגעות."""
+    The template holds two mutually exclusive opening screens
+    ({% if waiting_for %}), so reading the file as text counts both and reports a
+    clash that doesn't exist. What needs testing is what reaches the browser, in
+    both arrivals."""
     from backend import app as app_module
     from backend.app import app
 
@@ -60,13 +63,13 @@ def _render(repo_root, waiting_for):
 
 def _steps(repo_root, waiting_for=None):
     tags = _STEP.findall(_render(repo_root, waiting_for))
-    assert tags, "לא נמצא אף שלב באשף — כנראה השתנה המבנה והבדיקה כבר לא בודקת כלום"
+    assert tags, "no wizard step was found: the structure probably changed and the test no longer tests anything"
     return tags
 
 
 def _shown_by_css(repo_root, tag):
-    """שלב בלי ‎display:none‎ בשורה עדיין מוסתר אם אין לו כלל CSS — ככה
-    מסך ההמתנה נולד ריק לגמרי."""
+    """A step without inline display:none is still hidden if it has no CSS rule:
+    that is how the waiting screen was born completely empty."""
     css = (repo_root / _STYLESHEET).read_text(encoding="utf-8")
     shown = set(_CSS_BLOCK.findall(css))
     ident = re.search(r'id="(\w+)"', tag)
@@ -85,42 +88,42 @@ def _is_hidden_inline(tag: str) -> bool:
 
 @pytest.mark.parametrize("waiting_for", [None, "אור"])
 def test_exactly_one_step_is_visible_on_arrival(repo_root, waiting_for):
-    """הלב: משתמש חדש רואה מסך אחד, לא שניים זה על גבי זה."""
+    """The heart: a new user sees one screen, not two on top of each other."""
     visible = [t for t in _steps(repo_root, waiting_for) if not _is_hidden_inline(t)]
 
     assert len(visible) == 1, (
-        f"{len(visible)} שלבים גלויים בטעינה במקום אחד — "
-        f"משתמש חדש יראה אותם זה על גבי זה. השלבים הגלויים: {visible}"
+        f"{len(visible)} steps visible on load instead of one: "
+        f"a new user will see them on top of each other. The visible steps: {visible}"
     )
 
 
 @pytest.mark.parametrize("waiting_for,expected", [(None, "step0"), ("אור", "stepWaiting")])
 def test_the_visible_step_is_the_first_one(repo_root, waiting_for, expected):
-    """בקרת-נגד: שלב אחד גלוי זה לא מספיק אם זה השלב הלא נכון."""
+    """Control: one visible step isn't enough if it is the wrong step."""
     visible = [t for t in _steps(repo_root, waiting_for) if not _is_hidden_inline(t)]
 
     assert f'id="{expected}"' in visible[0], (
-        f"השלב הגלוי אינו מסך הפתיחה אלא: {visible[0]}"
+        f"the visible step isn't the opening screen but: {visible[0]}"
     )
 
 
 @pytest.mark.parametrize("waiting_for", [None, "אור"])
 def test_the_visible_step_is_actually_shown_by_the_stylesheet(repo_root, waiting_for):
-    """היעדר ‎display:none‎ בשורה אינו נראוּת: ברירת המחדל ב-CSS מסתירה
-    כל שלב, ומי שאין לו כלל משלו מרונדר לעמוד ריק."""
+    """The absence of inline display:none isn't visibility: the CSS default hides
+    every step, and one with no rule of its own renders an empty page."""
     visible = [t for t in _steps(repo_root, waiting_for) if not _is_hidden_inline(t)]
 
     assert _shown_by_css(repo_root, visible[0]), (
-        f"אין כלל CSS שמציג את {visible[0]} — העמוד ייטען ריק"
+        f"no CSS rule shows {visible[0]}: the page will load empty"
     )
 
 
 def test_hiding_a_step_does_not_depend_on_remembering(repo_root):
-    """מה שמונע את חזרת הבאג: ההסתרה היא ברירת המחדל ב-CSS, ולא משהו
-    שצריך לזכור לכתוב על כל שלב חדש בנפרד."""
+    """What prevents the bug from returning: hiding is the CSS default, and not
+    something to remember to write on each new step separately."""
     css = (repo_root / _STYLESHEET).read_text(encoding="utf-8")
 
     assert re.search(r"\.onboarding-step\s*\{[^}]*display\s*:\s*none", css), \
-        "אין כלל CSS שמסתיר שלב כברירת מחדל — שלב חדש שיישכח יופיע שוב"
+        "no CSS rule hides a step by default: a new step that is forgotten will show up again"
     assert "step0" in _CSS_BLOCK.findall(css), \
-        "מסך הפתיחה לא מוחזר לגלוי, כך שהאשף ייפתח ריק"
+        "the opening screen isn't made visible again, so the wizard will open empty"

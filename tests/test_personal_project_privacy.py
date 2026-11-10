@@ -1,11 +1,14 @@
-"""פרויקט אישי: מה שבו לא נראה ולא נגיש לשאר המשפחה.
+"""A personal project: what is in it isn't visible or accessible to the rest of
+the family.
 
-בכל רשימה עסקאות של פרויקט אישי של אחר כבר היו מוסתרות — חוץ מרשימת
-העסקאות הקבועות, שהציגה אותן בהגדרות ובעמוד החודש עם המזהה שלהן. ומהמזהה,
-חמשת המסלולים שפועלים על עסקה לפי מזהה נתנו לערוך, למחוק, לפתוח קבלה,
-לעצור סדרה ולפצל אותה: הם בדקו רק את פרויקט *היעד*.
+In every list, transactions of someone else's personal project were already
+hidden, except the recurring transactions list, which showed them in settings and
+on the month page with their id. And from the id, the five routes acting on a
+transaction by id allowed editing, deleting, opening a receipt, stopping a series
+and splitting it: they checked only the *target* project.
 
-RLS לא עוזרת כאן — היא מפרידה בין משפחות, וזו פרטיות בתוך משפחה.
+RLS doesn't help here: it separates families, and this is privacy within a
+family.
 """
 import pytest
 
@@ -21,7 +24,7 @@ _ME    = "22222222-2222-2222-2222-222222222222"
 _OTHER = "33333333-3333-3333-3333-333333333333"
 _TX    = "44444444-4444-4444-4444-444444444444"
 
-# כל מסלול שפועל על עסקה לפי מזהה, עם הפונקציה שהוא היה מגיע אליה
+# every route acting on a transaction by id, with the function it would reach
 _ROUTES = [
     ("put",    f"/api/transactions/{_TX}",       {"amount": 1, "type": "expense", "date": "2026-09-01"},
      "update_transaction"),
@@ -35,7 +38,7 @@ _ROUTES = [
 @pytest.fixture
 def client(monkeypatch):
     limiter.reset()
-    # עמוד השגיאה של הקבלה טוען את פרטי המשפחה — כמו ב-test_receipt_viewing
+    # the receipt error page loads the family details, as in test_receipt_viewing
     monkeypatch.setattr(db, "set_auth_token", lambda t: None)
     monkeypatch.setattr(db, "get_family", lambda *a, **k: {})
     app.config["TESTING"] = True
@@ -66,7 +69,7 @@ def test_someone_elses_personal_project_is_not_found(client, monkeypatch,
 
 @pytest.mark.parametrize("owner", [_ME, None], ids=["my-own-project", "family-transaction"])
 def test_my_own_and_family_transactions_still_work(client, monkeypatch, owner):
-    """בקרת-נגד: בלעדיה הבדיקה שלמעלה עוברת גם כשהמסלול חוסם את כולם."""
+    """Control: without it the test above passes even when the route blocks everyone."""
     monkeypatch.setattr(db, "personal_project_owner", lambda tx, fam: owner)
     monkeypatch.setattr(db, "stop_recurring", lambda tid, fam: (True, None))
 
@@ -76,19 +79,19 @@ def test_my_own_and_family_transactions_still_work(client, monkeypatch, owner):
 
 
 def test_a_failed_check_refuses_rather_than_allows(client, monkeypatch):
-    """"לא הצלחתי לבדוק" אינו "מותר"."""
+    """"I couldn't check" isn't "allowed"."""
     def broken(*a):
         raise db.DataUnavailable("down")
     monkeypatch.setattr(db, "personal_project_owner", broken)
     monkeypatch.setattr(db, "stop_recurring",
-                        lambda *a: pytest.fail("עבר למרות שהבדיקה נכשלה"))
+                        lambda *a: pytest.fail("passed although the check failed"))
 
     response = client.delete(f"/api/recurring/{_TX}")
 
     assert response.status_code == 503
 
 
-# ─── הבדיקה עצמה ─────────────────────────────────────────────────────────────
+# ─── The check itself ────────────────────────────────────────────────────────
 
 def _fake_with(monkeypatch, rows):
     fake = FakeSupabase(transactions=rows)
@@ -115,14 +118,14 @@ def test_household_and_shared_transactions_have_no_owner(monkeypatch, row):
 
 
 def test_a_malformed_id_is_not_sent_to_the_database(monkeypatch):
-    """PostgREST דוחה מזהה שאינו UUID בשגיאה, וזו הייתה הופכת ל-503."""
+    """PostgREST rejects a non-UUID id with an error, and that would turn into 503."""
     fake = _fake_with(monkeypatch, [])
 
     assert db.personal_project_owner("not-a-uuid", _FAM) is None
     assert fake.reads == []
 
 
-# ─── הרשימות ────────────────────────────────────────────────────────────────
+# ─── The lists ──────────────────────────────────────────────────────────────
 
 def _template(tx_id, owner, project_id="p"):
     return {"id": tx_id, "family_id": _FAM, "is_recurring": True, "amount": 100.0,

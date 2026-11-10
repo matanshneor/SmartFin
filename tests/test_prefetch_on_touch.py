@@ -1,8 +1,9 @@
-"""טעינה מוקדמת בנגיעה (מתן, 3.10 — רעיון 29).
+"""Prefetch on touch (Matan, 3.10: idea 29).
 
-נגיעה בקישור שולחת ל-service worker הודעה; הוא מתחיל להביא את העמוד,
-והניווט שמגיע כשהאצבע עוזבת מקבל את התשובה הזאת. בזיכרון בלבד, 5 שניות,
-פעם אחת. בדפדפן: נספרו הבקשות בשרת (נגיעה+לחיצה = בקשה אחת).
+Touching a link sends the service worker a message; it starts fetching the page,
+and the navigation arriving when the finger lifts gets that response. In memory
+only, 5 seconds, once. In the browser: requests counted on the server
+(touch+tap = one request).
 """
 import json
 import subprocess
@@ -66,7 +67,8 @@ def test_without_a_touch_the_navigation_goes_to_the_network():
 
 
 def test_an_old_prefetch_is_thrown_away():
-    """יותר מ-5 שניות — לא מגישים. עמוד עם כסף לא מוגש מלפני זמן."""
+    """More than 5 seconds: don't serve. A page with money isn't served from a while
+    ago."""
     assert _run([{"message": "/month"}, {"wait": 6000}, {"navigate": "/month"}]) == \
         ["https://app/month", "https://app/month"]
 
@@ -77,7 +79,8 @@ def test_a_prefetch_serves_one_navigation_only():
 
 
 def test_a_redirect_is_not_reused():
-    """סשן שפג מפנה להתחברות. Safari מסרב לתשובה שהופנתה בניווט — הולכים לרשת."""
+    """An expired session redirects to sign-in. Safari refuses a redirected response
+    in a navigation: go to the network."""
     got = _run([{"message": "/month"}, {"navigate": "/month"}],
                {"ok": True, "redirected": True, "type": "text/html"})
     assert got == ["https://app/month", "https://app/month"]
@@ -95,8 +98,9 @@ def test_the_page_side_sends_the_message_on_touch():
 
 
 def test_a_save_throws_away_pages_loaded_before_it():
-    """נגיעה ב"ביטול" (העמוד נטען), "המשך עריכה", "שמירה" — והניווט אחרי
-    השמירה קיבל את העמוד מלפניה, עם הקטגוריות הישנות (מתן, 9.10)."""
+    """Touching "ביטול" (the page loaded), "המשך עריכה", "שמירה", and the navigation
+    after the save got the page from before it, with the old categories (Matan,
+    9.10)."""
     for method in ("POST", "PUT", "DELETE"):
         assert _run([{"message": "/projects/p1"}, {"write": method}, {"navigate": "/projects/p1"}]) == \
             ["https://app/projects/p1", "https://app/projects/p1"], method

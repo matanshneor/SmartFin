@@ -1,22 +1,22 @@
-"""חודש שנגמר הציג תקציב כאילו הוא עדיין פתוח.
+"""A month that ended showed a budget as if it were still open.
 
-מתן שאל: "האם בעמוד של חודשים קודמים צריך להופיע לי עבור כל קטגוריה
-'קביעת תקציב לקטגוריה'? נראה לי שלא קובעים תקציב לחודשים שעברו."
+Matan asked: "on the past months page, should 'set a budget for the category'
+appear for each category? I don't think you set a budget for past months."
 
-הוא צדק, והשורש מתחת לזה גדול מהקישור: **התקציב נשמר כמפה גלובלית
-לפי קטגוריה** (‎families.settings.limits‎) — בלי חודש ובלי היסטוריה.
-מכאן שתי תקלות נפרדות בעמוד אחד:
+He was right, and the root beneath it is bigger than the link: **the budget is
+stored as a global map by category** (families.settings.limits), with no month
+and no history. Hence two separate faults on one page:
 
-1. הקישור הבטיח משהו שלא קורה. לחיצה מתוך מרץ פותחת את ההגדרות
-   וקובעת סכום שמשפיע **מהיום והלאה**; מרץ לא ישתנה. המסך רומז
-   שמתקצבים את החודש שרואים.
+1. The link promised something that doesn't happen. Tapping from March opens
+   settings and sets an amount that applies **from today on**; March won't
+   change. The screen implies you are budgeting the month you are looking at.
 
-2. וגם כשכבר יש תקציב, חודש שעבר אמר "נשאר ₪500 מתוך ₪2,000". בחודש
-   שנגמר אין "נשאר" — אין מה להוציא. ה-₪2,000 הוא גם התקציב של היום,
-   לא בהכרח מה שהיה אז.
+2. And even when there already is a budget, a past month said "נשאר ₪500 מתוך
+   ₪2,000". A month that ended has no "remaining": there is nothing to spend.
+   The ₪2,000 is also today's budget, not necessarily what it was then.
 
-הבדיקות כאן מרנדרות את התבנית האמיתית ובודקות את מה שנראה על המסך,
-ולא את הקוד שאמור לייצר אותו.
+The tests here render the real template and check what is seen on screen, not the
+code that is supposed to produce it.
 """
 
 import pytest
@@ -29,14 +29,14 @@ pytestmark = pytest.mark.unit
 _CAT = "cat-groceries"
 
 
-# התבנית קוראת ל-‎item.name/icon‎ ומסננת ל-‎total > 0‎.
+# The template reads item.name/icon and filters to total > 0.
 def _row(spent):
     return {"category_id": _CAT, "name": "מכולת", "icon": "🛒",
             "total": spent, "pct": 40, "is_project": False}
 
 
 def _breakdown(spent, budget=2000):
-    """שורת פילוח אמיתית, דרך אותה פונקציה שמריצה את הייצור."""
+    """A real breakdown row, through the same function production runs."""
     settings = {"limits": {_CAT: {"amount": budget, "alert": True}}}
     return db.apply_budgets([_row(spent)], settings)
 
@@ -66,10 +66,10 @@ def _render(breakdown, is_current):
             month_transactions=[tx], **ctx)
 
 
-# ─── הקישור ──────────────────────────────────────────────────────────────────
+# ─── The link ────────────────────────────────────────────────────────────────
 
 def test_a_closed_month_does_not_offer_to_budget_it():
-    """השאלה של מתן."""
+    """Matan's question."""
     rows = [_row(1240)]
 
     html = _render(rows, is_current=False)
@@ -77,32 +77,33 @@ def test_a_closed_month_does_not_offer_to_budget_it():
 
 
 def test_the_current_month_still_offers_it():
-    """זה הרגע שבו אדם מבין שהוא צריך תקציב — הוא רואה ₪1,240 על
-    מכולת. להסיר את זה מהחודש הנוכחי יקבור את התכונה המרכזית חזרה
-    מאחורי ארבעה מסכים."""
+    """This is the moment a person realises they need a budget: they see ₪1,240 on
+    groceries. Removing it from the current month would bury the central feature
+    back behind four screens."""
     rows = [_row(1240)]
 
-    # כפתור אחד בראש הכרטיס (מתן, 30.9) — לא קישור אחרי כל שורה
+    # one button at the top of the card (Matan, 30.9), not a link after each row
     html = _render(rows, is_current=True)
     assert 'id="budgetsOpen"' in html and 'id="sf-budgets"' in html
 
 
-# ─── הניסוח ──────────────────────────────────────────────────────────────────
+# ─── The wording ─────────────────────────────────────────────────────────────
 
 def _budget_text(html):
-    """רק שורת התקציב. המילה "נשאר" מופיעה גם ב"נשאר בעו״ש החודש"
-    במקום אחר בעמוד, ובדיקה על כל ה-HTML הייתה נכשלת עליה."""
+    """Only the budget row. The word "נשאר" also appears in "נשאר בעו״ש החודש"
+    elsewhere on the page, and a check over all the HTML would fail on it."""
     import re
     m = re.search(r'<p class="cat-budget-text">(.*?)</p>', html, re.S)
-    assert m, "שורת התקציב לא רונדרה בכלל"
+    assert m, "the budget row wasn't rendered at all"
     return " ".join(m.group(1).split())
 
 
 def test_a_closed_month_does_not_say_what_is_left_to_spend():
-    """הלב. "נשאר ₪500" על מרץ הוא משפט על היום, מודבק על העבר."""
+    """The heart. "נשאר ₪500" on March is a sentence about today, stuck onto the
+    past."""
     text = _budget_text(_render(_breakdown(spent=1500), is_current=False))
 
-    assert "נשאר" not in text, f"עדיין לשון הווה: {text}"
+    assert "נשאר" not in text, f"still present tense: {text}"
     assert text == "₪1,500 מתוך תקציב של ₪2,000"
 
 
@@ -113,7 +114,8 @@ def test_the_current_month_still_says_what_is_left():
 
 
 def test_an_overrun_reads_the_same_either_way():
-    """"חריגה של ₪300" נכון בשני הזמנים, ואין סיבה לנסח אותו פעמיים."""
+    """"חריגה של ₪300" is true in both tenses, and there is no reason to word it
+    twice."""
     over_now = _render(_breakdown(spent=2300), is_current=True)
     over_then = _render(_breakdown(spent=2300), is_current=False)
 
@@ -122,16 +124,17 @@ def test_an_overrun_reads_the_same_either_way():
 
 
 def test_a_closed_month_shows_the_sentence_without_a_bar():
-    """מתן (13.10): "הקו לא יעיל ולא אינפורמטיבי" — רק המשפט. בחודש שנגמר
-    המשפט עדיין אומר כמה יצא מול התקציב, אז אפשר להסתכל אחורה."""
+    """Matan (13.10): "the line isn't useful and isn't informative": only the
+    sentence. In a month that ended the sentence still says how much went out
+    against the budget, so you can look back."""
     html = _render(_breakdown(spent=1500), is_current=False)
     assert "cat-budget-track" not in html and "cat-budget-fill" not in html
     assert _budget_text(html) == "₪1,500 מתוך תקציב של ₪2,000"
 
 
 def test_the_number_shown_is_what_was_actually_spent():
-    """‎budget_left‎ הוא מה שנשאר, לא מה שיצא. שימוש בו בניסוח החדש
-    היה הופך "הוצאת ₪1,500" ל"הוצאת ₪500"."""
+    """budget_left is what remains, not what went out. Using it in the new wording
+    would turn "הוצאת ₪1,500" into "הוצאת ₪500"."""
     text = _budget_text(_render(_breakdown(spent=1500, budget=2000), is_current=False))
 
     assert "₪1,500 מתוך" in text

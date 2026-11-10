@@ -1,4 +1,4 @@
-"""מייל לבעל האתר כשמשפחה נרשמת או שמישהו מצטרף (מתן, 5.10)."""
+"""An email to the site owner when a family signs up or someone joins (Matan, 5.10)."""
 import pytest
 
 from backend import app as app_module
@@ -17,7 +17,7 @@ def sent(monkeypatch):
     out = []
     monkeypatch.setattr(notify, "_send", lambda key, payload: out.append((key, payload)))
 
-    class _Now:          # ה-thread רץ מיד — כדי שהבדיקה תראה את התוצאה
+    class _Now:          # the thread runs immediately, so the test sees the result
         def __init__(self, target, args, daemon):
             self.t, self.a = target, args
         def start(self):
@@ -50,7 +50,7 @@ def test_a_failing_send_never_raises(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("down")
     monkeypatch.setattr(notify.httpx, "post", boom)
-    notify._send("re_test", {"to": ["x"]})        # לא זורק
+    notify._send("re_test", {"to": ["x"]})        # doesn't raise
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def test_finishing_the_wizard_mails_the_name_and_count(mails):
     subject, lines = mails[0]
     assert subject == "משפחה חדשה ב-SmartFin: משפחת כהן"
     assert "משפחה חדשה נרשמה: משפחת כהן" in lines and "חברי משפחה: 2" in lines
-    # מי פתח אותה — שם מלא, מייל וטלפון (מתן, 5.10)
+    # who opened it: full name, email and phone (Matan, 5.10)
     assert lines[lines.index("מי פתח אותה:") + 1:] == ["שם: מתן שניאור", "מייל: m@example.com", "טלפון: 0501234567"]
 
 
@@ -88,7 +88,7 @@ def test_a_failure_while_preparing_the_mail_does_not_break_the_join(monkeypatch)
         raise db.DataUnavailable("x")
     monkeypatch.setattr(db, "get_family_members", gone)
     with app.test_request_context():
-        app_module._notify_owner_about_family("joined", _FAM)      # לא זורק
+        app_module._notify_owner_about_family("joined", _FAM)      # doesn't raise
 
 
 def test_all_three_entry_points_send_it():
@@ -96,4 +96,4 @@ def test_all_three_entry_points_send_it():
     src = inspect.getsource(app_module)
     assert '_notify_owner_about_family("new", user["family_id"], family_name, person_id=user["id"])' in inspect.getsource(app_module.onboarding_complete)
     assert '_notify_owner_about_family("joined", family_id, person_id=user["id"])' in inspect.getsource(app_module.join_family)
-    assert '_notify_owner_about_family("joined", joined_id, person_id=response.user.id)' in src   # הצטרפות בהרשמה עם קוד
+    assert '_notify_owner_about_family("joined", joined_id, person_id=response.user.id)' in src   # joining at sign-up with a code

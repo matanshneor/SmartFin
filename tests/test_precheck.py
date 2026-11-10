@@ -1,9 +1,11 @@
-"""בדיקה לפני שמירה של עסקה חדשה (מתן, 30.9 — סבב 6, פריטים 6 ו-7).
+"""A check before saving a new transaction (Matan, 30.9: round 6, items 6 and 7).
 
-6 — כפילות: הכל זהה — סוג, קטגוריה, סכום, יום, הערה, פרויקט ומשויך.
-    שאלה ולא חסימה; "הוזנה ע״י אור" רק כשמישהו אחר הזין.
-7 — סכום חריג: פי 5 ומעלה מהעסקה הגדולה בקטגוריה בחצי השנה האחרונה, רק
-    כשיש לפחות 5 קודמות, ולא בהכנסות.
+6: duplicate: everything identical: type, category, amount, day, note, project
+   and attribution. A question, not a block; "הוזנה ע״י אור" only when someone
+   else entered it.
+7: unusual amount: 5 times or more the largest transaction in the category in the
+   last half year, only when there are at least 5 previous ones, and not for
+   income.
 """
 import datetime
 
@@ -36,14 +38,14 @@ def _check(rows, monkeypatch, **payload):
     return db.precheck_transaction(_FAM, _ME, body, today=_TODAY)
 
 
-# ── 6. כפילות ─────────────────────────────────────────────────────────
+# ── 6. Duplicate ──────────────────────────────────────────────────────
 
 def test_the_same_purchase_entered_by_her_is_a_duplicate(monkeypatch):
     r = _check([_tx(320, "2026-09-30", by=_HER, desc="רמי לוי")], monkeypatch, description="רמי לוי")
 
     d = r["duplicate"]
     assert d["amount"] == 320 and d["description"] == "רמי לוי" and d["date"] == "2026-09-30"
-    assert d["by"] == "אור" and d["time"] == "18:40"          # שעון ישראל
+    assert d["by"] == "אור" and d["time"] == "18:40"          # Israel time
 
 
 def test_a_different_day_is_not_a_duplicate(monkeypatch):
@@ -53,7 +55,7 @@ def test_a_different_day_is_not_a_duplicate(monkeypatch):
 
 def test_a_different_description_is_not_a_duplicate(monkeypatch):
     assert _check([_tx(320, "2026-09-30", desc="דלק")], monkeypatch, description="סופר")["duplicate"] is None
-    # רווחים והבדל אותיות לא נחשבים
+    # spaces and letter case don't count
     assert _check([_tx(320, "2026-09-30", desc="Super")], monkeypatch, description=" super ")["duplicate"]
 
 
@@ -81,7 +83,7 @@ def test_different_amount_category_or_type_is_not_a_duplicate(monkeypatch):
     assert _check([_tx(320, "2026-09-30", type_="savings")], monkeypatch)["duplicate"] is None
 
 
-# ── 7. סכום חריג ──────────────────────────────────────────────────────
+# ── 7. Unusual amount ─────────────────────────────────────────────────
 
 def _history(*amounts):
     return [_tx(a, f"2026-0{4 + i % 5}-1{i}", desc="קנייה") for i, a in enumerate(amounts)]
@@ -112,7 +114,7 @@ def test_income_is_never_unusual(monkeypatch):
     assert _check(rows, monkeypatch, amount=50000, type="income", category_id="bonus")["unusual"] is None
 
 
-# ── המסלול ─────────────────────────────────────────────────────────────
+# ── The route ─────────────────────────────────────────────────────────
 
 def test_the_route(monkeypatch):
     app.config["TESTING"] = True
@@ -130,5 +132,5 @@ def test_the_route(monkeypatch):
                                                          "category_id": "food", "date": "2026-09-30"})
         bad = c.post("/api/transactions/precheck", json={"amount": "x", "type": "expense"})
     assert res.status_code == 200 and res.get_json()["duplicate"]["by"] == "אור"
-    # קלט שבור לא מפיל את השמירה — פשוט אין מה להזהיר
+    # broken input doesn't fail the save: there is simply nothing to warn about
     assert bad.status_code == 200 and bad.get_json() == {"duplicate": None, "unusual": None}

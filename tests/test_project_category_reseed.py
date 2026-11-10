@@ -1,7 +1,9 @@
-"""כיבוי מעקב בפרויקט והדלקה מחדש לא מכפילים את הקטגוריות.
+"""Turning tracking off in a project and on again doesn't duplicate the
+categories.
 
-כיבוי לא מוחק את קטגוריות הפרויקט, וההדלקה זרעה את ברירות המחדל שוב —
-כך נוצרו "משכורת" ו"הכנסה נוספת" פעמיים בפרויקט אמיתי (מתן, 9.10)."""
+Turning off doesn't delete the project's categories, and turning on seeded the
+defaults again: that is how "משכורת" and "הכנסה נוספת" were created twice in a
+real project (Matan, 9.10)."""
 import pytest
 
 from backend import supabase_config as db

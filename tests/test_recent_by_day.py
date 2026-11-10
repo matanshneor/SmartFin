@@ -1,8 +1,8 @@
-""""עסקאות אחרונות" בדף הבית (מתן, 30.9).
+""""עסקאות אחרונות" on the home page (Matan, 30.9).
 
-עשר האחרונות שהוזנו, בסדר ההזנה — החדשה למעלה. היום כתוב בתוך כל שורה:
-"היום · רמי לוי", "אתמול", "ראשון, 27.9". (קודם היו כותרות לפי יום, אבל
-בסדר הזנה הן חוזרות על עצמן.)
+The ten most recently entered, in entry order: the newest on top. The day is
+written inside each row: "היום · רמי לוי", "אתמול", "ראשון, 27.9". (There used to
+be headings by day, but in entry order they repeat themselves.)
 """
 import datetime
 
@@ -15,7 +15,7 @@ from backend.wording import day_label
 
 pytestmark = pytest.mark.unit
 
-_TODAY = datetime.date(2026, 9, 30)   # יום רביעי
+_TODAY = datetime.date(2026, 9, 30)   # Wednesday
 
 
 @pytest.mark.parametrize("date, expected", [
@@ -24,7 +24,7 @@ _TODAY = datetime.date(2026, 9, 30)   # יום רביעי
     ("2026-09-27", "ראשון, 27.9"),
     ("2026-09-26", "שבת, 26.9"),
     ("2026-08-03", "שני, 3.8"),
-    ("2025-12-31", "רביעי, 31.12.2025"),   # שנה אחרת — עם השנה
+    ("2025-12-31", "רביעי, 31.12.2025"),   # a different year: with the year
 ])
 def test_day_label(date, expected):
     assert day_label(date, _TODAY) == expected
@@ -73,7 +73,8 @@ def home(monkeypatch):
 
 
 def test_entry_order_is_kept_and_the_day_is_in_the_row(home):
-    """השרת מחזיר לפי סדר ההזנה — ואותו סדר מוצג, גם כשהתאריכים לא לפי הסדר."""
+    """The server returns in entry order, and the same order is shown, even when the
+    dates aren't in order."""
     lst = home([_tx(1, "2026-09-27", "מסעדה"), _tx(2, "2026-09-30", "רמי לוי"), _tx(3, "2026-09-29")])
 
     assert 'class="tx-day' not in lst
@@ -90,16 +91,17 @@ def test_the_old_numeric_date_is_gone(home):
 
 
 def test_ten_rows_are_asked_for(monkeypatch):
-    """"טיפה יותר עסקאות" — עשר במקום חמש."""
+    """"A few more transactions": ten instead of five."""
     from pathlib import Path
     src = (Path(__file__).resolve().parent.parent / "backend/app.py").read_text(encoding="utf-8")
     assert "db.get_recent_transactions(family_id, limit=10," in src
 
 
 def test_recent_skips_recurring_rows_from_months_that_are_over():
-    """מתן (5.10): שכר דירה "מיולי" יצר מיד את יולי–אוקטובר, וכולם קפצו לראש
-    "עסקאות אחרונות". עסקה רגילה מהעבר — נשארת; מהסדרה — רק מהחודש הנוכחי.
-    ‎not.is.true‎: העמודה מאפשרת ‎NULL‎, ושורה כזו היא עסקה רגילה."""
+    """Matan (5.10): rent "from July" created July–October immediately, and they all
+    jumped to the top of "עסקאות אחרונות". A normal transaction from the past stays;
+    from the series, only from the current month.
+    not.is.true: the column allows NULL, and such a row is a normal transaction."""
     f = db._recent_series_filter(datetime.date(2026, 10, 5))
     assert f == "and(is_recurring.not.is.true,recurring_parent_id.is.null),date.gte.2026-10-01"
     import inspect

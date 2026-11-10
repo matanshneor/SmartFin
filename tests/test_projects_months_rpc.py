@@ -1,4 +1,4 @@
-"""עמודי הפרויקטים וההשוואה בנסיעה אחת למסד (מתן, 13.10)."""
+"""The projects and comparison pages in one trip to the database (Matan, 13.10)."""
 from datetime import date
 from pathlib import Path
 
@@ -96,7 +96,7 @@ def test_one_scan_feeds_both_trends():
              "user_id": _ME, "profiles": {"name": "מתן שניאור"}},
             {"id": "b", "amount": 50, "category_id": "food", "date": "2026-10-03", "description": "",
              "user_id": None, "profiles": None},
-            # מחוץ לחלון — נזרקת
+            # outside the window: discarded
             {"id": "c", "amount": 999, "category_id": "food", "date": "2025-11-03", "description": "",
              "user_id": _ME, "profiles": {"name": "מתן"}}]
     cats = [{"id": "food", "name": "סופר", "icon": "🛒", "type": "expense"}]
@@ -120,7 +120,7 @@ def _client():
 def test_the_projects_page_makes_no_other_trip(monkeypatch):
     monkeypatch.setattr(db, "set_auth_token", lambda t: None)
     for fn in ("get_projects", "project_last_activity", "_fetch_family", "_fetch_family_members"):
-        monkeypatch.setattr(db, fn, lambda *a, **k: pytest.fail("שליפה נפרדת"))
+        monkeypatch.setattr(db, fn, lambda *a, **k: pytest.fail("separate query"))
     monkeypatch.setattr(db, "fetch_projects_page", lambda *a, **k: {
         "family": {"id": _FAM}, "settings": dict(db.DEFAULT_FAMILY_SETTINGS),
         "members": [{"id": _ME, "name": "מתן"}],
@@ -137,7 +137,7 @@ def test_the_months_page_makes_no_other_trip(monkeypatch):
     monkeypatch.setattr(db, "materialize_recurring", lambda fid: (0, True))
     for fn in ("get_months_archive", "category_trend", "member_trend",
                "_fetch_categories", "_fetch_family", "_fetch_family_members"):
-        monkeypatch.setattr(db, fn, lambda *a, **k: pytest.fail("שליפה נפרדת"))
+        monkeypatch.setattr(db, fn, lambda *a, **k: pytest.fail("separate query"))
     monkeypatch.setattr(db, "fetch_months_page", lambda *a, **k: {
         "family": {"id": _FAM}, "settings": dict(db.DEFAULT_FAMILY_SETTINGS),
         "members": [{"id": _ME, "name": "מתן"}], "categories": [],

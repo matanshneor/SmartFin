@@ -1,11 +1,13 @@
 """
-בדיקות לפתיחת קבלה מצורפת.
+Tests for opening an attached receipt.
 
-הסמל 📎 לא עשה כלום ב-iPhone. הקוד שלף כתובת מהשרת ב-fetch ואז קרא
-ל-window.open — וב-iOS זה נחסם תמיד: הדפדפן מתיר פתיחת חלון רק כתוצאה
-ישירה מלחיצה, וההמתנה לשרת מנתקת את הקשר. אין חלון, אין שגיאה, אין רמז.
+The 📎 icon did nothing on iPhone. The code fetched a URL from the server with
+fetch and then called window.open, and on iOS that is always blocked: the browser
+allows opening a window only as a direct result of a tap, and waiting for the
+server breaks the link. No window, no error, no hint.
 
-התוצאה בפועל: הקבלות שנסרקו לא היו נגישות מהאפליקציה בטלפון בכלל.
+The actual result: scanned receipts weren't accessible from the app on a phone at
+all.
 """
 from pathlib import Path
 
@@ -22,12 +24,12 @@ _TX   = "11111111-1111-1111-1111-111111111111"
 
 @pytest.fixture
 def client(monkeypatch):
-    # העסקה אינה בפרויקט אישי של מישהו אחר (ראו tx_visible_required)
+    # the transaction isn't in someone else's personal project (see tx_visible_required)
     monkeypatch.setattr(app_module.db, "personal_project_owner", lambda *a: None)
-    # עריכה בודקת את השיוכים הנוכחיים — כאן עסקה משפחתית רגילה
+    # editing checks the current attributions: here a normal family transaction
     monkeypatch.setattr(app_module.db, "transaction_links",
                         lambda *a: {"user_id": None, "project_id": None})
-    # נוגעת בלקוח המשותף, ובבדיקת יחידה אין כזה
+    # touches the shared client, and a unit test has none
     monkeypatch.setattr(app_module.db, "set_auth_token", lambda t: None)
     monkeypatch.setattr(app_module.db, "get_family", lambda *a, **k: {})
     app.config["TESTING"] = True
@@ -39,18 +41,18 @@ def client(monkeypatch):
         yield c
 
 
-# ─── התיקון עצמו ─────────────────────────────────────────────────────────────
+# ─── The fix itself ──────────────────────────────────────────────────────────
 
 def test_the_badge_opens_the_in_app_viewer_and_voiceover_gets_a_real_link(monkeypatch):
-    """הקבלה נפתחת בתוך האפליקציה (‎receipt-viewer.js‎), כך שחסימת חלונות של iOS
-    כבר לא רלוונטית. הסמל בשורה יושב בתוך כפתור העריכה, אז הוא לא קישור —
-    קישור בתוך כפתור הוא מקום ש-VoiceOver לא מגיע אליו (מתן, 13.10). לקורא
-    המסך יש "צפייה בקבלה" אמיתי בחלון העריכה."""
+    """The receipt opens inside the app (receipt-viewer.js), so iOS window blocking is
+    no longer relevant. The icon on the row sits inside the edit button, so it
+    isn't a link: a link inside a button is a place VoiceOver doesn't reach (Matan,
+    13.10). The screen reader has a real "צפייה בקבלה" in the edit window."""
     for page in ("index.html", "month.html", "project_detail.html"):
         html = (_ROOT / "frontend/templates" / page).read_text(encoding="utf-8")
-        assert '<span class="receipt-badge" data-href=' in html, f"{page}: הסמל עדיין קישור"
+        assert '<span class="receipt-badge" data-href=' in html, f"{page}: the icon is still a link"
         assert '<a class="receipt-badge"' not in html
-        assert 'data-receipt-id' not in html, f"{page}: נשאר הכפתור הישן"
+        assert 'data-receipt-id' not in html, f"{page}: the old button remained"
     base = (_ROOT / "frontend/templates/base.html").read_text(encoding="utf-8")
     assert 'id="txReceiptLink"' in base
     viewer = (_ROOT / "frontend/static/js/receipt-viewer.js").read_text(encoding="utf-8")
@@ -58,33 +60,36 @@ def test_the_badge_opens_the_in_app_viewer_and_voiceover_gets_a_real_link(monkey
 
 
 def test_no_javascript_opens_the_receipt_any_more():
-    """מתעלמים מהערות: המילה window.open מופיעה שם בהסבר על התיקון,
-    ובדיקה שתיפול על הסבר היא בדיקה שמישהו ימחק במקום לתקן."""
+    """Comments are ignored: the word window.open appears there in the explanation of
+    the fix, and a test that fails on an explanation is a test someone will delete
+    instead of fixing."""
     import re
     js = (_ROOT / "frontend/static/js/transactions.js").read_text(encoding="utf-8")
-    code = re.sub(r"/\*.*?\*/", "", js, flags=re.S)          # בלוקי הערות
-    code = re.sub(r"^\s*//.*$", "", code, flags=re.M)         # הערות שורה
+    code = re.sub(r"/\*.*?\*/", "", js, flags=re.S)          # comment blocks
+    code = re.sub(r"^\s*//.*$", "", code, flags=re.M)         # line comments
 
-    assert "window.open" not in code, "עדיין נפתח חלון מ-JS — ייחסם ב-iOS"
+    assert "window.open" not in code, "a window is still opened from JS: it will be blocked on iOS"
 
 
 def test_the_row_handlers_still_ignore_the_badge():
-    """בלי ההחרגה, לחיצה על הסמל פותחת גם את מודאל העריכה."""
+    """Without the exclusion, tapping the icon also opens the edit modal."""
     js = (_ROOT / "frontend/static/js/transactions.js").read_text(encoding="utf-8")
 
-    # ה-✕ של עסקה קבועה ירד (מתן, 11.10), אז הוא כבר לא ברשימת ההחרגות
+    # the ✕ of a recurring transaction is gone (Matan, 11.10), so it is no longer in
+    # the exclusion list
     assert js.count(".receipt-badge, .swipe-action") >= 3
 
 
 def test_the_badge_has_a_real_tap_target():
-    """22px בתוך שורה שגם נגררת וגם נלחצת — פספוס פותח עריכה במקום קבלה."""
+    """22px inside a row that is both dragged and tapped: a miss opens editing
+    instead of the receipt."""
     css = (_ROOT / "frontend/static/css/style.css").read_text(encoding="utf-8")
     block = css[css.index(".receipt-badge::before"):][:220]
 
     assert "width: 40px" in block and "height: 40px" in block
 
 
-# ─── המסלול ──────────────────────────────────────────────────────────────────
+# ─── The route ───────────────────────────────────────────────────────────────
 
 def test_it_redirects_to_the_signed_url(client, monkeypatch):
     monkeypatch.setattr(app_module.db, "get_transaction_receipt_path",
@@ -99,7 +104,7 @@ def test_it_redirects_to_the_signed_url(client, monkeypatch):
 
 
 def test_the_signed_url_is_never_cached(client, monkeypatch):
-    """קצרת-מועד ואישית — לא אמורה לשבת במטמון של proxy."""
+    """Short-lived and personal: it shouldn't sit in a proxy cache."""
     monkeypatch.setattr(app_module.db, "get_transaction_receipt_path",
                         lambda tx, fam: "fam/abc.webp")
     monkeypatch.setattr(app_module.db, "get_receipt_signed_url",
@@ -109,7 +114,7 @@ def test_the_signed_url_is_never_cached(client, monkeypatch):
 
 
 def test_a_missing_receipt_shows_a_page_not_json(client, monkeypatch):
-    """זו לשונית שנפתחה בדפדפן. JSON גולמי שם הוא מסך שבור."""
+    """This is a tab opened in the browser. Raw JSON there is a broken screen."""
     monkeypatch.setattr(app_module.db, "get_transaction_receipt_path",
                         lambda tx, fam: None)
 
@@ -120,8 +125,8 @@ def test_a_missing_receipt_shows_a_page_not_json(client, monkeypatch):
 
 
 def test_it_is_not_under_api_so_an_expired_session_goes_to_the_login_page():
-    """תחת /api/ סשן שפג היה מחזיר 401 JSON ללשונית חדשה, במקום להעביר
-    להתחברות. זה ניווט של הדפדפן, לא קריאת רקע."""
+    """Under /api/ an expired session would return 401 JSON to a new tab, instead of
+    sending to sign-in. This is a browser navigation, not a background call."""
     app.config["TESTING"] = True
     response = app.test_client().get(f"/receipts/{_TX}")
 

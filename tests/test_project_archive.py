@@ -1,8 +1,8 @@
-""""פרויקט הסתיים" (מתן, 30.9 — סבב 6, פריט 3).
+""""Project finished" (Matan, 30.9: round 6, item 3).
 
-פרויקט שהסתיים יוצא מהרשימה הראשית, מטופס ההוספה ומההגדרות — ונשאר
-זמין: חלק "פרויקטים שהסתיימו" בעמוד הפרויקטים, העמוד שלו, ועסקה ישנה בו
-שנערכת נשארת בו.
+A finished project leaves the main list, the add form and settings, and stays
+available: the "פרויקטים שהסתיימו" section on the projects page, its own page, and
+an old transaction in it that is edited stays in it.
 """
 import pytest
 
@@ -44,7 +44,8 @@ def test_finished_projects_have_their_own_list(fake):
 
 
 def test_the_form_list_can_include_them_marked(fake):
-    """טופס ההוספה צריך אותם — לעסקה ישנה שנערכת. מסומנים, כדי שלא יוצעו לחדשה."""
+    """The add form needs them, for an old transaction being edited. Marked, so they
+    aren't offered for a new one."""
     allp = db.get_projects(_FAM, _ME, archived=None)
     assert {(p["name"], p["archived"]) for p in allp} == {("טיול", False), ("שיפוץ", True)}
 
@@ -60,7 +61,7 @@ def test_a_missing_project_is_not_marked(fake):
     assert not db.set_project_archived("aaaaaaaa-0000-0000-0000-00000000ffff", _FAM, True)
 
 
-# ── המסלולים ─────────────────────────────────────────────────────────
+# ── The routes ─────────────────────────────────────────────────────────
 
 @pytest.fixture
 def client(monkeypatch, fake):
@@ -89,8 +90,9 @@ def test_the_form_list_route_includes_finished_ones_marked(client):
 
 
 def test_the_projects_page_has_two_sections():
-    """מתן (30.9): הפעילים, ומתחתיהם אלה שהסתיימו — כל חלק לעצמו, ולא
-    חלק סגור בתחתית. מאז 5.10 הפעילים הם מלבנים צבעוניים, והם החלק הראשי של העמוד."""
+    """Matan (30.9): the active ones, and below them the finished ones, each section
+    on its own, and not a closed section at the bottom. Since 5.10 the active ones
+    are coloured boxes, and they are the main part of the page."""
     from pathlib import Path
     tpl = (Path(__file__).resolve().parent.parent / "frontend/templates/projects.html").read_text(encoding="utf-8")
     assert 'aria-label="פרויקטים פעילים"' in tpl
@@ -108,8 +110,9 @@ def test_the_page_renders_both_lists(client):
 
 
 def test_no_active_projects_invites_to_start_one(client, fake):
-    """בלי פרויקטים פעילים — לא "אין כלום", אלא הזמנה להתחיל עם רעיונות
-    (מתן, 5.10). כשיש כאלה שהסתיימו, המלבן אומר "פרויקט חדש" ולא "הראשון"."""
+    """With no active projects: not "there's nothing", but an invitation to start,
+    with ideas (Matan, 5.10). When there are finished ones, the box says "פרויקט
+    חדש" and not "the first"."""
     client.put(f"/api/projects/{_P_ACTIVE}/archive", json={"archived": True})
     html = client.get("/projects").get_data(as_text=True)
     active = html[html.index('id="activeProjects"'):]
@@ -120,7 +123,8 @@ def test_no_active_projects_invites_to_start_one(client, fake):
 
 
 def test_one_active_project_is_the_default_for_plus(client):
-    """מתן (1.10): בעמוד הפרויקטים, עם פרויקט פעיל אחד, + פותח טופס שהוא בחור בו."""
+    """Matan (1.10): on the projects page, with one active project, + opens a form
+    with it selected."""
     html = client.get("/projects").get_data(as_text=True)
     assert f'<span id="sfPageProject" data-project-id="{_P_ACTIVE}" hidden></span>' in html
 
@@ -138,7 +142,7 @@ def test_no_active_project_no_default(client):
 
 
 def test_settings_has_no_plus():
-    """מתן (1.10): בהגדרות אין + להוספת עסקה."""
+    """Matan (1.10): settings have no + for adding a transaction."""
     from pathlib import Path
     root = Path(__file__).resolve().parent.parent
     tpl = (root / "frontend/templates/settings.html").read_text(encoding="utf-8")
@@ -147,8 +151,9 @@ def test_settings_has_no_plus():
 
 
 def test_finished_projects_are_small_but_still_open(client):
-    """מתן (30.9): אלה שהסתיימו קטנים יותר מהפעילים, אבל עדיין קישור לעמוד
-    הפרויקט. מאז 5.10: מלבנים לפעילים, תגיות לאלה שהסתיימו."""
+    """Matan (30.9): the finished ones are smaller than the active ones, but still a
+    link to the project page. Since 5.10: boxes for active ones, tags for finished
+    ones."""
     html = client.get("/projects").get_data(as_text=True)
     active = html[html.index('id="activeProjects"'):html.index('id="finishedProjects"')]
     finished = html[html.index('id="finishedProjects"'):]
@@ -159,15 +164,15 @@ def test_finished_projects_are_small_but_still_open(client):
 
 
 def test_settings_says_no_recurring_instead_of_zero():
-    """מתן (30.9): "אין עסקאות קבועות", לא "0 עסקאות חוזרות פעילות". מ-11.10
-    אין שורת ספירה מתחת לכותרת — והקבוצה הריקה אומרת את זה בפנים."""
+    """Matan (30.9): "אין עסקאות קבועות", not "0 עסקאות חוזרות פעילות". Since 11.10
+    there is no count row under the heading, and the empty group says it inside."""
     from pathlib import Path
     tpl = (Path(__file__).resolve().parent.parent / "frontend/templates/settings.html").read_text(encoding="utf-8")
     assert "עסקאות קבועות פעילות" not in tpl and "0 עסקאות" not in tpl
     assert '<p class="empty-text">אין עסקאות קבועות עדיין</p>' in tpl
 
 
-# ─── פרויקט שנמחק רגע קודם (סקירה של 1.10) ───────────────────────────────────
+# ─── A project deleted a moment earlier (review of 1.10) ─────────────────────
 
 _GONE = "aaaaaaaa-0000-0000-0000-00000000dead"
 
@@ -183,12 +188,14 @@ def test_unsharing_a_just_deleted_project_says_so(fake):
 
 
 def test_editing_a_just_deleted_project_is_a_404(client):
-    """בדיקת הגישה לפרויקט (‎project_access_required‎) כבר עונה 404 לפני
-    הפעולה — אותו "לא נמצא" כמו לפרויקט אישי של אחר, בכוונה."""
+    """The project access check (project_access_required) already answers 404 before
+    the action: the same "not found" as for someone else's personal project, on
+    purpose."""
     res = client.put(f"/api/projects/{_GONE}", json={"name": "טיול", "track_expense": True})
     assert res.status_code == 404
 
 
 def test_the_update_itself_tells_a_vanished_project_apart(fake):
-    """ובחלקיק השנייה שבין הבדיקה לפעולה — ‎None‎, והמסלול עונה 404 ולא 500."""
+    """And in the split second between the check and the action: None, and the route
+    answers 404 and not 500."""
     assert db.update_project(_GONE, _FAM, name="טיול") is None

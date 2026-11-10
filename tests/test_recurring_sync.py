@@ -1,12 +1,14 @@
 """
-בדיקות למתי מנוע העסקאות הקבועות רץ.
+Tests for when the recurring transactions engine runs.
 
-הוא רץ רק מהדשבורד. מי שהגיע ישר לעמוד החודש — מסימנייה, מהתפריט התחתון
-או מקישור — ראה חודש **בלי המשכורת ובלי ההוראות הקבועות**, בלי שום דבר
-שיסביר למה. המספרים תוקנו רק אם במקרה עבר דרך דף הבית.
+It ran only from the dashboard. Whoever came straight to the month page (from a
+bookmark, the bottom menu or a link) saw a month **without the salary and without
+the standing orders**, with nothing to explain why. The numbers were fixed only if
+they happened to pass through the home page.
 
-ובאג שני באותו מקום: הסימון "סונכרן להיום" נכתב גם כשהיצירה נכשלה, אז
-הניסיון הבא היה רק למחרת. כשל שנראה כהצלחה משאיר חודש שלם חסר.
+And a second bug in the same place: the "synced for today" mark was written even
+when creation failed, so the next attempt was only the next day. A failure that
+looks like success leaves a whole month missing.
 """
 import pytest
 
@@ -21,7 +23,7 @@ _FAM = "11111111-1111-1111-1111-111111111111"
 @pytest.fixture
 def client(monkeypatch):
     app.config["TESTING"] = True
-    # שאר הדף לא מעניין כאן — רק מתי הסנכרון נקרא
+    # the rest of the page isn't of interest here: only when the sync is called
     from backend import supabase_config as _db
     for fn, val in [
         ("get_family_settings", dict(_db.DEFAULT_FAMILY_SETTINGS)),
@@ -30,15 +32,15 @@ def client(monkeypatch):
         ("family_has_no_transactions", False), ("get_recent_transactions", []),
         ("get_months_archive", []),
         ("fetch_month_rows", []), ("get_recurring_transactions", []),
-        # עמוד החודש עבר לנסיעה אחת (get_month_page); שאר העמודים עדיין
-        # קוראים לשולפים הבודדים שלמעלה, אז שניהם מזויפים כאן.
+        # The month page moved to one trip (get_month_page); the other pages still
+        # call the individual fetchers above, so both are faked here.
         ("fetch_month_page", {"family": {}, "settings": dict(_db.DEFAULT_FAMILY_SETTINGS),
                               "members": [], "categories": [], "rows": [], "archive": []}),
         ("get_month_transactions", []),
     ]:
-        # בלי ‎raising=True‎ (ברירת המחדל) שם שהשתנה נבלע בשקט. שלושה
-        # שמות ברשימה הזאת כבר לא היו קיימים — הזיוף לא עשה כלום, אף
-        # אחד לא ידע, והבדיקה נשארה ירוקה מעל דפוס שבור.
+        # Without raising=True (the default) a renamed name is silently swallowed.
+        # Three names in this list no longer existed: the fake did nothing, nobody
+        # knew, and the test stayed green over a broken pattern.
         monkeypatch.setattr(app_module.db, fn, lambda *a, _v=val, **k: _v)
     monkeypatch.setattr(app_module, "family_settings",
                         lambda: dict(_db.DEFAULT_FAMILY_SETTINGS))
@@ -49,7 +51,7 @@ def client(monkeypatch):
         yield c
 
 
-# ─── מאילו עמודים זה רץ ──────────────────────────────────────────────────────
+# ─── Which pages it runs from ────────────────────────────────────────────────
 
 @pytest.mark.parametrize("path,why", [
     ("/",       "הדשבורד — היה היחיד"),
@@ -64,12 +66,12 @@ def test_opening_a_page_with_monthly_figures_fills_in_the_recurring_ones(
 
     client.get(path)
 
-    assert calls == [_FAM], f"{path} לא מסנכרן — {why}"
+    assert calls == [_FAM], f"{path} doesn't sync: {why}"
 
 
 def test_it_runs_once_a_day_and_not_on_every_page_load(client, monkeypatch):
-    """בקרת-נגד: זו כתיבה למסד, לא שליפה. הרצה בכל טעינה הייתה מכפילה
-    את עלות כל עמוד."""
+    """Control: this is a write to the database, not a fetch. Running on every load
+    would double the cost of every page."""
     calls = []
     monkeypatch.setattr(app_module.db, "materialize_recurring",
                         lambda fid: (calls.append(fid) or (0, True)))
@@ -78,14 +80,14 @@ def test_it_runs_once_a_day_and_not_on_every_page_load(client, monkeypatch):
     client.get("/month")
     client.get("/months")
 
-    assert len(calls) == 1, f"רץ {len(calls)} פעמים באותו יום"
+    assert len(calls) == 1, f"ran {len(calls)} times on the same day"
 
 
-# ─── כישלון לא מסמן הצלחה ────────────────────────────────────────────────────
+# ─── A failure doesn't mark success ──────────────────────────────────────────
 
 def test_a_failed_run_is_retried_on_the_next_page_load(client, monkeypatch):
-    """הלב של הבאג השני: סימון "סונכרן" אחרי כישלון דחה את הניסיון הבא
-    למחר, והשאיר חודש בלי משכורת עד אז."""
+    """The heart of the second bug: marking "synced" after a failure pushed the next
+    attempt to tomorrow, and left a month without the salary until then."""
     calls = []
     monkeypatch.setattr(app_module.db, "materialize_recurring",
                         lambda fid: (calls.append(fid) or (0, False)))
@@ -93,14 +95,14 @@ def test_a_failed_run_is_retried_on_the_next_page_load(client, monkeypatch):
     client.get("/")
     client.get("/month")
 
-    assert len(calls) == 2, "כישלון סומן כהצלחה — לא ינוסה שוב עד מחר"
+    assert len(calls) == 2, "a failure was marked as success: it won't be retried until tomorrow"
 
     with client.session_transaction() as sess:
         assert "recurring_synced" not in sess
 
 
 def test_a_successful_run_is_marked(client, monkeypatch):
-    """בקרת-נגד: בלי הסימון זה היה רץ בכל טעינת עמוד."""
+    """Control: without the mark this would run on every page load."""
     monkeypatch.setattr(app_module.db, "materialize_recurring", lambda fid: (3, True))
 
     client.get("/")

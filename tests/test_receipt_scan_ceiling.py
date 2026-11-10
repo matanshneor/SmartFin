@@ -1,14 +1,15 @@
 """
-המסלול היחיד שעולה כסף — והיחיד בלי שום בלם.
+The only route that costs money, and the only one with no brake at all.
 
-‎/api/receipts/scan‎ קורא ל-OpenAI. המכסה הייתה 100 סריקות **לכל
-משפחה**, וההרשמה פתוחה: כל חשבון חדש מקבל משפחה, ואיתה מכסה טרייה.
-כלומר לא הייתה שום תקרה על הסכום הכולל. ומבין 23 המסלולים הכותבים
-באפליקציה, זה היה היחיד בלי הגבלת קצב בכלל.
+/api/receipts/scan calls OpenAI. The quota was 100 scans **per family**, and
+sign-up is open: every new account gets a family, and with it a fresh quota. That
+is, there was no ceiling on the total at all. And of the app's 23 writing routes,
+this was the only one with no rate limit at all.
 
-יש גם תקרת חיוב בלוח הבקרה של OpenAI, והיא רשת הביטחון האחרונה.
-התקרה כאן קיימת כי היא נכשלת אחרת: בעברית, עם הצעה להזין ידנית, במקום
-שהמפתח ייחסם ותתקבל שגיאת API סתומה שנראית למשתמש כמו באג.
+There is also a billing cap in the OpenAI dashboard, and it is the last safety
+net. The ceiling here exists because it fails differently: in Hebrew, with an
+offer to enter manually, instead of the key being blocked and an opaque API error
+that looks to the user like a bug.
 """
 import io
 from datetime import datetime, timezone
@@ -37,7 +38,7 @@ def client(monkeypatch):
     monkeypatch.setattr(app_module.db, "get_categories", lambda *a, **k: [])
     monkeypatch.setattr(app_module.db, "record_receipt_scan", lambda *a, **k: None)
     monkeypatch.setattr(app_module.db, "upload_receipt", lambda *a, **k: (None, None))
-    # אותם מפתחות שהפונקציה האמיתית מבטיחה תמיד (ראו scan_receipt)
+    # the same keys the real function always guarantees (see scan_receipt)
     monkeypatch.setattr(app_module.db, "scan_receipt", lambda *a, **k: (
         {"amount": 12.5, "merchant": "סופר", "date": "2026-09-20",
          "category_name": None}, None))
@@ -58,10 +59,10 @@ def _scan(client):
                        data={"image": (io.BytesIO(b"\xff\xd8fake"), "r.jpg", "image/jpeg")})
 
 
-# ─── התקרה הגלובלית ─────────────────────────────────────────────────────────
+# ─── The global ceiling ─────────────────────────────────────────────────────
 
 def test_the_service_stops_when_everyone_together_hits_the_ceiling(client, monkeypatch):
-    """הלב: המשפחה הזאת ניצלה 0 מתוך 100 שלה, והסריקה בכל זאת נעצרת."""
+    """The heart: this family used 0 of its 100, and the scan still stops."""
     _quota(monkeypatch, mine=0, everyone=app_module.db.RECEIPT_GLOBAL_MONTHLY_LIMIT)
 
     res = _scan(client)
@@ -71,7 +72,8 @@ def test_the_service_stops_when_everyone_together_hits_the_ceiling(client, monke
 
 
 def test_the_message_does_not_blame_the_person_standing_there(client, monkeypatch):
-    """הוא לא ניצל שום מכסה. הודעה על "המכסה שלכם" הייתה פשוט שקר."""
+    """They didn't use up any quota. A message about "your quota" would simply be a
+    lie."""
     _quota(monkeypatch, mine=0, everyone=99999)
 
     error = _scan(client).get_json()["error"]
@@ -81,7 +83,7 @@ def test_the_message_does_not_blame_the_person_standing_there(client, monkeypatc
 
 
 def test_one_below_the_ceiling_still_works(client, monkeypatch):
-    """בקרת-נגד: שגיאת גדר-אחת כאן משביתה את התכונה ליום שלם."""
+    """Control: an off-by-one error here disables the feature for a whole day."""
     _quota(monkeypatch, mine=0, everyone=app_module.db.RECEIPT_GLOBAL_MONTHLY_LIMIT - 1)
 
     assert _scan(client).status_code == 200
@@ -97,7 +99,7 @@ def test_the_family_quota_still_applies_on_its_own(client, monkeypatch):
 
 
 def test_a_failed_count_refuses_rather_than_guessing(client, monkeypatch):
-    """אישור כשהבדיקה נכשלה מבטל בפועל את ההגבלה על ההוצאה."""
+    """Allowing when the check failed effectively cancels the spending limit."""
     def _boom():
         raise app_module.db.DataUnavailable("global")
     monkeypatch.setattr(app_module.db, "receipt_scans_this_month", lambda *a: 0)
@@ -107,8 +109,8 @@ def test_a_failed_count_refuses_rather_than_guessing(client, monkeypatch):
 
 
 def test_the_ceiling_can_be_raised_without_a_deploy(monkeypatch):
-    """מספר שמצריך פריסה כדי לשנות אותו הוא מספר שיישאר שגוי בדיוק
-    כשצריך לשנות אותו."""
+    """A number that needs a deploy to change is a number that will stay wrong exactly
+    when it needs changing."""
     import importlib
     monkeypatch.setenv("RECEIPT_GLOBAL_MONTHLY_LIMIT", "12345")
     db = importlib.reload(app_module.db)
@@ -119,30 +121,31 @@ def test_the_ceiling_can_be_raised_without_a_deploy(monkeypatch):
         importlib.reload(db)
 
 
-# ─── הגבלת קצב ──────────────────────────────────────────────────────────────
+# ─── Rate limit ─────────────────────────────────────────────────────────────
 
 def test_the_expensive_route_is_rate_limited(client, monkeypatch):
-    """23 מסלולים כותבים, וזה היה היחיד בלי הגבלה — דווקא היקר."""
+    """23 writing routes, and this was the only one without a limit: the expensive one
+    of all."""
     _quota(monkeypatch, mine=0, everyone=0)
 
     codes = [_scan(client).status_code for _ in range(12)]
 
-    assert 429 in codes, "אין הגבלת קצב על סריקת קבלות"
+    assert 429 in codes, "no rate limit on receipt scanning"
 
 
 def test_a_normal_person_never_meets_the_rate_limit(client, monkeypatch):
-    """סריקה אחת לוקחת 2-6 שניות. מי שסורק שלוש קבלות ברצף הוא אדם,
-    לא סקריפט, והוא לא אמור להיחסם."""
+    """One scan takes 2-6 seconds. Whoever scans three receipts in a row is a person,
+    not a script, and shouldn't be blocked."""
     _quota(monkeypatch, mine=0, everyone=0)
 
     assert [_scan(client).status_code for _ in range(3)] == [200, 200, 200]
 
 
-# ─── שתי הספירות מתאפסות יחד ────────────────────────────────────────────────
+# ─── Both counts reset together ─────────────────────────────────────────────
 
 def test_both_counts_share_one_month_boundary():
-    """השרת רץ ב-UTC והחודש נמדד בשעון ישראל. שני גבולות שונים היו
-    מאפסים את המכסות בשעות שונות."""
+    """The server runs in UTC and the month is measured in Israel time. Two different
+    boundaries would reset the quotas at different hours."""
     from backend import supabase_config as db
     import inspect
 
@@ -153,10 +156,11 @@ def test_both_counts_share_one_month_boundary():
     assert "_month_start()" in glob
 
 
-# ─── תחילת החודש בשעון ישראל, לא ב-UTC ──────────────────────────────────────
+# ─── The start of the month in Israel time, not UTC ─────────────────────────
 #
-# ‎"2026-10-01"‎ נשלח כמחרוזת תאריך, והמסד (UTC) פירש אותו כחצות UTC —
-# 03:00 בישראל בקיץ. סריקה ב-1 לחודש ב-01:30 נספרה לחודש הקודם.
+# "2026-10-01" was sent as a date string, and the database (UTC) interpreted it as
+# UTC midnight: 03:00 in Israel in summer. A scan on the 1st of the month at 01:30
+# was counted to the previous month.
 
 @pytest.mark.parametrize("israel_now,start,utc", [
     (datetime(2026, 10, 1, 1, 30), "2026-10-01T00:00:00+03:00", "2026-09-30T21:00:00+00:00"),

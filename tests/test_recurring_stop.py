@@ -1,15 +1,17 @@
 """
-בדיקות להסרת עסקה קבועה.
+Tests for removing a recurring transaction.
 
-הדיאלוג בהגדרות מבטיח: "מופעים חדשים יפסיקו להיווצר. מופעים שכבר נוצרו
-יישארו." בפועל הכפתור הריץ מחיקה מלאה של שורת התבנית — ושורת התבנית היא
-עסקה אמיתית לכל דבר: היא המופע הראשון בסדרה, והיא נספרת בסיכום החודשי
-(get_monthly_summary לא מסננת is_recurring). כלומר שכר הדירה של החודש
-הראשון נמחק מההיסטוריה בשקט, בניגוד גמור להבטחה שהמשתמש הרגע קרא.
+The dialog in settings promises: "מופעים חדשים יפסיקו להיווצר. מופעים שכבר נוצרו
+יישארו." In practice the button ran a full delete of the template row, and the
+template row is a real transaction in every respect: it is the first occurrence
+in the series, and it is counted in the monthly summary (get_monthly_summary
+doesn't filter is_recurring). That is, the first month's rent was silently deleted
+from history, in complete contradiction to the promise the user had just read.
 
-ובנוסף: המחיקה ניתקה את כל המופעים מהתבנית (on delete set null), כך
-שמנגנון הדדופ הפסיק לראות אותם. מי שיצר את אותה עסקה קבועה מחדש קיבל
-את כל החודשים בשנית — שכר דירה כפול על עשרה חודשים.
+And in addition: the delete detached all the occurrences from the template (on
+delete set null), so the dedup mechanism stopped seeing them. Whoever recreated the
+same recurring transaction got all the months a second time: double rent over ten
+months.
 """
 from pathlib import Path
 
@@ -27,7 +29,7 @@ _FAM = "22222222-2222-2222-2222-222222222222"
 
 
 class _FakeClient:
-    """מתעד מה נעשה — עדכון או מחיקה — ואיזה שדות נשלחו."""
+    """Records what was done (update or delete) and which fields were sent."""
 
     def __init__(self):
         self.updated = None
@@ -45,9 +47,9 @@ class _FakeClient:
 
 @pytest.fixture
 def client(monkeypatch):
-    # העסקה אינה בפרויקט אישי של מישהו אחר (ראו tx_visible_required)
+    # the transaction isn't in someone else's personal project (see tx_visible_required)
     monkeypatch.setattr(app_module.db, "personal_project_owner", lambda *a: None)
-    # עריכה בודקת את השיוכים הנוכחיים — כאן עסקה משפחתית רגילה
+    # editing checks the current attributions: here a normal family transaction
     monkeypatch.setattr(app_module.db, "transaction_links",
                         lambda *a: {"user_id": None, "project_id": None})
     app.config["TESTING"] = True
@@ -60,21 +62,21 @@ def client(monkeypatch):
         yield c, fake
 
 
-# ─── ההבטחה שבדיאלוג ─────────────────────────────────────────────────────────
+# ─── The dialog's promise ────────────────────────────────────────────────────
 
 def test_removing_a_recurring_series_does_not_delete_the_transaction(client):
-    """הלב: שורת התבנית היא כסף שזז באמת, ואסור שתיעלם."""
+    """The heart: the template row is money that really moved, and it mustn't vanish."""
     c, fake = client
 
     response = c.delete(f"/api/recurring/{_TX}")
 
     assert response.status_code == 200
-    assert fake.deleted is False, "העסקה נמחקה — כסף אמיתי הוצא מההיסטוריה"
+    assert fake.deleted is False, "the transaction was deleted: real money was taken out of history"
     assert fake.updated is not None
 
 
 def test_removing_a_recurring_series_does_stop_future_occurrences(client):
-    """בקרת-נגד: אם לא כיבינו את הדגל, לא עשינו כלום."""
+    """Control: if we didn't turn the flag off, we did nothing."""
     c, fake = client
 
     c.delete(f"/api/recurring/{_TX}")
@@ -84,26 +86,27 @@ def test_removing_a_recurring_series_does_stop_future_occurrences(client):
 
 
 def test_the_dialog_no_longer_promises_something_the_code_does_not_do():
-    """ההודעה והקוד חייבים להסכים; הם לא הסכימו, וזה היה כל הבאג."""
-    # המטפל עבר מ-settings.js ל-transactions.js כשאותה רשימה נוספה
-    # לעמוד החודש. הבדיקה מחפשת אותו איפה שהוא — קיבוע שם הקובץ הוא
-    # שהפיל אותה, ולא שום שינוי בהתנהגות שהיא באמת שומרת עליה.
+    """The message and the code must agree; they didn't, and that was the whole bug."""
+    # The handler moved from settings.js to transactions.js when the same list was
+    # added to the month page. The test looks for it wherever it is: pinning the
+    # file name is what broke it, not any change in the behaviour it really
+    # guards.
     owners = [f for f in (_ROOT / "frontend/static/js").glob("*.js")
               if "להסיר את העסקה הקבועה?" in f.read_text(encoding="utf-8")]
-    assert len(owners) == 1, f"הדיאלוג מופיע ב-{[f.name for f in owners]} — עותק כפול או נעלם"
+    assert len(owners) == 1, f"the dialog appears in {[f.name for f in owners]}: a duplicate copy or gone"
 
     js = owners[0].read_text(encoding="utf-8")
     block = js[js.index("להסיר את העסקה הקבועה?"):][:1200]
 
-    assert "/api/recurring/" in block, "עדיין קורא למסלול שמוחק את השורה"
+    assert "/api/recurring/" in block, "still calls the route that deletes the row"
     assert "/api/transactions/" not in block
 
 
-# ─── בידוד בין משפחות ────────────────────────────────────────────────────────
+# ─── Isolation between families ──────────────────────────────────────────────
 
 def test_a_missing_or_foreign_series_is_refused(client, monkeypatch):
-    """המסלול מסנן לפי family_id; שורה שלא נמצאה חייבת להחזיר 404 ולא
-    'הצלחה' על כלום."""
+    """The route filters by family_id; a row not found must return 404 and not
+    'success' on nothing."""
     c, fake = client
     monkeypatch.setattr(type(fake), "data", property(lambda self: []))
 
@@ -113,7 +116,7 @@ def test_a_missing_or_foreign_series_is_refused(client, monkeypatch):
 
 
 def test_the_query_is_scoped_to_the_callers_family():
-    """קריאה ישירה לשכבת ה-DB — הפילטר על family_id חייב להיות שם."""
+    """A direct call to the DB layer: the family_id filter must be there."""
     import inspect
     src = inspect.getsource(db.stop_recurring)
 

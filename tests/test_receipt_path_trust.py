@@ -1,8 +1,10 @@
-"""נתיב הקבלה מגיע מהלקוח — השרת בודק אותו, ולא מוחק קובץ שעוד בשימוש.
+"""The receipt path comes from the client: the server checks it, and doesn't
+delete a file still in use.
 
-האחסון כבר חוסם משפחה אחרת (מדיניות ‎receipts_family_*‎). מה שנשאר פתוח
-היה בתוך המשפחה, ורק בבקשה ידנית: להצמיד לעסקה ב' את הקבלה של עסקה א'.
-אז מחיקת ב' מחקה את הקובץ, ולעסקה א' — מקרר, אחריות — נשארה קבלה שבורה.
+Storage already blocks another family (the receipts_family_* policies). What was
+left open was within the family, and only with a hand-crafted request: attaching
+transaction A's receipt to transaction B. Then deleting B deleted the file, and
+transaction A (a fridge, a warranty) was left with a broken receipt.
 """
 import pytest
 
@@ -50,12 +52,12 @@ def env(monkeypatch):
         yield c, fake, deleted
 
 
-# ─── הנתיב עצמו ─────────────────────────────────────────────────────────────
+# ─── The path itself ────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("path", [
-    f"{_OTHER}/5f0c1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b.jpg",   # תיקייה של משפחה אחרת
-    f"{_FAM}/../{_OTHER}/x.jpg",                            # יציאה מהתיקייה
-    f"{_FAM}/receipt.jpg",                                  # שם שהאפליקציה לא יוצרת
+    f"{_OTHER}/5f0c1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b.jpg",   # another family's folder
+    f"{_FAM}/../{_OTHER}/x.jpg",                            # escaping the folder
+    f"{_FAM}/receipt.jpg",                                  # a name the app doesn't create
     "x" * 300,
 ], ids=["other-family", "traversal", "made-up-name", "garbage"])
 def test_a_path_the_app_did_not_create_is_refused(env, path):
@@ -70,7 +72,7 @@ def test_a_path_the_app_did_not_create_is_refused(env, path):
 
 
 def test_a_path_the_app_created_is_accepted(env):
-    """בקרת-נגד."""
+    """Control."""
     client, fake, _ = env
 
     r = client.post("/api/transactions", json={"amount": 5, "type": "expense", "date": "2026-09-02",
@@ -80,17 +82,17 @@ def test_a_path_the_app_created_is_accepted(env):
     assert fake.rows("transactions")[-1]["receipt_path"] == _FILE
 
 
-# ─── מחיקה ──────────────────────────────────────────────────────────────────
+# ─── Deletion ───────────────────────────────────────────────────────────────
 
 def test_deleting_the_coffee_keeps_the_fridge_receipt(env):
     client, _, deleted = env
 
     assert client.delete(f"/api/transactions/{_COFFEE}").status_code == 200
-    assert deleted == [], "הקבלה של המקרר נמחקה עם הקפה"
+    assert deleted == [], "the fridge's receipt was deleted with the coffee"
 
 
 def test_deleting_the_last_user_of_a_file_deletes_it(env):
-    """בקרת-נגד: קבלה שאף אחד לא מצביע עליה עדיין נמחקת עם העסקה."""
+    """Control: a receipt nobody points to is still deleted with the transaction."""
     client, _, deleted = env
     client.delete(f"/api/transactions/{_COFFEE}")
 
@@ -99,7 +101,7 @@ def test_deleting_the_last_user_of_a_file_deletes_it(env):
 
 
 def test_when_the_check_fails_the_file_stays(env, monkeypatch):
-    """"לא ידוע אם בשימוש" — עדיף קובץ מיותר באחסון מקבלה שבורה."""
+    """"Unknown if in use": better a redundant file in storage than a broken receipt."""
     client, fake, deleted = env
     fake.tables["transactions"] = [_tx(_FRIDGE, receipt_path=_FILE)]
     def down(*a):
@@ -112,7 +114,7 @@ def test_when_the_check_fails_the_file_stays(env, monkeypatch):
 
 def test_deleting_a_project_keeps_files_used_outside_it(env, monkeypatch):
     client, fake, deleted = env
-    fake.tables["transactions"][1]["project_id"] = "p1"          # הקפה בפרויקט, המקרר לא
+    fake.tables["transactions"][1]["project_id"] = "p1"          # the coffee in the project, the fridge not
     monkeypatch.setattr(db, "get_project_for_transaction",
                         lambda pid, fam: {"id": pid, "owner_id": None})
     def delete_project(pid, fam):

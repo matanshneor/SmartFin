@@ -1,17 +1,18 @@
 """
-בדיקות לכישלון חולף בשליפת הפרופיל בזמן התחברות.
+Tests for a transient failure fetching the profile during sign-in.
 
-זה היה הבאג ההרסני ביותר שהביקורת מצאה, והוא כולו נובע מהבדל אחד שלא
-נעשה: get_profile החזיר None גם כש"אין פרופיל" וגם כש"השרת לא ענה".
+This was the most destructive bug the review found, and it all stems from one
+distinction that wasn't made: get_profile returned None both for "no profile" and
+for "the server didn't answer".
 
-השרשרת: תקלת רשת של שתי שניות בזמן התחברות ← get_profile מחזיר None ←
-המסלול מסיק שאין family_id ← ensure_family מסיק שאין משפחה ← הוא יוצר
-משפחה חדשה **ודורס את השיוך הקיים**. המשתמש נוחת על דשבורד ריק, וכל
-העסקאות שלו נשארות מאחורי family_id ישן שאין אליו דרך חזרה מהממשק.
-בן הזוג נשאר במשפחה הישנה, ומאותו רגע השניים מזינים לשני תקציבים
-נפרדים בלי לדעת.
+The chain: a two-second network glitch during sign-in → get_profile returns None
+→ the route infers there is no family_id → ensure_family infers there is no
+family → it creates a new family **and overwrites the existing link**. The user
+lands on an empty dashboard, and all their transactions stay behind an old
+family_id with no way back from the UI. The partner stays in the old family, and
+from that moment the two enter into two separate budgets without knowing.
 
-הכלל שנבדק כאן: לעולם לא להסיק "אין" מתוך "לא הצלחתי לבדוק".
+The rule tested here: never infer "none" from "I couldn't check".
 """
 import pytest
 
@@ -49,10 +50,10 @@ def _login(client):
     return client.post("/login", data={"identifier": "dana@example.com", "password": "x"})
 
 
-# ─── ההבחנה עצמה ─────────────────────────────────────────────────────────────
+# ─── The distinction itself ──────────────────────────────────────────────────
 
 def test_a_failed_read_is_not_reported_as_a_missing_profile(monkeypatch):
-    """הלב. בלי ההבחנה הזאת כל שאר הבדיקות כאן לא יכולות לעבוד."""
+    """The heart. Without this distinction none of the other tests here can work."""
     class _Boom:
         def table(self, *a, **k): raise RuntimeError("Supabase לא ענה")
 
@@ -60,12 +61,12 @@ def test_a_failed_read_is_not_reported_as_a_missing_profile(monkeypatch):
     profile, ok = db.fetch_profile("some-user")
 
     assert profile is None
-    assert ok is False, "כישלון שליפה דווח כ'אין פרופיל'"
+    assert ok is False, "a fetch failure was reported as 'no profile'"
 
 
 def test_a_genuinely_missing_profile_is_reported_as_an_answer(monkeypatch):
-    """בקרת-נגד: 'אין שורה' הוא תשובה תקפה ולא תקלה, אחרת משתמש חדש
-    לגמרי לעולם לא יקבל משפחה."""
+    """Control: 'no row' is a valid answer and not a fault; otherwise a brand-new
+    user would never get a family."""
     from postgrest.exceptions import APIError
 
     class _Empty:
@@ -81,14 +82,14 @@ def test_a_genuinely_missing_profile_is_reported_as_an_answer(monkeypatch):
     profile, ok = db.fetch_profile("some-user")
 
     assert profile is None
-    assert ok is True, "משתמש בלי פרופיל טופל כתקלה — הוא לא יוכל להיווצר"
+    assert ok is True, "a user with no profile was treated as a fault: they can't be created"
 
 
-# ─── ההשלכה המסוכנת ──────────────────────────────────────────────────────────
+# ─── The dangerous consequence ───────────────────────────────────────────────
 
 def test_a_failed_read_never_creates_a_family(monkeypatch):
-    """זו השורה שהרסה את הנתונים: יצירת משפחה על סמך כישלון דורסת את
-    השיוך הקיים ומנתקת את המשתמש מכל ההיסטוריה שלו."""
+    """This is the line that destroyed the data: creating a family based on a failure
+    overwrites the existing link and cuts the user off from all their history."""
     created = []
 
     class _Recorder:
@@ -108,12 +109,12 @@ def test_a_failed_read_never_creates_a_family(monkeypatch):
 
 
 def test_a_missing_profile_does_still_get_a_family(monkeypatch):
-    """בקרת-נגד: הזהירות לא אמורה לשבור משתמש חדש אמיתי."""
+    """Control: the caution shouldn't break a real new user."""
     calls = []
 
     class _Fake:
-        # היצירה עוברת דרך RPC ולא בכתיבה ישירה: כתיבה ל-profiles.family_id
-        # חסומה ברמת ההרשאות מאז מיגרציה 20260916100000
+        # creation goes through an RPC and not a direct write: writing to
+        # profiles.family_id is blocked at the grants level since migration 20260916100000
         def rpc(self, name, params): calls.append((name, params)); return self
         def execute(self): self.data = "44444444-4444-4444-4444-444444444444"; return self
 
@@ -124,21 +125,21 @@ def test_a_missing_profile_does_still_get_a_family(monkeypatch):
     assert calls and calls[0][0] == "create_own_family"
 
 
-# ─── מה שהמשתמש חווה ─────────────────────────────────────────────────────────
+# ─── What the user experiences ───────────────────────────────────────────────
 
 def test_login_is_refused_when_the_profile_cannot_be_read(client, monkeypatch):
     monkeypatch.setattr(app_module.db, "fetch_profile", lambda uid: (None, False))
 
     response = _login(client)
 
-    assert response.status_code != 302, "נכנס למרות שהפרופיל לא נקרא"
+    assert response.status_code != 302, "signed in although the profile wasn't read"
     assert "נסו שוב" in response.get_data(as_text=True)
     with client.session_transaction() as sess:
-        assert not sess.get("user_id"), "נפתח session בלי פרופיל"
+        assert not sess.get("user_id"), "a session was opened without a profile"
 
 
 def test_login_is_refused_when_the_family_cannot_be_created(client, monkeypatch):
-    """session בלי משפחה הוא אפליקציה שאי אפשר לעשות בה כלום."""
+    """A session without a family is an app where nothing can be done."""
     monkeypatch.setattr(app_module.db, "fetch_profile", lambda uid: (None, True))
     monkeypatch.setattr(app_module.db, "ensure_family", lambda uid: None)
 
@@ -150,7 +151,7 @@ def test_login_is_refused_when_the_family_cannot_be_created(client, monkeypatch)
 
 
 def test_a_healthy_login_still_works(client, monkeypatch):
-    """בקרת-נגד סופית: הזהירות לא חוסמת את המסלול התקין."""
+    """Final control: the caution doesn't block the healthy path."""
     monkeypatch.setattr(app_module.db, "fetch_profile",
                         lambda uid: ({"name": "דנה", "avatar_initial": "ד",
                                       "family_id": "11111111-1111-1111-1111-111111111111"}, True))

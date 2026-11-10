@@ -1,12 +1,13 @@
 """
-השיוך למשפחה (‎profiles.family_id‎) נקבע רק דרך פונקציות ‎SECURITY DEFINER‎.
+Family membership (profiles.family_id) is set only through SECURITY DEFINER
+functions.
 
-הנעילה הראשונה (‎20260916100000‎) הסירה את ‎UPDATE‎ — אבל ‎DELETE‎ על
-הפרופיל ו-‎INSERT‎ עם ‎family_id‎ נשארו, וביחד הם אותה תקיפה בשני צעדים:
-למחוק את הפרופיל שלי וליצור אותו מחדש עם משפחה אחרת.
+The first lock (20260916100000) removed UPDATE, but DELETE on the profile and
+INSERT with family_id remained, and together they are the same attack in two
+steps: delete my profile and recreate it with another family.
 
-הבדיקה עוברת על המיגרציות לפי הסדר ומוודאת שבסוף המשתמש המאומת לא מקבל
-בחזרה אף אחת משלוש ההרשאות.
+The test walks the migrations in order and makes sure that in the end the
+authenticated user gets none of the three privileges back.
 """
 import re
 from pathlib import Path
@@ -19,11 +20,12 @@ _MIGRATIONS = Path(__file__).resolve().parent.parent / "backend/supabase/migrati
 
 
 def _final_profile_grants():
-    """מה נשאר ל-‎authenticated‎ על ‎public.profiles‎ אחרי כל המיגרציות.
+    """What authenticated has left on public.profiles after all the migrations.
 
-    מפשט בכוונה: רק ‎grant/revoke <privs> on public.profiles‎ — ‎grant‎
-    ברמת עמודות (‎update (name, …)‎) נספר כהרשאה מוגבלת ולא כמלאה."""
-    full = {"insert", "update", "delete"}   # ברירת המחדל של Supabase
+    Simplifies on purpose: only grant/revoke <privs> on public.profiles; a
+    column-level grant (update (name, …)) counts as a limited privilege and not a
+    full one."""
+    full = {"insert", "update", "delete"}   # Supabase's default
     pattern = re.compile(
         r"\b(grant|revoke)\s+([a-z ,()_]+?)\s+on\s+(?:table\s+)?public\.profiles\s+(?:to|from)\s+([a-z_, ]+)",
         re.I)
@@ -33,7 +35,7 @@ def _final_profile_grants():
             if "authenticated" not in roles.lower():
                 continue
             privs = privs.lower()
-            if "(" in privs:          # הרשאה לעמודות מסוימות — לא לכל הטבלה
+            if "(" in privs:          # a grant on specific columns, not the whole table
                 continue
             names = {p.strip() for p in privs.split(",")}
             if "all" in names:

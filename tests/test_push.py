@@ -1,7 +1,8 @@
-"""התראות לטלפון (מתן, 31.10).
+"""Phone notifications (Matan, 31.10).
 
-ההצפנה ממומשת אצלנו (‎backend/push.py‎), ולכן נבדקת מול וקטור הבדיקה של
-התקן עצמו (RFC 8291, נספח A): אם הבייטים זהים, כל טלפון יפענח אותה.
+The encryption is implemented by us (backend/push.py), so it is tested against the
+standard's own test vector (RFC 8291, appendix A): if the bytes are identical,
+every phone will decrypt it.
 """
 import json
 
@@ -22,7 +23,7 @@ _ME = "22222222-2222-2222-2222-222222222222"
 _SALARY = "c-salary"
 
 
-# ─── הצפנה וחתימה ───────────────────────────────────────────────────────────
+# ─── Encryption and signing ─────────────────────────────────────────────────
 
 def test_encryption_matches_the_rfc_8291_test_vector():
     server = ec.derive_private_key(
@@ -68,8 +69,8 @@ def test_without_a_key_nothing_is_sent(monkeypatch):
     ("https://fcm.googleapis.com/fcm/send/abc", True),
     ("https://web.push.apple.com/QGx", True),
     ("https://updates.push.services.mozilla.com/wpush/v2/x", True),
-    ("http://fcm.googleapis.com/x", False),                 # לא https
-    ("https://evil.example.com/x", False),                  # לא שירות התראות — SSRF
+    ("http://fcm.googleapis.com/x", False),                 # not https
+    ("https://evil.example.com/x", False),                  # not a push service: SSRF
     ("https://fcm.googleapis.com.evil.com/x", False),
     ("https://169.254.169.254/latest", False),
 ])
@@ -102,7 +103,7 @@ def test_dead_subscriptions_are_reported(monkeypatch):
     assert {e for _, e in sent} == {"aes128gcm"}
 
 
-# ─── נוסחים (מתן, 1.11) ─────────────────────────────────────────────────────
+# ─── Wording (Matan, 1.11) ──────────────────────────────────────────────────
 
 import re
 _EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF]")
@@ -148,7 +149,7 @@ def test_a_series_without_a_name_still_reads():
     assert push.last_installment("", 400)["title"] == "תשלום אחרון"
 
 
-# ─── המסלולים ───────────────────────────────────────────────────────────────
+# ─── The routes ─────────────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
 def _fresh_limits():
@@ -194,7 +195,7 @@ def test_logout_forgets_this_device(client, monkeypatch):
 
 def test_the_daily_route_needs_the_secret(client, monkeypatch):
     monkeypatch.setenv("PUSH_CRON_SECRET", "s3cret")
-    monkeypatch.setattr(app_module.db, "push_daily", lambda *a: pytest.fail("נקרא בלי סוד"))
+    monkeypatch.setattr(app_module.db, "push_daily", lambda *a: pytest.fail("called without a secret"))
     assert client.post("/internal/push/daily").status_code == 404
     assert client.post("/internal/push/daily", headers={"X-Cron-Secret": "nope"}).status_code == 404
     monkeypatch.delenv("PUSH_CRON_SECRET")
@@ -255,7 +256,7 @@ def test_the_settings_switch_is_just_on_or_off():
     block = html[html.index("{% if push_key %}"):]
     block = block[:block.index("{% endif %}")]
     assert 'id="pushToggle"' in block and 'class="pref-switch"' in block
-    assert "<ul" not in block and "<li" not in block            # בלי רשימת הסבר
+    assert "<ul" not in block and "<li" not in block            # without an explanation list
     group = html[html.index('id="notification-settings"'):]
     assert '<span class="group-title">התראות</span>' in group[:group.index("</section>")]
     assert 'id="pushToggle"' in group[:group.index("</section>")]
@@ -264,17 +265,18 @@ def test_the_settings_switch_is_just_on_or_off():
 
 
 def test_notifications_are_offered_by_default_on_every_page():
-    """ברירת מחדל — מופעלות (מתן, 1.11): מי שכבר אישר נרשם לבד, ומי שלא —
-    מקבל פס "הפעלה" פעם אחת. ומי שכיבה — לא נשאל שוב."""
+    """Default: on (Matan, 1.11): whoever already allowed is subscribed
+    automatically, and whoever didn't gets an "הפעלה" bar once. And whoever turned
+    it off isn't asked again."""
     from pathlib import Path
     root = Path(__file__).resolve().parent.parent
     base = (root / "frontend/templates/base.html").read_text(encoding="utf-8")
     assert 'id="pushBar"' in base and "js/push.js" in base and "'pushKey'" in base
-    assert base.index("js/pwa.js") < base.index("js/push.js")   # אחרי הפס של ההתקנה
+    assert base.index("js/pwa.js") < base.index("js/push.js")   # after the install bar
     js = (root / "frontend/static/js/push.js").read_text(encoding="utf-8")
     assert "Notification.permission === 'granted'" in js and "sf_push_off" in js
-    assert "has-install-bar" in js                               # לא שני פסים יחד
-    # פעם אחת ולא כל שבוע (מתן, 1.11): ✕ זוכר לתמיד במכשיר
+    assert "has-install-bar" in js                               # not two bars together
+    # once and not every week (Matan, 1.11): ✕ remembers forever on the device
     assert "sf_push_asked" in js and "WEEK" not in js and "snooze" not in js.lower()
 
 
@@ -284,5 +286,5 @@ def test_every_signed_in_page_gets_the_key(client, monkeypatch):
     with app.test_request_context():
         session["user_id"] = _ME
         assert app_module.inject_family_settings()["push_key"] == push.public_key()
-    with app.test_request_context():                     # אורח — בלי מפתח
+    with app.test_request_context():                     # guest: no key
         assert app_module.inject_family_settings()["push_key"] is None

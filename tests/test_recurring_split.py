@@ -1,15 +1,17 @@
-""""עדכן להבא" מפצל את הסדרה — ולא כותב מחדש את החודש הראשון.
+""""עדכן להבא" splits the series, and doesn't rewrite the first month.
 
-עד היום "עדכן להבא" עדכן את שורת התבנית, והתבנית היא גם העסקה של
-החודש הראשון. שכר דירה מינואר ב-5,000, שנערך בספטמבר ל-5,500, הפך גם
-את ינואר ל-5,500.
+Until now "עדכן להבא" updated the template row, and the template is also the
+transaction of the first month. Rent from January at 5,000, edited in September to
+5,500, turned January into 5,500 too.
 
-הפיצול חי ב-SQL (‎split_recurring_series‎), אז הבדיקות כאן רצות מול המסד
-האמיתי בתור משפחת הבדיקה — לא מול החשבון של אף אחד — ומנקות אחריהן.
+The split lives in SQL (split_recurring_series), so the tests here run against the
+real database as the test family (not against anyone's account) and clean up
+after themselves.
 
-הסדרה: חודשית ב-1 לחודש מינואר 2026. אפריל ואוגוסט דולגו (נמחקו בעבר),
-כך שיש דילוג לפני נקודת הפיצול ודילוג אחריה. מפצלים ביוני — חודש שיש
-אחריו מופעים שכבר נוצרו (יולי, ספטמבר), כי שם בדיוק כפילות הייתה נולדת.
+The series: monthly on the 1st from January 2026. April and August were skipped
+(deleted in the past), so there is a skip before the split point and a skip after
+it. We split in June: a month followed by occurrences that were already created
+(July, September), because that is exactly where a duplicate would be born.
 """
 import uuid
 
@@ -27,8 +29,9 @@ def _table(name):
 
 @pytest.fixture
 def series(family_a, monkeypatch):
-    # השעון קבוע: הסדרה כתובה ביד עד ספטמבר 2026, ובשעון האמיתי המנוע
-    # יוצר בצדק את אוקטובר — והבדיקה נשברה לבד ב-1.10.
+    # The clock is fixed: the series is written by hand up to September 2026, and
+    # on the real clock the engine rightly creates October, and the test broke by
+    # itself on 1.10.
     import datetime as _dt
     from backend import clock as _clock
     monkeypatch.setattr(_clock, "today", lambda: _dt.date(2026, 9, 30))
@@ -68,19 +71,19 @@ def _rows(s):
 
 
 def _edit_june_and_split(s):
-    """מה שהדפדפן עושה: קודם שומר את יוני בסכום החדש, ואז "עדכן להבא"."""
+    """What the browser does: first saves June at the new amount, then "עדכן להבא"."""
     db.set_auth_token(s["family"]["token"])
     _table("transactions").update({"amount": 5500}).eq("id", s["ids"]["06"]).execute()
     return db.split_recurring_series(s["ids"]["template"], s["ids"]["06"], s["fid"])
 
 
 def test_the_first_month_is_not_rewritten(series):
-    """הבאג עצמו."""
+    """The bug itself."""
     new_id, err = _edit_june_and_split(series)
 
     assert err is None and new_id == series["ids"]["06"]
     rows = _rows(series)
-    assert float(rows["01"]["amount"]) == 5000, "ינואר נכתב מחדש"
+    assert float(rows["01"]["amount"]) == 5000, "January was rewritten"
 
 
 def test_the_old_series_ends_the_day_before(series):
@@ -89,7 +92,7 @@ def test_the_old_series_ends_the_day_before(series):
 
     assert old["is_recurring"] is True
     assert old["recurring_end_date"] == "2026-05-31"
-    assert old["recurring_skips"] == ["2026-04-01"], "דילוג שאחרי הפיצול נשאר בסדרה הישנה"
+    assert old["recurring_skips"] == ["2026-04-01"], "a skip after the split stayed in the old series"
 
 
 def test_the_edited_month_starts_the_new_series(series):
@@ -101,26 +104,27 @@ def test_the_edited_month_starts_the_new_series(series):
     assert june["recurring_frequency"] == "monthly_1"
     assert june["recurring_end_date"] is None
     assert float(june["amount"]) == 5500
-    assert june["recurring_skips"] == ["2026-08-01"], "הדילוג של אוגוסט לא עבר לסדרה החדשה"
+    assert june["recurring_skips"] == ["2026-08-01"], "August's skip didn't move to the new series"
 
 
 def test_history_keeps_its_amounts_and_its_series(series):
-    """מה שקדם לפיצול שייך לישנה; מה שאחריו עבר לחדשה — בלי שהסכום שלו השתנה."""
+    """What came before the split belongs to the old one; what came after moved to
+    the new one, without its amount changing."""
     _edit_june_and_split(series)
     rows = _rows(series)
     template, june = series["ids"]["template"], series["ids"]["06"]
 
     for mm in ("02", "03", "05"):
-        assert rows[mm]["recurring_parent_id"] == template, f"{mm} עזב את הסדרה הישנה"
+        assert rows[mm]["recurring_parent_id"] == template, f"{mm} left the old series"
     for mm in ("07", "09"):
-        assert rows[mm]["recurring_parent_id"] == june, f"{mm} לא עבר לסדרה החדשה"
-        assert float(rows[mm]["amount"]) == 5000, f"{mm} נכתב מחדש"
+        assert rows[mm]["recurring_parent_id"] == june, f"{mm} didn't move to the new series"
+        assert float(rows[mm]["amount"]) == 5000, f"{mm} was rewritten"
 
 
 def test_the_engine_creates_no_duplicates_afterwards(series):
-    """הסיבה שהמופעים המאוחרים חייבים לעבור: סדרה חדשה שלא רואה את יולי
-    ואת ספטמבר הייתה יוצרת אותם שוב. והישנה, שנגמרת במאי, לא אמורה ליצור
-    כלום — אפריל דולג."""
+    """The reason the later occurrences must move: a new series that doesn't see July
+    and September would create them again. And the old one, ending in May,
+    shouldn't create anything: April was skipped."""
     _edit_june_and_split(series)
     before = len(_rows(series))
 
@@ -134,17 +138,17 @@ def test_the_engine_creates_no_duplicates_afterwards(series):
 
 
 def test_another_family_cannot_split(series, family_b):
-    """הפונקציה עוקפת RLS; הבדיקה שבתוכה היא ההגנה היחידה."""
+    """The function bypasses RLS; the check inside it is the only protection."""
     db.set_auth_token(family_b["token"])
     new_id, err = db.split_recurring_series(
         series["ids"]["template"], series["ids"]["06"], series["fid"])
 
     assert (new_id, err) == (None, None)
-    assert _rows(series)["06"]["is_recurring"] is False, "משפחה אחרת פיצלה"
+    assert _rows(series)["06"]["is_recurring"] is False, "another family split"
 
 
 def test_an_instance_of_a_different_series_is_refused(series):
-    """ה-UI שולח את שני המזהים; שילוב שלא מתאים אסור שיגע במשהו."""
+    """The UI sends both ids; a mismatched combination mustn't touch anything."""
     db.set_auth_token(series["family"]["token"])
     new_id, _ = db.split_recurring_series(
         series["ids"]["06"], series["ids"]["07"], series["fid"])
