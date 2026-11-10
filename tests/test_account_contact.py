@@ -1,10 +1,12 @@
-"""מייל וטלפון בתיבת "חשבון" בהגדרות (מתן, 1.10).
+"""Email and phone in the "account" box in settings (Matan, 1.10).
 
-הטלפון: שינוי ישיר, אבל לא ריק — הוא גם מזהה התחברות. וכששומרים שם או
-מקום עבודה מ"המשפחה שלי" (שכבר לא שולחים טלפון) הוא לא נמחק.
+The phone: a direct change, but not empty: it is also a sign-in identifier. And
+when saving a name or workplace from "my family" (which no longer sends a
+phone) it isn't deleted.
 
-המייל: מייל חדש + הסיסמה הנוכחית, ואז קישור אישור מ-Supabase. בלי
-הסיסמה, מי שתופס טלפון פתוח מעביר את החשבון למייל שלו.
+The email: a new email + the current password, then a confirmation link from
+Supabase. Without the password, whoever grabs an unlocked phone moves the
+account to their own email.
 """
 from pathlib import Path
 
@@ -40,7 +42,7 @@ def client(monkeypatch):
     return c
 
 
-# ─── טלפון ────────────────────────────────────────────────────────────────
+# ─── Phone ────────────────────────────────────────────────────────────────
 
 def test_changing_the_phone(client, monkeypatch):
     saved = []
@@ -52,8 +54,8 @@ def test_changing_the_phone(client, monkeypatch):
 
 @pytest.mark.parametrize("phone", ["", "1", "+1-555-123-4567"])
 def test_an_empty_or_bad_phone_is_refused(client, monkeypatch, phone):
-    """ריק אסור כאן — כמו בהרשמה: הטלפון הוא גם דרך להתחבר."""
-    monkeypatch.setattr(app_module.db, "update_phone", lambda *a: pytest.fail("נשמר טלפון פסול"))
+    """Empty isn't allowed here, as on signup: the phone is also a way to sign in."""
+    monkeypatch.setattr(app_module.db, "update_phone", lambda *a: pytest.fail("an invalid phone was saved"))
     res = client.put("/api/profile/phone", json={"phone": phone})
     assert res.status_code == 422
 
@@ -65,8 +67,8 @@ def test_a_taken_phone_says_so(client, monkeypatch):
 
 
 def test_saving_name_without_phone_keeps_the_phone(client, monkeypatch):
-    """עריכת הפרטים ב"המשפחה שלי" לא שולחת טלפון יותר. בלי שמירה עליו,
-    כל שינוי שם היה מוחק אותו — ואת ההתחברות בטלפון איתו."""
+    """Editing details in "my family" no longer sends a phone. Without keeping
+    it, every name change would delete it, and phone sign-in with it."""
     saved = []
     monkeypatch.setattr(app_module.db, "get_profile", lambda *a, **k: {"phone": "0501234567"})
     monkeypatch.setattr(app_module.db, "update_profile",
@@ -75,7 +77,7 @@ def test_saving_name_without_phone_keeps_the_phone(client, monkeypatch):
     assert res.status_code == 200 and saved == ["0501234567"]
 
 
-# ─── מייל ─────────────────────────────────────────────────────────────────
+# ─── Email ────────────────────────────────────────────────────────────────
 
 @pytest.fixture
 def email_flow(monkeypatch):
@@ -111,8 +113,9 @@ def test_bad_requests_send_nothing(client, email_flow, body, status):
 
 
 def test_the_password_is_checked_against_the_current_email(client, email_flow, monkeypatch):
-    """אחרי שאושר מייל חדש, הסשן עדיין זוכר את הישן — ובדיקת הסיסמה מולו
-    נכשלה. המייל נלקח מ-Supabase, והסשן מתעדכן."""
+    """After a new email was confirmed, the session still remembers the old one,
+    and the password check against it failed. The email is taken from Supabase,
+    and the session is updated."""
     monkeypatch.setattr(app_module.db, "get_auth_email", lambda tok: ("confirmed@example.com", None))
     client.put("/api/profile/email", json={"email": "next@example.com", "current_password": "right"})
     assert email_flow["sign_in"] == [("confirmed@example.com", "right")]
@@ -126,7 +129,7 @@ def test_the_email_change_is_rate_limited():
     assert '@limiter.limit("5 per minute")' in after[:after.index("\ndef ")]
 
 
-# ─── שכבת ה-DB מול Supabase ────────────────────────────────────────────────
+# ─── The DB layer against Supabase ─────────────────────────────────────────
 
 class _Resp:
     def __init__(self, status, body):
@@ -155,7 +158,7 @@ def test_supabase_answers_become_hebrew(monkeypatch, status, body, expected):
     assert kw["params"] == {"redirect_to": "https://x/settings"}
 
 
-# ─── המסך ─────────────────────────────────────────────────────────────────
+# ─── The screen ───────────────────────────────────────────────────────────
 
 def test_the_account_box_has_email_and_phone_and_the_family_box_has_no_phone():
     html = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")

@@ -1,9 +1,11 @@
-"""קטגוריות: אשף ההרשמה שלא מבלבל, ושחזור ברירת המחדל (מתן, 31.10).
+"""Categories: a signup wizard that doesn't confuse, and restoring the defaults
+(Matan, 31.10).
 
-· שני אנשים ביטלו באשף את כל הקטגוריות במקום לבחור אותן. כולן מתחילות
-  מסומנות, והכותרת אמרה "בחרו" — אז "לבחור" פירושו ללחוץ, וזה מבטל.
-· "למי שמחק בטעות או רוצה את הקטגוריות של ברירת המחדל": כפתור בהגדרות
-  שמוסיף את מה שחסר, ולא נוגע בשום דבר קיים.
+· Two people deselected all the categories in the wizard instead of choosing
+  them. They all start selected, and the heading said "choose", so "choosing"
+  means tapping, and that deselects.
+· "For whoever deleted by mistake or wants the default categories": a button in
+  settings that adds what is missing, and touches nothing existing.
 """
 from pathlib import Path
 
@@ -20,7 +22,7 @@ _FAM = "11111111-1111-1111-1111-111111111111"
 _ME = "22222222-2222-2222-2222-222222222222"
 
 
-# ─── האשף ───────────────────────────────────────────────────────────────────
+# ─── The wizard ─────────────────────────────────────────────────────────────
 
 _WIZARD = (_ROOT / "frontend/templates/onboarding.html").read_text(encoding="utf-8")
 _WIZARD_JS = (_ROOT / "frontend/static/js/onboarding.js").read_text(encoding="utf-8")
@@ -29,7 +31,7 @@ _WIZARD_JS = (_ROOT / "frontend/static/js/onboarding.js").read_text(encoding="ut
 def test_the_wizard_does_not_ask_to_choose_what_is_already_chosen():
     import re
     step = _WIZARD[_WIZARD.index('id="step3"'):]
-    step = re.sub(r"\{#.*?#\}", "", step[:step.index("</section>")], flags=re.S)   # בלי הערות
+    step = re.sub(r"\{#.*?#\}", "", step[:step.index("</section>")], flags=re.S)   # no notes
     assert "בחרו את הקטגוריות" not in step
     assert "כל המסומנות כבר נבחרו" in step and "כדי להוריד" in step
 
@@ -40,7 +42,7 @@ def test_every_chip_says_whether_it_is_in():
     assert 'class="onboarding-cat-count"' in _WIZARD
 
 
-# ─── שחזור ברירת המחדל ──────────────────────────────────────────────────────
+# ─── Restoring the defaults ─────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
 def _fresh_limits():
@@ -69,7 +71,7 @@ def _cat(name, type_="expense", order=1, family=_FAM):
 
 
 def test_only_what_is_missing_is_offered_and_added(monkeypatch):
-    have = [_cat("סופר ומזון", order=3), _cat("רכב  ותחבורה", order=7),   # רווח כפול — עדיין אותה
+    have = [_cat("סופר ומזון", order=3), _cat("רכב  ותחבורה", order=7),   # a double space: still the same one
             _cat("משכורת", "income", order=2), _cat("קטגוריה שלי", order=9)]
     client, calls = _client(monkeypatch, have)
 
@@ -83,7 +85,8 @@ def test_only_what_is_missing_is_offered_and_added(monkeypatch):
 
     res = client.post("/api/categories/defaults")
     assert res.status_code == 201 and res.get_json()["added"] == len(missing)
-    # החדשות נכנסות בסוף כל מחלקה, אחרי הסדר הגבוה שכבר תפוס
+    # The new ones go at the end of each department, after the highest order
+    # already taken
     assert calls[0]["start"] == {"expense": 9, "income": 2}
     assert calls[0]["family_id"] == _FAM
 

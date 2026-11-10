@@ -1,8 +1,8 @@
-"""סינון "כל העסקאות" לפי קטגוריה (מתן, 30.9 — אפשרות א).
+"""Filtering "all transactions" by category (Matan, 30.9, option A).
 
-לוחצים "הוצאות" ונפתחת שורה: "כל ההוצאות" ואחריה כל קטגוריה שהיו בה
-הוצאות החודש, עם הסכום, מהגדולה לקטנה. כל עסקה מקבלת מפתח קטגוריה שהדפדפן
-מסנן לפיו.
+Tap "expenses" and a row opens: "all expenses" followed by every category that
+had expenses this month, with the amount, largest first. Every transaction gets
+a category key the browser filters by.
 """
 import pytest
 
@@ -35,5 +35,6 @@ def test_every_transaction_gets_the_key_it_is_filtered_by():
     chips = db.category_filter_chips(txs)
 
     assert [t["cat_key"] for t in txs] == ["food", "pc-pc1", "none"]
-    # שתי קטגוריות פרויקט שונות באותו שם לא מתמזגות, וקטגוריה רגילה לא מתערבבת בשל פרויקט
+    # Two different project categories with the same name don't merge, and a
+    # regular category doesn't mix with a project's
     assert {c["key"] for c in chips["expense"]} == {"food", "pc-pc1", "none"}

@@ -16,11 +16,12 @@ import _test_accounts
 
 @pytest.fixture(scope="session")
 def _test_pair():
-    """שני חשבונות בדיקה זמניים לכל הריצה — נוצרים בפעם הראשונה שבדיקה
-    צריכה אותם, ונמחקים בסוף עם כל מה שהשאירו (ראו ‎tests/_test_accounts.py‎).
-    עד 4.10 אלה היו שני משתמשים קבועים במסד הייצור."""
+    """Two temporary test accounts for the whole run: created the first time a test
+    needs them, and deleted at the end with everything they left (see
+    `tests/_test_accounts.py`). Until 4.10 these were two permanent users in the
+    production database."""
     if not os.environ.get("SUPABASE_URL"):
-        pytest.skip("אין SUPABASE_URL — הבדיקות מול המסד האמיתי רצות רק מקומית")
+        pytest.skip("No SUPABASE_URL: the tests against the real database run locally only")
     pair = _test_accounts.create_pair("pytest")
     yield pair
     _test_accounts.purge([a["user_id"] for a in pair.values()])
@@ -42,11 +43,12 @@ def family_b(_test_pair):
 
 
 def category_of(family_id: str, type_: str = "expense") -> str:
-    """קטגוריה קיימת של המשפחה מהסוג הזה — ואם אין, יוצרת אחת קבועה.
+    """An existing category of the family of this type, and if there is none,
+    creates a permanent one.
 
-    עסקת בית בלי קטגוריה נדחית במסד (‎transactions_category_required‎),
-    אז כל בדיקה שמכניסה עסקה ישירות צריכה אחת. הטוקן הפעיל חייב להיות
-    של בן המשפחה הזו."""
+    A household transaction without a category is rejected by the database
+    (`transactions_category_required`), so every test inserting a transaction
+    directly needs one. The active token must belong to this family's member."""
     table = db.get_client().table("categories")
     found = table.select("id").eq("family_id", family_id).eq("type", type_) \
         .limit(1).execute().data
@@ -65,15 +67,17 @@ def pytest_configure(config):
 
 @pytest.fixture(autouse=True)
 def _unit_tests_cannot_reach_supabase(request, monkeypatch):
-    """אוכף את מה שהסימון ‎unit‎ הבטיח — ולא אכף.
+    """Enforces what the `unit` marker promised, and didn't enforce.
 
-    הסימון תיעד "לא נוגעת ב-Supabase", אבל שום דבר לא מנע את זה. בדיקה
-    שהסתמכה על ולידציה בשרת כדי לא להגיע ל-‎db.sign_up‎ פשוט הגיעה אליו
-    ברגע שהוולידציה הוסרה — למשל בבדיקת מוטציה — **ויצרה חשבון אמיתי
-    במסד הייצור**. זה קרה, ב-20 בספטמבר 2026, עם ‎israel@gmail‎.
+    The marker documented "doesn't touch Supabase", but nothing prevented it. A
+    test that relied on server validation to avoid reaching `db.sign_up` simply
+    reached it the moment the validation was removed (for example in a
+    mutation test) **and created a real account in the production database**.
+    It happened, on September 20th 2026, with `israel@gmail`.
 
-    הכשל היה גם שקט לחלוטין: הבדיקה עברה. אז מכאן ‎get_client‎ מסרבת
-    לעבוד בבדיקות יחידה, וכל נגיעה ברשת נכשלת בקול עם ההסבר."""
+    The failure was also completely silent: the test passed. So from here
+    `get_client` refuses to work in unit tests, and every network touch fails
+    loudly with the explanation."""
     if "unit" not in request.keywords:
         yield
         return
@@ -88,48 +92,52 @@ def _unit_tests_cannot_reach_supabase(request, monkeypatch):
     _real_recap = db.month_recap
     _real_settings_page = db.fetch_settings_page
     monkeypatch.setattr(db, "get_client", _refuse)
-    # המייל העדכני מ-Supabase (‎_current_email‎ ב-app). ברירת מחדל בבדיקות:
-    # "אי אפשר לדעת" — והאפליקציה נופלת למייל שבסשן, כמו לפני 1.10.
-    # בדיקה שצריכה מייל אחר מחליפה את זה בעצמה.
+    # The latest email from Supabase (`_current_email` in app). Default in
+    # tests: "can't know", and the app falls back to the session's email, as
+    # before 1.10. A test that needs another email replaces this itself.
     monkeypatch.setattr(db, "get_auth_email", lambda token: (None, None))
-    # דף הבית בנסיעה אחת (‎get_home_page‎, מתן 13.10). ברירת מחדל: "לא זמינה",
-    # כך שבדיקות דף הבית הקיימות — שמחליפות כל שליפה בנפרד — עוברות בדרך
-    # החלופית. הדרך הראשית נבדקת ב-‎test_home_page_rpc.py‎.
+    # The home page in one trip (`get_home_page`, Matan 13.10). Default:
+    # "unavailable", so the existing home page tests (which replace each query
+    # separately) pass through the fallback. The main path is tested in
+    # `test_home_page_rpc.py`.
     def _no_home_page(*a, **k):
         raise db.DataUnavailable("fetch_home_page: unit default")
     monkeypatch.setattr(db, "fetch_home_page", _no_home_page)
     monkeypatch.setattr(db, "_real_fetch_home_page", _real_home_page, raising=False)
-    # וכך גם עמוד ההגדרות (‎get_settings_page‎) — ‎test_settings_page_rpc.py‎
+    # And the same for the settings page (`get_settings_page`):
+    # `test_settings_page_rpc.py`
     def _no_settings_page(*a, **k):
         raise db.DataUnavailable("fetch_settings_page: unit default")
     monkeypatch.setattr(db, "fetch_settings_page", _no_settings_page)
     monkeypatch.setattr(db, "_real_fetch_settings_page", _real_settings_page, raising=False)
-    # "ספטמבר נסגר" רק ביום הראשון של החודש — בלי זה כל בדיקות דף הבית היו
-    # נכשלות כשהן רצות ב-1 לחודש. ‎test_month_recap.py‎ בודק את האמיתית.
+    # "September closed" only on the first day of the month: without this every
+    # home page test would fail when run on the 1st. `test_month_recap.py` tests
+    # the real one.
     monkeypatch.setattr(db, "month_recap", lambda *a, **k: None)
-    # פרויקטים והשוואה בנסיעה אחת — ברירת מחדל "לא זמינה", כמו הבית וההגדרות.
-    # ‎test_projects_months_rpc.py‎ בודק את האמיתיות.
+    # Projects and comparison in one trip: default "unavailable", like home and
+    # settings. `test_projects_months_rpc.py` tests the real ones.
     for _name in ("fetch_projects_page", "fetch_months_page"):
         monkeypatch.setattr(db, "_real_" + _name, getattr(db, _name), raising=False)
         def _unavailable(*a, _n=_name, **k):
             raise db.DataUnavailable(_n + ": unit default")
         monkeypatch.setattr(db, _name, _unavailable)
     monkeypatch.setattr(db, "_real_month_recap", _real_recap, raising=False)
-    # הממוצע החודשי לכל קטגוריה בהגדרות (רעיון 38) — ברירת מחדל: אין
+    # The monthly average per category in settings (idea 38): default: none
     _real_averages = db.category_monthly_averages
     monkeypatch.setattr(db, "category_monthly_averages", lambda *a, **k: {})
     monkeypatch.setattr(db, "_real_category_monthly_averages", _real_averages, raising=False)
-    # "₪5,000 ← ₪5,500 מאוקטובר" בהגדרות (רעיון 40) — ברירת מחדל: אין שינויים
+    # "₪5,000 ← ₪5,500 מאוקטובר" in settings (idea 40): default: no changes
     monkeypatch.setattr(db, "recurring_price_changes", lambda *a, **k: {})
-    # וגם רשת ישירה. ‎send_reset_email‎, ‎upload_receipt‎ ו-‎delete_receipts‎
-    # פונים ל-Supabase ב-httpx ולא דרך ‎get_client‎ — ובדיקת ביקורת על "שכחתי
-    # סיסמה" שלחה ככה בקשת איפוס אמיתית (30.9.2026, לכתובת שלא רשומה, אז
-    # לא נשלח מייל). ב-CI אין ‎SUPABASE_URL‎ והבדיקה נכשלה; אצלנו היא עברה.
+    # And direct network too. `send_reset_email`, `upload_receipt` and
+    # `delete_receipts` call Supabase with httpx and not through `get_client`, and
+    # an audit test on "forgot password" sent a real reset request that way
+    # (30.9.2026, to an unregistered address, so no email was sent). In CI there
+    # is no `SUPABASE_URL` and the test failed; locally it passed.
     import httpx
     for verb in ("request", "get", "post", "put", "patch", "delete"):
         monkeypatch.setattr(httpx, verb, lambda *a, **k: _refuse())
-    # בדיקת הסיסמאות שדלפו (‎backend/passwords.py‎) פונה לשירות חיצוני.
-    # ברירת מחדל: אף סיסמה לא דלפה. ‎test_passwords.py‎ מחליפה את זה.
+    # The leaked-password check (`backend/passwords.py`) calls an external
+    # service. Default: no password leaked. `test_passwords.py` replaces this.
     from backend import passwords
     monkeypatch.setattr(passwords, "_fetch_range", lambda prefix: "")
     yield
@@ -137,11 +145,13 @@ def _unit_tests_cannot_reach_supabase(request, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _start_authenticated_as_family_a(request):
-    """כל בדיקה מתחילה עם ה-client מאומת כמשפחה א' כברירת מחדל — בדיקות
-    שצריכות להחליף הקשר (למשל לבדוק גישה חוצת-משפחה) עושות זאת בעצמן.
+    """Every test starts with the client authenticated as family A by default;
+    tests that need to switch context (e.g. to check cross-family access) do so
+    themselves.
 
-    בדיקות המסומנות ב-@pytest.mark.unit מדלגות על ההתחברות: הן בודקות לוגיקה
-    טהורה, ולוגין מיותר גם מאט אותן וגם שורף מהמכסה של 10 התחברויות לדקה."""
+    Tests marked @pytest.mark.unit skip the sign-in: they test pure logic, and a
+    needless sign-in both slows them down and burns into the quota of 10
+    sign-ins a minute."""
     if "unit" in request.keywords:
         yield
         return

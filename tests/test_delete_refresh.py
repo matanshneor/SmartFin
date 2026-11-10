@@ -1,12 +1,12 @@
 """
-בדיקות לרענון שאחרי מחיקת עסקה.
+Tests for the refresh after deleting a transaction.
 
-המחיקה מסירה את השורה מיד ומציגה "בטל" לשש שניות. בתום החלון הדף נטען
-מחדש, כדי שהיתרה וה-KPI יתעדכנו.
+Deleting removes the row right away and shows "undo" for six seconds. At the end
+of the window the page reloads, so the balance and KPI update.
 
-הבעיה: הטעינה הזאת רצה בכפייה. משתמש שמחק עסקה שגויה ומיד פתח את
-המודאל כדי להקליד את התיקון — וזה בדיוק הרצף שאדם עושה — קיבל טעינה
-מחדש באמצע מילה. המודאל נסגר, וכל מה שהקליד אבד.
+The problem: that reload was forced. A user who deleted a wrong transaction and
+immediately opened the modal to type the fix (exactly the sequence people do)
+got a reload mid-word. The modal closed, and everything they typed was lost.
 """
 import re
 from pathlib import Path
@@ -30,7 +30,7 @@ def _fn(name):
     raise AssertionError(name)
 
 
-# ─── הלב ─────────────────────────────────────────────────────────────────────
+# ─── The heart ──────────────────────────────────────────────────────────────
 
 def test_the_refresh_waits_while_something_is_being_edited():
     body = _fn("refreshAfterDelete")
@@ -40,14 +40,15 @@ def test_the_refresh_waits_while_something_is_being_edited():
 
 
 def test_the_editing_window_counts():
-    """מאז 5.10 יש רק חלון עריכה אחד — גם בדף הבית (העורך בשורה הוסר)."""
+    """Since 5.10 there is only one edit sheet, on the home page too (the inline
+    editor was removed)."""
     body = _fn("somethingIsBeingEdited")
 
     assert "overlay.classList.contains('open')" in body
 
 
 def test_the_deferred_refresh_actually_happens_when_editing_ends():
-    """דחייה בלי השלמה היא יתרה שלא מתעדכנת לעולם."""
+    """A deferral without completion is a balance that never updates."""
     assert "refreshIfPending();" in _fn("closeModal")
 
     body = _fn("refreshIfPending")
@@ -55,18 +56,20 @@ def test_the_deferred_refresh_actually_happens_when_editing_ends():
 
 
 def test_undoing_the_delete_cancels_the_pending_refresh():
-    """שוחזרה העסקה — אין מה לרענן, ורענון היה סוגר מודאל פתוח לחינם."""
-    # של המחיקה — לא ה"בטל" של העריכה (סבב 6, פריט 10), שמופיע קודם בקובץ
+    """The transaction was restored: nothing to refresh, and a refresh would close
+    an open modal for nothing."""
+    # the delete's (not the edit's "undo", round 6, item 10, which appears
+    # earlier in the file)
     block = _JS[_JS.index("label: 'ביטול'", _JS.index("function deleteWithUndo")):][:400]
 
     assert "refreshWhenEditingEnds = false" in block
     assert "clearTimeout(pendingDeleteReload)" in block
 
 
-# ─── ומה קורה כשכן מרעננים ───────────────────────────────────────────────────
+# ─── And what happens when we do refresh ────────────────────────────────────
 
 def test_it_prefers_the_soft_reload_where_the_page_allows_it():
-    """רענון רך לא נוגע במודאל בכלל — הוא יושב מחוץ ל-main."""
+    """A soft refresh doesn't touch the modal at all: it sits outside main."""
     body = _fn("refreshAfterDelete")
 
     assert "main[data-soft-reload]" in body
@@ -74,10 +77,10 @@ def test_it_prefers_the_soft_reload_where_the_page_allows_it():
 
 
 def test_a_page_without_soft_reload_still_gets_its_totals_updated():
-    """בקרת-נגד: הזהירות לא אמורה להשאיר יתרה ישנה על המסך."""
+    """Control: the caution shouldn't leave a stale balance on the screen."""
     assert "window.location.reload()" in _fn("refreshAfterDelete")
 
 
 def test_the_six_second_undo_window_is_unchanged():
-    """הדחייה נוגעת למה שקורה בסוף החלון, לא לאורכו."""
+    """The deferral is about what happens at the end of the window, not during it."""
     assert re.search(r"setTimeout\(refreshAfterDelete,\s*6000\)", _JS)

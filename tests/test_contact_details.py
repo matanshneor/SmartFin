@@ -1,14 +1,15 @@
 """
-מדיניות הפרטיות הפנתה לפרטי קשר שלא היו קיימים.
+The privacy policy pointed to contact details that didn't exist.
 
-הסעיף אמר "ניתן לפנות דרך פרטי הקשר המופיעים באפליקציה", ובאפליקציה
-לא היה שום ‎mailto‎, שום "צור קשר", שום כתובת. זו הבטחה במסגרת GDPR —
-באותו סעיף שמפרט זכות עיון ומחיקה — בלי מנגנון מאחוריה. וזה גם הערוץ
-היחיד שמשתמש תקוע היה מחפש.
+The section said "you can get in touch through the contact details in the app",
+and the app had no `mailto`, no "contact us", no address. That is a GDPR promise
+(in the same section that lists the rights of access and erasure) with no
+mechanism behind it. And it is also the only channel a stuck user would look for.
 
-העמודים המשפטיים פתוחים לכל האינטרנט ומסומנים לאינדוקס, ולכן הכתובת
-שם מורכבת בדפדפן: טקסט אמיתי ב-DOM לקוראי מסך ולהעתקה, ושום דבר
-לסורק שלא מריץ JavaScript. בהגדרות, מאחורי התחברות, היא גלויה כרגיל.
+The legal pages are open to the whole internet and marked for indexing, so the
+address there is assembled in the browser: real text in the DOM for screen
+readers and copying, and nothing for a crawler that doesn't run JavaScript. In
+settings, behind sign-in, it is visible as usual.
 """
 from pathlib import Path
 
@@ -27,7 +28,7 @@ def _read(name):
     return (_TPL / name).read_text(encoding="utf-8")
 
 
-# ─── ההבטחה מקוימת ──────────────────────────────────────────────────────────
+# ─── The promise is kept ────────────────────────────────────────────────────
 
 def test_the_privacy_policy_no_longer_points_at_nothing():
     privacy = _read("privacy.html")
@@ -46,16 +47,17 @@ def test_both_legal_pages_have_a_way_to_make_contact(page):
 
 
 def test_a_signed_in_user_finds_it_where_things_break():
-    """מי שמשהו לא עובד אצלו נמצא באפליקציה, לא בעמוד המשפטי."""
+    """Whoever has something not working is in the app, not on the legal page."""
     settings = _read("settings.html")
 
     assert f"mailto:{_ADDRESS}" in settings
 
 
 def test_contact_is_not_buried_inside_a_collapsed_group():
-    """הייתה בתוך "אבטחה וחשבון", מעל שינוי סיסמה ומחיקת חשבון: אקורדיון
-    סגור שאף אחד לא פותח כדי לבקש עזרה. הבדיקה מודדת את זה על המבנה —
-    הקישור חייב לשבת מחוץ לכל ‎settings-group-body‎."""
+    """It was inside "security and account", above changing the password and
+    deleting the account: a closed accordion nobody opens to ask for help. The
+    test measures this on the structure: the link must sit outside every
+    `settings-group-body`."""
     settings = _read("settings.html")
     link_at = settings.index(f"mailto:{_ADDRESS}")
 
@@ -64,25 +66,25 @@ def test_contact_is_not_buried_inside_a_collapsed_group():
     closed = before.count("</section>")
 
     assert opened <= closed, (
-        "הקישור יושב בתוך קבוצה מתקפלת — מי שצריך עזרה לא יפתח אותה"
+        "the link sits inside a collapsible group: someone who needs help won't open it"
     )
 
 
-# ─── לא לחשוף לבוטים בעמודים הפתוחים ────────────────────────────────────────
+# ─── Not exposing it to bots on the open pages ──────────────────────────────
 
 @pytest.mark.parametrize("page", ["privacy.html", "terms.html"])
 def test_the_public_pages_never_spell_the_address_out(page):
-    """עמוד ציבורי שמסומן לאינדוקס הוא בדיוק מה שקוצרים. סורק מחפש
-    ‎mailto:‎ ומחרוזת עם ‎@‎ — ואין שם לא זה ולא זה."""
+    """A public page marked for indexing is exactly what gets harvested. A crawler
+    looks for `mailto:` and a string with `@`, and there is neither there."""
     html = _read(page)
 
-    assert _ADDRESS not in html, "הכתובת כתובה במלואה"
+    assert _ADDRESS not in html, "the address is written out in full"
     assert "mailto:" not in html
 
 
 @pytest.mark.parametrize("page", ["privacy.html", "terms.html"])
 def test_there_is_still_a_way_without_javascript(page):
-    """בלי JavaScript אין קישור — וחייבת להישאר דרך ליצור קשר."""
+    """Without JavaScript there is no link, and there must remain a way to get in touch."""
     html = _read(page)
     block = html[html.index("data-contact"):]
     block = block[:block.index("</span>")]
@@ -96,10 +98,10 @@ def test_the_page_actually_loads_the_script(page):
     assert "js/contact.js" in _read(page)
 
 
-# ─── מה שנגיש לבני אדם נשאר נגיש ────────────────────────────────────────────
+# ─── What is accessible to humans stays accessible ──────────────────────────
 
 def test_the_assembled_address_is_real_text_not_a_picture():
-    """קורא מסך צריך להקריא אותה, ומשתמש צריך לסמן ולהעתיק."""
+    """A screen reader needs to read it out, and a user needs to select and copy it."""
     js = (_ROOT / "frontend/static/js/contact.js").read_text(encoding="utf-8")
 
     assert "link.textContent = address" in js
@@ -107,8 +109,8 @@ def test_the_assembled_address_is_real_text_not_a_picture():
 
 
 def test_the_noscript_fallback_hides_its_punctuation_from_screen_readers():
-    """‎[at]‎ ו-‎[dot]‎ נועדו לעין, לא לאוזן — קורא מסך שמקריא אותם
-    הופך כתובת פשוטה לחידה."""
+    """`[at]` and `[dot]` are meant for the eye, not the ear: a screen reader
+    reading them out turns a simple address into a riddle."""
     privacy = _read("privacy.html")
     block = privacy[privacy.index("<noscript>"):]
     block = block[:block.index("</noscript>")]

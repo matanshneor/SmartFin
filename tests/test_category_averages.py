@@ -1,7 +1,8 @@
-""""בממוצע ₪1,850 בחודש" ליד כל קטגוריה בהגדרות (מתן, 3.10 — רעיון 38).
+""""₪1,850 a month on average" next to each category in settings (Matan, 3.10,
+idea 38).
 
-שלושת החודשים השלמים האחרונים, מחולק ב-3 — כמו ההתראות על חריגה — בלי
-פרויקטים, ובכל המחלקות.
+The last three whole months, divided by 3 (like the overage alerts), without
+projects, and in every department.
 """
 import datetime
 
@@ -13,7 +14,7 @@ from tests._fake_db import FakeSupabase
 pytestmark = pytest.mark.unit
 
 _FAM = "11111111-1111-1111-1111-111111111111"
-_TODAY = datetime.date(2026, 10, 3)          # החלון: יולי–ספטמבר
+_TODAY = datetime.date(2026, 10, 3)          # the window: July–September
 
 
 def _tx(amount, date, cat="food", type_="expense", project=None):
@@ -23,7 +24,8 @@ def _tx(amount, date, cat="food", type_="expense", project=None):
 
 def _avg(rows, monkeypatch):
     monkeypatch.setattr(db, "get_client", lambda: FakeSupabase(transactions=rows))
-    # ‎conftest‎ מחליף את הפונקציה בברירת מחדל ריקה לבדיקות של עמודים — כאן בודקים את האמיתית
+    # `conftest` replaces the function with an empty default for page tests;
+    # here the real one is tested
     return db._real_category_monthly_averages(_FAM, today=_TODAY)
 
 
@@ -38,7 +40,7 @@ def test_the_current_month_and_older_months_are_outside_the_window(monkeypatch):
 
 
 def test_a_quiet_month_counts_as_zero_not_skipped(monkeypatch):
-    """ביטוח שנתי של ₪1,200 בחודש אחד הוא ₪400 בחודש בממוצע, לא ₪1,200."""
+    """A yearly insurance of ₪1,200 in one month is ₪400 a month on average, not ₪1,200."""
     assert _avg([_tx(1200, "2026-08-15", cat="insurance")], monkeypatch) == {"insurance": 400}
 
 
@@ -66,6 +68,6 @@ def test_settings_shows_it_under_the_name_and_a_rename_keeps_it():
         none = app.jinja_env.from_string("{% set cat_averages = avgs %}" + snippet).render(
             cat={"id": "gift", "name": "מתנות"}, avgs={"food": 1850})
     assert "בממוצע ₪1,850 בחודש" in html
-    assert "cat-row-avg" not in none, "בלי היסטוריה — בלי שורה"
-    # שינוי שם כותב רק לתוך ‎.cat-row-name‎ — הממוצע לא בתוכו
+    assert "cat-row-avg" not in none, "no history: no line"
+    # Renaming writes only into `.cat-row-name`; the average isn't in it
     assert '<span class="cat-row-name">{{ cat.name }}</span>' in tpl

@@ -1,4 +1,4 @@
-"""מצב כהה — ידני בלבד, מהגדרות → תצוגה (מתן, 30.9 — סבב 6, פריט 4)."""
+"""Dark mode: manual only, from settings → appearance (Matan, 30.9, round 6, item 4)."""
 import re
 from pathlib import Path
 
@@ -13,14 +13,15 @@ _PAGES = ["base", "error", "landing", "onboarding", "login", "terms", "reset_pas
 
 @pytest.mark.parametrize("page", _PAGES)
 def test_every_page_sets_the_theme_before_it_paints(page):
-    """ב-<head>, אחרי ה-CSS ולפני ה-body — אחרת הבהוב לבן בכל טעינה."""
+    """In <head>, after the CSS and before the body; otherwise a white flash on
+    every load."""
     html = (_ROOT / f"frontend/templates/{page}.html").read_text(encoding="utf-8")
     head = html[:html.index("</head>")]
     assert "js/theme.js" in head
 
 
 def test_the_theme_is_manual_only():
-    """החלטת מתן: לא לפי הגדרת הטלפון — רק מה שנבחר."""
+    """Matan's decision: not by the phone's setting, only what was chosen."""
     js = (_ROOT / "frontend/static/js/theme.js").read_text(encoding="utf-8")
     assert "localStorage.getItem('sf_theme') === 'dark'" in js
     assert "prefers-color-scheme" not in js
@@ -40,7 +41,8 @@ def test_the_dark_palette_covers_the_surfaces(token):
 
 
 def test_no_ink_tint_is_left_hardcoded():
-    """קו או רקע עדין בצבע הדיו, כתוב ישירות — נעלם על רקע כהה."""
+    """A line or subtle background in the ink colour, written directly: disappears
+    on a dark background."""
     assert not re.findall(r"rgba\(28, ?25, ?23", _CSS)
     assert "background: rgba(255, 255, 255, 0.97)" not in _CSS
 
@@ -60,14 +62,15 @@ def test_the_settings_switch():
     assert "localStorage.setItem('sf_theme', theme)" in js
 
 
-# ── גודל טקסט (סבב 6, פריט 9) — באותה הגדרת "תצוגה" ובאותו קובץ טעינה ──
+# ── Text size (round 6, item 9): in the same "appearance" setting and the same
+# loading file ──
 
 def test_text_size_is_set_before_paint_and_scales_everything():
     js = (_ROOT / "frontend/static/js/theme.js").read_text(encoding="utf-8")
     assert "localStorage.getItem('sf_text_size')" in js
     assert 'html[data-text-size="large"]  { font-size: 112.5%; }' in _CSS
     assert 'html[data-text-size="xlarge"] { font-size: 125%; }' in _CSS
-    # גודל בפיקסלים לא גדל עם השאר
+    # a size in pixels doesn't grow with the rest
     assert not re.findall(r"font-size:\s*\d+px", _CSS)
 
 
@@ -80,8 +83,9 @@ def test_the_text_size_switch():
 
 
 def test_the_settings_titles_say_what_is_inside():
-    """מתן (11.10): בלי שורה מתחת לכותרות — הכותרת עצמה אומרת מה יש בפנים.
-    "העדפות משפחה" לא אמרה, ולכן נקראת עכשיו "שיוך עסקאות"."""
+    """Matan (11.10): no line under the headings: the heading itself says what is
+    inside. "Family settings" didn't, so it is now called "transaction
+    attribution"."""
     tpl = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
     assert 'class="group-sub"' not in tpl
     assert "בטלפון הזה בלבד" not in tpl
@@ -90,8 +94,9 @@ def test_the_settings_titles_say_what_is_inside():
 
 
 def test_there_is_no_sound_and_so_no_sound_toggle():
-    """מתן (11.10): הצליל בשמירה הוסר, ונשאר רטט שקט בלבד — אז גם המתג
-    "צליל ורטט" ירד מ"תצוגה". לא נשאר צליל שאי אפשר לכבות."""
+    """Matan (11.10): the sound on save was removed, and only a silent vibration
+    remains, so the "sound and vibration" switch was removed from "appearance"
+    too. No sound is left that can't be turned off."""
     tpl = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
     assert 'id="feedbackToggle"' not in tpl
     core = (_ROOT / "frontend/static/js/core.js").read_text(encoding="utf-8")

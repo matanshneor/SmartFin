@@ -1,5 +1,6 @@
-"""שורת התאריך בהוספה (מתן, 1.11): "לא מספיק ברור" — עכשיו פס אחד כמו
-"של מי ההוצאה": היום | אתמול | אחר, והתאריך עצמו מתחת ל"היום" ו"אתמול"."""
+"""The date row when adding (Matan, 1.11): "not clear enough"; now one bar like
+"של מי ההוצאה": today | yesterday | other, and the date itself under "today"
+and "yesterday"."""
 from pathlib import Path
 
 import pytest
@@ -22,9 +23,10 @@ def test_the_chips_show_their_actual_date():
 
 def test_adding_looks_like_the_owner_toggle_and_editing_is_untouched():
     assert "#modalOverlay .modal-sheet:not(.is-edit) .detail-row .date-row {" in CSS
-    assert ".date-sub { display: none; }" in CSS   # בעריכה — רק התאריך המלא
+    assert ".date-sub { display: none; }" in CSS   # when editing, only the full date
 
 
 def test_owner_and_date_boxes_are_the_same_width():
-    """מתן, 1.11: התוויות ברוחב קבוע, אז התיבות שאחריהן ברוחב זהה."""
+    """Matan, 1.11: the labels at a fixed width, so the boxes after them are the
+    same width."""
     assert "#modalOverlay .detail-row > .form-label { flex: 0 0 100px;" in CSS

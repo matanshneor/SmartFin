@@ -1,8 +1,10 @@
-"""השוואת קטגוריה לאורך חודשים — כרטיס "לפי קטגוריה" בעמוד ההשוואה (מתן, 30.9).
+"""Comparing a category over months: the "by category" card on the comparison
+page (Matan, 30.9).
 
-אותם חודשים כמו הגרף שמעליו (עד 6 האחרונים שיש בהם נתונים), הוצאות הבית
-בלבד (בלי פרויקטים), סכום לכל קטגוריה בכל חודש. הממוצע והחודש הכי יקר —
-מהחודשים שנגמרו: החודש הנוכחי עוד לא נגמר, והוא היה מוריד את הממוצע.
+The same months as the chart above it (up to the last 6 with data), household
+expenses only (no projects), a total per category per month. The average and
+the most expensive month come from the finished months: the current month isn't
+over yet, and it would pull the average down.
 """
 import datetime
 
@@ -50,7 +52,7 @@ def test_average_and_priciest_come_from_finished_months_only(monkeypatch):
                 _tx("food", 5, "2026-09-02")], monkeypatch)
 
     food = t["categories"][0]
-    assert food["avg"] == 200            # (100 + 300) / 2 — בלי ספטמבר
+    assert food["avg"] == 200            # (100 + 300) / 2: without September
     assert food["max_label"] == "אוגוסט" and food["max"] == 300
     assert food["current"] == 5
 
@@ -59,7 +61,7 @@ def test_project_money_income_and_empty_categories_are_left_out(monkeypatch):
     t = _trend([_tx("food", 100, "2026-07-03"), _tx("food", 9000, "2026-08-10", project="p1"),
                 _tx("sal", 8000, "2026-08-01", type_="income")], monkeypatch)
 
-    assert [c["key"] for c in t["categories"]] == ["food"]      # בלי דלק/מתנות (אפס), בלי משכורת
+    assert [c["key"] for c in t["categories"]] == ["food"]      # without fuel/gifts (zero), without salary
     assert t["categories"][0]["values"] == [100, 0, 0]
 
 
@@ -84,8 +86,9 @@ def test_no_months_no_query(monkeypatch):
 
 
 def test_this_month_is_only_this_month(monkeypatch):
-    """החודש הנוכחי בלי עסקאות לא נכנס לארכיון — אז החודש האחרון בחלון הוא
-    אוגוסט, ולהציג אותו כ"החודש" יהיה שקר."""
+    """The current month with no transactions doesn't go into the archive, so the
+    last month in the window is August, and showing it as "this month" would be
+    a lie."""
     t = _trend([_tx("food", 100, "2026-07-03"), _tx("food", 300, "2026-08-10")], monkeypatch,
                months=[(2026, 7), (2026, 8)])
 
@@ -94,8 +97,8 @@ def test_this_month_is_only_this_month(monkeypatch):
 
 
 def test_each_month_carries_its_transactions_for_the_window(monkeypatch):
-    """נגיעה בעמודה של חודש פותחת חלון עם ההוצאות של הקטגוריה באותו חודש
-    (מתן, 30.9) — מהחדשה לישנה."""
+    """Tapping a month's bar opens a sheet with the category's expenses in that
+    month (Matan, 30.9), newest first."""
     t = _trend([_tx("food", 100, "2026-07-03"), _tx("food", 50, "2026-07-20"),
                 _tx("food", 300, "2026-08-10")], monkeypatch)
 

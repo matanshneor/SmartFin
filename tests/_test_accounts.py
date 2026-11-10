@@ -1,21 +1,25 @@
-"""חשבונות בדיקה זמניים (מתן, 4.10: "משפחות הבדיקה לא אמורות להיות חלק ממסד הנתונים").
+"""Temporary test accounts (Matan, 4.10: "the test families shouldn't be part of
+the database").
 
-כל ריצה — של pytest או של סקריפט דפדפן — יוצרת לעצמה שני משתמשים, כל אחד
-עם משפחה משלו, ומוחקת את שניהם בסוף, יחד עם כל מה שהם השאירו: העסקאות,
-הקטגוריות, הפרויקטים, הארכיון הפנימי (‎owner_archive‎ — טריגר מארכב כל
-עסקה שנמחקת, וזה המקום שבו הצטברו 14,500 שורות בדיקה), יומן הכניסות
-וסריקות הקבלות.
+Every run (of pytest or of a browser script) creates two users for itself, each
+with its own family, and deletes both at the end, together with everything they
+left behind: transactions, categories, projects, the internal archive
+(`owner_archive`: a trigger archives every deleted transaction, and that is
+where 14,500 test rows piled up), the sign-in log and receipt scans.
 
-עד 4.10 היו שני משתמשי בדיקה קבועים במסד הייצור, והם נספרו בכל מסך ניהול.
+Until 4.10 there were two permanent test users in the production database, and
+they were counted on every admin screen.
 
-היצירה והמחיקה רצות ב-SQL בהרשאות בעלים, דרך ה-CLI המקושר — כמו הקמת
-המצב ב-‎test_family_join‎. לא דרך ‎sign_up‎: ל-Supabase יש מכסת הרשמות
-והתחברויות לכתובת IP, וסדרת סקריפטי דפדפן הייתה נתקעת בה. ההתחברות
-עצמה היא התחברות רגילה, כמו של כל משתמש.
+Creation and deletion run in SQL with owner privileges, through the linked CLI,
+like setting up state in `test_family_join`. Not through `sign_up`: Supabase
+has a signup and sign-in quota per IP address, and a series of browser scripts
+would get stuck on it. The sign-in itself is an ordinary sign-in, like any
+user's.
 
-ריצה שנקטעה באמצע (Ctrl+C, קריסה) לא מספיקה למחוק. לכן כל יצירה מתחילה
-בניקוי של חשבונות בדיקה שנשארו מריצות קודמות — רק כאלה שנוצרו לפני
-יותר משעתיים, כדי לא למחוק חשבונות של ריצה שרצה עכשיו במקביל.
+A run interrupted midway (Ctrl+C, a crash) doesn't get to delete. So every
+creation starts by cleaning up test accounts left from earlier runs: only those
+created more than two hours ago, so as not to delete accounts of a run going
+on in parallel right now.
 """
 import os
 import secrets
@@ -24,17 +28,17 @@ import uuid
 
 _BACKEND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend")
 
-# ‎.test‎ הוא דומיין שמור (RFC 2606). אבל הניקוי **לא** מזהה חשבון בדיקה לפי
-# המייל: ההרשמה לא מאמתת מייל, אז כל אחד יכול להירשם עם הדומיין הזה. הסימן
-# הוא ‎app_metadata.smartfin_test‎ — שדה שרק השרת כותב; ‎sign_up‎ של לקוח
-# כותב ל-‎user_metadata‎ בלבד.
+# `.test` is a reserved domain (RFC 2606). But the cleanup does **not** identify a
+# test account by email: signup doesn't verify email, so anyone can sign up with
+# this domain. The marker is `app_metadata.smartfin_test`, a field only the
+# server writes; a client's `sign_up` writes to `user_metadata` only.
 DOMAIN = "smartfin.test"
 _MARK = "raw_app_meta_data->>'smartfin_test' = 'true'"
 _STALE = "2 hours"
 
 
 def privileged_sql(sql: str) -> str:
-    """SQL בהרשאות בעלים, דרך ה-CLI המקושר. זורקת אם נכשל."""
+    """SQL with owner privileges, through the linked CLI. Raises on failure."""
     out = subprocess.run(["supabase", "db", "query", sql, "--linked"],
                          cwd=_BACKEND, capture_output=True, text=True, timeout=120)
     if out.returncode != 0:
@@ -47,9 +51,9 @@ def _q(value: str) -> str:
 
 
 def create_pair(label: str = "run") -> dict:
-    """שני משתמשים חדשים, א' וב', כל אחד עם משפחה משלו.
+    """Two new users, A and B, each with its own family.
 
-    מחזירה ‎{"a": {"email", "password", "user_id", "family_id", "token"}, "b": …}‎."""
+    Returns `{"a": {"email", "password", "user_id", "family_id", "token"}, "b": …}`."""
     from backend import supabase_config as db
 
     sweep_stale()
@@ -78,8 +82,8 @@ def create_pair(label: str = "run") -> dict:
 
     try:
         for key, a in accounts.items():
-            # התחברות ראשונה רגילה — ‎ensure_family‎ פותחת את המשפחה, כמו
-            # לכל משתמש חדש באפליקציה
+            # An ordinary first sign-in: `ensure_family` opens the family, as for
+            # every new user in the app
             response, err = db.sign_in(a["email"], a["password"])
             if err:
                 raise RuntimeError(f"התחברות לחשבון בדיקה חדש נכשלה ({a['email']}): {err}")
@@ -87,8 +91,9 @@ def create_pair(label: str = "run") -> dict:
             a["family_id"] = db.ensure_family(a["user_id"], f"משפחת בדיקה {key.upper()}")
             if not a["family_id"]:
                 raise RuntimeError(f"לא נפתחה משפחה לחשבון בדיקה {a['email']}")
-            # ואשף הפתיחה, עם קטגוריות ברירת המחדל — משפחה בלי קטגוריות
-            # נשלחת ל-‎/onboarding‎ מכל עמוד, ואי אפשר להזין בה עסקה
+            # And the onboarding wizard, with the default categories: a family
+            # with no categories is sent to `/onboarding` from every page, and no
+            # transaction can be entered in it
             from backend.app import _DEFAULT_CATEGORIES
             _, err = db.bulk_add_categories(a["family_id"], _DEFAULT_CATEGORIES)
             if err:
@@ -101,13 +106,14 @@ def create_pair(label: str = "run") -> dict:
 
 
 def _purge_sql(users_where: str, extra_family_ids=()) -> str:
-    """מוחקת את המשתמשים שעונים לתנאי, את המשפחות שלהם וכל עקבה.
+    """Deletes the users matching the condition, their families and every trace.
 
-    הסדר חשוב: מחיקת המשפחה מוחקת בשרשור את העסקאות, והטריגר מארכב כל
-    אחת מהן — אז הארכיון מנוקה **אחרי** מחיקת המשפחות. ‎_tf‎ נבנית מראש,
-    כי אחרי מחיקת המשתמשים אין יותר דרך לדעת מה היו המשפחות שלהם.
+    The order matters: deleting the family cascades to the transactions, and
+    the trigger archives each of them, so the archive is cleaned **after**
+    deleting the families. `_tf` is built upfront, because after deleting the
+    users there is no way left to know what their families were.
 
-    ‎extra_family_ids‎ — משפחות זמניות בלי חברים (‎test_family_join‎)."""
+    `extra_family_ids`: temporary families with no members (`test_family_join`)."""
     extra = ", ".join(f"({_q(f)}::uuid)" for f in extra_family_ids)
     return f"""
         begin;
@@ -133,7 +139,7 @@ def _purge_sql(users_where: str, extra_family_ids=()) -> str:
 
 
 def purge(user_ids, extra_family_ids=()) -> None:
-    """מוחקת את חשבונות הבדיקה האלה וכל מה שהשאירו. רק חשבונות שנוצרו כאן."""
+    """Deletes these test accounts and everything they left. Only accounts created here."""
     ids = ", ".join(f"{_q(u)}::uuid" for u in user_ids)
     if not ids and not extra_family_ids:
         return
@@ -142,6 +148,6 @@ def purge(user_ids, extra_family_ids=()) -> None:
 
 
 def sweep_stale() -> None:
-    """חשבונות בדיקה שנשארו מריצה שנקטעה — כל מה שנוצר כאן לפני יותר
-    משעתיים."""
+    """Test accounts left from an interrupted run: everything created here more
+    than two hours ago."""
     privileged_sql(_purge_sql(f"{_MARK} and created_at < now() - interval '{_STALE}'"))

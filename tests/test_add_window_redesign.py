@@ -1,8 +1,9 @@
-"""חלון ההוספה וכרטיס הסיכום בעיצוב החדש (מתן, 11.10).
+"""The add sheet and the summary card in the new design (Matan, 11.10).
 
-מתוך דוגמת עיצוב שלמה מתן בחר שני דברים בלבד: כרטיס סיכום אחד בבית,
-וחלון ההוספה — סכום גדול במרכז בצבע המחלקה, קטגוריות גבוהות עם השם המלא,
-הפרטים בבלוק אחד וכפתור כהה ורחב. סריקת הקבלה עברה לשורת הכותרת.
+From a complete design mockup Matan chose only two things: one summary card on
+home, and the add sheet: a large amount in the centre in the department's
+colour, tall categories with the full name, the details in one block and a
+dark, wide button. Receipt scanning moved to the header row.
 """
 import re
 from pathlib import Path
@@ -20,7 +21,8 @@ _FORM = _TPL[_TPL.index('<form class="tx-form" id="txForm"'):_TPL.index("</form>
 
 def _rule(selector):
     css = re.sub(r"/\*.*?\*/", "", _CSS, flags=re.S)
-    # האחרון שמתחיל שורה — זה שקובע (ולא ‎:root[…] #modalOverlay …‎ שמכיל אותו)
+    # The last one that starts a line is the one that counts (and not
+    # `:root[…] #modalOverlay …`, which contains it)
     start = [m.start() for m in re.finditer(r"(?m)^" + re.escape(selector) + r" \{", css)][-1]
     body = css[start:]
     return body[:body.index("}")]
@@ -37,13 +39,14 @@ def test_the_receipt_scan_sits_in_the_title_row():
 def test_the_amount_is_big_centered_and_takes_the_type_color():
     assert 'class="form-group amount-group"' in _FORM
     assert "font-size: 2.25rem" in _rule("#modalOverlay .amount-input")
-    assert "text-align: left" in _rule("#modalOverlay .amount-input")      # צמוד ל-₪, השדה ממורכז
+    assert "text-align: left" in _rule("#modalOverlay .amount-input")      # next to the ₪, the field centred
     for mode, color in (("expense", "--color-expense"), ("income", "--color-income"), ("savings", "--color-savings")):
         assert f"var({color})" in _rule(f"#modalOverlay .modal-sheet.{mode}-mode .amount-group")
 
 
 def test_the_amount_field_is_as_wide_as_what_is_in_it():
-    """אחרי כל שינוי של הערך או של הטקסט המחליף — אחרת ה-₪ מתרחק מהמספר."""
+    """After every change of the value or of the placeholder text; otherwise the ₪
+    drifts away from the number."""
     body = _JS[_JS.index("function fitAmount()"):]
     assert "txAmount.style.width = (text.length + 0.3) + 'ch';" in body[:500]
     for line in ("txAmount.value       = plainAmount(tx.amount);", "txAmount.value = data.amount;",
@@ -58,7 +61,7 @@ def test_the_details_are_one_block():
     for field in ('id="txDescription"', 'id="ownerGroup"', 'id="txDate"', 'id="txRecurring"', 'id="recurringFields"'):
         assert field in block, field
     assert 'id="projectGroup"' not in block and 'id="categoryGrid"' not in block
-    # תיאור, של מי, תאריך, עסקה קבועה — ותשלומים (מתן, 12.10)
+    # Description, whose, date, recurring transaction, and installments (Matan, 12.10)
     assert block.count('class="form-group detail-row') == 5
     assert 'id="txInstallments"' in block
     assert "border-top" in _rule("#modalOverlay .tx-details .detail-row + .detail-row")
@@ -71,7 +74,7 @@ def test_recurring_is_a_switch():
 
 
 def test_the_save_button_is_dark_for_every_type():
-    """בלי אדום/ירוק לפי המחלקה. ‎#modalOverlay‎ גובר על ‎.modal-sheet.expense-mode‎."""
+    """No red/green by department. `#modalOverlay` beats `.modal-sheet.expense-mode`."""
     assert "var(--hero-bg)" in _rule("#modalOverlay .submit-btn")
     assert "var(--gradient-gold)" in _rule(':root[data-theme="dark"] #modalOverlay .submit-btn')
 
@@ -83,4 +86,4 @@ def test_the_summary_is_one_card_with_dividers():
     assert "box-shadow" not in cell and "border-radius" not in cell
     assert "border-inline-start" in _rule(".summary-card + .summary-card")
     motion = (_ROOT / "frontend/static/js/motion.js").read_text(encoding="utf-8")
-    assert "'.summary-cards, .chart-card," in motion      # הכרטיס עולה כיחידה, לא שלושה תאים
+    assert "'.summary-cards, .chart-card," in motion      # the card rises as one unit, not three cells

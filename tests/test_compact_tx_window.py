@@ -1,7 +1,8 @@
-"""חלון ההוספה והעריכה במסך אחד (מתן, 5.10).
+"""The add and edit sheet on one screen (Matan, 5.10).
 
-הקטגוריות בגודל של היום; מה שהשתנה הוא כל השאר. ובדף הבית העריכה נפתחת
-באותו חלון כמו בעמוד החודש — העריכה בתוך השורה הוסרה.
+The categories at today's size; what changed is everything else. And on the home
+page editing opens in the same sheet as on the month page: inline editing in the
+row was removed.
 """
 from pathlib import Path
 
@@ -40,7 +41,7 @@ def test_the_date_is_one_row_and_editing_shows_only_the_date():
     row = _FORM[_FORM.index('class="date-row"'):]
     assert row.index('class="date-quick-chips"') < row.index('class="date-pick"') < row.index('id="txDate"')
     assert ".modal-sheet.is-edit .date-quick-chips { display: none; }" in _CSS
-    assert _JS.count("setEditLook(true)") == 1 and _JS.count("setEditLook(false)") == 2   # הוספה, שכפול
+    assert _JS.count("setEditLook(true)") == 1 and _JS.count("setEditLook(false)") == 2   # add, duplicate
     assert "weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'" in _JS
 
 
@@ -50,14 +51,14 @@ def test_who_entered_it_sits_by_the_title():
 
 
 def test_frequency_and_end_date_stack_at_16px():
-    """עד 7.10 הם ישבו באותה שורה ב-0.88rem — והאייפון עשה זום בנגיעה בהם.
-    מתן (7.10) בחר: 16px, אחד מתחת לשני."""
+    """Until 7.10 they sat on the same row at 0.88rem, and the iPhone zoomed on
+    tapping them. Matan (7.10) chose: 16px, one under the other."""
     assert "#modalOverlay .recurring-fields.visible { display: grid; grid-template-columns: 1fr;" in _CSS
     assert "#modalOverlay .recurring-fields .form-input { font-size: max(1rem, 16px);" in _CSS
 
 
 def test_the_categories_are_taller_and_show_the_whole_name():
-    """מתן (11.10): "תגדיל טיפה את הקטגוריות, אני רוצה שיראו את כל השמות" —
-    במקום "באותו גודל של היום" (5.10)."""
+    """Matan (11.10): "make the categories a bit bigger, I want all the names to
+    show", instead of "at today's size" (5.10)."""
     assert "#modalOverlay .cat-btn { min-height: 76px;" in _CSS
     assert "#modalOverlay .cat-btn > span:last-child { overflow-wrap: anywhere; }" in _CSS

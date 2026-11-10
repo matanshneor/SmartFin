@@ -1,13 +1,13 @@
 """
-אנימציית הספירה תמיד רצה מאפס.
+The count-up animation always ran from zero.
 
-אחרי הוספת הוצאה של ₪100 המשתמש ראה את "נשאר בעו״ש" מטפס מאפס עד
-הסכום החדש — אנימציה של שנייה שלמה שלא מספרת לו כלום. מה שמעניין הוא
-**מה השתנה**: שהיתרה ירדה ב-₪100. מתן ביקש את זה אחרי שראה את הרענון
-הרך עובד.
+After adding a ₪100 expense the user saw "left in the account" climb from zero to
+the new amount: a whole second of animation that tells them nothing. What is
+interesting is **what changed**: that the balance dropped by ₪100. Matan asked for
+this after seeing the soft refresh working.
 
-בטעינה ראשונה אין ערך קודם, ושם אפס הוא הנכון — זה הרושם הראשון,
-לא עדכון.
+On first load there is no previous value, and there zero is right: it is the
+first impression, not an update.
 """
 import json
 import shutil
@@ -91,7 +91,7 @@ const steps = JSON.parse(process.argv[4]);   // [[value, prefix], ...]
 def _run(steps, reduce=False):
     node = shutil.which("node")
     if not node:
-        pytest.skip("node לא מותקן")
+        pytest.skip("node isn't installed")
     h = _ROOT / "tests" / "_countup_harness.js"
     h.write_text(_HARNESS, encoding="utf-8")
     try:
@@ -103,7 +103,7 @@ def _run(steps, reduce=False):
         h.unlink(missing_ok=True)
     assert out.returncode == 0, out.stderr[:800]
     frames = json.loads(out.stdout.strip().splitlines()[-1])["frames"]
-    # מפצלים לקבוצות לפי הסמן '--'
+    # Split into groups by the '--' marker
     groups, cur = [], None
     for f in frames:
         if f == "--":
@@ -118,82 +118,87 @@ def _run(steps, reduce=False):
 
 
 def _num(text):
-    # ‎float‎ ולא ‎int‎: סכום עם אגורות מוצג עם אגורות גם באמצע האנימציה
+    # `float` and not `int`: an amount with agorot is shown with agorot even
+    # mid-animation
     return float(text.replace("₪", "").replace(",", "").replace("-", "") or 0)
 
 
-# ─── ההתנהגות שביקש מתן ─────────────────────────────────────────────────────
+# ─── The behaviour Matan asked for ──────────────────────────────────────────
 
 def test_the_second_render_never_goes_near_zero():
-    """הלב. ₪5,000 ואז ₪4,900 — כל האנימציה נעה בין שני הערכים, ולא
-    צונחת לאפס ומטפסת בחזרה.
+    """The heart. ₪5,000 then ₪4,900: the whole animation moves between the two
+    values, and doesn't plunge to zero and climb back.
 
-    נבדק על כל הפריימים ולא על הראשון בלבד: הראשון שנדגם הוא כבר
-    אחרי רבע שנייה של האצה, ולא נקודת ההתחלה עצמה."""
+    Checked on every frame and not only the first: the first sampled one is
+    already a quarter of a second into the acceleration, not the starting point
+    itself."""
     first, second = _run([[5000, ""], [4900, ""]])
 
     values = [_num(f) for f in second]
-    assert min(values) >= 4900, f"ירד עד {min(values)} — כלומר התחיל מאפס"
+    assert min(values) >= 4900, f"went down to {min(values)}, i.e. it started from zero"
     assert max(values) <= 5000
     assert values[-1] == 4900
 
 
 def test_the_first_render_still_climbs_from_zero():
-    """בקרת-נגד: זה הרושם הראשון, לא עדכון — ושם אפס הוא הנכון."""
+    """Control: this is the first impression, not an update, and there zero is right."""
     first, = _run([[5000, ""]])
 
     values = [_num(f) for f in first]
-    assert values[0] < 5000 * 0.8, f"התחיל מ-{values[0]} — לא נראה כמו טיפוס מאפס"
+    assert values[0] < 5000 * 0.8, f"started from {values[0]}: doesn't look like a climb from zero"
     assert values[-1] == 5000
 
 
 def test_a_number_that_did_not_change_does_not_animate():
-    """אנימציה מערך לעצמו היא שנייה של כלום. קורה בכל רענון שלא נגע
-    במספר הזה — למשל הוספת עסקת פרויקט, שלא נכנסת למאזן."""
+    """An animation from a value to itself is a second of nothing. Happens on every
+    refresh that didn't touch this number, e.g. adding a project transaction,
+    which doesn't go into the balance."""
     first, second = _run([[5000, ""], [5000, ""]])
 
-    assert second == ["₪5,000"], f"רצו {len(second)} פריימים במקום אחד"
+    assert second == ["₪5,000"], f"{len(second)} frames ran instead of one"
 
 
 def test_flipping_between_surplus_and_deficit_starts_from_zero():
-    """המספר מוצג בערך מוחלט עם קידומת. מעבר ישיר בין שני ערכים
-    מוחלטים היה מציג סכומי ביניים עם הסימן ההפוך — "-₪250" בדרך
-    מעודף של ₪300 לגירעון של ₪200."""
+    """The number is shown as an absolute value with a prefix. A direct transition
+    between two absolute values would show intermediate amounts with the opposite
+    sign: "-₪250" on the way from a ₪300 surplus to a ₪200 deficit."""
     first, second = _run([[300, ""], [200, "-"]])
 
     values = [_num(f) for f in second]
-    assert max(values) <= 200, f"הגיע עד {max(values)} — המשיך מהערך הקודם"
+    assert max(values) <= 200, f"reached {max(values)}: it continued from the previous value"
     assert second[-1] == "-₪200"
-    assert all(f.startswith("-") for f in second), "הסימן לא עקבי לאורך האנימציה"
+    assert all(f.startswith("-") for f in second), "the sign isn't consistent throughout the animation"
 
 
 def test_reduced_motion_still_skips_everything():
-    """בקרת-נגד: ההעדפה הזאת גוברת על הכול, גם על ההתנהגות החדשה."""
+    """Control: this preference beats everything, including the new behaviour."""
     first, second = _run([[5000, ""], [4900, ""]], reduce=True)
 
     assert first == ["₪5,000"]
     assert second == ["₪4,900"]
 
 
-# ─── הספירה לא מחליפה צורה באמצע (מתן, 30.9) ───────────────────────────────
+# ─── The count doesn't change form midway (Matan, 30.9) ─────────────────────
 #
-# "הכסף נספר באגורות ואז מוצג מעוגל": יעד בשקלים שלמים, אבל ערכי הביניים של
-# האנימציה שבורים (1,203.57), ו-‎sfMoney‎ מציג אגורות כשיש — אז הן הופיעו
-# לאורך הספירה ונעלמו בסוף.
+# "The money is counted in agorot and then shown rounded": a target in whole
+# shekels, but the animation's intermediate values are fractional (1,203.57), and
+# `sfMoney` shows agorot when present, so they appeared throughout the count and
+# vanished at the end.
 
 def test_a_whole_shekel_target_counts_in_whole_shekels():
     frames = [f for g in _run([[1481, ""]]) for f in g]
 
-    assert len(frames) > 3, "אין אנימציה לבדוק"
+    assert len(frames) > 3, "no animation to check"
     assert not [f for f in frames if "." in f], [f for f in frames if "." in f][:5]
     assert frames[-1] == "₪1,481"
 
 
 def test_a_target_with_agorot_counts_in_whole_shekels_and_lands_exactly():
-    """"שאנימציית הספירה תהיה בלי אגורות גם": גם כשהסכום הסופי כולל אגורות,
-    הספירה בשקלים שלמים — והאגורות מופיעות רק בערך הסופי."""
+    """"Make the count-up animation without agorot too": even when the final amount
+    includes agorot, the count is in whole shekels, and the agorot appear only in
+    the final value."""
     frames = [f for g in _run([[1481.37, ""]]) for f in g]
 
-    assert len(frames) > 3, "אין אנימציה לבדוק"
+    assert len(frames) > 3, "no animation to check"
     assert frames[-1] == "₪1,481.37"
     assert not [f for f in frames[:-1] if "." in f], [f for f in frames[:-1] if "." in f][:5]

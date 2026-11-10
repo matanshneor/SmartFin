@@ -1,16 +1,17 @@
-"""שני כללים שאף בדיקה לא אכפה, ושניהם נשברו באותו יום.
+"""Two rules no test enforced, and both broke on the same day.
 
-**מטפל בשורה.** ל-‎onclick‎ בתבנית אין שום סימן שהוא לא עובד: הוא נראה
-נכון, הוא עובר כל בדיקת טקסט, והדפדפן חוסם אותו בשקט בגלל ה-CSP
-(‎script-src 'self'‎ בלי ‎unsafe-inline‎). הוא נחת על כפתור הרענון במסך
-ההמתנה — המסך היחיד באפליקציה שאין ממנו יציאה. הכפתור פשוט לא הגיב.
+**An inline handler.** An `onclick` in a template has no sign that it doesn't
+work: it looks right, it passes every text check, and the browser silently
+blocks it because of the CSP (`script-src 'self'` without `unsafe-inline`). It
+landed on the refresh button on the waiting screen: the only screen in the app
+with no way out. The button simply didn't respond.
 
-**רענון רך בלי שומר.** ‎softReload‎ מחליף את ‎main‎ כולו, וזה בטוח רק
-בעמוד שהצהיר על עצמו ככזה. קריאה אחת לא מגודרת בעמוד החודש השאירה את
-כל מופעי Chart.js על canvas מנותקים: הגרפים נעלמו, החיפוש מת, וכפתור
-הניהול הפסיק להגיב באמצע הפעולה.
+**A soft refresh without a guard.** `softReload` replaces the whole `main`, and
+that is safe only on a page that declared itself as such. One unguarded call on
+the month page left every Chart.js instance on detached canvases: the charts
+vanished, the search died, and the management button stopped responding midway.
 
-הבדיקות כאן לא מתארות את שני הבאגים — הן אוכפות את שני הכללים.
+The tests here don't describe the two bugs: they enforce the two rules.
 """
 import re
 from pathlib import Path
@@ -26,24 +27,24 @@ _JS = _ROOT / "frontend/static/js"
 _INLINE_HANDLER = re.compile(r"\son[a-z]+\s*=\s*[\"']", re.I)
 
 
-# ─── אין מטפלים בשורה ────────────────────────────────────────────────────────
+# ─── No inline handlers ─────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("template", sorted(p.name for p in _TPL.glob("*.html")))
 def test_no_template_uses_an_inline_event_handler(template):
-    """ה-CSP חוסם אותם, והחסימה שקטה — אין שגיאת JS, רק כפתור שלא עושה
-    כלום. זו הדרך היקרה ביותר לגלות."""
+    """The CSP blocks them, and the blocking is silent: no JS error, just a button
+    that does nothing. That is the most expensive way to find out."""
     html = (_TPL / template).read_text(encoding="utf-8")
     found = [m.group(0).strip() for m in _INLINE_HANDLER.finditer(html)]
 
     assert not found, (
-        f"{template} מכיל מטפל בשורה {found} — ה-CSP יחסום אותו בשקט. "
-        f"המקום למאזין הוא קובץ ה-JS של העמוד."
+        f"{template} contains an inline handler {found}: the CSP will silently block it. "
+        f"The place for the listener is the page's JS file."
     )
 
 
 def test_the_policy_that_makes_that_true_is_still_in_place():
-    """בקרת-נגד: אם מישהו יתיר ‎unsafe-inline‎, הבדיקה למעלה תישאר ירוקה
-    ותשמור על כלל שכבר לא נחוץ — בזמן שההגנה האמיתית נעלמה."""
+    """Control: if someone allows `unsafe-inline`, the test above stays green and
+    guards a rule that is no longer needed, while the real protection is gone."""
     from backend.app import _CSP
 
     directives = dict(
@@ -52,57 +53,59 @@ def test_the_policy_that_makes_that_true_is_still_in_place():
     )
     script_src = directives.get("script-src", "")
 
-    assert script_src == "'self'", f"script-src נפתח: {script_src!r}"
+    assert script_src == "'self'", f"script-src was opened: {script_src!r}"
     assert "unsafe-inline" not in script_src
 
 
 def test_the_waiting_screen_button_is_wired_before_the_early_exit():
-    """מסך ההמתנה מוגש במקום האשף, ו-‎onboarding.js‎ יוצא מוקדם כשאין
-    אשף. הכפתור היחיד שקיים שם חייב להיקשר לפני היציאה הזאת."""
+    """The waiting screen is served instead of the wizard, and `onboarding.js`
+    returns early when there is no wizard. The only button there must be bound
+    before that return."""
     js = (_JS / "onboarding.js").read_text(encoding="utf-8")
 
-    assert "waitingRefreshBtn" in js, "כפתור הרענון לא מחובר לשום מאזין"
+    assert "waitingRefreshBtn" in js, "the refresh button isn't connected to any listener"
     assert js.index("waitingRefreshBtn") < js.index("if (!step0) return;"), \
-        "המאזין נרשם אחרי היציאה המוקדמת — כלומר לעולם לא, במסך שבו הוא נחוץ"
+        "the listener is registered after the early return, i.e. never, on the screen where it is needed"
 
 
 def test_the_wizard_has_a_way_out():
-    """בלי זה מי שנרשם עם מייל שגוי, או הצטרף למשפחה הלא נכונה, תקוע:
-    באשף אין ניווט, אין תפריט ואין אף קישור."""
+    """Without this, whoever signed up with a wrong email, or joined the wrong
+    family, is stuck: the wizard has no navigation, no menu and not a single link."""
     html = (_TPL / "onboarding.html").read_text(encoding="utf-8")
 
-    assert "url_for('logout')" in html, "אין דרך החוצה מהאשף"
+    assert "url_for('logout')" in html, "no way out of the wizard"
 
 
-# ─── כל רענון רך מגודר ───────────────────────────────────────────────────────
+# ─── Every soft refresh is guarded ──────────────────────────────────────────
 
 def test_every_soft_reload_call_checks_the_page_opted_in():
-    """הכלל, ולא המקרה. ‎softReload‎ מחליף את ‎main‎ כולו — קריאה בעמוד
-    שלא הצהיר על עצמו כבטוח משאירה אחריה DOM חצי-מחובר."""
+    """The rule, not the case. `softReload` replaces the whole `main`: a call on a
+    page that didn't declare itself safe leaves a half-connected DOM behind."""
     js = (_JS / "transactions.js").read_text(encoding="utf-8")
 
     for match in re.finditer(r"window\.softReload\(", js):
         window = js[max(0, match.start() - 600):match.start()]
         assert "data-soft-reload" in window, (
-            f"קריאה ל-softReload בתו {match.start()} בלי לבדוק "
-            f"שהעמוד הצטרף לרענון רך"
+            f"a call to softReload at character {match.start()} without checking "
+            f"that the page opted into soft refresh"
         )
 
 
 def test_the_month_page_repaints_its_charts_after_a_refresh():
-    """העמוד הצטרף לרענון רך, אז כל canvas מוחלף. בלי ציור מחדש נשארות
-    תוויות המרכז מרחפות מעל ריבועים ריקים."""
+    """The page opted into soft refresh, so every canvas is replaced. Without a
+    redraw the centre labels are left floating over empty squares."""
     js = (_JS / "month.js").read_text(encoding="utf-8")
 
-    assert "function paint()" in js, "אין פונקציית ציור שאפשר להפעיל שוב"
+    assert "function paint()" in js, "no drawing function that can be run again"
     assert re.search(r"addEventListener\(\s*'sf:refreshed'\s*,\s*paint\s*\)", js), \
-        "הגרפים לא נצבעים מחדש אחרי רענון רך"
+        "the charts aren't redrawn after a soft refresh"
     assert "destroy()" in js, \
-        "מופעים קודמים לא נהרסים — new Chart על canvas תפוס זורק"
+        "previous instances aren't destroyed: new Chart on a canvas in use throws"
 
 
 def test_the_month_page_redraws_its_charts_after_a_refresh():
-    """ה-HTML הטרי מביא ‎<canvas>‎ ריקים — בלי ציור מחדש הכרטיסים נשארים ריקים."""
+    """The fresh HTML brings empty `<canvas>` elements: without a redraw the cards
+    stay empty."""
     js = (_JS / "month.js").read_text(encoding="utf-8")
 
     assert re.search(r"addEventListener\(\s*'sf:refreshed'\s*,\s*paint\s*\)", js)

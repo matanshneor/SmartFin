@@ -1,8 +1,10 @@
-"""נגישות — סבב 4, ה5. הבדיקה המלאה בדפדפן: tests/browser/accessibility.py.
+"""Accessibility, round 4, E5. The full check in the browser:
+tests/browser/accessibility.py.
 
-מה שנבדק כאן הוא שהסימון לא נעלם בעריכה עתידית: מתג בלי שם הוקרא
-"תיבת סימון, מסומנת" ×6; התפריט הוקרא אחרת ממה שכתוב ולא אמר איפה אתה;
-גרף לא הוכרז; "עוד 3 קטגוריות" לא אמר אם הוא פתוח.
+What is checked here is that the markup doesn't disappear in a future edit: a
+switch with no name was read as "checkbox, checked" ×6; the menu was read
+differently from what is written and didn't say where you are; a chart wasn't
+announced; "3 more categories" didn't say whether it is open.
 """
 import re
 from pathlib import Path

@@ -1,16 +1,17 @@
 """
-בדיקות ניגודיות.
+Contrast tests.
 
-הזהב של SmartFin (#A67C00) נתן 3.82:1 על לבן — מתחת ל-4.5 שהתקן דורש
-לטקסט רגיל. זה נגע בכל האפליקציה, וגם בכפתור הראשי: לבן על הקצה הבהיר
-של הגרדיאנט נתן 2.75:1, וזה הכפתור של התחברות, הרשמה ואשף ההגדרה.
+SmartFin's gold (#A67C00) gave 3.82:1 on white, below the 4.5 the standard
+requires for normal text. It touched the whole app, including the primary
+button: white on the light end of the gradient gave 2.75:1, and that is the
+button for sign-in, signup and the setup wizard.
 
-הפתרון שנבחר: הזהב עצמו נשאר לאייקונים, מסגרות וקווים — שם התקן דורש
-3:1 והוא עובר — ואסימון כהה יותר משמש לטקסט בלבד, כך שהזהות החזותית
-לא זזה.
+The chosen fix: the gold itself stays for icons, borders and lines (where the
+standard requires 3:1 and it passes), and a darker token is used for text only,
+so the visual identity doesn't move.
 
-הבדיקות מחשבות את היחס מתוך ה-CSS עצמו ולא מקבעות מספרים, כדי שכל
-שינוי עתידי בפלטה ייבדק מחדש.
+The tests compute the ratio from the CSS itself and don't hard-code numbers, so
+every future change to the palette is checked again.
 """
 import re
 from pathlib import Path
@@ -25,13 +26,13 @@ _CSS = (Path(__file__).resolve().parent.parent
 
 def _token(name):
     m = re.search(rf"--{name}:\s*(#[0-9A-Fa-f]{{6}})", _CSS)
-    assert m, f"לא נמצא האסימון --{name}"
+    assert m, f"token --{name} not found"
     return m.group(1)
 
 
 def _gradient_stops():
     m = re.search(r"--gradient-gold:\s*[^;]*?(#[0-9A-Fa-f]{6})[^;]*?(#[0-9A-Fa-f]{6})", _CSS)
-    assert m, "לא נמצא הגרדיאנט"
+    assert m, "gradient not found"
     return m.group(1), m.group(2)
 
 
@@ -49,7 +50,7 @@ def _ratio(a, b):
 
 
 def _over(fg, bg, alpha):
-    """צבע שקוף מעל רקע אטום — מה שהעין באמת רואה."""
+    """A translucent colour over an opaque background: what the eye really sees."""
     f = [int(fg[i:i + 2], 16) for i in (1, 3, 5)]
     b = [int(bg[i:i + 2], 16) for i in (1, 3, 5)]
     return "#%02X%02X%02X" % tuple(round(f[i] * alpha + b[i] * (1 - alpha)) for i in range(3))
@@ -58,7 +59,7 @@ def _over(fg, bg, alpha):
 WHITE = "#FFFFFF"
 
 
-# ─── טקסט: 4.5:1 ─────────────────────────────────────────────────────────────
+# ─── Text: 4.5:1 ────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("surface,name", [
     (WHITE,                "כרטיס לבן"),
@@ -68,12 +69,13 @@ def test_gold_text_is_readable(surface, name):
     bg = surface or _token("color-bg")
     r = _ratio(_token("color-gold-text"), bg)
 
-    assert r >= 4.5, f"טקסט זהב על {name}: {r:.2f}:1"
+    assert r >= 4.5, f"gold text on {name}: {r:.2f}:1"
 
 
 def test_gold_text_on_a_tinted_badge_is_readable():
-    """המקרה הקשה, וזה שקל לפספס: תגית עם רקע זהב בשקיפות 10%, מעל רקע
-    העמוד. חישוב מול לבן בלבד היה עובר ומשאיר את זה שבור."""
+    """The hard case, and the one easy to miss: a tag with a gold background at
+    10% opacity, over the page background. Computing against white only would
+    pass and leave this broken."""
     tinted = _over(_token("color-gold"), _token("color-bg"), 0.10)
     r = _ratio(_token("color-gold-text"), tinted)
 
@@ -82,10 +84,10 @@ def test_gold_text_on_a_tinted_badge_is_readable():
 
 @pytest.mark.parametrize("stop", [0, 1])
 def test_white_on_the_primary_button_is_readable(stop):
-    """גרדיאנט נבדק בשני קצותיו — הבהיר הוא זה שנכשל."""
+    """A gradient is checked at both ends: the light one is the one that fails."""
     r = _ratio(WHITE, _gradient_stops()[stop])
 
-    assert r >= 4.5, f"קצה {stop}: {r:.2f}:1"
+    assert r >= 4.5, f"stop {stop}: {r:.2f}:1"
 
 
 def test_muted_text_is_readable():
@@ -93,25 +95,26 @@ def test_muted_text_is_readable():
     assert r >= 4.5, f"{r:.2f}:1"
 
 
-# ─── לא-טקסט: 3:1 ────────────────────────────────────────────────────────────
+# ─── Non-text: 3:1 ──────────────────────────────────────────────────────────
 
 def test_borders_and_icons_keep_the_brand_gold():
-    """בקרת-נגד: הזהב המקורי נשאר, ועובר את הדרישה לתוכן שאינו טקסט.
-    בלי זה 'תיקנו נגישות' היה אומר 'שינינו את המראה של האפליקציה'."""
+    """Control: the original gold stays, and passes the requirement for non-text
+    content. Without this 'we fixed accessibility' would mean 'we changed how the
+    app looks'."""
     gold = _token("color-gold")
 
-    assert gold == "#A67C00", "גוון המותג השתנה"
+    assert gold == "#A67C00", "the brand tint changed"
     assert _ratio(gold, WHITE) >= 3.0
 
 
 def test_nothing_still_uses_the_brand_gold_as_text():
-    """‎color:‎ הוא טקסט; מסגרות ומילויים משתמשים במאפיינים אחרים."""
+    """`color:` is text; borders and fills use other properties."""
     leftovers = re.findall(r"(?<![-\w])color:\s*var\(--color-gold\)", _CSS)
 
-    assert not leftovers, f"{len(leftovers)} שימושים בזהב המותג כטקסט"
+    assert not leftovers, f"{len(leftovers)} uses of the brand gold as text"
 
 
-# ─── שאר הפלטה ───────────────────────────────────────────────────────────────
+# ─── The rest of the palette ────────────────────────────────────────────────
 
 @pytest.mark.parametrize("token,what", [
     ("color-savings", "סכומי חיסכון"),
@@ -121,18 +124,18 @@ def test_nothing_still_uses_the_brand_gold_as_text():
     ("color-text-soft", "טקסט משני"),
 ])
 def test_every_colour_used_for_money_is_readable(token, what):
-    """סכומים הם הטקסט שהכי חשוב שייקרא נכון באפליקציה הזאת."""
+    """Amounts are the text it matters most to read right in this app."""
     for bg, name in ((WHITE, "כרטיס"), (_token("color-bg"), "רקע העמוד")):
         r = _ratio(_token(token), bg)
-        assert r >= 4.5, f"{what} על {name}: {r:.2f}:1"
+        assert r >= 4.5, f"{what} on {name}: {r:.2f}:1"
 
 
 @pytest.mark.parametrize("token", [
     "color-expense-light", "color-income-light", "color-savings-light",
 ])
 def test_the_light_variants_are_checked_against_the_dark_hero(token):
-    """הם משמשים רק בתוך ה-KPI על הרקע הכהה. השוואה מול לבן הייתה
-    מראה כשל מדומה ושולחת לתקן צבע תקין."""
+    """They are used only inside the KPI on the dark background. Comparing against
+    white would show a false failure and send you to fix a correct colour."""
     r = _ratio(_token(token), _token("hero-bg"))
 
     assert r >= 4.5, f"{r:.2f}:1"

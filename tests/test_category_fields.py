@@ -1,8 +1,9 @@
-"""שם ואייקון של קטגוריה נבדקים בשרת, לא רק במסך.
+"""A category's name and icon are checked on the server, not only on the screen.
 
-למסך יש ‎maxlength‎, לשרת לא היה כלום: בן משפחה שפונה ל-API ישירות יכול
-היה לשמור אייקון כמו ‎<style>…</style>‎, והוא נכנס ל-‎innerHTML‎ של שורת
-הביניים בדף הבית אצל כל המשפחה. ו-‎{"name": 5}‎ הפיל את המסלול ב-500.
+The screen has a `maxlength`, the server had nothing: a family member calling
+the API directly could save an icon like `<style>…</style>`, and it went into the
+`innerHTML` of the in-between row on the home page for the whole family. And
+`{"name": 5}` crashed the route with a 500.
 """
 import pytest
 
@@ -14,7 +15,7 @@ pytestmark = pytest.mark.unit
 _FAM = "11111111-1111-1111-1111-111111111111"
 _ME  = "22222222-2222-2222-2222-222222222222"
 
-# ארבעת המסלולים שכותבים שם ואייקון
+# The four routes that write a name and icon
 _ROUTES = [
     ("post", "/api/categories",                  {"type": "expense"}),
     ("put",  "/api/categories/c1",               {}),
@@ -48,7 +49,7 @@ def client(monkeypatch):
 @pytest.mark.parametrize("method,url,extra", _ROUTES, ids=[r[1] + ":" + r[0] for r in _ROUTES])
 @pytest.mark.parametrize("fields", [
     {"name": "סופר", "icon": "<style>body{display:none}</style>"},
-    # קצר מספיק כדי לעבור את מגבלת האורך — נתפס רק על התווים עצמם
+    # Short enough to pass the length limit: caught only on the characters themselves
     {"name": "סופר", "icon": "<img>"},
     {"name": "סופר", "icon": "🛒" * 20},
     {"name": "x" * 31, "icon": "🛒"},
@@ -67,7 +68,8 @@ def test_bad_fields_are_refused_before_anything_is_written(client, method, url, 
 @pytest.mark.parametrize("method,url,extra", _ROUTES, ids=[r[1] + ":" + r[0] for r in _ROUTES])
 @pytest.mark.parametrize("icon", ["🛒", "👨‍👩‍👧‍👦", "🇮🇱", ""])
 def test_real_emoji_still_pass(client, method, url, extra, icon):
-    """בקרת-נגד: אימוג'י מורכב (משפחה, דגל) ארוך מתו אחד — ועדיין אייקון."""
+    """Control: a compound emoji (family, flag) is longer than one character, and
+    still an icon."""
     c, wrote = client
 
     res = getattr(c, method)(url, json={**extra, "name": "סופר", "icon": icon})

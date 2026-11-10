@@ -1,13 +1,14 @@
 """
-בדיקות לתקציב יעד לקטגוריה.
+Tests for a target budget per category.
 
-עד היום הפס שליד כל קטגוריה מדד כמה היא מתוך סך ההוצאות החודש — "מכולת
-היא 35% מההוצאות" — ולא "נשאר לך ₪200". וההתראה היחידה השוותה לממוצע
-שלושת החודשים הקודמים, כלומר להרגל ולא להחלטה: מי שהוציא יותר מדי שלושה
-חודשים ברצף מעלה את הממוצע, והאפליקציה מפסיקה להתריע. היא מתרגלת.
+Until now the bar next to each category measured its share of the month's total
+expenses ("groceries are 35% of expenses"), not "₪200 left". And the only alert
+compared against the average of the previous three months, i.e. against habit
+and not a decision: whoever overspent three months in a row raises the average,
+and the app stops alerting. It gets used to it.
 
-שתי החלטות נפרדות לכל קטגוריה, לפי בקשת מתן: האם יש תקציב, ואם כן —
-האם להתריע בחריגה.
+Two separate decisions per category, per Matan's request: whether there is a
+budget, and if so, whether to alert on overage.
 """
 import pytest
 
@@ -35,21 +36,21 @@ def _tx(amount, category_id=_CAT, name="מכולת"):
 
 
 def _rows(total, categories=None, txs=None):
-    """שורות הפילוח כפי שהקוד האמיתי מייצר אותן.
+    """The breakdown rows as the real code produces them.
 
-    **זה מה שהסתיר את הבאג במשך שבוע.** הגרסה הקודמת בנתה כאן dict
-    בכתב יד עם ‎category_id‎ — מפתח ש-‎category_breakdown_from_rows‎ לא
-    ייצרה בכלל. הבדיקות עברו על נתון מומצא, בעוד שבאפליקציה האמיתית
-    ‎apply_budgets‎ חיפשה מזהה ולא מצאה אותו אף פעם, ולכן שום תקציב לא
-    הוחל, שום פס לא הוצג ושום התראת חריגה לא נורתה — מהיום שהתכונה
-    שוחררה. עכשיו הכול עובר דרך היצרן האמיתי."""
+    **This is what hid the bug for a week.** The previous version built a
+    hand-written dict here with `category_id`, a key `category_breakdown_from_rows`
+    didn't produce at all. The tests passed on made-up data, while in the real
+    app `apply_budgets` looked for an id and never found it, so no budget was
+    applied, no bar was shown and no overage alert fired, from the day the
+    feature shipped. Now everything goes through the real producer."""
     return db.category_breakdown_from_rows(
         txs if txs is not None else [_tx(total)],
         categories if categories is not None else _CATEGORIES,
         "expense")
 
 
-# ─── החישוב ──────────────────────────────────────────────────────────────────
+# ─── The calculation ────────────────────────────────────────────────────────
 
 def test_a_category_under_budget_shows_what_is_left():
     row = db.apply_budgets(_rows(1800), _settings())[0]
@@ -68,12 +69,12 @@ def test_a_category_over_budget_shows_by_how_much():
 
 
 def test_the_bar_stops_at_full_rather_than_overflowing():
-    """פס שגולש מעבר לרוחב לא מוסיף מידע ושובר את הפריסה."""
+    """A bar overflowing its width adds no information and breaks the layout."""
     assert db.apply_budgets(_rows(9999), _settings())[0]["budget_pct"] == 100
 
 
 def test_a_category_without_a_budget_is_untouched():
-    """בקרת-נגד: מי שלא השתמש בתכונה לא אמור לראות שום שינוי."""
+    """Control: whoever didn't use the feature shouldn't see any change."""
     row = db.apply_budgets(_rows(1800), {"limits": {}})[0]
 
     assert "budget" not in row
@@ -82,17 +83,18 @@ def test_a_category_without_a_budget_is_untouched():
 
 @pytest.mark.parametrize("amount", [0, -5, None, "", "abc"])
 def test_a_meaningless_budget_is_treated_as_none(amount):
-    """‎0‎ הוא גם הדרך להסיר תקציב מהממשק, אז הוא חייב להיקרא כ'אין'."""
+    """`0` is also how a budget is removed in the UI, so it must read as 'none'."""
     assert db.category_budget({"limits": {_CAT: {"amount": amount}}}, _CAT) is None
 
 
 def test_a_malformed_entry_does_not_crash_the_month_page():
-    """ה-JSONB נערך בעבר ידנית; מבנה לא צפוי לא אמור להפיל עמוד."""
+    """The JSONB was edited by hand in the past; an unexpected shape shouldn't
+    break a page."""
     for broken in (None, "2000", [], {"alert": True}):
         assert db.category_budget({"limits": {_CAT: broken}}, _CAT) is None
 
 
-# ─── שתי ההחלטות, בנפרד ──────────────────────────────────────────────────────
+# ─── The two decisions, separately ──────────────────────────────────────────
 
 def test_exceeding_a_budget_alerts_when_asked():
     alerts = db.budget_alerts(db.apply_budgets(_rows(2350), _settings(alert=True)))
@@ -103,7 +105,8 @@ def test_exceeding_a_budget_alerts_when_asked():
 
 
 def test_exceeding_a_budget_stays_quiet_when_not_asked():
-    """הלב של מה שמתן ביקש: אפשר לראות את המספר בלי שינדנדו עליו."""
+    """The heart of what Matan asked for: you can see the number without being
+    nagged about it."""
     alerts = db.budget_alerts(db.apply_budgets(_rows(2350), _settings(alert=False)))
 
     assert alerts == []
@@ -114,11 +117,12 @@ def test_staying_within_budget_never_alerts():
 
 
 def test_alerting_defaults_to_on_when_a_budget_is_set():
-    """מי שטרח לקבוע תקציב כנראה רוצה לדעת כשחרג; הכיבוי מפורש."""
+    """Whoever bothered to set a budget probably wants to know when they went over;
+    turning it off is explicit."""
     assert db.category_budget({"limits": {_CAT: {"amount": 2000}}}, _CAT)["alert"] is True
 
 
-# ─── השמירה ──────────────────────────────────────────────────────────────────
+# ─── Saving ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture
 def client(monkeypatch):
@@ -148,8 +152,8 @@ def test_setting_a_budget_stores_both_decisions(client):
 
 
 def test_clearing_the_amount_removes_the_budget(client):
-    """"לא להגדיר תקציב" ו"להסיר תקציב" הם אותו מסלול — אין פעולת
-    מחיקה נפרדת שאפשר לשכוח."""
+    """"Don't set a budget" and "remove the budget" are the same route: there is no
+    separate delete action to forget."""
     c, saved = client
     c.put("/api/family/settings", json={"limits": {_CAT: {"amount": 2000}}})
 
@@ -159,7 +163,7 @@ def test_clearing_the_amount_removes_the_budget(client):
 
 
 def test_a_budget_for_a_category_of_another_family_is_refused(client):
-    """הסכומים מגיעים מהלקוח, כולל המזהה."""
+    """The amounts come from the client, including the id."""
     c, _ = client
 
     response = c.put("/api/family/settings",
@@ -176,18 +180,19 @@ def test_a_nonsense_amount_is_refused(client, bad):
                  json={"limits": {_CAT: {"amount": bad}}}).status_code == 422
 
 
-# ─── החיווט: שהתקציב באמת מגיע מהעסקאות עד המסך ─────────────────────────────
+# ─── The wiring: that the budget really flows from the transactions to the screen ─
 
 def test_the_breakdown_carries_the_id_the_budget_is_stored_under():
-    """הבדיקה שהייתה חסרה. תקציב שמור לפי מזהה קטגוריה; אם שורת הפילוח
-    לא נושאת מזהה, החיפוש נכשל בשקט וכל התכונה מתה."""
+    """The test that was missing. A budget is stored by category id; if the
+    breakdown row carries no id, the lookup silently fails and the whole feature
+    is dead."""
     row = db.category_breakdown_from_rows([_tx(800)], _CATEGORIES, "expense")[0]
 
     assert row["category_id"] == _CAT
 
 
 def test_a_real_overspend_produces_a_real_alert():
-    """מקצה לקצה על הנתיב האמיתי: עסקה → פילוח → תקציב → התראה."""
+    """End to end on the real path: transaction → breakdown → budget → alert."""
     breakdown = db.apply_budgets(_rows(800), {"limits": {_CAT: {"amount": 500, "alert": True}}})
 
     assert breakdown[0]["budget_over"] is True
@@ -197,8 +202,9 @@ def test_a_real_overspend_produces_a_real_alert():
 
 
 def test_a_category_that_was_deleted_does_not_merge_into_another():
-    """עסקה שאיבדה את הקטגוריה שלה נספרה בעבר לתוך "אחר" הקיימת, כי
-    הקיבוץ היה לפי שם. הסכום החודשי נשאר נכון והפילוח הפך לשקרי."""
+    """A transaction that lost its category used to be counted into the existing
+    "אחר", because grouping was by name. The monthly total stayed right and the
+    breakdown became a lie."""
     cats = [{"id": _CAT, "name": "אחר", "icon": "📦", "type": "expense"}]
     orphan = _tx(300, category_id=None, name=None)
     orphan["categories"] = None
@@ -210,7 +216,8 @@ def test_a_category_that_was_deleted_does_not_merge_into_another():
 
 
 def test_two_categories_with_the_same_name_stay_apart():
-    """אין במסד אילוץ ייחודיות על שם קטגוריה. קיבוץ לפי שם איחד אותן."""
+    """The database has no uniqueness constraint on a category name. Grouping by
+    name merged them."""
     other = "22222222-2222-2222-2222-222222222222"
     cats = [{"id": _CAT,  "name": "מכולת", "icon": "🛒", "type": "expense"},
             {"id": other, "name": "מכולת", "icon": "🛒", "type": "expense"}]
@@ -221,11 +228,11 @@ def test_two_categories_with_the_same_name_stay_apart():
     assert sorted(r["total"] for r in out) == [100.0, 250.0]
 
 
-# ─── הסרת תקציב חייבת להימחק ────────────────────────────────────────────────
+# ─── Removing a budget must delete it ───────────────────────────────────────
 
 def test_removing_a_budget_actually_removes_it():
-    """‎.update()‎ יכולה רק להוסיף או לדרוס, לעולם לא למחוק — אז הסרה
-    לא נשמרה מעולם. המסך הראה כבוי, השרת החזיק."""
+    """`.update()` can only add or overwrite, never delete, so a removal was never
+    saved. The screen showed off, the server kept it."""
     stored = {"limits": {"A": {"amount": 500}, "B": {"amount": 300}}}
 
     merged = db._merge_settings(stored, {"limits": {"B": {"amount": 300}}})
@@ -240,8 +247,8 @@ def test_removing_the_last_budget_leaves_an_empty_map():
 
 
 def test_the_other_nested_settings_still_merge():
-    """בקרת-נגד: ‎owner_attribution‎ ו-‎anomaly‎ הן רשומות עם שדות קבועים,
-    ועדכון חלקי שלהן לא אמור למחוק את השאר."""
+    """Control: `owner_attribution` and `anomaly` are records with fixed fields, and
+    a partial update of them shouldn't delete the rest."""
     stored = {"owner_attribution": {"expense": True, "income": True, "savings": False}}
 
     merged = db._merge_settings(stored, {"owner_attribution": {"income": False}})

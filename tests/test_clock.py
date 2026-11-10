@@ -1,14 +1,14 @@
 """
-בדיקות לשעון האפליקציה.
+Tests for the app's clock.
 
-השרת רץ ב-Railway בשעון UTC והמשתמשים בישראל. הדפדפן חותם עסקה חדשה
-בשעון המקומי, בזמן שהשרת החליט לפי השעון שלו איזה חודש להציג — ובין
-חצות לשלוש לפנות בוקר השניים לא מסכימים.
+The server runs on Railway in UTC and the users are in Israel. The browser stamps
+a new transaction in local time, while the server decided by its own clock which
+month to show, and between midnight and 3am the two disagree.
 
-התרחיש שכאב: ב-00:30 ב-1 בספטמבר, שעון ישראל. השרת ב-UTC עדיין ב-31
-באוגוסט, ולכן מגיש דשבורד של אוגוסט. המשתמש מוסיף קנייה של ₪500,
-הדפדפן חותם אותה 2026-09-01, והיא פשוט לא מופיעה — עד שהיא "צצה משום
-מקום" שלוש שעות אחר כך. זה חוזר בכל מעבר חודש.
+The scenario that hurt: at 00:30 on September 1st, Israel time. The server in UTC
+is still on August 31st, so it serves an August dashboard. The user adds a ₪500
+purchase, the browser stamps it 2026-09-01, and it simply doesn't appear, until
+it "pops up out of nowhere" three hours later. This repeats at every month change.
 """
 from datetime import datetime, timezone
 
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 
 
 def _at_utc(monkeypatch, iso_utc: str):
-    """מקפיא את השעון ברגע מסוים ב-UTC, כמו שהשרת בפרודקשן חווה אותו."""
+    """Freezes the clock at a given moment in UTC, as the production server sees it."""
     frozen = datetime.fromisoformat(iso_utc).replace(tzinfo=timezone.utc)
 
     class _DT(datetime):
@@ -31,34 +31,37 @@ def _at_utc(monkeypatch, iso_utc: str):
     monkeypatch.setattr(clock, "datetime", _DT)
 
 
-# ─── התרחיש שכאב ─────────────────────────────────────────────────────────────
+# ─── The scenario that hurt ─────────────────────────────────────────────────
 
 def test_just_after_midnight_the_server_is_in_the_same_month_as_the_phone(monkeypatch):
-    """00:30 ב-1 בספטמבר בישראל = 21:30 ב-31 באוגוסט ב-UTC.
-    לפני התיקון השרת הגיש אוגוסט בזמן שהטלפון כבר בספטמבר."""
+    """00:30 on September 1st in Israel = 21:30 on August 31st in UTC.
+    Before the fix the server served August while the phone was already in
+    September."""
     _at_utc(monkeypatch, "2026-08-31T21:30:00")
 
-    assert clock.today().month == 9, "השרת עדיין בחודש הקודם — עסקאות ייעלמו"
+    assert clock.today().month == 9, "the server is still in the previous month: transactions will vanish"
     assert clock.today().day == 1
 
 
 def test_late_at_night_the_server_is_on_the_same_day_as_the_phone(monkeypatch):
-    """לא רק מעבר חודש: כל לילה בין חצות לשלוש 'היום' של השרת פיגר ביום."""
-    _at_utc(monkeypatch, "2026-09-15T22:10:00")   # 01:10 ב-16/09 בישראל
+    """Not just a month change: every night between midnight and 3am the server's
+    'today' lagged by a day."""
+    _at_utc(monkeypatch, "2026-09-15T22:10:00")   # 01:10 on 16/09 in Israel
 
     assert clock.today().day == 16
 
 
-# ─── מעברי שעון הקיץ ─────────────────────────────────────────────────────────
+# ─── Daylight saving changes ────────────────────────────────────────────────
 #
-# בישראל המעבר הוא בשישי האחרון של מרץ ובראשון האחרון של אוקטובר — לא
-# כמו אירופה ולא כמו ארה"ב. לכן ההיסט נגזר מ-ZoneInfo ולא מקודד ידנית.
+# In Israel the change is on the last Friday of March and the last Sunday of
+# October: not like Europe and not like the US. So the offset is derived from
+# ZoneInfo and not hard-coded.
 
 @pytest.mark.parametrize("utc_moment,expected_hour", [
-    ("2026-03-26T12:00:00", 14),   # לפני המעבר — חורף, UTC+2
-    ("2026-03-28T12:00:00", 15),   # אחרי המעבר — קיץ, UTC+3
-    ("2026-10-24T12:00:00", 15),   # עדיין קיץ
-    ("2026-10-26T12:00:00", 14),   # חזרה לחורף
+    ("2026-03-26T12:00:00", 14),   # before the change: winter, UTC+2
+    ("2026-03-28T12:00:00", 15),   # after the change: summer, UTC+3
+    ("2026-10-24T12:00:00", 15),   # still summer
+    ("2026-10-26T12:00:00", 14),   # back to winter
 ])
 def test_the_offset_follows_israeli_daylight_saving(monkeypatch, utc_moment, expected_hour):
     _at_utc(monkeypatch, utc_moment)
@@ -66,11 +69,11 @@ def test_the_offset_follows_israeli_daylight_saving(monkeypatch, utc_moment, exp
     assert clock.now().hour == expected_hour
 
 
-# ─── שהשעון באמת בשימוש ──────────────────────────────────────────────────────
+# ─── That the clock is really used ──────────────────────────────────────────
 
 def test_no_server_code_still_asks_the_container_for_the_time():
-    """תיקון נקודתי לא שווה כלום כאן: מספיק מקום אחד שנשכח כדי שחודש
-    יחושב בשעון הלא נכון. הבדיקה סורקת את הקוד כולו."""
+    """A spot fix is worth nothing here: one forgotten place is enough for a month
+    to be computed on the wrong clock. The test scans the whole codebase."""
     from pathlib import Path
     import re
 
@@ -83,7 +86,7 @@ def test_no_server_code_still_asks_the_container_for_the_time():
             if re.search(r"\bdatetime\.now\(\)|\bdate\.today\(\)|utcnow\(", line):
                 offenders.append(f"{f.name}:{n}")
 
-    assert not offenders, f"שעון המכולה עדיין בשימוש ב: {offenders}"
+    assert not offenders, f"the container's clock is still used in: {offenders}"
 
 
 def test_the_timezone_is_pinned_to_israel():
@@ -91,8 +94,8 @@ def test_the_timezone_is_pinned_to_israel():
 
 
 def test_the_clock_returns_naive_values(monkeypatch):
-    """הקוד הקיים משווה datetime ללא אזור; ערבוב עם aware מרים TypeError
-    באמצע עמוד. הבחירה מכוונת ולכן נבדקת."""
+    """The existing code compares naive datetimes; mixing with aware raises
+    TypeError mid-page. The choice is deliberate and so it is tested."""
     _at_utc(monkeypatch, "2026-09-16T08:00:00")
 
     assert clock.now().tzinfo is None

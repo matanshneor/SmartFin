@@ -1,15 +1,16 @@
 """
-בדיקות לחתימת הנכסים הסטטיים.
+Tests for the static asset fingerprint.
 
-כל קובץ נשלח עם "no-cache", כלומר הדפדפן שאל את השרת בכל טעינת עמוד אם
-העותק שלו עדיין תקף. שש שאלות בכל עמוד, כולן נענות "לא השתנה", וכל אחת
-תופסת אחד משני ה-workers — שש מתוך שבע הפניות בטעינה רגילה הן שיחה על
-כלום.
+Every file used to be sent with "no-cache", i.e. the browser asked the server on
+every page load whether its copy was still valid. Six questions on every page,
+all answered "not modified", and each one occupies one of the two workers: six
+out of seven requests in an ordinary load were a conversation about nothing.
 
-הסיכון בתיקון גדול מהבעיה: כתובת שנשמרת לשנה והחתימה שלה לא משתנה היא
-קובץ ישן שאין שום דרך לרענן מרחוק — לא ברענון, לא בניקוי, רק להמתין שנה.
-לכן החתימה נגזרת מתוכן הקובץ ולא ממספר ידני, והבדיקה המרכזית כאן היא
-שהיא באמת משתנה כשהתוכן משתנה.
+The risk in the fix is bigger than the problem: a URL cached for a year whose
+fingerprint doesn't change is an old file there is no way to refresh remotely
+(not by reloading, not by clearing, only by waiting a year). So the fingerprint
+is derived from the file's content and not a manual number, and the central
+check here is that it really changes when the content changes.
 """
 import re
 from pathlib import Path
@@ -38,10 +39,10 @@ def _rendered(filename="css/style.css"):
             "{{ url_for('static', filename='" + filename + "') }}")
 
 
-# ─── הלב: החתימה עוקבת אחרי התוכן ────────────────────────────────────────────
+# ─── The heart: the fingerprint follows the content ─────────────────────────
 
 def test_the_version_changes_when_the_file_changes(tmp_path, monkeypatch):
-    """אם זה לא נכון, משתמשים מקבלים קובץ ישן במשך שנה ואין דרך לתקן."""
+    """If this isn't true, users get an old file for a year and there is no way to fix it."""
     static = tmp_path / "static"
     static.mkdir()
     asset = static / "x.css"
@@ -55,11 +56,11 @@ def test_the_version_changes_when_the_file_changes(tmp_path, monkeypatch):
     after = app_module._asset_version("x.css")
 
     assert before and after
-    assert before != after, "התוכן השתנה והחתימה לא — קובץ ישן יוגש לשנה"
+    assert before != after, "the content changed and the fingerprint didn't: an old file will be served for a year"
 
 
 def test_the_version_is_derived_from_content_not_a_manual_number():
-    """מספר שצריך לזכור לעדכן הוא מספר שיישכח."""
+    """A number you have to remember to bump is a number that will be forgotten."""
     import inspect
     src = inspect.getsource(app_module._asset_version)
 
@@ -68,11 +69,11 @@ def test_the_version_is_derived_from_content_not_a_manual_number():
 
 
 def test_the_same_file_keeps_the_same_version():
-    """בקרת-נגד: חתימה שמשתנה לחינם מבטלת את המטמון בכל פריסה."""
+    """Control: a fingerprint that changes for nothing cancels the cache on every deploy."""
     assert _rendered() == _rendered()
 
 
-# ─── הכתובות שנוצרות ─────────────────────────────────────────────────────────
+# ─── The URLs produced ──────────────────────────────────────────────────────
 
 def test_static_urls_carry_a_version():
     url = _rendered()
@@ -81,21 +82,21 @@ def test_static_urls_carry_a_version():
 
 
 def test_templates_did_not_need_to_change():
-    """48 קריאות ל-url_for בתבניות. דריסה ולא פונקציה חדשה, כדי שגם
-    קריאה שתיכתב מחר תקבל את זה בלי שאיש יזכור."""
+    """48 calls to url_for in templates. An override and not a new function, so a
+    call written tomorrow gets this too without anyone remembering."""
     html = (_ROOT / "frontend/templates/base.html").read_text(encoding="utf-8")
 
     assert "url_for('static'" in html
-    assert "?v=" not in html, "החתימה נכתבה ידנית בתבנית"
+    assert "?v=" not in html, "the fingerprint was written by hand in the template"
 
 
 def test_a_missing_file_does_not_take_the_page_down():
-    """נכס חסר הוא באג שצריך לראות, לא סיבה ל-500 על כל העמוד."""
+    """A missing asset is a bug to be seen, not a reason for a 500 on the whole page."""
     assert app_module._asset_version("does/not/exist.css") == ""
     assert _rendered("does/not/exist.css") == "/static/does/not/exist.css"
 
 
-# ─── כותרות המטמון ───────────────────────────────────────────────────────────
+# ─── The cache headers ──────────────────────────────────────────────────────
 
 def test_a_versioned_url_is_cached_for_a_year():
     app.config["TESTING"] = True
@@ -106,19 +107,20 @@ def test_a_versioned_url_is_cached_for_a_year():
 
 
 def test_an_unversioned_url_is_not():
-    """זו ההגנה: כתובת בלי חתימה היא כתובת שאי אפשר לרענן, ולכן היא
-    לא נשמרת לשנה. בלי התנאי הזה טעות אחת נועלת קובץ לשנה."""
+    """This is the guard: a URL without a fingerprint is a URL that can't be
+    refreshed, so it isn't cached for a year. Without this condition one mistake
+    locks a file for a year."""
     app.config["TESTING"] = True
     headers = app.test_client().get("/static/css/style.css").headers
 
     assert "max-age=31536000" not in headers.get("Cache-Control", "")
 
 
-# ─── ה-Service Worker הותאם ──────────────────────────────────────────────────
+# ─── The Service Worker was adapted ─────────────────────────────────────────
 
 def test_the_service_worker_does_not_precache_unversioned_urls():
-    """רשימה קבועה לא יכולה לדעת את החתימה. היא הייתה מורידה כתובות
-    שאף עמוד לא מבקש — הורדה כפולה, ומטמון שלא נוגעים בו."""
+    """A fixed list can't know the fingerprint. It would download URLs no page
+    requests: a double download, and a cache nobody touches."""
     sw = (_ROOT / "frontend/static/sw.js").read_text(encoding="utf-8")
     assert "addAll" not in sw
 

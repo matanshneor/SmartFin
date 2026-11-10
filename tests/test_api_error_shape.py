@@ -1,14 +1,15 @@
 """
-בדיקות לצורת התשובה של מסלולי ה-API כשמשהו משתבש.
+Tests for the shape of the API routes' response when something goes wrong.
 
-הבאג שזה מכסה: login_required החזיר redirect גם ל-38 מסלולי ה-API.
-fetch עוקב אחרי הפניות בשקט, כך שהלקוח קיבל את דף ההתחברות כ-HTML עם
-קוד 200, ניסה לפרסר אותו כ-JSON, ונפל ל-catch שאומר "שגיאת רשת".
-המשתמש ניסה שוב וקיבל בדיוק אותו דבר, לנצח, בלי שום רמז שהפתרון הוא
-להתחבר מחדש. אותו דבר קרה ב-404 וב-500.
+The bug this covers: login_required returned a redirect for the 38 API routes
+too. fetch follows redirects silently, so the client got the sign-in page as
+HTML with status 200, tried to parse it as JSON, and fell into a catch saying
+"network error". The user tried again and got exactly the same, forever, with no
+hint that the fix is to sign in again. The same happened on 404 and on 500.
 
-הכלל שנבדק כאן: קריאה ל-/api/ מקבלת JSON עם קוד שגיאה אמיתי — לעולם
-לא HTML, ולעולם לא 200 כשהיא נכשלה. ניווט רגיל ממשיך לקבל עמוד.
+The rule checked here: a call to /api/ gets JSON with a real error status,
+never HTML, and never 200 when it failed. Ordinary navigation keeps getting a
+page.
 """
 import json
 
@@ -25,9 +26,9 @@ def anon():
     return app.test_client()
 
 
-# ─── סשן שפג ─────────────────────────────────────────────────────────────────
+# ─── An expired session ─────────────────────────────────────────────────────
 
-# מדגם מייצג משלושת הסוגים: קריאה, כתיבה ומחיקה
+# A representative sample of the three kinds: read, write and delete
 _GUARDED = [
     ("GET",    "/api/categories"),
     ("GET",    "/api/family/members"),
@@ -42,22 +43,22 @@ def test_an_expired_session_returns_401_json_not_a_login_page(anon, method, path
     response = anon.open(path, method=method)
 
     assert response.status_code == 401, (
-        f"{method} {path} החזיר {response.status_code} — "
-        "הלקוח יפרש הפניה לדף התחברות כ'שגיאת רשת' ויתקע"
+        f"{method} {path} returned {response.status_code}: "
+        "the client will read a redirect to the sign-in page as a 'network error' and get stuck"
     )
     assert response.mimetype == "application/json"
     assert json.loads(response.get_data(as_text=True))["error"]
 
 
 def test_a_normal_page_still_redirects_to_the_login_form(anon):
-    """בקרת-נגד: ההפרדה היא בין API לניווט, לא ביטול ההפניה."""
+    """Control: the split is between API and navigation, not cancelling the redirect."""
     response = anon.get("/settings")
 
     assert response.status_code == 302
     assert "/login" in response.headers["Location"]
 
 
-# ─── שגיאות שרת ──────────────────────────────────────────────────────────────
+# ─── Server errors ──────────────────────────────────────────────────────────
 
 def test_a_missing_api_route_returns_json(anon):
     response = anon.get("/api/no-such-thing")
@@ -77,14 +78,15 @@ def _always_raises():
     raise RuntimeError("boom")
 
 
-# נרשם ברמת המודול: Flask לא מרשה להוסיף מסלול אחרי הבקשה הראשונה
+# Registered at module level: Flask doesn't allow adding a route after the first request
 app.add_url_rule("/api/__boom", "test_api_boom", _always_raises)
 
 
 def test_a_server_error_on_an_api_route_returns_json():
-    """תקלת שרת אמיתית חייבת להגיע כשגיאה מזוהה. כשהיא מגיעה כ-HTML
-    המשתמש רואה "שגיאת רשת" ומנסה שוב בקשה שלעולם לא תצליח."""
-    app.config["TESTING"] = False          # אחרת Flask מרים את החריגה החוצה
+    """A real server failure must arrive as a recognisable error. When it arrives
+    as HTML the user sees "network error" and retries a request that will never
+    succeed."""
+    app.config["TESTING"] = False          # otherwise Flask raises the exception out
     try:
         response = app.test_client().get("/api/__boom")
         assert response.status_code == 500
@@ -94,17 +96,17 @@ def test_a_server_error_on_an_api_route_returns_json():
         app.config["TESTING"] = True
 
 
-# ─── ההגנה בצד הלקוח ─────────────────────────────────────────────────────────
+# ─── The client-side guard ──────────────────────────────────────────────────
 
 def test_every_page_behind_the_login_loads_the_401_guard():
-    """שרת שמחזיר 401 לא עוזר אם אף אחד לא מקשיב לו. העמודים העצמאיים
-    (onboarding) לא טוענים את core.js, ולכן ההגנה בקובץ נפרד."""
+    """A server returning 401 doesn't help if nobody listens to it. The standalone
+    pages (onboarding) don't load core.js, so the guard is in a separate file."""
     from pathlib import Path
     root = Path(__file__).resolve().parent.parent
 
     for template in ("base.html", "onboarding.html"):
         html = (root / "frontend/templates" / template).read_text(encoding="utf-8")
-        assert "js/auth-guard.js" in html, f"{template} לא טוען את ההגנה"
+        assert "js/auth-guard.js" in html, f"{template} doesn't load the guard"
 
     guard = (root / "frontend/static/js/auth-guard.js").read_text(encoding="utf-8")
     assert "401" in guard and "/login" in guard

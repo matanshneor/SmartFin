@@ -1,4 +1,4 @@
-"""אין שתי קטגוריות באותו צבע בעיגול ההוצאות (מתן, 12.10)."""
+"""No two categories in the same colour in the expense donut (Matan, 12.10)."""
 import re
 from pathlib import Path
 

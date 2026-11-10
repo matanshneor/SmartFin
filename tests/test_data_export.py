@@ -1,11 +1,12 @@
-"""הזכות לקחת את הנתונים ולעזוב לא סופקה בפועל.
+"""The right to take your data and leave wasn't actually provided.
 
-הייצוא היחיד היה ‎/month.csv‎: חודש בודד, מגיע רק מעמוד החודש, בלי
-הפרופיל, בלי הקטגוריות ובלי הפרויקטים. מי שרצה את הנתונים שלו היה
-צריך לייצא חודש-חודש ביד ולהרכיב אותם לבד — וזו לא ניידות, זו משימה.
+The only export was `/month.csv`: a single month, available only from the month
+page, without the profile, categories or projects. Whoever wanted their data had
+to export month by month by hand and assemble it themselves, and that isn't
+portability, it is a chore.
 
-מדיניות הפרטיות מבטיחה זכות עיון, ו-‎/month.csv‎ קיים בדיוק בשביל
-"מה קורה אם ארצה לעזוב". הוא פשוט לא ענה על זה.
+The privacy policy promises a right of access, and `/month.csv` exists exactly
+for "what happens if I want to leave". It just didn't answer that.
 """
 import json
 from pathlib import Path
@@ -45,7 +46,8 @@ def exporting(monkeypatch):
                         lambda fid: [{"id": _ME, "name": "מתן"}, {"id": _MATE, "name": "אור"}])
     monkeypatch.setattr(db, "get_categories",
                         lambda fid: [{"id": "c1", "name": "מכולת", "type": "expense"}])
-    # "mine" משותף/שלי, "theirs" אישי של בן משפחה אחר — לא אמור להיכלל
+    # "mine" is shared/mine, "theirs" is another family member's personal one:
+    # it shouldn't be included
     monkeypatch.setattr(db, "get_projects",
                         lambda fid, viewer: [{"id": "mine", "name": "שיפוץ"}])
 
@@ -56,10 +58,10 @@ def exporting(monkeypatch):
         yield c, fake
 
 
-# ─── מה שנמצא בקובץ ──────────────────────────────────────────────────────────
+# ─── What is in the file ────────────────────────────────────────────────────
 
 def test_the_export_carries_everything_and_not_one_month(exporting):
-    """הלב: פרופיל, משפחה, חברים, קטגוריות, פרויקטים וכל העסקאות."""
+    """The heart: profile, family, members, categories, projects and every transaction."""
     c, _ = exporting
 
     res = c.get("/account.json")
@@ -68,7 +70,7 @@ def test_the_export_carries_everything_and_not_one_month(exporting):
     data = json.loads(res.get_data(as_text=True))
     for key in ("profile", "family", "members", "categories",
                 "projects", "transactions", "exported_at"):
-        assert key in data, f"{key} חסר בייצוא"
+        assert key in data, f"{key} is missing from the export"
 
 
 def test_it_downloads_as_a_file_and_does_not_open_in_the_tab(exporting):
@@ -81,8 +83,8 @@ def test_it_downloads_as_a_file_and_does_not_open_in_the_tab(exporting):
 
 
 def test_hebrew_survives_the_round_trip(exporting):
-    """‎ensure_ascii‎ היה הופך כל שם קטגוריה לרצף ‎\\uXXXX‎ — קובץ תקין
-    שאי אפשר לקרוא."""
+    """`ensure_ascii` would turn every category name into a `\\uXXXX` sequence: a
+    valid file that can't be read."""
     c, _ = exporting
 
     body = c.get("/account.json").get_data(as_text=True)
@@ -91,19 +93,19 @@ def test_hebrew_survives_the_round_trip(exporting):
     assert "\\u05e9" not in body
 
 
-# ─── ומה שלא ─────────────────────────────────────────────────────────────────
+# ─── And what isn't ─────────────────────────────────────────────────────────
 
 def test_a_personal_project_of_another_member_is_not_exported(exporting):
-    """ייצוא לא עוקף פרטיות בתוך המשפחה. פרויקט אישי של בן משפחה אחר
-    מוסתר בכל שאר האפליקציה, וקובץ הייצוא הוא בדיוק המקום שבו קל לשכוח
-    את זה."""
+    """An export doesn't bypass privacy within the family. Another family member's
+    personal project is hidden everywhere else in the app, and the export file is
+    exactly the place where it is easy to forget that."""
     c, _ = exporting
 
     data = json.loads(c.get("/account.json").get_data(as_text=True))
     ids = {t["id"] for t in data["transactions"]}
 
-    assert "t3" not in ids, "עסקה של פרויקט אישי של אחר נכללה בייצוא"
-    assert {"t1", "t2"} <= ids, "עסקאות לגיטימיות נחסמו"
+    assert "t3" not in ids, "a transaction from someone else's personal project was included in the export"
+    assert {"t1", "t2"} <= ids, "legitimate transactions were blocked"
 
 
 def test_it_needs_a_session():
@@ -116,19 +118,20 @@ def test_it_needs_a_session():
 
 
 def test_a_failed_read_is_not_exported_as_an_empty_account():
-    """ייצוא ריק נראה בדיוק כמו חשבון ריק, ומי שמוריד אותו לפני מחיקת
-    חשבון מקבל קובץ שאין בו כלום ולא יודע.
+    """An empty export looks exactly like an empty account, and whoever downloads
+    it before deleting their account gets a file with nothing in it and doesn't
+    know.
 
-    נבדק על המקור ולא דרך בקשה: ‎app.config["TESTING"]‎ דולף בין בדיקות,
-    ועם הדגל דלוק Flask מרים את החריגה במקום להפעיל את המטפל — כך
-    שהבדיקה הייתה מודדת את הדגל."""
+    Checked on the source and not through a request: `app.config["TESTING"]`
+    leaks between tests, and with the flag on Flask raises the exception
+    instead of running the handler, so the test would be measuring the flag."""
     src = (_ROOT / "backend/app.py").read_text(encoding="utf-8")
     fn = src[src.index("def export_account():"):]
     fn = fn[:fn.index("\n@app.route")]
 
     assert "db.export_account_data" in fn
     assert "except" not in fn, \
-        "המסלול תופס את הכשל — המטפל הגלובלי (503) לא ירוץ, והמשתמש יקבל קובץ"
+        "the route catches the failure: the global handler (503) won't run, and the user will get a file"
 
 
 def test_the_reader_itself_raises_instead_of_returning_an_empty_dict():
@@ -140,11 +143,11 @@ def test_the_reader_itself_raises_instead_of_returning_an_empty_dict():
     assert "return {}" not in fn
 
 
-# ─── ושהמסך מציע אותו ────────────────────────────────────────────────────────
+# ─── And that the screen offers it ──────────────────────────────────────────
 
 def test_settings_no_longer_offers_the_export():
-    """מתן (1.10): בלי "ייצוא הנתונים שלי" בהגדרות. המסלול עצמו נשאר — בקשות
-    עיון בנתונים מגיעות במייל (מדיניות הפרטיות) ונענות ממנו."""
+    """Matan (1.10): no "export my data" in settings. The route itself stays:
+    data access requests arrive by email (privacy policy) and are answered from it."""
     html = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
 
     assert "url_for('export_account')" not in html
@@ -152,32 +155,32 @@ def test_settings_no_longer_offers_the_export():
 
 
 def test_the_export_is_rate_limited():
-    """שאילתה שמושכת את כל ההיסטוריה של המשפחה."""
+    """A query that pulls the family's entire history."""
     src = (_ROOT / "backend/app.py").read_text(encoding="utf-8")
     after = src[src.index('@app.route("/account.json")'):]
 
     assert "@limiter.limit" in after[:after.index("\ndef ")]
 
 
-# ─── והמדיניות אומרת את האמת ────────────────────────────────────────────────
+# ─── And the policy tells the truth ─────────────────────────────────────────
 #
-# שתי טענות היו שגויות. "מחיקת החשבון מסירה את הפרופיל ואת הנתונים
-# הקשורים אליו" ו"הנתונים נשמרים כל עוד החשבון פעיל" — בזמן ש-
-# ‎owner_archive‎ שמר הכול לנצח, בלי שום קוד שמנקה. ובנפרד: תמונות
-# הקבלות נשלחות ל-OpenAI, כלומר יוצאות מהאיחוד האירופי, והמדיניות
-# פירטה רק ספקים אירופיים.
+# Two claims were wrong. "Deleting the account removes the profile and the data
+# associated with it" and "data is kept as long as the account is active", while
+# `owner_archive` kept everything forever, with no code cleaning it. And
+# separately: receipt photos are sent to OpenAI, i.e. leave the EU, and the
+# policy listed only European providers.
 
 _PRIVACY = (_ROOT / "frontend/templates/privacy.html").read_text(encoding="utf-8")
 
 
 def test_the_policy_states_the_archive_retention_window():
-    """הבטחת מחיקה שלא מתקיימת גרועה יותר מהיעדר הבטחה."""
-    assert "30 יום" in _PRIVACY, "חלון השימור של הארכיון לא מוצהר"
-    assert "90 יום" in _PRIVACY, "שימור רישום הכניסות לא מוצהר"
+    """A deletion promise that isn't kept is worse than no promise."""
+    assert "30 יום" in _PRIVACY, "the archive's retention window isn't declared"
+    assert "90 יום" in _PRIVACY, "the sign-in log's retention isn't declared"
 
 
 def test_the_stated_window_matches_what_the_database_actually_does():
-    """שני מספרים שאפשר לשנות בנפרד הם הבטחה שתתיישן בשקט."""
+    """Two numbers that can change separately are a promise that will silently go stale."""
     sql = (_ROOT / "backend/supabase/migrations"
            / "20260922160000_archive_retention.sql").read_text(encoding="utf-8")
 
@@ -186,11 +189,12 @@ def test_the_stated_window_matches_what_the_database_actually_does():
 
 
 def test_the_policy_says_receipt_images_leave_the_eu():
-    """המדיניות מפרטת את Supabase ו-Railway כאירופיים ומזכירה את OpenAI
-    — בלי לומר שהתמונה עוזבת את האיחוד. זו העברה בינלאומית (44-49)."""
+    """The policy lists Supabase and Railway as European and mentions OpenAI,
+    without saying the image leaves the EU. That is an international transfer
+    (44-49)."""
     assert "ארצות הברית" in _PRIVACY
 
 
 def test_the_policy_names_who_is_responsible():
-    """סעיף 13(1)(a): כתובת Gmail לבדה אינה זהות בקר."""
+    """Article 13(1)(a): a Gmail address alone isn't a controller's identity."""
     assert "האחראי על המידע" in _PRIVACY

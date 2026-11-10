@@ -1,4 +1,5 @@
-""""עברתם את התקציב של סופר ומזון ב-₪120" אחרי הוספת הוצאה (מתן, 3.10 — רעיון 17)."""
+""""עברתם את התקציב של סופר ומזון ב-₪120" after adding an expense (Matan, 3.10,
+idea 17)."""
 import pytest
 
 from backend import app as app_module

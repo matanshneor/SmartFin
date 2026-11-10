@@ -1,24 +1,24 @@
-"""כפיל בזיכרון ל-PostgREST, למסלולים שמזיזים כסף.
+"""An in-memory double for PostgREST, for routes that move money.
 
-הבדיקות על הכסף חייבות להריץ את הקוד האמיתי — את המסלול ב-‎app.py‎ ואת
-הפונקציה ב-‎supabase_config.py‎ שהוא קורא לה — ולבדוק מה **באמת** נשמר.
-לכן הזיוף יושב בשכבה התחתונה ביותר, במקום ‎get_client()‎, ולא מחליף את
-פונקציות הכתיבה עצמן: אחרת הבדיקה מאמתת את הכפיל.
+The money tests must run the real code (the route in `app.py` and the function
+in `supabase_config.py` it calls) and check what was **really** saved. So the
+fake sits at the lowest layer, in place of `get_client()`, and doesn't replace
+the write functions themselves: otherwise the test verifies the double.
 
-הכפיל מחקה את שלוש ההתנהגויות שעליהן הקוד באמת נשען:
+The double mimics the three behaviours the code really relies on:
 
-1. ‎.data‎ אחרי ‎update‎/‎delete‎ מחזיר את השורות שנגעו בפועל, ורשימה
-   ריקה כששום שורה לא התאימה (‎returning=representation‎ הוא ברירת
-   המחדל). כל בדיקת "אף שורה לא נגעה" תלויה בזה.
-2. ‎.eq()‎ מסנן באמת — כך שמזהה של משפחה אחרת לא מתאים לכלום, וזה מה
-   שהופך בדיקת בידוד לאפשרית בלי מסד.
-3. ‎insert‎ מחזיר את השורה כפי שנשמרה, כולל מה שהמסלול חישב.
+1. `.data` after `update`/`delete` returns the rows actually touched, and an
+   empty list when no row matched (`returning=representation` is the
+   default). Every "no row was touched" check depends on this.
+2. `.eq()` really filters, so another family's id matches nothing, and that is
+   what makes an isolation test possible without a database.
+3. `insert` returns the row as saved, including what the route computed.
 """
 import uuid
 
 
 class FakeExecute:
-    """מה ש-‎.execute()‎ מחזיר: ‎.data‎ ו-‎.count‎."""
+    """What `.execute()` returns: `.data` and `.count`."""
 
     def __init__(self, data, count=None):
         self.data = data
@@ -38,7 +38,7 @@ class _Query:
         self._order = None
         self._range = None
 
-    # ─── בניית השאילתה ──────────────────────────────────────────────────
+    # ─── Building the query ─────────────────────────────────────────────
     def select(self, *_a, count=None, **_k):
         self._op = "select"
         self._count = count
@@ -90,7 +90,7 @@ class _Query:
 
     @property
     def not_(self):
-        """‎.not_.is_("x", "null")‎ — "כל מה שאינו NULL"."""
+        """`.not_.is_("x", "null")`: "everything that isn't NULL"."""
         self._negate = True
         return self
 
@@ -114,7 +114,7 @@ class _Query:
         self._single = "maybe"
         return self
 
-    # ─── ההרצה ──────────────────────────────────────────────────────────
+    # ─── Running it ─────────────────────────────────────────────────────
     def _matches(self, row):
         for kind, column, value in self._filters:
             actual = row.get(column)
@@ -175,8 +175,9 @@ class _Query:
             hit = hit[self._range[0]:self._range[1] + 1]
         if self._limit is not None:
             hit = hit[:self._limit]
-        # ‎max_rows‎ של PostgREST: תקרה על כל תשובה, בלי שגיאה ובלי סימן.
-        # כבוי כברירת מחדל; בדיקה שמדליקה אותו רואה את מה שהמסד האמיתי עושה.
+        # PostgREST's `max_rows`: a cap on every response, with no error and no
+        # sign. Off by default; a test that turns it on sees what the real
+        # database does.
         if self._db.max_rows is not None:
             hit = hit[:self._db.max_rows]
         if self._single == "single":
@@ -184,18 +185,20 @@ class _Query:
                 raise LookupError(f"{self._table}: single() לא מצא שורה")
             return FakeExecute(dict(hit[0]), total)
         if self._single == "maybe":
-            # כמו postgrest-py 0.16: בלי שורה חוזר ‎None‎ ולא תשובה ריקה
-            # (ראו ‎_maybe_one‎) — הכפיל ה"מנומס" הסתיר באג בארבעה מקומות
+            # Like postgrest-py 0.16: with no row it returns `None` and not an
+            # empty response (see `_maybe_one`); the "polite" double hid a bug in
+            # four places
             return FakeExecute(dict(hit[0]), total) if hit else None
         return FakeExecute([dict(r) for r in hit], total)
 
 
 class FakeSupabase:
-    """‎FakeSupabase(transactions=[...], families=[...])‎ — טבלאות בזיכרון.
+    """`FakeSupabase(transactions=[...], families=[...])`: tables in memory.
 
-    ‎writes‎ מתעד כל כתיבה לפי סדר, כדי שבדיקה תוכל לומר "לא נכתב כלום"
-    ולא רק "התשובה הייתה שגיאה". זה ההבדל בין לתפוס ולידציה שמחזירה 422
-    לבין לתפוס ולידציה שמחזירה 422 **אחרי** שכבר שמרה.
+    `writes` records every write in order, so a test can say "nothing was
+    written" and not just "the response was an error". That is the difference
+    between catching validation that returns 422 and catching validation that
+    returns 422 **after** it already saved.
     """
 
     def __init__(self, max_rows=None, **tables):
@@ -213,7 +216,7 @@ class FakeSupabase:
         self.rpcs.append((name, dict(params or {})))
         return _Rpc(self.rpc_results.get(name))
 
-    # ─── נוחות לבדיקות ──────────────────────────────────────────────────
+    # ─── Conveniences for tests ─────────────────────────────────────────
     def rows(self, table):
         return [dict(r) for r in self.tables.get(table, [])]
 

@@ -1,4 +1,5 @@
-"""השלמה מתיאורים קודמים בשדה "תיאור קצר" (מתן, 3.10 — רעיון 41)."""
+"""Autocomplete from earlier descriptions in the "short description" field
+(Matan, 3.10, idea 41)."""
 import datetime
 import json
 import subprocess
@@ -57,8 +58,8 @@ def test_matching_is_by_the_start_of_any_word_and_at_most_three():
     past = ["רמי לוי", "רמי לוי שיווק השקמה", "שופרסל", "לוי ביטוח", "רמת גן חניה"]
     assert _matches("רמ", past) == ["רמי לוי", "רמי לוי שיווק השקמה", "רמת גן חניה"]
     assert _matches("לוי", past) == ["רמי לוי", "רמי לוי שיווק השקמה", "לוי ביטוח"]
-    assert _matches("ר", past) == [], "אות אחת — עוד מוקדם"
-    assert _matches("שופרסל", past) == [], "כבר כתוב במלואו"
+    assert _matches("ר", past) == [], "one letter: too early"
+    assert _matches("שופרסל", past) == [], "already typed in full"
 
 
 def test_a_suggestion_fills_only_the_description():
@@ -66,4 +67,4 @@ def test_a_suggestion_fills_only_the_description():
     click = js[js.index("descSuggest.addEventListener('click'"):]
     click = click[:click.index("});") + 3]
     assert "txDescription.value = b.textContent;" in click
-    assert "category" not in click.lower(), "הקטגוריה לא נבחרת מההצעה"
+    assert "category" not in click.lower(), "the category isn't chosen from the suggestion"

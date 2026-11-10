@@ -1,14 +1,15 @@
 """
-בדיקות לייצוא CSV.
+Tests for the CSV export.
 
-נתונים שאפשר להוציא הם נתונים שאפשר לבטוח בהם, וזו התשובה הזולה ביותר
-ל"מה קורה אם ארצה לעזוב" — שאלה שמשפחה שוקלת בדיוק לפני שהיא מכניסה
-לאפליקציה את הכסף שלה.
+Data you can take out is data you can trust, and this is the cheapest answer to
+"what happens if I want to leave": a question a family asks exactly before
+putting its money into the app.
 
-שני פרטים קובעים אם הקובץ באמת נפתח נכון, ושניהם בלתי נראים בבדיקה
-ידנית מהירה: BOM בתחילת הקובץ, ו-CRLF בסוף שורה. בלי ה-BOM אקסל מפרש
-UTF-8 כקידוד מקומי וכל הטקסט העברי הופך לג'יבריש — וזה נראה כמו באג
-באפליקציה, לא בתוכנה שפותחת.
+Two details decide whether the file really opens correctly, and both are
+invisible in a quick manual check: a BOM at the start of the file, and CRLF at
+the end of a line. Without the BOM Excel reads UTF-8 as a local encoding and all
+the Hebrew text turns into gibberish, and it looks like a bug in the app, not in
+the program opening it.
 """
 import csv
 import io as _io
@@ -36,8 +37,9 @@ _ROWS = [
 
 @pytest.fixture(autouse=True)
 def _fresh_limits():
-    """מוני ההגבלה חיים בזיכרון התהליך ולא פגים בתוך ריצת בדיקות. בלי
-    האיפוס, הבדיקה ה-11 בקובץ מקבלת 429 במקום מה שהיא באמת בודקת."""
+    """The limiter's counters live in process memory and don't expire within a test
+    run. Without the reset, the 11th test in the file gets a 429 instead of what
+    it really tests."""
     limiter.reset()
 
 
@@ -58,13 +60,13 @@ def _fetch(client, **params):
     return client.get("/month.csv", query_string=params or {"year": 2026, "month": 9})
 
 
-# ─── מה שגורם לקובץ להיפתח נכון ──────────────────────────────────────────────
+# ─── What makes the file open correctly ─────────────────────────────────────
 
 def test_the_file_starts_with_a_bom_so_hebrew_is_not_mangled(client):
-    """בלי זה אקסל מציג ג'יבריש, והמשתמש מאשים את האפליקציה."""
+    """Without this Excel shows gibberish, and the user blames the app."""
     body = _fetch(client).get_data()
 
-    assert body.startswith(b"\xef\xbb\xbf"), "אין BOM — הטקסט העברי יישבר באקסל"
+    assert body.startswith(b"\xef\xbb\xbf"), "no BOM: the Hebrew text will break in Excel"
 
 
 def test_rows_end_with_crlf(client):
@@ -81,11 +83,11 @@ def test_it_is_served_as_a_download_with_a_dated_name(client):
 
 
 def test_it_is_never_cached(client):
-    """קובץ שמכיל את כל עסקאות החודש לא אמור להישמר במטמון של proxy."""
+    """A file containing all of the month's transactions shouldn't be cached by a proxy."""
     assert _fetch(client).headers["Cache-Control"] == "no-store"
 
 
-# ─── התוכן ───────────────────────────────────────────────────────────────────
+# ─── The content ────────────────────────────────────────────────────────────
 
 def _parse(client, **params):
     text = _fetch(client, **params).get_data(as_text=True).lstrip("﻿")
@@ -100,22 +102,23 @@ def test_every_transaction_appears_once_under_a_header(client):
 
 
 def test_the_type_is_written_in_hebrew_not_as_the_database_value(client):
-    """הקובץ נפתח מול רואה חשבון, לא מול מתכנת."""
+    """The file is opened in front of an accountant, not a programmer."""
     rows = _parse(client)
 
     assert [r[1] for r in rows[1:]] == ["הוצאה", "הכנסה", "הוצאה"]
 
 
 def test_amounts_keep_their_agorot(client):
-    """‎{:,.0f}‎ בתצוגה מעגל לשקלים שלמים; בייצוא זה היה מאבד מידע."""
+    """`{:,.0f}` on screen rounds to whole shekels; in an export that would lose
+    information."""
     rows = _parse(client)
 
     assert rows[1][2] == "240.50"
 
 
 def test_quotes_and_commas_in_a_description_survive(client):
-    """פסיק בתיאור הוא הדרך הקלאסית לשבור CSV — csv.writer מטפל, אבל
-    רק אם באמת משתמשים בו ולא מחברים מחרוזות."""
+    """A comma in the description is the classic way to break a CSV: csv.writer
+    handles it, but only if it is really used rather than joining strings."""
     rows = _parse(client)
 
     assert rows[3][4] == 'כרטיסים, הלוך "ושוב"'
@@ -129,11 +132,12 @@ def test_the_project_and_recurring_columns_are_filled(client):
     assert rows[1][7] == ""
 
 
-# ─── פרטיות והרשאות ──────────────────────────────────────────────────────────
+# ─── Privacy and permissions ────────────────────────────────────────────────
 
 def test_the_export_hides_what_the_screen_hides(client, monkeypatch):
-    """אותה שליפה של עמוד החודש, כולל סינון פרויקט אישי של בן משפחה אחר.
-    ייצוא שעוקף את הסינון הוא דלת אחורית לנתונים פרטיים."""
+    """The same query as the month page, including filtering out another family
+    member's personal project. An export that bypasses the filter is a back door
+    to private data."""
     seen = {}
     monkeypatch.setattr(app_module.db, "get_month_transactions",
                         lambda fid, y, m, settings=None, viewer_user_id=None:

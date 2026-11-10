@@ -1,8 +1,9 @@
-"""ייצוא ה-CSV לא מוסר לאקסל נוסחאות.
+"""The CSV export doesn't hand Excel formulas.
 
-תא שמתחיל ב-‎=‎, ‎+‎, ‎-‎ או ‎@‎ הוא נוסחה באקסל. תיאור תמים כמו "‎-50‎
-הנחה" הפך ל-‎#NAME?‎, ותיאור זדוני יכול להריץ נוסחה אצל מי שפותח את
-הקובץ (CSV injection). גרש בתחילת התא אומר לאקסל "טקסט".
+A cell starting with `=`, `+`, `-` or `@` is a formula in Excel. An innocent
+description like "`-50` הנחה" became `#NAME?`, and a malicious description can
+run a formula for whoever opens the file (CSV injection). A leading apostrophe
+tells Excel "text".
 """
 import csv
 import io
@@ -57,14 +58,15 @@ def test_every_text_column_is_covered(export):
 
 
 def test_ordinary_text_is_untouched(export):
-    """בקרת-נגד: רק ההתחלה נבדקת, ורק התווים האלה."""
+    """Control: only the start is checked, and only these characters."""
     row = export([_tx(description="קפה = 12 ש״ח", category_name="מסעדות")])[0]
 
     assert row[3:5] == ["מסעדות", "קפה = 12 ש״ח"]
 
 
 def test_the_amount_stays_a_number(export):
-    """סכום הוא מספר ולא טקסט; גרש היה הופך אותו לטקסט שאי אפשר לסכם."""
+    """An amount is a number and not text; an apostrophe would turn it into text
+    that can't be summed."""
     row = export([_tx(amount=-12.5)])[0]
 
     assert row[2] == "-12.50"

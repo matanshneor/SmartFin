@@ -1,10 +1,11 @@
-"""ייבוא מחברת האשראי (מתן, 31.10).
+"""Importing from the card company (Matan, 31.10).
 
-הקובץ שהמשתמש מעלה הוא הדבר היחיד באפליקציה שהמבנה שלו לא בשליטתנו —
-כל חברה, וכל גרסה של האתר שלה, מוציאה טבלה קצת אחרת. הבדיקות כאן בונות
-קבצים בצורות שהחברות באמת מוציאות (כותרות בעברית, שורות פתיחה, סכום
-שלילי לזיכוי, "תשלום 3 מתוך 12", HTML שמתחפש ל-‎.xls‎) ומוודאות מה נקרא,
-מה מסומן ככפילות, ומה בסוף נכנס למסד.
+The file the user uploads is the only thing in the app whose structure isn't
+under our control: every company, and every version of its site, produces a
+slightly different table. The tests here build files in the shapes the companies
+really produce (Hebrew headers, preamble rows, a negative amount for a credit,
+"תשלום 3 מתוך 12", HTML pretending to be `.xls`) and check what is read, what is
+marked as a duplicate, and what finally goes into the database.
 """
 import io
 import json
@@ -59,7 +60,7 @@ def _max_file() -> bytes:
     ])
 
 
-# ─── קריאה ──────────────────────────────────────────────────────────────────
+# ─── Reading ────────────────────────────────────────────────────────────────
 
 def test_a_max_style_workbook_is_read_without_knowing_the_company():
     txs, used = ci.extract(ci.read_sheets(_max_file(), "x.xlsx"))
@@ -70,9 +71,9 @@ def test_a_max_style_workbook_is_read_without_knowing_the_company():
         ("2026-10-12", "ACE", 400.0),
         ("2026-10-15", "NETFLIX.COM", 54.9),
     ]
-    # סכום החיוב (400) ולא סכום העסקה המלא (1200)
+    # The charge amount (400) and not the full transaction amount (1200)
     assert used[0]["mapping"]["charge"] == 5
-    assert used[0]["mapping"]["date"] == 0      # "תאריך עסקה", לא "תאריך חיוב"
+    assert used[0]["mapping"]["date"] == 0      # "תאריך עסקה", not "תאריך חיוב"
 
 
 def test_the_total_row_is_not_a_transaction():
@@ -81,8 +82,9 @@ def test_the_total_row_is_not_a_transaction():
 
 
 def test_an_installment_lands_in_the_month_it_is_charged():
-    """בתשלומים "תאריך עסקה" הוא יום הקנייה בכל אחד מהם. תשלום 3 יורד
-    חודשיים אחרי — אחרת כל התשלומים היו נוחתים באוגוסט."""
+    """With installments, "תאריך עסקה" is the purchase day on every one of them.
+    Installment 3 is charged two months later; otherwise all the installments
+    would land in August."""
     txs, _ = ci.extract(ci.read_sheets(_max_file(), "x.xlsx"))
     ace = next(t for t in txs if t["merchant"] == "ACE")
     assert ace["date"] == "2026-10-12"
@@ -135,11 +137,11 @@ def test_a_broken_xlsx_is_a_hebrew_error_not_a_crash():
 
 
 @pytest.mark.parametrize("raw,expected", [
-    ("03/10/2026", date(2026, 10, 3)),     # יום/חודש — הסדר הישראלי
+    ("03/10/2026", date(2026, 10, 3)),     # day/month: the Israeli order
     ("3.10.26", date(2026, 10, 3)),
     ("2026-10-03", date(2026, 10, 3)),
     (datetime(2026, 10, 3, 14, 5), date(2026, 10, 3)),
-    (46298, date(2026, 10, 3)),             # מספר סידורי של אקסל
+    (46298, date(2026, 10, 3)),             # an Excel serial number
     ("31/02/2026", None),
     ("שופרסל", None),
     (12.5, None),
@@ -156,7 +158,7 @@ def test_amounts(raw, expected):
     assert ci.parse_amount(raw) == expected
 
 
-# ─── קובץ לא מוכר ───────────────────────────────────────────────────────────
+# ─── An unknown file ────────────────────────────────────────────────────────
 
 _WEIRD = [["דוח לקוח"], ["יום", "עסק", "כמה"], ["01/10/2026", "קפה", "12"], ["02/10/2026", "דלק", "200"]]
 
@@ -177,10 +179,10 @@ def test_a_confirmed_layout_reads_the_same_file_next_time():
 
 
 @pytest.mark.parametrize("mapping", [
-    {"date": 0, "merchant": 0, "amount": 2},       # אותה עמודה פעמיים
-    {"date": 0, "merchant": 1},                    # בלי סכום
-    {"date": 0, "merchant": 1, "amount": 9},       # מחוץ לטבלה
-    {"date": "0", "merchant": 1, "amount": 2},     # לא מספר
+    {"date": 0, "merchant": 0, "amount": 2},       # the same column twice
+    {"date": 0, "merchant": 1},                    # no amount
+    {"date": 0, "merchant": 1, "amount": 9},       # outside the table
+    {"date": "0", "merchant": 1, "amount": 2},     # not a number
     {"date": True, "merchant": 1, "amount": 2},
     "date=0",
 ])
@@ -188,13 +190,13 @@ def test_a_layout_from_outside_is_validated(mapping):
     assert ci.valid_mapping(mapping, 3) is None
 
 
-# ─── קטגוריות ───────────────────────────────────────────────────────────────
+# ─── Categories ─────────────────────────────────────────────────────────────
 
 def test_the_familys_own_choice_for_a_merchant_wins():
     history = [{"description": "פז חולון", "category_id": _HOME, "date": "2026-09-01"},
                {"description": "פז חולון", "category_id": _CAR, "date": "2026-08-01"}]
     learned = ci.learned_categories(history)
-    # מספר סניף אחר — אותו בית עסק; האחרונה שנבחרה מנצחת
+    # A different branch number: the same business; the last one chosen wins
     assert ci.lookup_learned(ci.merchant_key("פז חולון 4531"), learned) == _HOME
 
 
@@ -208,7 +210,7 @@ def test_a_short_manual_name_teaches_the_long_one():
     ("שופרסל דיל 123", _FOOD),
     ("פז חולון", _CAR),
     ("ACE", _HOME),
-    ("עבר הירדן", None),        # "בר" כמילה שלמה בלבד
+    ("עבר הירדן", None),        # "בר" as a whole word only
     ("חפז", None),
 ])
 def test_keyword_rules_use_the_familys_category_names(merchant, expected):
@@ -220,7 +222,7 @@ def test_the_longest_keyword_wins():
     assert ci.rule_category("סופר פארם רמת גן", cats) == "c-health"
 
 
-# ─── כפילויות ───────────────────────────────────────────────────────────────
+# ─── Duplicates ─────────────────────────────────────────────────────────────
 
 def _item(d, merchant, amount):
     return {"date": d, "merchant": merchant, "amount": amount}
@@ -246,7 +248,7 @@ def test_too_far_apart_is_new():
 
 
 def test_two_identical_coffees_and_one_entered_by_hand():
-    """כל שורה קיימת "נצרכת" פעם אחת — הקפה השני עדיין חדש."""
+    """Each existing row is "consumed" once: the second coffee is still new."""
     items = [_item("2026-10-07", "ארומה", 18), _item("2026-10-07", "ארומה", 18)]
     ci.mark_duplicates(items, [{"date": "2026-10-07", "amount": 18, "description": "ארומה"}])
     assert sorted(i["status"] for i in items) == ["exists", "new"]
@@ -261,7 +263,7 @@ def test_importing_the_same_file_twice_adds_nothing():
     assert {t["status"] for t in again} == {"exists"}
 
 
-# ─── המסלולים ───────────────────────────────────────────────────────────────
+# ─── The routes ─────────────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
 def _fresh_limits():
@@ -279,7 +281,7 @@ def client(monkeypatch):
     monkeypatch.setattr(app_module.db, "import_category_history", lambda *a, **k: [])
     monkeypatch.setattr(app_module.db, "get_recurring_transactions", lambda *a, **k: [])
     monkeypatch.setattr(app_module.db, "get_family_members", lambda *a: [{"id": _ME, "name": "מתן"}])
-    # בלי OpenAI בבדיקות — כל קריאה כזאת היא כסף אמיתי
+    # No OpenAI in tests: every such call is real money
     monkeypatch.setattr(ci, "ai_map_columns", lambda *a: None)
     monkeypatch.setattr(ci, "ai_categorize", lambda *a: {})
     with app.test_client() as c:
@@ -324,7 +326,7 @@ def test_preview_marks_what_is_already_in_the_month(client, monkeypatch):
 
     shufersal = next(t for t in body["transactions"] if t["merchant"].startswith("שופרסל"))
     assert shufersal["status"] == "exists"
-    # הטווח מרופד בימי הכפילות משני הצדדים
+    # The range is padded with the duplicate days on both sides
     assert seen == {"family_id": _FAM, "start": "2026-09-30", "end": "2026-10-18"}
 
 
@@ -356,7 +358,7 @@ def test_ai_only_names_merchants_and_only_family_categories_count(client, monkey
     body = _preview(client, blob).get_json()
 
     assert asked["merchants"] == ["חנות", "קפה גרג"]
-    assert "משכורת" not in asked["names"]          # רק קטגוריות הוצאה
+    assert "משכורת" not in asked["names"]          # expense categories only
     by = {t["merchant"]: t for t in body["transactions"]}
     assert by["קפה גרג"]["category_id"] == _FOOD
     assert by["חנות"]["category_id"] is None
@@ -378,7 +380,7 @@ def test_an_unknown_file_is_mapped_by_ai_when_available(client, monkeypatch):
     monkeypatch.setattr(ci, "ai_map_columns", lambda h, s: {"date": 0, "merchant": 1, "amount": 2})
     body = _preview(client, _xlsx(_WEIRD)).get_json()
     assert body["status"] == "ok" and body["ai_mapped"] is True
-    # המבנה חוזר לדפדפן, כדי שבפעם הבאה לא יהיה צורך ב-AI
+    # The layout goes back to the browser, so next time there is no need for AI
     assert body["layouts"][0]["mapping"] == {"date": 0, "merchant": 1, "amount": 2}
 
 
@@ -474,11 +476,12 @@ def test_settings_and_month_link_to_the_import():
         assert "url_for('import_page')" in (root / name).read_text(encoding="utf-8"), name
 
 
-# ─── PDF: דף חיוב חודשי ─────────────────────────────────────────────────────
+# ─── PDF: a monthly statement ───────────────────────────────────────────────
 #
-# מבוסס על דף החיוב של כאל שמתן העלה (31.10), בלי שום פרט אישי: אותם
-# מיקומים על הדף, אותן כותרות בשתי שורות, ואותה עברית שנשמרה בסדר חזותי
-# ("העסק" כ"קסעה"). שמות בתי העסק וסכומים — מהדוגמה, הם לא מזהים.
+# Based on the Cal statement Matan uploaded (31.10), with no personal detail: the
+# same positions on the page, the same two-line headers, and the same Hebrew
+# stored in visual order ("העסק" as "קסעה"). Business names and amounts come
+# from the sample; they aren't identifying.
 
 def _w(text, x0, x1, top, visual=True):
     if visual and ci._HEB.search(text):
@@ -490,13 +493,13 @@ def _cal_page(visual=True):
     w = lambda *a: _w(*a, visual=visual)
     return [
         w("פירוט", 518, 538, 336), w("עסקות", 493, 516, 336), w("שנצברו", 465, 491, 336),
-        # כותרות בשתי שורות
+        # two-line headers
         w("תאריך", 518, 538, 347.5), w("שם", 488, 499, 347.5), w("בית", 474, 486, 347.5),
         w("העסק", 453, 472, 347.5), w("ענף", 404, 416, 347.5), w("פירוט", 362, 380, 347.5),
         w("כרטיס", 255, 275, 347.5), w("סכום", 230, 246, 347.5), w("סכום", 166, 181, 347.5),
         w("העסקה", 514, 538, 354), w("הוצג", 259, 275, 354), w("העסקה", 222, 246, 354),
         w("חיוב", 168, 181, 354),
-        # עסקאות
+        # transactions
         w("10/08/2026", 503, 538, 364.2), w("קוסטה", 481, 499, 364.2), w("ג'ים", 468, 479, 364.2),
         w("פנאי", 403, 416, 364.2), w("הוראת", 364, 380, 364.2), w("קבע", 352, 362, 364.2),
         w("לא", 267, 275, 364.2), w("255.00", 225, 246, 364.2), w("₪", 218, 223, 364.2),
@@ -507,12 +510,12 @@ def _cal_page(visual=True):
         w("13/09/2026", 503, 538, 393.4), w("Netflix.com", 465, 499, 393.4),
         w("תקשורת", 393, 416, 393.4), w("לא", 267, 275, 393.4), w("-69.90", 225, 246, 393.4),
         w("₪", 222, 227, 393.4), w("-69.90", 161, 181, 393.4), w("₪", 157, 162, 393.4),
-        # שורת ההמשך של התיאור — בלי תאריך, לא עסקה
+        # the description's continuation line: no date, not a transaction
         w("7610", 400, 416, 402),
-        # סיכום: תאריך וסכום, אבל לא בעמודת התאריך
+        # a summary: a date and an amount, but not in the date column
         w('סה"כ', 254, 272, 414), w("לתאריך", 226, 252, 414), w("15/09/26", 190, 224, 414),
         w("514.19", 156, 181, 414), w("₪", 146, 153, 414),
-        # טבלת הריביות — תאריך ואחוזים, בלי סכום כסף
+        # the interest table: a date and percentages, no money amount
         w("סוג", 290, 300, 530), w("שיעור", 234, 256, 530), w("מתאריך", 159, 187, 530),
         w("+30", 290, 300, 549), w("13.75%", 234, 256, 549), w("03/09/26", 159, 187, 549),
     ]
@@ -553,7 +556,7 @@ def test_the_preview_route_accepts_a_pdf(client, monkeypatch):
 
 
 def test_the_card_companys_own_sector_is_a_fallback_hint():
-    """"קוסטה ג'ים" לא אומר כלום לכללים — אבל כאל כבר כתבה "פנאי בילוי"."""
+    """"קוסטה ג'ים" says nothing to the rules, but Cal already wrote "פנאי בילוי"."""
     cats = _CATS + [{"id": "c-fun", "name": "מסעדות ובילויים", "type": "expense"}]
     txs, _ = ci.extract(ci.sheets_from_pdf_words([_cal_page()]))
     gym = txs[0]
@@ -574,8 +577,8 @@ def test_preview_uses_the_sector_only_after_merchant_rules(client):
 
 
 def test_the_settings_link_is_a_quiet_line_not_a_box():
-    """מתן (31.10): פעולה של פעם בחודש — "לא תיבה בפני עצמה בהגדרות". שורת
-    טקסט מעל "התנתקות", בלי מסגרת ובלי חץ."""
+    """Matan (31.10): a once-a-month action, "not a box of its own in settings". A
+    text line above "sign out", with no frame and no arrow."""
     from pathlib import Path
     html = (Path(__file__).resolve().parent.parent / "frontend/templates/settings.html").read_text(encoding="utf-8")
     footer = html[html.index('<div class="settings-footer">'):]
@@ -587,7 +590,7 @@ def test_the_settings_link_is_a_quiet_line_not_a_box():
 
 
 
-# ─── הוראות קבע (מתן, 1.11) ─────────────────────────────────────────────────
+# ─── Standing orders (Matan, 1.11) ──────────────────────────────────────────
 
 def test_standing_orders_are_recognised_and_the_suffix_dropped():
     txs, _ = ci.extract(ci.sheets_from_pdf_words([_cal_page()]))
@@ -597,10 +600,10 @@ def test_standing_orders_are_recognised_and_the_suffix_dropped():
             ["03/10/2026", "הוקרה לעובד", 50, None],
             ["04/10/2026", "ACE", 400, "תשלום 2 מתוך 3 הוראת קבע"]]
     by = {t["merchant"]: t for t in ci.extract([rows])[0]}
-    assert by["קוסטה ג'ים"]["standing_order"] is True          # ‎הו"ק‎ ירד מהשם
+    assert by["קוסטה ג'ים"]["standing_order"] is True          # `הו"ק` was dropped from the name
     assert by["NETFLIX"]["standing_order"] is True
-    assert by["הוקרה לעובד"]["standing_order"] is False         # מילה שלמה בלבד
-    assert by["ACE"]["standing_order"] is False                 # תשלומים — לא סדרה קבועה
+    assert by["הוקרה לעובד"]["standing_order"] is False         # whole word only
+    assert by["ACE"]["standing_order"] is False                 # installments: not a recurring series
 
 
 def test_preview_offers_one_series_per_merchant_at_the_latest_amount(client):
@@ -639,12 +642,12 @@ def test_commit_turns_an_approved_standing_order_into_a_monthly_series(client, m
     netflix, super_ = calls[0]
     assert (netflix["is_recurring"], netflix["recurring_frequency"]) == (True, "monthly_same")
     assert (super_["is_recurring"], super_["recurring_frequency"]) == (False, None)
-    assert set(netflix) == set(super_)                          # אותם מפתחות — מערך אחד
+    assert set(netflix) == set(super_)                          # the same keys: one array
     assert materialized == [_FAM]
 
 
 def test_no_series_means_no_materializing(client, monkeypatch):
     monkeypatch.setattr(app_module.db, "add_transactions", lambda rows: (len(rows), None))
-    monkeypatch.setattr(app_module.db, "materialize_recurring", lambda fam: pytest.fail("לא היה צריך"))
+    monkeypatch.setattr(app_module.db, "materialize_recurring", lambda fam: pytest.fail("wasn't needed"))
     row = {"date": "2026-10-03", "amount": 10, "description": "x", "category_id": _FOOD, "recurring": "yes"}
-    assert _commit(client, [row]).get_json()["recurring"] == 0   # רק ‎True‎ ממש
+    assert _commit(client, [row]).get_json()["recurring"] == 0   # only a real `True`

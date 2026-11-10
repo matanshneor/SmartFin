@@ -1,14 +1,15 @@
-"""אין עסקה בלי קטגוריה.
+"""No transaction without a category.
 
-עד היום היו שלוש דרכים להגיע לעסקה כזאת: לשמור בלי לבחור, למחוק
-קטגוריה (העסקאות שלה נשארו "ללא קטגוריה"), ואותו דבר בקטגוריה של
-פרויקט. ההחלטה של מתן: אין מצב כזה באפליקציה.
+Until now there were three ways to end up with such a transaction: saving
+without choosing, deleting a category (its transactions were left
+"uncategorised"), and the same with a project category. Matan's decision: no
+such state in the app.
 
-- שמירה בלי קטגוריה נדחית בשרת, לא רק בטופס.
-- מחיקת קטגוריה שיש בה עסקאות מחייבת לבחור לאן להעביר אותן, והן
-  מועברות **לפני** שהקטגוריה נמחקת.
-- הקטגוריה האחרונה מסוג מסוים לא נמחקת: בלעדיה אי אפשר לרשום עסקה
-  מהסוג הזה בכלל.
+- Saving without a category is rejected on the server, not only in the form.
+- Deleting a category that has transactions requires choosing where to move
+  them, and they are moved **before** the category is deleted.
+- The last category of a type isn't deleted: without it no transaction of that
+  type can be recorded at all.
 """
 import pytest
 
@@ -62,7 +63,7 @@ def fake(monkeypatch):
                       _tx("t4", project_id="p1", project_category_id="paint")],
     )
     monkeypatch.setattr(db, "get_client", lambda: f)
-    # השאילתה האמיתית משתמשת ב-‎or_‎ ובמטמון-לבקשה; כאן מספיקה הטבלה
+    # The real query uses `or_` and the per-request cache; here the table is enough
     monkeypatch.setattr(db, "get_categories",
                         lambda fam=None: [c for c in f.rows("categories") if c["family_id"] == fam])
     return f
@@ -86,7 +87,7 @@ def _cats_of(fake, tids):
             for t in fake.rows("transactions") if t["id"] in tids}
 
 
-# ─── שמירה ──────────────────────────────────────────────────────────────────
+# ─── Saving ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture
 def ctx():
@@ -101,7 +102,7 @@ def test_a_household_transaction_without_a_category_is_refused(fake, ctx):
 
 
 def test_a_household_transaction_with_a_category_is_accepted(fake, ctx):
-    """בקרת-נגד."""
+    """Control."""
     assert app_module._validated_category("rest", _user(), "expense") == ("rest", None)
 
 
@@ -124,7 +125,7 @@ def test_a_project_transaction_with_a_project_category_is_accepted(fake, ctx, mo
 
 
 def test_the_route_refuses_before_writing(client, fake):
-    """422 שמגיע **אחרי** שכבר נשמר הוא לא דחייה."""
+    """A 422 that arrives **after** it was already saved isn't a rejection."""
     before = len(fake.rows("transactions"))
 
     r = client.post("/api/transactions", json={
@@ -134,13 +135,13 @@ def test_the_route_refuses_before_writing(client, fake):
     assert len(fake.rows("transactions")) == before
 
 
-# ─── מחיקת קטגוריה של המשפחה ────────────────────────────────────────────────
+# ─── Deleting a family category ─────────────────────────────────────────────
 
 def test_usage_reports_the_count_and_where_they_can_go(client):
     d = client.get("/api/categories/rest/usage").get_json()
 
     assert d["count"] == 2
-    assert [c["id"] for c in d["alternatives"]] == ["fun"], "הכנסה אינה יעד להוצאות"
+    assert [c["id"] for c in d["alternatives"]] == ["fun"], "income isn't a target for expenses"
     assert d["blocked"] is None
 
 
@@ -181,7 +182,8 @@ def test_an_unused_category_is_deleted_without_asking(client, fake):
 
 
 def test_the_last_category_of_a_type_cannot_be_deleted(client, fake):
-    """בלי "משכורת" אין שום קטגוריית הכנסה, ואי אפשר לרשום הכנסה."""
+    """Without "משכורת" there is no income category at all, and no income can be
+    recorded."""
     usage = client.get("/api/categories/salary/usage").get_json()
     r = client.delete("/api/categories/salary")
 
@@ -204,11 +206,12 @@ def test_a_plain_member_still_cannot_delete(client, monkeypatch, fake):
     assert _cats_of(fake, {"t1"}) == {"t1": "rest"}
 
 
-# ─── מחיקת קטגוריה של פרויקט ────────────────────────────────────────────────
+# ─── Deleting a project category ────────────────────────────────────────────
 
 @pytest.fixture
 def project_gate(monkeypatch):
-    # כמו הפונקציה האמיתית: בלי ‎id‎ ובלי שם — רק הבעלים ודגלי המעקב
+    # Like the real function: no `id` and no name, only the owner and the
+    # tracking flags
     project = {k: _PROJECT[k] for k in
                ("owner_id", "track_expense", "track_income", "track_savings")}
     monkeypatch.setattr(db, "get_project_for_transaction", lambda pid, fam: project)
@@ -251,5 +254,5 @@ def test_the_last_category_of_a_tracked_type_stays(client, fake, project_gate):
 
 
 def test_the_last_category_of_an_untracked_unused_type_can_go(client, fake, project_gate):
-    """הפרויקט לא עוקב אחרי הכנסות, ואין בה עסקאות — אין מה לשמור."""
+    """The project doesn't track income, and it has no transactions: nothing to keep."""
     assert client.delete("/api/projects/p1/categories/gift").status_code == 200
