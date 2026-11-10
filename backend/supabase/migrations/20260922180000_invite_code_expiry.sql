@@ -1,25 +1,31 @@
-/* קוד ההזמנה היה מפתח קבוע, ל-32^6 אפשרויות, שלא פג לעולם.
+/* The invite code was a permanent key, with 32^6 possibilities, that never
+ * expired.
  *
- * ‎32^6 ≈ 2^30‎ — בערך מיליארד. זה סביר לקוד בן שישה תווים שאנשים
- * מקריאים בטלפון, וזה **לא** סביר כשהוא תקף לנצח: מי שקיבל אותו פעם
- * אחת נכנס איתו תמיד, גם שנה אחרי שעזב, וההגנה היחידה מפני ניחוש
- * שיטתי היא הגבלת קצב ב-Flask — שנחלשת בשקט אם ‎RATELIMIT_STORAGE_URI‎
- * חסר.
+ * `32^6 ≈ 2^30`, about a billion. That is reasonable for a six-character code
+ * people read out over the phone, and **not** reasonable when it is valid
+ * forever: whoever got it once can always get in with it, even a year after
+ * leaving, and the only protection against systematic guessing is rate
+ * limiting in Flask, which weakens silently if `RATELIMIT_STORAGE_URI` is
+ * missing.
  *
- * וקוד תקף פירושו קריאה **וכתיבה** מלאות על כל ההיסטוריה הפיננסית של
- * המשפחה, ועל השם, האימייל, הטלפון ומקום העבודה של כל חבר בה.
+ * And a valid code means full read **and write** access to the family's whole
+ * financial history, and to the name, email, phone and workplace of every
+ * member.
  *
- * תפוגה הופכת את החשבון הזה ללא רלוונטי: 7 ימים הם מספיק זמן לשלוח
- * קוד בוואטסאפ ולחכות שמישהו יתפנה, וקצרים מכדי שסריקה תספיק לפגוע
- * בחלון.
+ * Expiry makes that maths irrelevant: 7 days is enough time to send a code on
+ * WhatsApp and wait for someone to get to it, and too short for a scan to hit
+ * the window.
  *
- * ההגדרות מציגות מתי הקוד פג, ולמנהל יש שם כפתור להפיק חדש — אותה
- * פעולה שכבר הייתה קיימת, עכשיו עם סיבה גלויה להשתמש בה.
+ * Settings show when the code expires, and the manager has a button there to
+ * produce a new one: the same action that already existed, now with a visible
+ * reason to use it.
  */
 alter table public.families
     add column if not exists invite_code_expires_at timestamptz;
 
--- הקודים הקיימים מקבלים חלון מלא מרגע המיגרציה, ולא פגים מיד.
+-- Existing codes get a full window from the moment of the migration, and don't
+-- expire right away.
+
 update public.families
    set invite_code_expires_at = now() + interval '7 days'
  where invite_code_expires_at is null;
@@ -54,9 +60,9 @@ begin
 end;
 $$;
 
-/* ‎join_family_by_code‎ מכבדת את התפוגה. קוד שפג נראה בדיוק כמו קוד
- * שגוי — אחרת התשובה עצמה מגלה שהקוד הזה היה אמיתי פעם, וזה בדיוק
- * המידע שמנחש מחפש. */
+/* `join_family_by_code` respects the expiry. An expired code looks exactly like
+ * a wrong code; otherwise the answer itself reveals that this code was once
+ * real, which is exactly the information a guesser is looking for. */
 create or replace function public.join_family_by_code(p_code text)
 returns uuid
 language plpgsql
@@ -94,7 +100,9 @@ begin
 
     update public.profiles set family_id = v_family where id = v_uid;
 
-    -- הניהול עובר לוותיק שנשאר במשפחה הישנה (ראו 20260922130000).
+    -- Management passes to the longest-standing member who stays in the old
+    -- family (see 20260922130000).
+
     if v_old is not null then
         select manager_id into v_manager from public.families where id = v_old;
         if v_manager = v_uid then
@@ -115,7 +123,7 @@ begin
 end;
 $$;
 
-/* ותצוגה מקדימה: קוד שפג לא מחזיר שם משפחה. */
+/* And the preview: an expired code returns no family name. */
 create or replace function public.family_name_for_code(p_code text)
 returns text
 language sql

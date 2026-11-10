@@ -1,4 +1,6 @@
--- מקום עבודה מתועד ("מוקפא") על עסקת הכנסה בזמן יצירתה — כדי ששינוי מקום
--- עבודה עתידי לא ישנה בטעות את מה שכבר מוצג על היסטוריה קיימת. NULL = עסקה
--- ישנה מלפני התכונה הזו, שממשיכה ליפול חזרה לחיפוש חי מהפרופיל כמו היום.
+-- The workplace is recorded ("frozen") on an income transaction when it is
+-- created, so a future workplace change doesn't accidentally rewrite what is
+-- already shown on existing history. NULL = an old transaction from before this
+-- feature, which keeps falling back to a live lookup from the profile as today.
+
 alter table public.transactions add column if not exists workplace text;

@@ -1,27 +1,30 @@
-/* שתי פונקציות SECURITY DEFINER מקבלות מזהה משפחה ולא בודקות מי קורא.
+/* Two SECURITY DEFINER functions take a family id and don't check who is
+ * calling.
  *
- * SECURITY DEFINER אומר שהפונקציה רצה בהרשאות של מי שיצר אותה ולא של מי
- * שקורא לה — כלומר RLS לא חלה עליה. זה נחוץ כאן (get_family_members קוראת
- * מ-auth.users, ש-RLS חוסמת), אבל המשמעות היא שהבדיקה חייבת להיות בתוך
- * הפונקציה. בשתי אלה היא פשוט לא הייתה:
+ * SECURITY DEFINER means the function runs with the privileges of whoever
+ * created it, not whoever calls it, i.e. RLS doesn't apply to it. That is
+ * needed here (get_family_members reads from auth.users, which RLS blocks), but
+ * it means the check must be inside the function. In these two it simply wasn't:
  *
- *   get_family_members(uuid)  → שם, אימייל, טלפון ומקום עבודה של כל חברי
- *                                משפחה כלשהי, לפי מזהה
- *   get_months_archive(uuid)  → כל ההיסטוריה הכספית החודשית של משפחה כלשהי
+ *   get_family_members(uuid)  → name, email, phone and workplace of every
+ *                                member of any family, by id
+ *   get_months_archive(uuid)  → the entire monthly financial history of any family
  *
- * ובלי revoke, Postgres מעניק execute ל-PUBLIC כברירת מחדל — כלומר גם
- * ל-anon, בלי התחברות בכלל.
+ * And without a revoke, Postgres grants execute to PUBLIC by default, i.e. also
+ * to anon, with no sign-in at all.
  *
- * מה שמגן כרגע הוא שהמפתח ל-PostgREST שמור בשרת ולא נחשף ללקוח. זו הגנה
- * אמיתית אבל יחידה, והיא לא מה שאמור להגן כאן. שאר הפונקציות בפרויקט כבר
- * עושות את זה נכון — join_family_by_code ו-delete_my_account נגזרות
- * מ-auth.uid() — ואלו שתי חריגות שנשכחו.
+ * What protects right now is that the PostgREST key is kept on the server and
+ * not exposed to the client. That is real protection but the only one, and it
+ * isn't what should protect here. The project's other functions already do it
+ * right (join_family_by_code and delete_my_account derive from auth.uid()), and
+ * these are two exceptions that were forgotten.
  *
- * הבדיקה משתמשת ב-get_my_family_id() שכבר קיים. מי שמבקש משפחה שאינו חבר
- * בה מקבל אפס שורות: זו התשובה הנכונה לשאלה על נתונים שאינם שלו.
+ * The check uses the existing get_my_family_id(). Whoever asks for a family
+ * they aren't a member of gets zero rows: the right answer to a question about
+ * data that isn't theirs.
  *
- * נוסף גם SET search_path — שתי אלה היו היחידות בלעדיו, וזה וקטור הסלמה
- * מוכר בפונקציות DEFINER.
+ * SET search_path is added too: these two were the only ones without it, and
+ * that is a known escalation vector in DEFINER functions.
  */
 
 create or replace function public.get_family_members(p_family_id uuid)

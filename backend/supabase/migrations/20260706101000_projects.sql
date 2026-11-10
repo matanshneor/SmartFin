@@ -1,4 +1,6 @@
--- תקציבי פרויקטים (למשל "טיול ליפן") — חוצי חודשים, עם יעד תקציב אופציונלי.
+-- Project budgets (e.g. "a trip to Japan"): spanning months, with an optional
+-- budget target.
+
 create table if not exists public.projects (
     id            uuid primary key default gen_random_uuid(),
     family_id     uuid not null references public.families(id) on delete cascade,

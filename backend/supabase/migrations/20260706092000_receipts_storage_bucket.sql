@@ -1,6 +1,8 @@
--- Bucket פרטי לתמונות קבלה. הנתיב בכל קובץ הוא {family_id}/{uuid}.{ext} —
--- מדיניות הגישה משווה את תיקיית השורש בנתיב למשפחה של המשתמש המחובר,
--- כך שכל משפחה רואה ומעלה רק לתיקייה שלה.
+-- A private bucket for receipt images. Every file's path is
+-- {family_id}/{uuid}.{ext}; the access policy compares the root folder in the
+-- path to the signed-in user's family, so each family sees and uploads only to
+-- its own folder.
+
 insert into storage.buckets (id, name, public)
 values ('receipts', 'receipts', false)
 on conflict (id) do nothing;

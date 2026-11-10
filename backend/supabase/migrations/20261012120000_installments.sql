@@ -1,12 +1,16 @@
--- עסקה בתשלומים (מתן, 12.10): "מקרר ₪4,800 ב-12 תשלומים".
+-- Installment transactions (Matan, 12.10): "a ₪4,800 fridge in 12 installments".
 --
--- תשלומים הם עסקה קבועה חודשית (‎monthly_same‎) עם תאריך סיום — המנוע הקיים
--- (‎materialize_recurring‎) יוצר תשלום בכל חודש. שלוש העמודות האלה רק אומרות
--- שזו סדרת תשלומים:
---   installments       — כמה תשלומים בסך הכול (על התבנית ועל כל מופע)
---   installment_no     — מספר התשלום הזה (התבנית — 1; מופע — לפי החודש)
---   installment_total  — הסכום המלא; ממנו מחושב התשלום הרגיל, והעיגול
---                        (אגורות שלא מתחלקות) נכנס לתשלום הראשון
+-- Installments are a monthly recurring transaction (`monthly_same`) with an end
+-- date: the existing engine (`materialize_recurring`) creates an installment
+-- every month. These three columns only say it is an installment series:
+--   installments       : how many installments in total (on the template and
+--                        on every occurrence)
+--   installment_no     : this installment's number (the template is 1; an
+--                        occurrence by month)
+--   installment_total  : the full amount; the regular installment is computed
+--                        from it, and the rounding (agorot that don't divide)
+--                        goes into the first installment
+
 alter table public.transactions
     add column if not exists installments smallint
         check (installments is null or installments between 2 and 60),

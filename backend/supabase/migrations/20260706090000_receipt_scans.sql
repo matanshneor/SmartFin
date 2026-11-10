@@ -1,6 +1,7 @@
--- מכסת סריקות קבלה חודשית למשפחה (100 סריקות מוצלחות בחודש) —
--- כל שורה מייצגת סריקה מוצלחת אחת; סריקות שנכשלו (קבלה לא קריאה) לא נרשמות
--- וממילא אינן נספרות במכסה.
+-- A monthly receipt-scan quota per family (100 successful scans a month).
+-- Each row represents one successful scan; failed scans (an unreadable
+-- receipt) aren't recorded and so aren't counted in the quota.
+
 create table if not exists public.receipt_scans (
     id         uuid primary key default gen_random_uuid(),
     family_id  uuid not null references public.families(id) on delete cascade,

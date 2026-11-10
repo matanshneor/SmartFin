@@ -1,19 +1,22 @@
-/* מחיקת מופע בודד מסדרה קבועה — בלי להרוס את הסדרה.
+/* Deleting a single occurrence from a recurring series, without destroying the
+ * series.
  *
- * "רק את זו" על המופע הראשון מחק את שורת התבנית עצמה. ‎recurring_parent_id‎
- * הוא ‎on delete set null‎, אז כל שאר המופעים איבדו את הקישור בבת אחת:
- * הסדרה הפסיקה לייצר מופעים חדשים, וכל מה שכבר נוצר נעלם מ"עסקאות
- * קבועות" ומהפאנל בעמוד החודש. הממשק, באותו רגע, הודיע "שאר הסדרה
- * נשארה".
+ * "Only this one" on the first occurrence deleted the template row itself.
+ * `recurring_parent_id` is `on delete set null`, so every other occurrence lost
+ * its link at once: the series stopped producing new occurrences, and
+ * everything already created vanished from "recurring transactions" and from
+ * the panel on the month page. The UI, at that same moment, announced "the rest
+ * of the series was kept".
  *
- * ההבחנה בין "תבנית" ל"מופע" היא פנימית לגמרי. למי שמוחק את שכר הדירה
- * של מרץ לא אמור להיות אכפת שמרץ הוא במקרה החודש שבו הסדרה נפתחה —
- * ולכן מחיקת התבנית מעבירה את התפקיד למופע הבא במקום להרוג את הסדרה.
+ * The distinction between "template" and "occurrence" is entirely internal.
+ * Whoever deletes March's rent shouldn't have to care that March happens to be
+ * the month the series was opened, so deleting the template hands the role to
+ * the next occurrence instead of killing the series.
  *
- * הכול בפונקציה אחת ולא בשלוש קריאות מהאפליקציה, כי זו גם הנקודה שבה
- * ‎recurring_skips‎ היה read-modify-write: שני בני משפחה שמחקו שני
- * מופעים באותה שנייה איבדו דילוג אחד, והעסקה חזרה למחרת. כאן זה עדכון
- * אטומי אחד.
+ * All in one function and not three calls from the app, because this is also
+ * where `recurring_skips` was read-modify-write: two family members deleting two
+ * occurrences in the same second lost one skip, and the transaction came back
+ * the next day. Here it is one atomic update.
  */
 create or replace function public.delete_recurring_occurrence(
     p_tx_id     uuid,
@@ -30,8 +33,9 @@ declare
     v_heir      public.transactions%rowtype;
     v_deleted   integer;
 begin
-    -- הגישה נגזרת מהמשתמש המחובר, לא מהפרמטר: ‎security definer‎ עוקף
-    -- RLS, אז הבדיקה חייבת להיות כאן ובמפורש.
+    -- Access derives from the signed-in user, not the parameter: `security
+    -- definer` bypasses RLS, so the check must be here, explicitly.
+
     select * into v_row
     from public.transactions
     where id = p_tx_id
@@ -50,8 +54,9 @@ begin
         return 1;
     end if;
 
-    -- הדילוג נרשם על התבנית לפני כל מחיקה, כדי שהמנוע לא ייצר את
-    -- התאריך הזה מחדש מחר.
+    -- The skip is recorded on the template before any deletion, so the engine
+    -- doesn't recreate this date tomorrow.
+
     update public.transactions
        set recurring_skips = (
            select array_agg(distinct d)
@@ -59,14 +64,17 @@ begin
        )
      where id = v_template;
 
-    -- מופע רגיל: מוחקים ומסיימים.
+    -- A regular occurrence: delete and finish.
+
     if p_tx_id <> v_template then
         delete from public.transactions where id = p_tx_id;
         get diagnostics v_deleted = row_count;
         return v_deleted;
     end if;
 
-    -- מכאן: מוחקים את **התבנית**. היורש הוא המופע המוקדם ביותר שנשאר.
+    -- From here: deleting the **template**. The successor is the earliest
+    -- remaining occurrence.
+
     select * into v_heir
     from public.transactions
     where recurring_parent_id = v_template
@@ -75,7 +83,9 @@ begin
     limit 1;
 
     if found then
-        -- היורש הופך לתבנית ונושא את כל מה שהגדיר את הסדרה.
+        -- The successor becomes the template and carries everything that
+        -- defined the series.
+
         update public.transactions
            set is_recurring        = true,
                recurring_frequency = v_row.recurring_frequency,
@@ -88,8 +98,10 @@ begin
                recurring_parent_id = null
          where id = v_heir.id;
 
-        -- ושאר האחים מצביעים עליו. בלי זה הם היו מתייתמים ברגע
-        -- שהתבנית הישנה נמחקת, וזה כל הבאג.
+        -- And the remaining siblings point at it. Without this they would be
+        -- orphaned the moment the old template is deleted, and that is the
+        -- whole bug.
+
         update public.transactions
            set recurring_parent_id = v_heir.id
          where recurring_parent_id = v_template

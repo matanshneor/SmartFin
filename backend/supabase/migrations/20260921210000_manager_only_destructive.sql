@@ -1,21 +1,25 @@
-/* מנהל המשפחה — האכיפה, ולא רק התג.
+/* The family manager: enforcement, not just the tag.
  *
- * התפקיד נוסף ב-20260916120000 ומיושם מאז לפעולה אחת בלבד: הסרת חבר.
- * כל שאר הפעולות ההרסניות נשארו פתוחות לכל מי שהצטרף עם קוד בן שישה
- * תווים — ובראשן איפוס העסקאות, שמוחק את היסטוריית **כל** המשפחה
- * ודורש רק את הסיסמה של מי שקורא לו.
+ * The role was added in 20260916120000 and since then applied to one action
+ * only: removing a member. Every other destructive action stayed open to anyone
+ * who joined with a six-character code, above all the transaction reset, which
+ * deletes **the whole** family's history and requires only the caller's own
+ * password.
  *
- * ובנוסף, פער ששיתק את התפקיד עצמו: delete_my_account נכתב חודשיים
- * לפני שנוסף manager_id, ומעולם לא עודכן. מנהל שמחק את חשבונו הותיר
- * ‎manager_id = NULL‎ (דרך ה-FK), ומאותו רגע remove_family_member נכשל
- * לתמיד — ‎NULL is distinct from <any uuid>‎ הוא תמיד אמת, ואין בשום
- * מקום קוד שמציב מנהל מחדש. המשפחה לא יכלה להסיר חבר לעולם.
- * leave_family כבר מעביר את הניהול; כאן אותו דבר בדיוק.
+ * On top of that, a gap that paralysed the role itself: delete_my_account was
+ * written two months before manager_id was added, and never updated. A manager
+ * who deleted their account left `manager_id = NULL` (through the FK), and from
+ * that moment remove_family_member failed forever: `NULL is distinct from <any
+ * uuid>` is always true, and no code anywhere appoints a manager again. The
+ * family could never remove a member.
+ * leave_family already transfers management; here it is exactly the same.
  */
 
--- ─── מי מנהל ─────────────────────────────────────────────────────────────────
--- ‎security definer‎ כדי שתקרא את families בלי תלות במדיניות הקריאה,
--- ומחזירה בוליאני בלבד — בלי לחשוף את מזהה המנהל למי שלא אמור לראותו.
+-- ─── Who is the manager ─────────────────────────────────────────────────────
+-- `security definer` so it reads families regardless of the read policy, and
+-- returns a boolean only, without exposing the manager's id to anyone who
+-- shouldn't see it.
+
 create or replace function public.is_family_manager()
 returns boolean
 language sql
@@ -34,7 +38,8 @@ revoke all on function public.is_family_manager() from public, anon;
 grant execute on function public.is_family_manager() to authenticated;
 
 
--- ─── מחיקת חשבון מעבירה את הניהול ────────────────────────────────────────────
+-- ─── Deleting an account transfers management ───────────────────────────────
+
 create or replace function public.delete_my_account()
 returns void
 language plpgsql security definer set search_path = public as $$
@@ -57,7 +62,8 @@ begin
         where family_id = v_family and id <> v_uid;
     end if;
 
-    -- ארכוב החשבון (כולל מייל) לפני המחיקה
+    -- Archive the account (including the email) before deletion
+
     insert into public.owner_archive (kind, payload)
     select 'account',
            to_jsonb(p) || jsonb_build_object(
@@ -65,7 +71,9 @@ begin
                'was_last_member', (v_family is not null and v_others = 0))
     from public.profiles p where p.id = v_uid;
 
-    -- החבר האחרון — ארכוב המשפחה (עם הקטגוריות והפרויקטים שלה) ומחיקתה
+    -- The last member: archive the family (with its categories and projects)
+    -- and delete it
+
     if v_family is not null and v_others = 0 then
         insert into public.owner_archive (kind, payload)
         select 'family', jsonb_build_object(
@@ -78,8 +86,10 @@ begin
 
         delete from public.families where id = v_family;
 
-    -- נשארו אחרים, והעוזב הוא המנהל: הניהול עובר לוותיק שנשאר. בלי
-    -- השורות האלה המשפחה נתקעת בלי מנהל ולתמיד בלי יכולת להסיר חבר.
+    -- Others remain, and the one leaving is the manager: management passes to
+    -- the longest-standing member who stays. Without these lines the family is
+    -- stuck with no manager and forever unable to remove a member.
+
     elsif v_family is not null then
         if exists (select 1 from public.families
                     where id = v_family and manager_id = v_uid) then
@@ -90,7 +100,9 @@ begin
         end if;
     end if;
 
-    -- מחיקה מ-auth מוחקת בשרשור את הפרופיל ומשחררת מייל + טלפון להרשמה חדשה
+    -- Deleting from auth cascades to the profile and frees the email + phone
+    -- for a new signup
+
     delete from auth.users where id = v_uid;
 end;
 $$;

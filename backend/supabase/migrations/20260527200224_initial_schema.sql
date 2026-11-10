@@ -1,8 +1,9 @@
-/* המדיניות כאן מוגדרות גם בקובץ הסכימה הראשון. ל-‎CREATE POLICY‎ אין
- * ‎IF NOT EXISTS‎, אז בנייה מאפס נעצרה כאן ב-42710 — הפנקס מלא, אז
- * בפרויקט המקושר זה לא נראה, אבל שחזור מאסון, סביבת בדיקות ו-‎db reset‎
- * כולם נכשלו. ‎drop policy if exists‎ לפני כל אחת הופך את הקובץ לניתן
- * להרצה חוזרת בלי לשנות את התוצאה. */
+/* The policies here are also defined in the first schema file. `CREATE POLICY`
+ * has no `IF NOT EXISTS`, so a build from scratch stopped here with 42710. The
+ * ledger is complete, so on the linked project this isn't visible, but disaster
+ * recovery, a test environment and `db reset` all failed. `drop policy if
+ * exists` before each one makes the file re-runnable without changing the
+ * result. */
 
 -- =============================================
 -- SmartFin – Supabase Schema

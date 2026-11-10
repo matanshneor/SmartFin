@@ -1,18 +1,23 @@
-/* כל בן משפחה רואה בהגדרות קוד הזמנה תקף (בקשת מתן, 29.9.2026).
+/* Every family member sees a valid invite code in settings (Matan's request,
+ * 29.9.2026).
  *
- * ‎rotate_invite_code‎ היא של המנהל בלבד, ובצדק: היא מחליפה גם קוד שעוד
- * בתוקף — כלומר מבטלת הזמנות שכבר נשלחו. אבל חידוש של קוד **שכבר פג** לא
- * מבטל כלום, ואין סיבה שבן משפחה שנכנס להגדרות יראה "הקוד פג" ויחכה למנהל.
+ * `rotate_invite_code` is manager-only, and rightly so: it also replaces a
+ * code still valid, i.e. cancels invitations already sent. But renewing a code
+ * **that already expired** cancels nothing, and there is no reason for a
+ * family member opening settings to see "the code expired" and wait for the
+ * manager.
  *
- * לכן פונקציה נפרדת, שכל חבר רשאי להפעיל ושיודעת לעשות רק את זה: אם הקוד
- * חסר או פג — קוד חדש לשבוע; אחרת — כלום. אי אפשר להשתמש בה כדי לבטל קוד
- * תקף, אז ההרשאה של המנהל לא נחלשת.
+ * Hence a separate function, any member may run, that can do only this: if the
+ * code is missing or expired, a new code for a week; otherwise nothing. It
+ * can't be used to cancel a valid code, so the manager's permission isn't
+ * weakened.
  *
- * עדכון אחד עם התנאי בתוכו, ולא "בדוק ואז עדכן": שני בני משפחה שנכנסים
- * להגדרות באותה שנייה היו מפיקים שני קודים, ואחד מהם היה רואה קוד שכבר
- * הוחלף. כך השני לא מוצא מה לעדכן ומקבל את הקוד שהראשון הפיק.
+ * One update with the condition inside it, not "check then update": two family
+ * members opening settings in the same second would produce two codes, and one
+ * of them would see a code already replaced. This way the second finds nothing
+ * to update and gets the code the first one produced.
  *
- * מחזירה את הקוד שבתוקף עכשיו — חדש או קיים.
+ * Returns the code valid now, new or existing.
  */
 create or replace function public.renew_expired_invite_code()
 returns text

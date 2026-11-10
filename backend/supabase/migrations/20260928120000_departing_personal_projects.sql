@@ -1,28 +1,37 @@
-/* פרויקט אישי של מי שיוצא מהמשפחה נעלם לכולם.
+/* A personal project of whoever leaves the family vanished for everyone.
  *
- * הסרה, עזיבה ומעבר בקוד הזמנה מאפסים את ‎transactions.user_id‎ — אבל לא
- * נגעו ב-‎projects.owner_id‎, שממשיך להצביע על מי שיצא (הפרופיל שלו קיים,
- * אז המפתח הזר לא מתאפס). הפרויקט "אישי של מישהו אחר" לכל מי שנשאר, ולכן
- * מוסתר; הכסף שבו מוחרג מהוצאות הבית כי הוא בפרויקט, ומכל רשימה וייצוא כי
- * הוא מוסתר; ומי שיצא לא רואה אותו כי הוא במשפחה אחרת. אין דרך חזרה מה-UI.
+ * Removal, leaving and moving by invite code reset `transactions.user_id`, but
+ * didn't touch `projects.owner_id`, which kept pointing at whoever left (their
+ * profile exists, so the foreign key isn't reset). The project is "someone
+ * else's personal project" to everyone who stays, and so hidden; the money in
+ * it is excluded from household expenses because it is in a project, and from
+ * every list and export because it is hidden; and whoever left doesn't see it
+ * because they are in another family. No way back from the UI.
  *
- * עכשיו מי שמחליט נשאל (הצעה של מתן): "למחוק אותם" או "להשאיר כמשותפים".
- *   · ‎share‎  — הפרויקט הופך למשותף, וכל המשפחה רואה אותו.
- *   · ‎delete‎ — הפרויקט נמחק **עם העסקאות שבו**. בלעדיהן העסקאות היו נוחתות
- *     בהוצאות הבית כ"ללא קטגוריה" (‎on delete set null‎).
- *   · ‎ask‎    — מה שהאפליקציה שולחת כשעוד לא נשאל: אם יש פרויקטים אישיים,
- *     חריגה ‎needs_project_choice:N‎ והמסך שואל; אם אין — ממשיכים.
- * ברירת המחדל היא ‎share‎, כדי שהקוד שרץ עכשיו בייצור — שעוד לא שולח את
- * הפרמטר — ימשיך לעבוד בפער שבין המיגרציה לפריסה, ובדרך הבטוחה.
+ * Now whoever decides is asked (Matan's suggestion): "delete them" or "keep as
+ * shared".
+ *   · `share`  : the project becomes shared, and the whole family sees it.
+ *   · `delete` : the project is deleted **with its transactions**. Without them
+ *     the transactions would land in household expenses as "uncategorised"
+ *     (`on delete set null`).
+ *   · `ask`    : what the app sends when it hasn't asked yet: if there are
+ *     personal projects, an exception `needs_project_choice:N` and the screen
+ *     asks; if not, carry on.
+ * The default is `share`, so the code running in production now (which doesn't
+ * send the parameter yet) keeps working in the gap between migration and
+ * deploy, and the safe way.
  *
- * מי שבחר למחוק את העסקאות לא נשאל: הפרויקטים נמחקים איתן. "מחיקת העסקאות"
- * מחקה עד היום רק מה שרשום על שמו, ובפרויקט אישי יכולות לשבת גם עסקאות
- * שרשומות כמשותפות — והן היו נשארות בפרויקט יתום.
+ * Whoever chose to delete the transactions isn't asked: the projects are
+ * deleted with them. "Deleting the transactions" so far deleted only what is
+ * recorded under their name, and a personal project can also hold transactions
+ * recorded as shared, and they would stay in an orphan project.
  *
- * מעבר בקוד הזמנה לא שואל כלום גם היום (גם לא על העסקאות), אז שם זה ‎share‎.
+ * Moving by invite code asks nothing today either (not even about the
+ * transactions), so there it is `share`.
  *
- * החתימות של שתי הפונקציות משתנות, ולכן ‎drop‎ לפני ‎create‎ — אחרת נוצרת
- * העמסה שנייה והקריאות נעשות דו-משמעיות. ההרשאות נקבעות מחדש בסוף.
+ * The signatures of both functions change, so `drop` before `create`;
+ * otherwise a second overload is created and calls become ambiguous. The
+ * grants are set again at the end.
  */
 
 create or replace function public._release_personal_projects(
@@ -58,7 +67,9 @@ begin
         return;
     end if;
 
-    -- delete: קודם העסקאות (הטריגר מארכב כל אחת בדרך החוצה), ואז הפרויקט
+    -- delete: first the transactions (the trigger archives each on the way
+    -- out), then the project
+
     delete from public.transactions
      where family_id = p_family
        and project_id in (select id from public.projects
@@ -68,7 +79,8 @@ begin
 end;
 $$;
 
--- פנימית בלבד: נקראת מתוך שלוש הפונקציות שמתחת, לא מהאפליקציה
+-- Internal only: called from the three functions below, not from the app
+
 revoke all on function public._release_personal_projects(uuid, uuid, text)
     from public, anon, authenticated;
 
@@ -106,17 +118,22 @@ begin
         v_family, p_user_id, case when p_keep_transactions then p_projects else 'delete' end);
 
     if p_keep_transactions then
-        -- הכסף יצא מהתקציב המשותף, אז הסכומים נשארים נכונים. השיוך יורד
-        -- והעסקה מוצגת כ"משותפת" — מצב שהתצוגה כבר יודעת להציג.
+        -- The money left the shared budget, so the totals stay right. The
+        -- attribution is dropped and the transaction is shown as "shared", a
+        -- state the view already knows how to display.
+
         update public.transactions set user_id = null
          where family_id = v_family and user_id = p_user_id;
     else
-        -- הטריגר על transactions מארכב כל שורה בדרך החוצה
+        -- The trigger on transactions archives every row on the way out
+
         delete from public.transactions
          where family_id = v_family and user_id = p_user_id;
     end if;
 
-    -- משפחה חדשה וריקה, כדי שהחשבון שלו יישאר שמיש ולא ייתקע בלי משפחה
+    -- A new, empty family, so their account stays usable and isn't stuck
+    -- without a family
+
     v_new := gen_random_uuid();
     insert into public.families (id, name, manager_id) values (v_new, 'המשפחה שלי', p_user_id);
     update public.profiles set family_id = v_new where id = p_user_id;
@@ -158,15 +175,17 @@ begin
 
     select manager_id into v_manager from public.families where id = v_family;
     if v_manager = v_uid then
-        -- הניהול עובר לוותיק שנשאר. בלי זה משפחה שהמנהל שלה עזב נשארת
-        -- בלי אף אחד שיכול לנהל אותה.
+        -- Management passes to the longest-standing member who stays. Without
+        -- this a family whose manager left is left with nobody who can manage it.
+
         select p.id into v_heir from public.profiles p
           where p.family_id = v_family order by p.created_at limit 1;
         update public.families set manager_id = v_heir where id = v_family;
     end if;
 
-    -- משפחה שנותרה ריקה ובלי היסטוריה היא זבל; עם היסטוריה היא נשמרת,
-    -- בדיוק כמו ב-join_family_by_code.
+    -- A family left empty and without history is junk; with history it is
+    -- kept, just as in join_family_by_code.
+
     if not exists (select 1 from public.profiles where family_id = v_family)
        and not exists (select 1 from public.transactions where family_id = v_family) then
         delete from public.families where id = v_family;
@@ -217,7 +236,9 @@ begin
 
     update public.profiles set family_id = v_family where id = v_uid;
 
-    -- הניהול עובר לוותיק שנשאר במשפחה הישנה (ראו 20260922130000).
+    -- Management passes to the longest-standing member who stays in the old
+    -- family (see 20260922130000).
+
     if v_old is not null then
         select manager_id into v_manager from public.families where id = v_old;
         if v_manager = v_uid then

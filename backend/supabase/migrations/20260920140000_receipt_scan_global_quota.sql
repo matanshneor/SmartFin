@@ -1,18 +1,19 @@
-/* תקרה גלובלית לסריקות קבלות.
+/* A global cap on receipt scans.
  *
- * ‎/api/receipts/scan‎ הוא המסלול היחיד באפליקציה שעולה כסף אמיתי — הוא
- * קורא ל-OpenAI. המכסה הקיימת היא 100 סריקות **לכל משפחה**, וההרשמה
- * פתוחה: כל חשבון חדש מקבל משפחה, ואיתה מכסה טרייה. כלומר לא הייתה שום
- * תקרה על הסכום הכולל.
+ * `/api/receipts/scan` is the only route in the app that costs real money: it
+ * calls OpenAI. The existing quota is 100 scans **per family**, and signup is
+ * open: every new account gets a family, and with it a fresh quota. So there
+ * was no cap at all on the total.
  *
- * הספירה חייבת לחצות משפחות, ו-RLS על receipt_scans מגבילה כל משתמש
- * למשפחה שלו — ולכן פונקציה, ולא שאילתה מהאפליקציה. היא מחזירה מספר
- * אחד בלבד: כמה סריקות בוצעו בסך הכול מאז תאריך. אין בה שום נתון של
- * אף משפחה.
+ * The count must cross families, and RLS on receipt_scans limits every user to
+ * their own family, hence a function and not a query from the app. It returns
+ * one number only: how many scans were made in total since a date. It contains
+ * no data of any family.
  *
- * ‎p_since‎ מגיע מהאפליקציה ולא מחושב כאן, כדי שיהיה בדיוק אותו גבול
- * חודש כמו בספירה לכל משפחה — שם הוא נגזר משעון ישראל (backend/clock.py),
- * ו-‎now()‎ בשרת הוא UTC. בלי זה שתי הספירות היו מתאפסות בשעות שונות.
+ * `p_since` comes from the app and isn't computed here, so it is exactly the
+ * same month boundary as the per-family count: there it is derived from Israel
+ * time (backend/clock.py), and `now()` on the server is UTC. Without this the
+ * two counts would reset at different hours.
  */
 create or replace function public.receipt_scans_global_since(p_since timestamptz)
 returns integer
@@ -27,5 +28,7 @@ $$;
 revoke all on function public.receipt_scans_global_since(timestamptz) from public, anon;
 grant execute on function public.receipt_scans_global_since(timestamptz) to authenticated;
 
--- הספירה רצה לפני כל סריקה. עם 53 שורות זה לא משנה; עם 50,000 כן.
+-- The count runs before every scan. With 53 rows it doesn't matter; with
+-- 50,000 it does.
+
 create index if not exists receipt_scans_created_at_idx on public.receipt_scans (created_at);

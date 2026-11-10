@@ -1,11 +1,13 @@
-/* תיקון מיידי ל-20260928130000: המפתח הזר של ‎created_by‎ ל-‎profiles‎ הוסיף
- * קשר שני בין ‎transactions‎ ל-‎profiles‎ (בנוסף ל-‎user_id‎). PostgREST לא
- * יודע איזה מהם מתכוונים ב-‎profiles(name, workplace)‎, ומחזיר PGRST201 —
- * וכל שליפת עסקאות באפליקציה משתמשת בזה. דף הבית, עמוד החודש והפרויקטים
- * נפלו בייצור לכמה דקות, מרגע ההחלה.
+/* An immediate fix to 20260928130000: the foreign key from `created_by` to
+ * `profiles` added a second relationship between `transactions` and `profiles`
+ * (in addition to `user_id`). PostgREST doesn't know which one is meant in
+ * `profiles(name, workplace)`, and returns PGRST201, and every transaction
+ * query in the app uses that. The home page, the month page and projects went
+ * down in production for a few minutes, from the moment it was applied.
  *
- * העמודה נשארת, בלי המפתח הזר. היא לא צריכה אותו: השם נגזר מרשימת בני
- * המשפחה, ומי שכבר לא בה מוצג "בן משפחה לשעבר". הלקח — כל מפתח זר נוסף
- * ל-‎profiles‎ מ-‎transactions‎ שובר את ה-embed הקיים.
+ * The column stays, without the foreign key. It doesn't need it: the name is
+ * derived from the family member list, and whoever is no longer in it is shown
+ * as "former family member". The lesson: any extra foreign key from
+ * `transactions` to `profiles` breaks the existing embed.
  */
 alter table public.transactions drop constraint if exists transactions_created_by_fkey;

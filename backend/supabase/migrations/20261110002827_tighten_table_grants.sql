@@ -1,18 +1,20 @@
-/* השומר בכניסה (מתן, 10.11.2026 — בדיקת אבטחה, נקודה 3).
+/* The guard at the door (Matan, 10.11.2026, security review, item 3).
  *
- * ברירת המחדל של Supabase נותנת ל-anon ול-authenticated הכל על כל טבלה —
- * כולל TRUNCATE, שלא כפוף ל-RLS בכלל. כל ההגנה נשענה על RLS לבדה. RLS
- * עדיין נועלת כל שורה; זו שכבה שנייה, כך שכלל RLS אחד שייכתב לא נכון
- * בעתיד לא יספיק כדי לחשוף נתונים.
+ * Supabase's default gives anon and authenticated everything on every table,
+ * including TRUNCATE, which isn't subject to RLS at all. All protection relied
+ * on RLS alone. RLS still locks every row; this is a second layer, so one RLS
+ * rule written wrong in the future isn't enough to expose data.
  *
- *   · anon — מי שלא מחובר — לא צריך אף טבלה: התחברות, הרשמה וקישור הזמנה
- *     עוברים דרך פונקציות SECURITY DEFINER. (קריאה של families נשארה כאן
- *     לבדיקת הבריאות, ונסגרה במיגרציה הבאה, אחרי שהבדיקה עברה לפונקציה.)
- *   · authenticated — שומר SELECT/INSERT/UPDATE/DELETE (ו-RLS מגבילה אותם);
- *     מאבד רק TRUNCATE, TRIGGER ו-REFERENCES, שהאפליקציה לא משתמשת בהם.
- *   · ברירת המחדל לטבלאות חדשות — אותו דבר, כדי שזה לא יחזור מעצמו.
+ *   · anon (not signed in) needs no table: sign-in, signup and the invite
+ *     link go through SECURITY DEFINER functions. (Reading families stayed here
+ *     for the health check, and was closed in the next migration, after the
+ *     check moved to a function.)
+ *   · authenticated keeps SELECT/INSERT/UPDATE/DELETE (and RLS restricts
+ *     them); it loses only TRUNCATE, TRIGGER and REFERENCES, which the app
+ *     doesn't use.
+ *   · The default for new tables: the same, so this doesn't come back by itself.
  *
- * נבדק ב-tests/test_table_grants.py.
+ * Tested in tests/test_table_grants.py.
  */
 revoke all on all tables in schema public from anon;
 revoke all on all sequences in schema public from anon;

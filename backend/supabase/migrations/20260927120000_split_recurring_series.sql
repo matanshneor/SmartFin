@@ -1,28 +1,31 @@
-/* "עדכן להבא" כתב מחדש את החודש הראשון של הסדרה.
+/* "Update from now on" rewrote the series' first month.
  *
- * עורכים את שכר הדירה של ספטמבר ל-₪5,500 ועונים "כן" לשאלה "לעדכן גם
- * את התבנית כדי שהחודשים הבאים ישתמשו בסכום החדש?". האפליקציה עדכנה את
- * שורת התבנית — אבל התבנית **היא** שכר הדירה של ינואר, והיא נספרת
- * בסיכום של ינואר. ינואר הפך ל-₪5,500 בשקט, יחד עם התיאור והקטגוריה.
- * ה-docstring הבטיח "היסטוריה לא נכתבת מחדש".
+ * You edit September's rent to ₪5,500 and answer "yes" to "also update the
+ * template so the following months use the new amount?". The app updated the
+ * template row, but the template **is** January's rent, and it is counted in
+ * January's summary. January silently became ₪5,500, along with the
+ * description and category. The docstring promised "history isn't rewritten".
  *
- * הפתרון הוא לא לגעת בתבנית אלא לפצל את הסדרה במופע שנערך:
- *   · הסדרה הישנה מסתיימת יום לפניו — בדיוק מה ש"את זו והבאות" עושה
- *     (‎delete_occurrences_from‎), כך שההיסטוריה נשארת סדרה מזוהה.
- *   · המופע שנערך — שכבר נושא את הסכום החדש, כי מסלול העריכה שמר אותו
- *     רגע קודם — הופך לתבנית של סדרה חדשה. אותו "יורש הופך לתבנית"
- *     כמו ב-‎delete_recurring_occurrence‎.
- *   · מופעים מאוחרים ממנו שכבר נוצרו עוברים לסדרה החדשה בלי שהסכום שלהם
- *     ישתנה: הם היסטוריה. בלי המעבר, הסדרה החדשה לא הייתה רואה אותם
- *     והייתה יוצרת אותם שוב — כפילות.
- *   · דילוגים (‎recurring_skips‎) מתחלקים לפי התאריך.
+ * The fix is not to touch the template but to split the series at the edited
+ * occurrence:
+ *   · The old series ends the day before it: exactly what "this and all
+ *     following" does (`delete_occurrences_from`), so history stays a
+ *     recognised series.
+ *   · The edited occurrence (which already carries the new amount, because
+ *     the edit route saved it a moment earlier) becomes the template of a new
+ *     series. The same "the successor becomes the template" as in
+ *     `delete_recurring_occurrence`.
+ *   · Later occurrences already created move to the new series without their
+ *     amount changing: they are history. Without the move, the new series
+ *     wouldn't see them and would create them again: duplicates.
+ *   · Skips (`recurring_skips`) are split by date.
  *
- * הכול בפונקציה אחת: ארבע כתיבות מהאפליקציה היו משאירות, בכשל באמצע,
- * שתי סדרות חיות שמייצרות את אותו כסף.
+ * All in one function: four writes from the app would, on a failure midway,
+ * leave two live series producing the same money.
  *
- * מחזירה את מזהה התבנית החדשה, או ‎null‎ כשאין מה לפצל — המופע לא
- * קיים, לא שייך לתבנית הזאת, לא של המשפחה של הקורא, או שהסדרה כבר
- * הסתיימה לפניו.
+ * Returns the new template's id, or `null` when there is nothing to split: the
+ * occurrence doesn't exist, doesn't belong to this template, isn't the
+ * caller's family's, or the series already ended before it.
  */
 create or replace function public.split_recurring_series(
     p_template_id uuid,
@@ -38,8 +41,9 @@ declare
     v_template public.transactions%rowtype;
     v_instance public.transactions%rowtype;
 begin
-    -- ‎security definer‎ עוקף RLS, אז הבעלות נבדקת כאן ובמפורש, מול
-    -- המשתמש המחובר ולא מול הפרמטר.
+    -- `security definer` bypasses RLS, so ownership is checked here,
+    -- explicitly, against the signed-in user and not the parameter.
+
     if p_family_id is distinct from public.get_my_family_id() then
         return null;
     end if;
@@ -65,16 +69,19 @@ begin
         return null;
     end if;
 
-    -- מופע נוצר תמיד **אחרי** התבנית; מופע לפני הסיום בלבד. כל דבר אחר
-    -- הוא נתון שבור, ופיצול שלו היה מפר את ה-CHECK על תאריך הסיום.
+    -- An occurrence is always created **after** the template, and only before
+    -- the end. Anything else is broken data, and splitting it would violate the
+    -- CHECK on the end date.
+
     if v_instance.date <= v_template.date
        or (v_template.recurring_end_date is not null
            and v_instance.date > v_template.recurring_end_date) then
         return null;
     end if;
 
-    -- 1. המופע הופך לתבנית ולוקח ממנה את הגדרת הסדרה, ואת הדילוגים
-    --    שמתאריכו והלאה.
+    -- 1. The occurrence becomes the template and takes the series definition
+    --    from it, and the skips from its date on.
+
     update public.transactions
        set is_recurring        = true,
            recurring_parent_id = null,
@@ -87,14 +94,16 @@ begin
            )
      where id = v_instance.id;
 
-    -- 2. המופעים המאוחרים עוברים אליו.
+    -- 2. The later occurrences move to it.
+
     update public.transactions
        set recurring_parent_id = v_instance.id
      where recurring_parent_id = v_template.id
        and family_id = p_family_id
        and date > v_instance.date;
 
-    -- 3. הסדרה הישנה נגמרת יום לפני, ושומרת רק את הדילוגים שלה.
+    -- 3. The old series ends the day before, and keeps only its own skips.
+
     update public.transactions
        set recurring_end_date = v_instance.date - 1,
            recurring_skips    = (

@@ -1,20 +1,21 @@
-/* הגדרות המשפחה נשמרו ב-read-modify-write, בלי נעילה.
+/* Family settings were saved read-modify-write, with no lock.
  *
- * ‎update_family_settings‎ שלפה את ה-JSON, מיזגה בפייתון, וכתבה בחזרה את
- * המפה המלאה. ארבעה gunicorn workers, שורה אחת, ובלי שום ‎where settings
- * = <old>‎:
+ * `update_family_settings` fetched the JSON, merged in Python, and wrote the
+ * full map back. Four gunicorn workers, one row, and no `where settings =
+ * <old>` at all:
  *
- *   20:00:00.1  אמא קובעת תקציב ₪2,000 ל"סופר ומזון"
- *   20:00:00.3  אבא מכבה "שיוך הוצאות" מהטלפון
+ *   20:00:00.1  Mum sets a ₪2,000 budget for "סופר ומזון"
+ *   20:00:00.3  Dad turns off "expense attribution" from his phone
  *
- * שניהם קראו את אותו JSON. הכתיבה של אבא נושאת את ‎limits‎ מלפני אמא
- * ומוחקת את התקציב שלה. שניהם קיבלו ‎{"status":"ok"}‎, והמסך של אמא
- * המשיך להציג את התקציב עד הרענון הבא. ‎limits‎ הוא מפתח-החלפה, אז
- * האובדן מלא ולא חלקי — וב-‎owner_attribution‎ מדובר בשאלה של **לאן
- * משויך כסף**.
+ * Both read the same JSON. Dad's write carries `limits` from before Mum's and
+ * deletes her budget. Both got `{"status":"ok"}`, and Mum's screen kept showing
+ * the budget until the next refresh. `limits` is a replace-key, so the loss is
+ * total, not partial, and with `owner_attribution` it is a question of **where
+ * money is attributed**.
  *
- * המיזוג עובר לכאן, לתוך משפט ‎UPDATE‎ אחד. הסמנטיקה זהה ל-
- * ‎_merge_settings‎: עומק אחד, עם רשימת מפתחות שמוחלפים במלואם.
+ * The merge moves here, into a single `UPDATE` statement. The semantics are
+ * identical to `_merge_settings`: one level deep, with a list of keys replaced
+ * whole.
  */
 create or replace function public.merge_family_settings(
     p_family_id  uuid,
@@ -36,14 +37,17 @@ begin
         raise exception 'no family';
     end if;
 
-    -- הגישה נגזרת מהמשתמש המחובר: ‎security definer‎ עוקף RLS.
+    -- Access derives from the signed-in user: `security definer` bypasses RLS.
+
     if not exists (select 1 from public.profiles
                     where id = auth.uid() and family_id = p_family_id) then
         raise exception 'not a member of that family';
     end if;
 
-    -- ‎for update‎ נועל את השורה עד סוף המשפט, כך שהקורא השני ממתין
-    -- וממזג על הערך **אחרי** הראשון במקום על הערך שלפניו.
+    -- `for update` locks the row until the end of the statement, so the second
+    -- caller waits and merges onto the value **after** the first one instead of
+    -- the value before it.
+
     select coalesce(settings, '{}'::jsonb) into v_settings
       from public.families where id = p_family_id for update;
 
@@ -53,8 +57,9 @@ begin
         v_old := v_settings -> v_key;
 
         if v_key = any(p_whole_keys) then
-            -- מפה שלמה: הסרת תקציב מיוצגת בהיעדרו מהמפה, אז מיזוג לא
-            -- יכול לבטא אותה — רק החלפה.
+            -- A whole map: removing a budget is represented by its absence from
+            -- the map, so a merge can't express it, only a replace.
+
             v_settings := jsonb_set(v_settings, array[v_key], v_new, true);
         elsif jsonb_typeof(v_new) = 'object' and jsonb_typeof(v_old) = 'object' then
             v_settings := jsonb_set(v_settings, array[v_key], v_old || v_new, true);

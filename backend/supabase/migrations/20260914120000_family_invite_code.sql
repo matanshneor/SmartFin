@@ -1,21 +1,29 @@
--- קוד הזמנה קצר למשפחה + הצטרפות שעובדת.
+-- A short invite code per family + a join that works.
 --
--- הרקע: עד היום קוד ההזמנה היה ה-UUID של המשפחה, ו-join_family_by_code בצד
--- Python וידא שהמשפחה קיימת ב-SELECT רגיל על families. אבל מדיניות ה-RLS
--- families_member_read מתירה לקרוא משפחה רק למי שכבר חבר בה — ומשתמש חדש
--- שנרשם עם קוד עדיין לא חבר באף משפחה. לכן ה-SELECT תמיד חזר ריק וההצטרפות
--- נכשלה בשקט, בכל פעם מאז שהפיצ'ר נכתב. המשתמש קיבל "נרשמת בהצלחה" ואז
--- ensure_family פתח לו משפחה חדשה משלו.
+-- Background: until now the invite code was the family's UUID, and
+-- join_family_by_code on the Python side checked the family exists with a
+-- plain SELECT on families. But the RLS policy families_member_read allows
+-- reading a family only to someone already a member, and a new user signing
+-- up with a code isn't a member of any family yet. So the SELECT always came
+-- back empty and the join failed silently, every time since the feature was
+-- written. The user got "signed up successfully" and then ensure_family opened
+-- a new family of their own.
 --
--- התיקון: פונקציית RPC עם security definer, שרצה בהרשאות הבעלים ולכן רואה
--- את הטבלה במלואה — אותו דפוס כמו email_for_phone ו-delete_my_account.
--- בנוסף הקוד עובר מ-UUID בן 36 תווים לקוד בן 6 תווים שאפשר להקריא בטלפון.
+-- The fix: an RPC function with security definer, running with the owner's
+-- privileges and so seeing the whole table: the same pattern as
+-- email_for_phone and delete_my_account.
+-- In addition the code moves from a 36-character UUID to a 6-character code
+-- that can be read out over the phone.
 
--- ─── קוד הזמנה ───────────────────────────────────────────────────────────────
+
+-- ─── Invite code ────────────────────────────────────────────────────────────
+
 
 alter table public.families add column if not exists invite_code text;
 
--- אלפבית ללא תווים מתבלבלים: אין I/1 ואין O/0, כדי שהקראה בטלפון לא תיכשל.
+-- An alphabet without confusable characters: no I/1 and no O/0, so reading it
+-- out over the phone doesn't fail.
+
 create or replace function public.gen_invite_code()
 returns text
 language plpgsql
@@ -39,9 +47,11 @@ begin
 end;
 $$;
 
--- בקפילינג שורה-שורה ולא ב-UPDATE אחד: בתוך statement יחיד תת-השאילתה שבודקת
--- ייחודיות לא רואה שורות שאותו statement עצמו עדכן, ושתי משפחות היו עלולות
--- לקבל את אותו קוד. לולאה עם statement נפרד לכל שורה מונעת את זה.
+-- Backfilling row by row and not in one UPDATE: within a single statement the
+-- subquery checking uniqueness doesn't see rows the same statement updated, so
+-- two families could get the same code. A loop with a separate statement per
+-- row prevents that.
+
 do $$
 declare
     r record;
@@ -59,10 +69,12 @@ create unique index if not exists families_invite_code_unique_idx
 alter table public.families alter column invite_code set not null;
 alter table public.families alter column invite_code set default public.gen_invite_code();
 
--- ─── הצטרפות למשפחה ─────────────────────────────────────────────────────────
+-- ─── Joining a family ───────────────────────────────────────────────────────
 
--- מחזירה את ה-family_id בהצלחה, ו-NULL כשהקוד לא קיים — כדי שהשכבה שמעל
--- תוכל להבחין בין "הצטרפת" לבין "הקוד שגוי" במקום לבלוע את שניהם.
+
+-- Returns the family_id on success, and NULL when the code doesn't exist, so
+-- the layer above can tell "joined" from "wrong code" instead of swallowing both.
+
 create or replace function public.join_family_by_code(p_code text)
 returns uuid
 language plpgsql
@@ -79,8 +91,10 @@ begin
         raise exception 'not authenticated';
     end if;
 
-    -- נרמול הקלט: הקוד עובר בוואטסאפ ובהקראה בטלפון, אז מסירים כל מה שאינו
-    -- אות או ספרה (רווחים, מקפים, תווי כיווניות) ומיישרים לאותיות גדולות.
+    -- Normalise the input: the code travels over WhatsApp and is read out over
+    -- the phone, so strip everything that isn't a letter or digit (spaces,
+    -- dashes, direction marks) and upper-case it.
+
     v_code := upper(regexp_replace(coalesce(p_code, ''), '[^A-Za-z0-9]', '', 'g'));
     if v_code = '' then
         return null;
@@ -93,15 +107,17 @@ begin
 
     select family_id into v_old from public.profiles where id = v_uid;
     if v_old = v_family then
-        return v_family;  -- כבר חבר שם, אין מה לעשות
+        return v_family;  -- already a member there, nothing to do
     end if;
 
     update public.profiles set family_id = v_family where id = v_uid;
 
-    -- ניקוי המשפחה הנטושה. בכניסה הראשונה ensure_family פותח לכל משתמש
-    -- משפחה משלו, ובלי הניקוי הזה כל הצטרפות הייתה משאירה אחריה משפחה ריקה
-    -- בשם "המשפחה שלי" — בדיוק הזבל שהצטבר בטבלה עד היום. מוחקים רק כשאין
-    -- בה אף חבר אחר ואף תנועה, כדי שלעולם לא תאבד היסטוריה אמיתית.
+    -- Clean up the abandoned family. On first sign-in ensure_family opens a
+    -- family for every user, and without this cleanup every join would leave
+    -- behind an empty family named "המשפחה שלי": exactly the junk that piled up
+    -- in the table until now. Delete only when it has no other member and no
+    -- transaction, so real history is never lost.
+
     if v_old is not null
        and not exists (select 1 from public.profiles where family_id = v_old)
        and not exists (select 1 from public.transactions where family_id = v_old)
@@ -115,8 +131,9 @@ $$;
 
 grant execute on function public.join_family_by_code(text) to authenticated;
 
--- תצוגה מקדימה לפני האישור ("מצטרפים למשפחת כהן?"). מחזירה רק את השם, ולא
--- חושפת שום דבר אחר על המשפחה.
+-- A preview before confirming ("מצטרפים למשפחת כהן?"). Returns only the name,
+-- and reveals nothing else about the family.
+
 create or replace function public.family_name_for_code(p_code text)
 returns text
 language sql

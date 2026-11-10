@@ -1,20 +1,24 @@
-/* מי רשם כל עסקה.
+/* Who recorded each transaction.
  *
- * עד היום היה שדה אחד, ‎user_id‎ — "של מי הכסף" (התג הצבעוני). הוא מתמלא
- * רק כשהמשפחה הדליקה שיוך לבן משפחה, והפיכת פרויקט למשותף מאפסת אותו
- * בכל העסקאות שבו. כלומר לא היה שום מקום שיודע מי *רשם* עסקה.
+ * Until now there was one field, `user_id`: "whose money" (the coloured tag).
+ * It is filled only when the family turned on attribution to a family member,
+ * and making a project shared resets it on every transaction in it. So nothing
+ * knew who *recorded* a transaction.
  *
- * זה נחוץ עכשיו ל"החזר להיות אישי" (החלטת מתן, 28.9.2026): הפרויקט חוזר
- * להיות רק של מי שפתח אותו, והעסקאות שבני משפחה אחרים רשמו בו נשארות —
- * עם סימן "נרשם ע״י אור", ועם אזהרה מראש באישור.
+ * This is needed now for "make personal again" (Matan's decision, 28.9.2026):
+ * the project goes back to belonging only to whoever opened it, and the
+ * transactions other family members recorded in it stay, with a "נרשם ע״י אור"
+ * mark, and with an upfront warning in the confirmation.
  *
- * ‎default auth.uid()‎: כל הוספה דרך האפליקציה רצה עם ה-JWT של המשתמש,
- * אז העמודה מתמלאת בלי שקוד אחד יצטרך לזכור אותה. מופעים של עסקה קבועה
- * מעתיקים אותה מהתבנית במפורש (‎materialize_recurring‎) — אחרת הם היו
- * נרשמים על מי שבמקרה פתח את האפליקציה באותו יום.
+ * `default auth.uid()`: every insert through the app runs with the user's JWT,
+ * so the column fills without any code having to remember it. Recurring
+ * occurrences copy it from the template explicitly (`materialize_recurring`);
+ * otherwise they would be recorded under whoever happened to open the app that
+ * day.
  *
- * עסקאות קיימות נשארות ‎null‎: אין שום דרך לדעת מי רשם אותן, ו"לא ידוע"
- * עדיף על ניחוש. ‎on delete set null‎ — מחיקת חשבון לא מוחקת כסף שנרשם.
+ * Existing transactions stay `null`: there is no way to know who recorded
+ * them, and "unknown" beats a guess. `on delete set null`: deleting an account
+ * doesn't delete money that was recorded.
  */
 alter table public.transactions
     add column if not exists created_by uuid

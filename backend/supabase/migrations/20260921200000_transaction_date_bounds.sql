@@ -1,23 +1,26 @@
-/* גבולות לתאריך העסקה.
+/* Bounds for the transaction date.
  *
- * ‎date‎ עבר מגוף הבקשה אל המסד בלי שום בדיקה — לא בפייתון ולא בעמודה,
- * שהיא ‎DATE NOT NULL DEFAULT CURRENT_DATE‎ ותו לא. Postgres מקבל כל
- * תאריך בין שנת 1 לשנת 9999.
+ * `date` passed from the request body to the database with no check at all:
+ * not in Python and not in the column, which is `DATE NOT NULL DEFAULT
+ * CURRENT_DATE` and nothing more. Postgres accepts any date between year 1 and
+ * year 9999.
  *
- * זה לא נשאר תיאורטי בגלל מנוע העסקאות הקבועות: תבנית עם תאריך התחלה
- * בשנת 1000 גורמת לו לייצר מופע לכל חודש מאז — עד תקרת 500 השורות
- * שבקוד — בקריאה אחת. 500 עסקאות אמיתיות, שנכנסות לסיכומים, לרצועת
- * החודשים ולהשוואה, לתמיד.
+ * That didn't stay theoretical because of the recurring engine: a template with
+ * a start date in the year 1000 makes it create an occurrence for every month
+ * since (up to the code's cap of 500 rows) in one call. 500 real transactions,
+ * going into the summaries, the month strip and the comparison, forever.
  *
- * הטווח כאן רחב בכוונה ומיועד לתפוס אסונות, לא להיות מדיניות מוצר:
- * הבדיקה הצמודה יושבת בשרת (‎_parse_date‎), שם אפשר להשוות ל"היום".
- * אילוץ ב-CHECK חייב להיות immutable, ולכן הוא לא יכול לדעת מה היום.
+ * The range here is wide on purpose and meant to catch disasters, not to be
+ * product policy: the tight check sits on the server (`_parse_date`), where it
+ * can compare to "today". A CHECK constraint must be immutable, so it can't
+ * know what today is.
  *
- * ‎recurring_end_date < date‎ הוא סתירה פשוטה: "עסקה קבועה" שנגמרה לפני
- * שהתחילה לא תייצר לעולם אף מופע, והמשתמש מאמין שהיא פעילה.
+ * `recurring_end_date < date` is a plain contradiction: a "recurring
+ * transaction" that ended before it started will never produce an occurrence,
+ * and the user believes it is active.
  *
- * אומת לפני ההוספה: הטווח בפועל במסד הוא 2026-07-01 עד 2026-09-20,
- * אפס שורות מחוץ לגבולות ואפס סיום-לפני-התחלה.
+ * Verified before adding: the actual range in the database is 2026-07-01 to
+ * 2026-09-20, zero rows outside the bounds and zero end-before-start.
  */
 alter table public.transactions
   add constraint transactions_date_sane

@@ -1,14 +1,18 @@
--- פרויקט אישי (owner_id מוגדר) לעומת משותף (NULL). דגלי מעקב לפי סוג —
--- אילו סוגי עסקאות (הוצאה/הכנסה/חיסכון) רלוונטיים לפרויקט הזה.
+-- A personal project (owner_id set) versus a shared one (NULL). Tracking flags
+-- per type: which transaction types (expense/income/savings) are relevant to
+-- this project.
+
 alter table public.projects
     add column if not exists owner_id      uuid references public.profiles(id) on delete set null,
     add column if not exists track_expense boolean not null default true,
     add column if not exists track_income  boolean not null default false,
     add column if not exists track_savings boolean not null default false;
 
--- קטגוריות ייעודיות לפרויקט — נפרדות מקטגוריות המשפחה הרגילות, כדי שעריכה
--- כאן לא תשפיע על שאר האתר. מועתקות כברירת מחדל מקטגוריות המשפחה בעת היצירה,
--- ומשם ניתנות לעריכה עצמאית.
+-- Categories specific to a project, separate from the family's regular
+-- categories, so editing here doesn't affect the rest of the site. Copied by
+-- default from the family's categories at creation, and editable
+-- independently from then on.
+
 create table if not exists public.project_categories (
     id         uuid primary key default gen_random_uuid(),
     project_id uuid not null references public.projects(id) on delete cascade,
@@ -43,7 +47,9 @@ create policy project_categories_family_delete on public.project_categories
         family_id in (select family_id from public.profiles where id = auth.uid())
     );
 
--- קישור עסקה לקטגוריה הייעודית של הפרויקט. כשעסקה משויכת לפרויקט היא
--- משתמשת בעמודה הזו במקום category_id (שנשאר ריק במקרה הזה).
+-- Links a transaction to the project's own category. When a transaction is
+-- attached to a project it uses this column instead of category_id (which
+-- stays empty in that case).
+
 alter table public.transactions
     add column if not exists project_category_id uuid references public.project_categories(id) on delete set null;

@@ -1,9 +1,13 @@
--- סדר תצוגה מותאם-אישית לקטגוריות (במקום סדר אלפביתי קבוע) — נקבע דרך
--- כפתורי ▲▼ בהגדרות, ומשפיע גם על רשת הקטגוריות במודאל הוספת/עריכת עסקה.
+-- A custom display order for categories (instead of a fixed alphabetical
+-- order), set with the ▲▼ buttons in settings, and also affecting the category
+-- grid in the add/edit transaction modal.
+
 alter table public.categories add column if not exists sort_order integer;
 
--- מילוי התחלתי: סדר אלפביתי כמו היום, אבל "אחר" תמיד אחרונה בכל קבוצה
--- (family_id, type) — תואם למה שכבר מוצג במודאל, כדי שהמעבר לא "יקפוץ".
+-- Initial fill: alphabetical as today, but "אחר" always last in each
+-- (family_id, type) group, matching what the modal already shows, so the
+-- switch doesn't "jump".
+
 with ranked as (
     select id,
            row_number() over (

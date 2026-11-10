@@ -1,10 +1,12 @@
--- מהירות (מתן, 12.10) — מה ש-Performance Advisor של Supabase מצא.
+-- Speed (Matan, 12.10): what Supabase's Performance Advisor found.
 --
--- 1. מדיניות RLS שקוראות ל-‎auth.uid()‎ בתוך תנאי השורה: Postgres מחשב אותה
---    מחדש לכל שורה. ‎(select auth.uid())‎ מחושב פעם אחת לשאילתה. התנאי עצמו
---    לא משתנה — ‎alter policy‎ שומר על השם, הפעולה והתפקידים. 21 מדיניות.
--- 2. 13 מפתחות זרים בלי אינדקס — בהם ‎transactions.category_id / project_id /
---    user_id‎, שכל עמוד מסנן או מצרף לפיהם.
+-- 1. RLS policies that call `auth.uid()` inside the row condition: Postgres
+--    recomputes it for every row. `(select auth.uid())` is computed once per
+--    query. The condition itself doesn't change: `alter policy` keeps the name,
+--    the action and the roles. 21 policies.
+-- 2. 13 foreign keys without an index, among them `transactions.category_id /
+--    project_id / user_id`, which every page filters or joins by.
+
 
 alter policy categories_delete on public.categories
     using ((is_custom = true) AND (family_id IN ( SELECT profiles.family_id FROM profiles WHERE (profiles.id = (select auth.uid())))));

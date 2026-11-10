@@ -1,20 +1,25 @@
-/* email_for_phone דורשת סוד שרק השרת מכיר (מתן, 10.11.2026 — בדיקת אבטחה).
+/* email_for_phone requires a secret only the server knows (Matan, 10.11.2026,
+ * security review).
  *
- * הפונקציה פתוחה ל-anon כי היא רצה לפני ההתחברות: מי שמקליד טלפון בטופס,
- * השרת מתרגם אותו למייל ורק אז בודק סיסמה. אבל "פתוחה ל-anon" פירושו שכל
- * מי שמחזיק את מפתח ה-anon יכול לעבור על מספרי טלפון ולאסוף את המיילים של
- * המשתמשים, בלי לעבור דרך האתר ובלי הגבלת הקצב שלו. היום המפתח שמור רק בשרת,
- * אבל Supabase מגדירה אותו כציבורי — וזה הדבר הראשון שייפתח ביום שייחשף.
+ * The function is open to anon because it runs before sign-in: whoever types
+ * a phone into the form, the server translates it into an email and only then
+ * checks the password. But "open to anon" means anyone holding the anon key
+ * can walk through phone numbers and collect users' emails, without going
+ * through the site and without its rate limit. Today the key is kept on the
+ * server only, but Supabase defines it as public, and this is the first thing
+ * that opens up the day it is exposed.
  *
- * מכאן הפונקציה מחזירה מייל רק עם הסוד ‎login_lookup_secret‎ מה-Vault —
- * אותו דפוס כמו ‎push_daily‎. הסוד עצמו לא כאן (הריפו ציבורי); נוצר פעם אחת:
+ * From now on the function returns an email only with the secret
+ * `login_lookup_secret` from the Vault, the same pattern as `push_daily`. The
+ * secret itself isn't here (the repo is public); it was created once:
  *
- *   select vault.create_secret('<סוד>', 'login_lookup_secret');
+ *   select vault.create_secret('<secret>', 'login_lookup_secret');
  *
- * ובשרת: משתנה הסביבה ‎LOGIN_LOOKUP_SECRET‎ עם אותו ערך.
+ * And on the server: the environment variable `LOGIN_LOOKUP_SECRET` with the
+ * same value.
  *
- * הגרסה הישנה (ארגומנט אחד) נשארת עד שהקוד החדש עולה, כדי שהתחברות בטלפון
- * לא תישבר באמצע הפריסה. היא נמחקת במיגרציה הבאה.
+ * The old version (one argument) stays until the new code is live, so phone
+ * sign-in doesn't break mid-deploy. It is dropped in the next migration.
  */
 
 create or replace function public.email_for_phone(p_phone text, p_secret text)

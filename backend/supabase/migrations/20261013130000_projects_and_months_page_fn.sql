@@ -1,17 +1,18 @@
-/* עמודי הפרויקטים וההשוואה בנסיעה אחת למסד כל אחד (מתן, 13.10).
+/* The projects and comparison pages in one trip to the database each (Matan,
+ * 13.10).
  *
- * אחיות של ‎get_month_page‎, ‎get_home_page‎ ו-‎get_settings_page‎, באותם כללים:
- * ההובלה כאן, החישובים נשארים ב-Python באותן פונקציות, וכל חלק מחקה את
- * השליפה שהוא מחליף.
+ * Siblings of `get_month_page`, `get_home_page` and `get_settings_page`, with
+ * the same rules: the transport here, the calculations stay in Python in the
+ * same functions, and every part mimics the query it replaces.
  *
- * פרויקטים: הפעילים + הסכומים, "פעילות אחרונה", ושוב הסגורים + הסכומים — חמש
- * שליפות ברצף, ‎270-590ms‎ ביומנים.
- * השוואה: הארכיון, הקטגוריות, חברי המשפחה, ושתי סריקות של אותן הוצאות (לפי
- * קטגוריה ולפי בן משפחה) — ‎370-440ms‎.
+ * Projects: the active ones + totals, "recent activity", and again the closed
+ * ones + totals: five queries in sequence, `270-590ms` in the logs.
+ * Comparison: the archive, categories, family members, and two scans of the
+ * same expenses (by category and by family member): `370-440ms`.
  *
- * SECURITY DEFINER עם הבדיקה ‎get_my_family_id()‎. פרויקט אישי של בן משפחה
- * אחר מסונן ב-Python, כמו ב-‎get_projects‎ — כאן הפרטיות היא בתוך המשפחה,
- * ו-RLS ממילא לא מבחינה בה.
+ * SECURITY DEFINER with the `get_my_family_id()` check. Another family
+ * member's personal project is filtered in Python, as in `get_projects`: here
+ * the privacy is within the family, and RLS doesn't distinguish it anyway.
  */
 
 create or replace function public.get_projects_page(p_family_id uuid)
@@ -27,7 +28,8 @@ as $function$
             select to_jsonb(f) from families f where f.id = p_family_id
         ),
 
-        -- זהה ל-‎get_month_page‎ / ‎get_family_members(uuid)‎, כולל הסדר
+        -- Same as `get_month_page` / `get_family_members(uuid)`, including the order
+
         'members', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'id',             p.id,
@@ -42,14 +44,16 @@ as $function$
             where p.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- כל הפרויקטים, פעילים וסגורים, מהחדש לישן — כמו ‎get_projects‎
+        -- All projects, active and closed, newest first, like `get_projects`
+
         'projects', coalesce((
             select jsonb_agg(to_jsonb(p) order by p.created_at desc)
             from projects p
             where p.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- זהה ל-‎project_totals(uuid)‎
+        -- Same as `project_totals(uuid)`
+
         'totals', coalesce((
             select jsonb_object_agg(x.project_id, jsonb_build_object(
                        'expense', x.expense, 'income', x.income, 'savings', x.savings))
@@ -64,7 +68,9 @@ as $function$
             ) x
         ), '{}'::jsonb),
 
-        -- זהה ל-‎project_last_activity‎: תאריך העסקה האחרונה בכל פרויקט
+        -- Same as `project_last_activity`: the date of the latest transaction
+        -- in each project
+
         'last_activity', coalesce((
             select jsonb_object_agg(x.project_id, x.last_date)
             from (
@@ -84,8 +90,8 @@ grant  execute on function public.get_projects_page(uuid) to authenticated;
 
 create or replace function public.get_months_page(
     p_family_id uuid,
-    p_from      date,   -- תחילת החודש הראשון בחלון של 12 החודשים
-    p_to        date    -- לא כולל: תחילת החודש שאחרי הנוכחי
+    p_from      date,   -- start of the first month in the 12-month window
+    p_to        date    -- exclusive: the start of the month after the current one
 )
 returns jsonb
 language sql
@@ -113,14 +119,17 @@ as $function$
             where p.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- זהה ל-‎_fetch_categories‎
+        -- Same as `_fetch_categories`
+
         'categories', coalesce((
             select jsonb_agg(to_jsonb(c) order by c.sort_order nulls last, c.name)
             from categories c
             where c.family_id is null or c.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- זהה ל-‎get_months_archive(uuid)‎ ולחלק ה-‎archive‎ של ‎get_month_page‎
+        -- Same as `get_months_archive(uuid)` and the `archive` part of
+        -- `get_month_page`
+
         'archive', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'year',    a.year,    'month',   a.month,
@@ -142,7 +151,8 @@ as $function$
             ) a
         ), '[]'::jsonb),
 
-        -- ההוצאות של החלון, פעם אחת — ל-‎category_trend‎ ול-‎member_trend‎ גם יחד
+        -- The window's expenses, once, for `category_trend` and `member_trend` together
+
         'expense_rows', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'id',          t.id,

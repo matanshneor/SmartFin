@@ -1,23 +1,25 @@
-/* עמוד החודש עשה חמש נסיעות למסד כדי לבנות מסך אחד.
+/* The month page made five trips to the database to build one screen.
  *
- * ‎_run_queries‎ (app.py) מריצה אותן ברצף בכוונה — היא הייתה מקבילית פעם,
- * והוחזרה לרצף אחרי ש"Server disconnected" מלקוח Supabase משותף החזיר
- * אפסים בשקט. כלומר החמש משלמות זו אחרי זו: ~30ms כל אחת, ~150ms סך הכל,
- * לפני שהתבנית התחילה להיבנות.
+ * `_run_queries` (app.py) runs them in sequence on purpose: it was parallel
+ * once, and was moved back to sequential after "Server disconnected" from a
+ * shared Supabase client silently returned zeros. So the five pay one after
+ * another: ~30ms each, ~150ms in total, before the template started building.
  *
- * הפתרון כאן הוא לא להריץ אותן מהר יותר אלא לא להריץ חמש. הפונקציה
- * מחזירה אובייקט אחד עם חמשת החלקים, וההרכבה נשארת ב-Python בדיוק כפי
- * שהייתה — ‎_merge_settings‎, קיצור שמות, ‎first_name‎ — כדי שהשינוי יהיה
- * בהובלה בלבד ולא בסמנטיקה.
+ * The fix here isn't to run them faster but not to run five. The function
+ * returns one object with the five parts, and the assembly stays in Python
+ * exactly as it was (`_merge_settings`, name shortening, `first_name`), so the
+ * change is in transport only and not in semantics.
  *
- * מבנה ה-‎rows‎ מחקה את מה ש-PostgREST החזיר עבור
+ * The shape of `rows` mimics what PostgREST returned for
  *   select("*, categories(name, icon), project_categories(name, icon),
  *           profiles(name, workplace), projects(owner_id, name, icon)")
- * כולל ‎null‎ (ולא ‎{}‎) כשאין שורה מקושרת — התבניות בודקות בדיוק את זה.
+ * including `null` (not `{}`) when there is no linked row: the templates check
+ * exactly that.
  *
- * SECURITY DEFINER כמו אחיותיה, ועם אותה בדיקה: ‎get_my_family_id()‎.
- * בלעדיה זו פונקציה שמוסרת את כל התמונה הכספית של משפחה כלשהי לפי מזהה.
- * מי שמבקש משפחה שאינו חבר בה מקבל ‎null‎, ו-Python מתייחס לזה ככשל שליפה.
+ * SECURITY DEFINER like its siblings, and with the same check:
+ * `get_my_family_id()`. Without it this is a function that hands over the full
+ * financial picture of any family by id. Whoever asks for a family they aren't
+ * a member of gets `null`, and Python treats that as a failed query.
  */
 
 create or replace function public.get_month_page(
@@ -33,14 +35,17 @@ set search_path = public
 as $function$
     select jsonb_build_object(
 
-        -- שורת המשפחה במלואה: ‎settings‎ מתמזגת לברירות המחדל ב-Python,
-        -- והשאר מזין את אותו מטמון-בקשה ש-‎get_family‎ היה ממלא.
+        -- The full family row: `settings` merges into the defaults in Python,
+        -- and the rest feeds the same request cache `get_family` used to fill.
+
         'family', (
             select to_jsonb(f) from families f where f.id = p_family_id
         ),
 
-        -- זהה ל-get_family_members(uuid), כולל הסדר לפי הצטרפות: סדר
-        -- החברים קובע את צבעי התגים (‎_member_colors‎), אז הוא לא קוסמטי.
+        -- Same as get_family_members(uuid), including the join order: the
+        -- member order decides the tag colours (`_member_colors`), so it isn't
+        -- cosmetic.
+
         'members', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'id',             p.id,
@@ -55,16 +60,19 @@ as $function$
             where p.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- ‎family_id is null‎ הן הקטגוריות הגלובליות שנזרעות לכולם; בלעדיהן
-        -- עמוד החודש מציג רק קטגוריות שהמשפחה הוסיפה בעצמה.
+        -- `family_id is null` are the global categories seeded for everyone;
+        -- without them the month page shows only categories the family added
+        -- itself.
+
         'categories', coalesce((
             select jsonb_agg(to_jsonb(c) order by c.sort_order nulls last, c.name)
             from categories c
             where c.family_id is null or c.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- כולל עסקאות פרויקט. ההחרגה נעשית במעלה הזרם (‎_household_rows‎),
-        -- והשליפה הזאת היא המקור לשתי התמונות גם יחד.
+        -- Includes project transactions. The exclusion happens upstream
+        -- (`_household_rows`), and this query is the source for both pictures.
+
         'rows', coalesce((
             select jsonb_agg(
                        to_jsonb(t) || jsonb_build_object(
@@ -89,7 +97,8 @@ as $function$
               and t.date <  make_date(p_year, p_month, 1) + interval '1 month'
         ), '[]'::jsonb),
 
-        -- זהה ל-get_months_archive(uuid): רצועת החודשים בראש העמוד.
+        -- Same as get_months_archive(uuid): the month strip at the top of the page.
+
         'archive', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'year',    a.year,    'month',   a.month,
@@ -111,8 +120,10 @@ as $function$
             ) a
         ), '[]'::jsonb)
     )
-    -- אפס שורות → הפונקציה מחזירה null. זו התשובה הנכונה לשאלה על משפחה
-    -- שאינה שלך, והיא גם מה ש-Python מזהה ככשל ולא כ"משפחה ריקה".
+    -- Zero rows → the function returns null. That is the right answer to a
+    -- question about a family that isn't yours, and it is also what Python
+    -- recognises as a failure rather than "an empty family".
+
     where p_family_id = public.get_my_family_id();
 $function$;
 

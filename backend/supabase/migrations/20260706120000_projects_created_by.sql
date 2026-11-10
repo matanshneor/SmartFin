@@ -1,6 +1,7 @@
--- מי יצר את הפרויקט במקור. חשוב במיוחד לפרויקט ששהיה אישי והפך למשותף —
--- ה-owner_id מתאפס אז ל-NULL, ורק created_by שומר מי רשאי להחזיר אותו
--- להיות אישי שוב.
+-- Who originally created the project. Especially important for a project that
+-- was personal and became shared: owner_id is then reset to NULL, and only
+-- created_by keeps who may make it personal again.
+
 alter table public.projects
     add column if not exists created_by uuid references public.profiles(id) on delete set null;
 

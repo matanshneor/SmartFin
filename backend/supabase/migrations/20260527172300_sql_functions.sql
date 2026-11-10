@@ -1,7 +1,7 @@
-/* פונקציות ה-SQL הראשונות, 27 במאי 2026.
+/* The first SQL functions, May 27th 2026.
  *
- * שוחזר יחד עם ‎20260527172248‎ — ראו ההסבר שם.
- * כבר מיושם. אין להריץ אותו שוב.
+ * Restored together with `20260527172248`; see the explanation there.
+ * Already applied. Do not run it again.
  */
 
 -- Monthly archive per family

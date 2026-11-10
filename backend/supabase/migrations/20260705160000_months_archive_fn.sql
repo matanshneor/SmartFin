@@ -1,6 +1,8 @@
--- הועבר מ-schema_functions.sql (שנמחק) — כדי שכל הגדרות מסד הנתונים
--- יחיו במקום אחד: תיקיית המיגרציות.
--- מחזירה סיכום חודשי (הכנסות/הוצאות/חיסכון/יתרה) לכל חודשי הפעילות של משפחה.
+-- Moved from schema_functions.sql (deleted), so every database definition
+-- lives in one place: the migrations folder.
+-- Returns a monthly summary (income/expenses/savings/balance) for every active
+-- month of a family.
+
 CREATE OR REPLACE FUNCTION get_months_archive(p_family_id UUID)
 RETURNS TABLE (
     year     INT,

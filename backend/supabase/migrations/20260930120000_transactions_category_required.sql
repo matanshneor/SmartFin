@@ -1,13 +1,16 @@
 /*
- * אין עסקה בלי קטגוריה — החלטה של מתן (30.9).
+ * No transaction without a category: Matan's decision (30.9).
  *
- * עסקת בית חייבת ‎category_id‎, ועסקת פרויקט חייבת ‎project_category_id‎.
- * השרת כבר דוחה שמירה בלי קטגוריה, ומחיקת קטגוריה מעבירה את העסקאות
- * שלה לפני שהיא נמחקת. האילוץ הוא הרשת שמתחת: שני ה-FK הם ‎ON DELETE SET
- * NULL‎, אז עסקה שנוספה לקטגוריה בין ההעברה למחיקה — או כל מסלול עתידי
- * ששוכח להעביר — מכשיל את המחיקה במקום להשאיר עסקה יתומה.
+ * A household transaction must have a `category_id`, and a project transaction
+ * a `project_category_id`. The server already rejects a save without a
+ * category, and deleting a category moves its transactions before it is
+ * deleted. The constraint is the net underneath: both FKs are `ON DELETE SET
+ * NULL`, so a transaction added to the category between the move and the
+ * delete (or any future route that forgets to move) fails the delete instead
+ * of leaving an orphan transaction.
  *
- * עשר העסקאות הישנות בלי קטגוריה שויכו לפני המיגרציה, לפי הבחירה של מתן.
+ * The ten old transactions without a category were assigned before the
+ * migration, per Matan's choice.
  */
 alter table public.transactions
     add constraint transactions_category_required check (

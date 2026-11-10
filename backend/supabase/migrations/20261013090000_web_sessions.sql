@@ -1,19 +1,24 @@
--- נשארים מחוברים גם כשתשובה הולכת לאיבוד (מתן, 13.10: "לפעמים דורש
--- להתחבר ולפעמים לא").
+-- Staying signed in even when a response gets lost (Matan, 13.10: "sometimes it
+-- asks me to sign in and sometimes not").
 --
--- ה-refresh token של Supabase מתחלף בכל רענון, והישן נפסל. עד היום הטוקן
--- החדש נשמר רק בעוגייה — כלומר רק אם התשובה הגיעה לטלפון. באייפון זה לא
--- תמיד קורה: האפליקציה יורדת לרקע באמצע בקשה (‎499‎ ביומני Railway), השרת
--- כבר החליף את הטוקן, והעוגייה נשארת עם הישן. בכניסה הבאה: "Invalid Refresh
--- Token: Already Used" — וניתוק. 11 פעמים ביומיים (11–12.10).
+-- Supabase's refresh token rotates on every refresh, and the old one is
+-- invalidated. Until now the new token was stored only in the cookie, i.e. only
+-- if the response reached the phone. On iPhone that doesn't always happen: the
+-- app goes to the background mid-request (`499` in Railway's logs), the server
+-- has already rotated the token, and the cookie is left with the old one. On
+-- the next visit: "Invalid Refresh Token: Already Used", and a sign-out. 11
+-- times in two days (11–12.10).
 --
--- התיקון: עותק של הטוקנים העדכניים בטבלה, לפי מזהה סשן אקראי שנמצא בעוגייה
--- (‎sid‎, 256 ביט). בקשה עם עוגייה ישנה מוצאת כאן את הטוקן שהחליף את שלה.
+-- The fix: a copy of the latest tokens in a table, keyed by a random session id
+-- kept in the cookie (`sid`, 256 bits). A request with a stale cookie finds here
+-- the token that replaced its own.
 --
--- אבטחה: השרת שולח רק ‎sha256‎ של המזהה — המזהה עצמו לא נשמר במסד. מי שיש
--- לו את המזהה כבר מחזיק את העוגייה, שנושאת היום את ה-refresh token עצמו —
--- אז אין כאן גישה שלא הייתה קודם. אין גישה ישירה לטבלה (RLS בלי מדיניות);
--- רק דרך הפונקציות, וכל אחת דורשת את ה-hash.
+-- Security: the server sends only the `sha256` of the id; the id itself isn't
+-- stored in the database. Whoever has the id already holds the cookie, which
+-- today carries the refresh token itself, so there is no access here that
+-- didn't exist before. No direct access to the table (RLS with no policy);
+-- only through the functions, each of which requires the hash.
+
 create table if not exists public.web_sessions (
     sid_hash      text primary key,
     user_id       uuid not null references auth.users (id) on delete cascade,
@@ -25,7 +30,8 @@ create table if not exists public.web_sessions (
 alter table public.web_sessions enable row level security;
 create index if not exists web_sessions_user_id_idx on public.web_sessions (user_id);
 
--- בהתחברות: שורה חדשה בלבד, אף פעם לא דריסה של קיימת
+-- On sign-in: a new row only, never overwriting an existing one
+
 create or replace function public.web_session_open(
     p_sid_hash text, p_user_id uuid, p_access text, p_refresh text, p_expires bigint)
 returns void
@@ -49,7 +55,9 @@ as $$
     from public.web_sessions s where s.sid_hash = p_sid_hash;
 $$;
 
--- אחרי רענון: רק אם הטוקן במסד הוא זה שרוענן (שני workers לא דורסים זה את זה)
+-- After a refresh: only if the token in the database is the one that was
+-- refreshed (two workers don't overwrite each other)
+
 create or replace function public.web_session_rotate(
     p_sid_hash text, p_old_refresh text, p_access text, p_refresh text, p_expires bigint)
 returns boolean

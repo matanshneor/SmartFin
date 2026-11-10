@@ -1,25 +1,30 @@
-/* שיוך משפחה נקבע רק דרך פונקציות, לא בכתיבה ישירה.
+/* Family membership is set only through functions, not by direct writes.
  *
- * הרקע: profiles_own הוגדרה FOR ALL USING (auth.uid() = id) בלי WITH CHECK.
- * ב-UPDATE, Postgres משתמש ב-USING גם כבדיקה על השורה החדשה — כלומר התנאי
- * היחיד על השורה שנכתבת הוא שהיא שלי. family_id לא הוגבל בכלל.
+ * Background: profiles_own was defined FOR ALL USING (auth.uid() = id) with no
+ * WITH CHECK. On UPDATE, Postgres also uses USING as the check on the new row,
+ * i.e. the only condition on the row being written is that it is mine.
+ * family_id wasn't restricted at all.
  *
- * הוכחתי את זה מול הנתונים האמיתיים (בתוך טרנזקציה שבוטלה): משתמש מאומת
- * מריץ UPDATE אחד על השורה שלו, מצביע על מזהה משפחה אחרת, ומאותו רגע כל
- * המדיניות בשאר הטבלאות נותנות לו גישה מלאה — כי כולן נגזרות מאותה עמודה.
- * families_insert היה WITH CHECK (true), כך שאפשר גם ליצור משפחות שרירותיות.
+ * I proved it against the real data (inside a rolled-back transaction): an
+ * authenticated user runs one UPDATE on their own row, points it at another
+ * family's id, and from that moment every policy in the other tables gives
+ * them full access, because they are all derived from that column.
+ * families_insert was WITH CHECK (true), so arbitrary families could be
+ * created too.
  *
- * זה לא היה ניתן לניצול דרך האפליקציה: אין מסלול Flask שמקבל family_id
- * מהמשתמש, וגישה ישירה ל-PostgREST דורשת את מפתח ה-anon ששמור בשרת בלבד.
- * אבל RLS אמורה להיות השכבה שתופסת באג עתידי בקוד, ולא עותק של אותה בדיקה.
+ * This wasn't exploitable through the app: no Flask route accepts a family_id
+ * from the user, and direct access to PostgREST requires the anon key, which
+ * is kept on the server only. But RLS is supposed to be the layer that catches
+ * a future bug in the code, not a copy of the same check.
  *
- * הפתרון עוקב אחרי הדפוס שכבר קיים כאן: join_family_by_code הוא SECURITY
- * DEFINER שנגזר מ-auth.uid(). עכשיו גם יצירת משפחה עובדת כך, וכתיבה ישירה
- * לעמודה נחסמת ברמת ההרשאות — לא ברמת מדיניות, כי WITH CHECK לא יכולה
- * להשוות לערך הקודם של השורה.
+ * The fix follows the pattern already here: join_family_by_code is a SECURITY
+ * DEFINER derived from auth.uid(). Now creating a family works the same way,
+ * and direct writes to the column are blocked at the grant level, not at the
+ * policy level, because WITH CHECK can't compare to the row's previous value.
  */
 
--- ─── יצירת משפחה ושיוך, בפעולה אחת מבוקרת ──────────────────────────────────
+-- ─── Creating a family and attaching to it, in one controlled step ──────────
+
 create or replace function public.create_own_family(p_name text default 'המשפחה שלי')
 returns uuid
 language plpgsql
@@ -35,8 +40,10 @@ begin
         raise exception 'not authenticated';
     end if;
 
-    -- למי שכבר יש משפחה לא נוצרת חדשה ולא מוחלפת הקיימת. זה מה שמונע
-    -- שימוש בפונקציה כדי לעבור בין משפחות.
+    -- Someone who already has a family doesn't get a new one, and the existing
+    -- one isn't replaced. That is what prevents using the function to move
+    -- between families.
+
     select family_id into v_existing from public.profiles where id = v_uid;
     if v_existing is not null then
         return v_existing;
@@ -53,15 +60,18 @@ $$;
 revoke all     on function public.create_own_family(text) from public, anon;
 grant  execute on function public.create_own_family(text) to authenticated;
 
--- ─── אין יותר יצירת משפחות ישירה ───────────────────────────────────────────
+-- ─── No more direct family creation ─────────────────────────────────────────
+
 drop policy if exists "families_insert" on public.families;
 revoke insert on public.families from authenticated, anon;
 
--- ─── אין יותר שינוי שיוך ישיר ──────────────────────────────────────────────
--- הרשאת UPDATE ברמת הטבלה מכסה את כל העמודות, ולכן מסירים אותה ומחזירים
--- רק את העמודות שהמשתמש באמת עורך בהגדרות הפרופיל.
+-- ─── No more direct membership changes ──────────────────────────────────────
+-- A table-level UPDATE grant covers every column, so it is removed and only the
+-- columns the user really edits in profile settings are granted back.
+
 revoke update on public.profiles from authenticated, anon;
 grant  update (name, avatar_initial, phone, workplace) on public.profiles to authenticated;
 
--- ─── הידוק המדיניות עצמה, להגנה בעומק ──────────────────────────────────────
+-- ─── Tightening the policy itself, for defence in depth ─────────────────────
+
 alter policy "profiles_own" on public.profiles with check (auth.uid() = id);

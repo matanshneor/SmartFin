@@ -1,21 +1,23 @@
-/* עמוד ההגדרות בנסיעה אחת למסד (מתן, 13.10 — "הכי מהירה שאפשר").
+/* The settings page in one trip to the database (Matan, 13.10: "as fast as
+ * possible").
  *
- * עד עכשיו: קטגוריות, ממוצע חודשי לכל קטגוריה, חברים, המשפחה, העסקאות
- * הקבועות, שתי שליפות ל"₪5,000 ← ₪5,500", ומספר העסקאות — זו אחרי זו,
- * ‎300-530ms‎ בלוגים. אחות של ‎get_month_page‎ ו-‎get_home_page‎, באותם
- * כללים: ההובלה כאן, החישובים נשארים ב-Python באותן פונקציות.
+ * Until now: categories, the monthly average per category, members, the
+ * family, the recurring transactions, two queries for "₪5,000 ← ₪5,500", and
+ * the transaction count, one after another, `300-530ms` in the logs. A sibling
+ * of `get_month_page` and `get_home_page`, with the same rules: the transport
+ * here, the calculations stay in Python in the same functions.
  *
- * (המייל העדכני מגיע משירות ההתחברות של Supabase ולא מהמסד — הוא נשאר
- * שליפה נפרדת.)
+ * (The latest email comes from Supabase's auth service and not the database,
+ * so it stays a separate query.)
  *
- * SECURITY DEFINER עם הבדיקה ‎get_my_family_id()‎ — מי שמבקש משפחה שאינו
- * חבר בה מקבל ‎null‎.
+ * SECURITY DEFINER with the `get_my_family_id()` check: whoever asks for a
+ * family they aren't a member of gets `null`.
  */
 
 create or replace function public.get_settings_page(
     p_family_id uuid,
-    p_avg_from  date,   -- שלושת החודשים השלמים האחרונים (‎category_monthly_averages‎)
-    p_avg_to    date    -- לא כולל: תחילת החודש הנוכחי
+    p_avg_from  date,   -- the last three whole months (`category_monthly_averages`)
+    p_avg_to    date    -- exclusive: the start of the current month
 )
 returns jsonb
 language sql
@@ -29,7 +31,8 @@ as $function$
             select to_jsonb(f) from families f where f.id = p_family_id
         ),
 
-        -- זהה ל-‎get_month_page‎ / ‎get_family_members(uuid)‎, כולל הסדר
+        -- Same as `get_month_page` / `get_family_members(uuid)`, including the order
+
         'members', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'id',             p.id,
@@ -44,15 +47,17 @@ as $function$
             where p.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- זהה ל-‎_fetch_categories‎
+        -- Same as `_fetch_categories`
+
         'categories', coalesce((
             select jsonb_agg(to_jsonb(c) order by c.sort_order nulls last, c.name)
             from categories c
             where c.family_id is null or c.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- הסכום לכל קטגוריה בחלון — החלוקה והעיגול ב-Python
-        -- (‎category_averages_from_totals‎), כמו ב-‎category_monthly_averages‎
+        -- The total per category in the window; division and rounding happen in
+        -- Python (`category_averages_from_totals`), as in `category_monthly_averages`
+
         'category_totals', coalesce((
             select jsonb_object_agg(x.category_id, x.total)
             from (
@@ -67,7 +72,8 @@ as $function$
             ) x
         ), '{}'::jsonb),
 
-        -- זהה ל-‎get_recurring_transactions‎: כל התבניות, מהגדולה לקטנה
+        -- Same as `get_recurring_transactions`: all templates, largest first
+
         'recurring', coalesce((
             select jsonb_agg(
                        to_jsonb(t) || jsonb_build_object(
@@ -91,7 +97,8 @@ as $function$
               and t.is_recurring = true
         ), '[]'::jsonb),
 
-        -- ל-‎recurring_price_changes‎: תבניות שהסתיימו...
+        -- For `recurring_price_changes`: templates that ended...
+
         'ended', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'id', t.id, 'amount', t.amount, 'type', t.type,
@@ -103,7 +110,8 @@ as $function$
               and t.recurring_end_date is not null
         ), '[]'::jsonb),
 
-        -- ...והסכום של המופע האחרון של כל אחת מהן
+        -- ...and the amount of the last occurrence of each of them
+
         'ended_last', coalesce((
             select jsonb_object_agg(x.parent, x.amount)
             from (
@@ -119,7 +127,8 @@ as $function$
             ) x
         ), '{}'::jsonb),
 
-        -- זהה ל-‎family_transaction_count‎ — כולל פרויקטים ותבניות
+        -- Same as `family_transaction_count`: including projects and templates
+
         'transaction_count', (
             select count(*) from transactions t where t.family_id = p_family_id
         )

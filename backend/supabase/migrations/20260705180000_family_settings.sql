@@ -1,5 +1,7 @@
--- העדפות משפחה: אובייקט הגדרות גמיש לכל משפחה (שיוך לבני משפחה לפי סוג,
--- סף התראות חריגה, הצגת מקום עבודה). ברירות המחדל נמצאות בקוד השרת —
--- משפחה עם אובייקט ריק מקבלת את ההתנהגות ההיסטורית של האתר.
+-- Family settings: a flexible settings object per family (attribution to
+-- family members by type, overage alert threshold, showing the workplace).
+-- The defaults live in the server code: a family with an empty object gets the
+-- site's historical behaviour.
+
 alter table public.families
   add column if not exists settings jsonb not null default '{}'::jsonb;

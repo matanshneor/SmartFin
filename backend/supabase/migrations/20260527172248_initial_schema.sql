@@ -1,11 +1,12 @@
-/* הסכימה הראשונה של SmartFin, 27 במאי 2026.
+/* SmartFin's first schema, May 27th 2026.
  *
- * הקובץ הזה שוחזר ב-20 בספטמבר 2026 מתוך טבלת ההיסטוריה של Supabase.
- * הוא נוצר במקור דרך לוח הבקרה ולא דרך ה-CLI, ולכן מעולם לא היה לו
- * קובץ בריפו — מה שגרם ל-‎supabase db push‎ לסרב לעבוד ("גרסה בשרת
- * שאין לה קובץ מקומי"). עכשיו יש, וההיסטוריה שלמה.
+ * This file was restored on September 20th 2026 from Supabase's history table.
+ * It was originally created through the dashboard and not the CLI, so it never
+ * had a file in the repo, which made `supabase db push` refuse to work ("a
+ * version on the server with no local file"). Now it does, and the history is
+ * complete.
  *
- * הוא כבר מיושם. אין להריץ אותו שוב.
+ * It is already applied. Do not run it again.
  */
 
 -- ===== FAMILIES =====

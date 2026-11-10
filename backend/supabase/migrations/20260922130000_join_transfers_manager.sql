@@ -1,20 +1,22 @@
-/* הצטרפות למשפחה אחרת נעלה את המשפחה שנעזבה, לנצח.
+/* Joining another family locked the family that was left, forever.
  *
- * ‎join_family_by_code‎ עדכנה ‎profiles.family_id‎ ולא נגעה ב-‎manager_id‎.
- * מי שפתח משפחה ואז הצטרף לאחרת השאיר את ‎families.manager_id‎ מצביע
- * עליו, בעוד הוא כבר לא חבר בה. ‎is_family_manager()‎ דורשת גם חברות וגם
- * התאמה, אז היא החזירה ‎false‎ **לכולם**:
+ * `join_family_by_code` updated `profiles.family_id` and didn't touch
+ * `manager_id`. Whoever opened a family and then joined another left
+ * `families.manager_id` pointing at them while no longer a member.
+ * `is_family_manager()` requires both membership and a match, so it returned
+ * `false` **for everyone**:
  *
- *   - אי אפשר לאפס את עסקאות המשפחה
- *   - אי אפשר למחוק קטגוריה
- *   - אי אפשר להחליף קוד הזמנה שדלף
- *   - אי אפשר להסיר חבר
+ *   - the family's transactions can't be reset
+ *   - a category can't be deleted
+ *   - a leaked invite code can't be replaced
+ *   - a member can't be removed
  *
- * ואין באפליקציה שום מסך שממנה מנהל חדש, כך שזה בלתי הפיך בלי גישה
- * ישירה למסד.
+ * And no screen in the app appoints a new manager, so it is irreversible
+ * without direct database access.
  *
- * ‎leave_family‎ ו-‎delete_my_account‎ שתיהן כבר מעבירות את התפקיד לוותיק
- * שנשאר. זו בדיוק אותה העברה, במסלול השלישי שפוספס.
+ * `leave_family` and `delete_my_account` both already hand the role to the
+ * longest-standing member who stays. This is exactly the same handover, in the
+ * third route that was missed.
  */
 create or replace function public.join_family_by_code(p_code text)
 returns uuid
@@ -34,8 +36,10 @@ begin
         raise exception 'not authenticated';
     end if;
 
-    -- נרמול הקלט: הקוד עובר בוואטסאפ ובהקראה בטלפון, אז מסירים כל מה שאינו
-    -- אות או ספרה (רווחים, מקפים, תווי כיווניות) ומיישרים לאותיות גדולות.
+    -- Normalise the input: the code travels over WhatsApp and is read out over
+    -- the phone, so strip everything that isn't a letter or digit (spaces,
+    -- dashes, direction marks) and upper-case it.
+
     v_code := upper(regexp_replace(coalesce(p_code, ''), '[^A-Za-z0-9]', '', 'g'));
     if v_code = '' then
         return null;
@@ -48,13 +52,15 @@ begin
 
     select family_id into v_old from public.profiles where id = v_uid;
     if v_old = v_family then
-        return v_family;  -- כבר חבר שם, אין מה לעשות
+        return v_family;  -- already a member there, nothing to do
     end if;
 
     update public.profiles set family_id = v_family where id = v_uid;
 
-    -- הניהול עובר לוותיק שנשאר במשפחה הישנה. בלי זה היא נשארת עם מנהל
-    -- שאינו חבר בה — כלומר בלי אף אחד שיכול לנהל אותה, לנצח.
+    -- Management passes to the longest-standing member who stays in the old
+    -- family. Without this it is left with a manager who isn't a member, i.e.
+    -- with nobody who can manage it, forever.
+
     if v_old is not null then
         select manager_id into v_manager from public.families where id = v_old;
         if v_manager = v_uid then
@@ -64,10 +70,12 @@ begin
         end if;
     end if;
 
-    -- ניקוי המשפחה הנטושה. בכניסה הראשונה ensure_family פותח לכל משתמש
-    -- משפחה משלו, ובלי הניקוי הזה כל הצטרפות הייתה משאירה אחריה משפחה ריקה
-    -- בשם "המשפחה שלי" — בדיוק הזבל שהצטבר בטבלה עד היום. מוחקים רק כשאין
-    -- בה אף חבר אחר ואף תנועה, כדי שלעולם לא תאבד היסטוריה אמיתית.
+    -- Clean up the abandoned family. On first sign-in ensure_family opens a
+    -- family for every user, and without this cleanup every join would leave
+    -- behind an empty family named "המשפחה שלי": exactly the junk that piled up
+    -- in the table until now. Delete only when it has no other member and no
+    -- transaction, so real history is never lost.
+
     if v_old is not null
        and not exists (select 1 from public.profiles where family_id = v_old)
        and not exists (select 1 from public.transactions where family_id = v_old)
@@ -81,7 +89,8 @@ $$;
 
 grant execute on function public.join_family_by_code(text) to authenticated;
 
-/* ותיקון למשפחות שכבר נתקעו ככה. אין דרך אחרת להחזיר להן ניהול. */
+/* And a fix for families already stuck this way. There is no other way to
+ * give them management back. */
 update public.families f
    set manager_id = (select p.id from public.profiles p
                       where p.family_id = f.id order by p.created_at limit 1)

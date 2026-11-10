@@ -1,13 +1,15 @@
-/* דילוג על חודש עתידי בסדרה קבועה (מתן, 1.11).
+/* Skipping a future month in a recurring series (Matan, 1.11).
  *
- * בחודש עתידי מופיעים המופעים הצפויים, ולחיצה על אחד מהם מציעה "דלג על
- * החודש הזה". המופע עוד לא קיים כשורה — אין מה למחוק — אז רושמים את התאריך
- * ב-‎recurring_skips‎ של התבנית, ובדיוק כמו במחיקת מופע המנוע לא ייצר אותו.
- * ‎p_skip = false‎ מוריד את הדילוג ("בטל" בהודעה).
+ * A future month shows the projected occurrences, and tapping one offers "skip
+ * this month". The occurrence doesn't exist as a row yet (there is nothing to
+ * delete), so the date is recorded in the template's `recurring_skips`, and
+ * exactly as with deleting an occurrence, the engine won't create it.
+ * `p_skip = false` removes the skip ("undo" in the toast).
  *
- * עדכון אטומי אחד, ולא קריאה-שינוי-כתיבה מהאפליקציה: שני בני משפחה שדילגו
- * על שני חודשים באותה שנייה איבדו אחד (ראו ‎delete_recurring_occurrence‎).
- * רק תאריך עתידי — מה שכבר ירד הוא עסקה אמיתית, ונמחק כמו עסקה.
+ * One atomic update, not read-modify-write from the app: two family members
+ * skipping two months in the same second lost one (see
+ * `delete_recurring_occurrence`). Future dates only: what was already charged
+ * is a real transaction, and is deleted like one.
  */
 create or replace function public.skip_recurring_date(
     p_template_id uuid,
@@ -27,7 +29,9 @@ begin
         return 0;
     end if;
 
-    -- ‎security definer‎ עוקף RLS — הגישה נגזרת מהמשתמש המחובר, במפורש
+    -- `security definer` bypasses RLS: access derives from the signed-in user,
+    -- explicitly
+
     update public.transactions
        set recurring_skips = case when p_skip then (
                select array_agg(distinct d order by d)

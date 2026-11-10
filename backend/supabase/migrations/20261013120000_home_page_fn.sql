@@ -1,33 +1,38 @@
-/* דף הבית בנסיעה אחת למסד (מתן, 13.10 — "הכי מהירה שאפשר").
+/* The home page in one trip to the database (Matan, 13.10: "as fast as
+ * possible").
  *
- * עד עכשיו דף הבית שלח תשע שאלות, זו אחרי זו (ראו ‎_run_queries‎ ב-app.py
- * על למה ברצף): הגדרות, סיכום החודש, קטגוריות, חברים, "משפחה חדשה?",
- * עסקאות אחרונות, השבוע, "יש שבוע קודם?", ושורות החודש להתראות. בלוגים:
- * ‎300-400ms‎ ברגיל. עמוד החודש עבר לפונקציה אחת (‎get_month_page‎) ולוקח
- * ‎40-90ms‎.
+ * Until now the home page sent nine questions, one after another (see
+ * `_run_queries` in app.py on why in sequence): settings, the month summary,
+ * categories, members, "new family?", recent transactions, this week, "is
+ * there a previous week?", and the month's rows for alerts. In the logs:
+ * `300-400ms` normally. The month page moved to one function (`get_month_page`)
+ * and takes `40-90ms`.
  *
- * כמו שם: ההובלה בלבד עוברת לכאן. החישובים (סיכום, השבוע, התראות, עיצוב
- * העסקאות) נשארים ב-Python, באותן פונקציות בדיוק, כדי שלא יהיו שני מקורות
- * אמת. כל חלק כאן מחקה את השאילתה שהוא מחליף — כולל ‎null‎ ולא ‎{}‎ כשאין
- * שורה מקושרת, כי התבניות בודקות בדיוק את זה.
+ * As there: only the transport moves here. The calculations (summary, this
+ * week, alerts, transaction formatting) stay in Python, in exactly the same
+ * functions, so there aren't two sources of truth. Every part here mimics the
+ * query it replaces, including `null` and not `{}` when there is no linked row,
+ * because the templates check exactly that.
  *
- * התאריכים מחושבים ב-Python ונשלחים (‎clock.today()‎ — שעון ישראל), ולא
- * ‎current_date‎ של המסד שרץ ב-UTC: בין חצות לשלוש לפנות בוקר היו שני
- * "היום" שונים.
+ * The dates are computed in Python and sent (`clock.today()`, Israel time), not
+ * the database's `current_date`, which runs in UTC: between midnight and 3am
+ * there were two different "todays".
  *
- * SECURITY DEFINER עם אותה בדיקה כמו ‎get_month_page‎: ‎get_my_family_id()‎.
- * מי שמבקש משפחה שאינו חבר בה מקבל ‎null‎.
+ * SECURITY DEFINER with the same check as `get_month_page`:
+ * `get_my_family_id()`. Whoever asks for a family they aren't a member of gets
+ * `null`.
  */
 
 create or replace function public.get_home_page(
     p_family_id     uuid,
     p_year          int,
     p_month         int,
-    p_recent_from   date,   -- תחילת החודש: עסקאות מסדרה קבועה רק מכאן (‎_recent_series_filter‎)
+    p_recent_from   date,   -- start of the month: transactions from a recurring series only from here
+-- (`_recent_series_filter`)
     p_recent_limit  int,
-    p_week_from     date,   -- ראשון של השבוע הקודם
-    p_week_start    date,   -- ראשון של השבוע המוצג
-    p_week_to       date    -- שבת של השבוע המוצג
+    p_week_from     date,   -- Sunday of the previous week
+    p_week_start    date,   -- Sunday of the shown week
+    p_week_to       date    -- Saturday of the shown week
 )
 returns jsonb
 language sql
@@ -41,7 +46,8 @@ as $function$
             select to_jsonb(f) from families f where f.id = p_family_id
         ),
 
-        -- זהה ל-‎get_month_page‎ / ‎get_family_members(uuid)‎, כולל הסדר
+        -- Same as `get_month_page` / `get_family_members(uuid)`, including the order
+
         'members', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'id',             p.id,
@@ -56,15 +62,18 @@ as $function$
             where p.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- זהה ל-‎_fetch_categories‎: ‎sort_order‎ (ריקים בסוף), ואז שם
+        -- Same as `_fetch_categories`: `sort_order` (empty ones last), then name
+
         'categories', coalesce((
             select jsonb_agg(to_jsonb(c) order by c.sort_order nulls last, c.name)
             from categories c
             where c.family_id is null or c.family_id = p_family_id
         ), '[]'::jsonb),
 
-        -- זהה ל-‎fetch_month_rows‎: כל שורות החודש, כולל פרויקטים. ממנו
-        -- נגזרים גם סיכום החודש (בלי פרויקטים) וגם התראות התקציב.
+        -- Same as `fetch_month_rows`: all the month's rows, including projects.
+        -- Both the month summary (without projects) and the budget alerts are
+        -- derived from it.
+
         'rows', coalesce((
             select jsonb_agg(
                        to_jsonb(t) || jsonb_build_object(
@@ -89,8 +98,9 @@ as $function$
               and t.date <  make_date(p_year, p_month, 1) + interval '1 month'
         ), '[]'::jsonb),
 
-        -- זהה ל-‎get_recent_transactions‎: בלי פרויקטים, לפי סדר ההזנה,
-        -- ועסקאות מסדרה קבועה רק מתחילת החודש
+        -- Same as `get_recent_transactions`: no projects, in entry order, and
+        -- transactions from a recurring series only from the start of the month
+
         'recent', coalesce((
             select jsonb_agg(r.j order by r.created_at desc)
             from (
@@ -117,7 +127,9 @@ as $function$
             ) r
         ), '[]'::jsonb),
 
-        -- זהה ל-‎week_spending‎: הוצאות הבית של השבוע הקודם והנוכחי
+        -- Same as `week_spending`: household expenses of the previous and
+        -- current week
+
         'week_rows', coalesce((
             select jsonb_agg(jsonb_build_object(
                        'amount',              t.amount,
@@ -139,8 +151,9 @@ as $function$
               and t.date <= p_week_to
         ), '[]'::jsonb),
 
-        -- "יש לאן לדפדף אחורה" — ‎is_recurring = false‎ בדיוק כמו ‎.eq(False)‎
-        -- שם (שורה עם ‎NULL‎ לא נספרת)
+        -- "Is there anywhere to page back to": `is_recurring = false` exactly
+        -- like `.eq(False)` there (a row with `NULL` isn't counted)
+
         'week_has_older', exists (
             select 1 from transactions t
             where t.family_id = p_family_id
@@ -151,7 +164,8 @@ as $function$
               and t.date < p_week_start
         ),
 
-        -- "משפחה חדשה" — אף עסקה מעולם, כולל פרויקטים
+        -- "New family": no transaction ever, including projects
+
         'has_transactions', exists (
             select 1 from transactions t where t.family_id = p_family_id
         )

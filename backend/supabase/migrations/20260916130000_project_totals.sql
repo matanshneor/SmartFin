@@ -1,12 +1,13 @@
-/* סכומי פרויקטים — מחושבים במסד במקום בפייתון.
+/* Project totals, computed in the database instead of in Python.
  *
- * ‎_project_totals‎ משכה את *כל* עסקאות הפרויקטים של המשפחה, מאז ומתמיד,
- * בכל טעינה של עמוד ההגדרות והפרויקטים — וחיברה אותן בפייתון. בהיקף של
- * עשרות שורות זה מיידי; אחרי כמה שנים של טיולים ושיפוצים זו סריקה שגדלה
- * בלי גבול, על עמוד שנטען הרבה.
+ * `_project_totals` pulled *every* project transaction of the family, ever, on
+ * every load of the settings and projects pages, and summed them in Python. At
+ * tens of rows that is instant; after a few years of trips and renovations it
+ * is a scan that grows without limit, on a page that loads a lot.
  *
- * ‎security invoker‎ ולא definer, בכוונה: RLS ממשיכה לחול, כך שהפונקציה
- * רואה בדיוק את מה שהקורא רשאי לראות. אין כאן שום סיבה לעקוף אותה.
+ * `security invoker` and not definer, on purpose: RLS still applies, so the
+ * function sees exactly what the caller may see. There is no reason at all to
+ * bypass it here.
  */
 create or replace function public.project_totals(p_family_id uuid)
 returns table(project_id uuid, expense numeric, income numeric, savings numeric)

@@ -1,29 +1,36 @@
-/* ניהול חברות במשפחה: הסרת חבר, עזיבה, והחלפת קוד הזמנה.
+/* Managing family membership: removing a member, leaving, and replacing the
+ * invite code.
  *
- * עד היום מי שהצטרף למשפחה — בטעות, או עם קוד שדלף בוואטסאפ — נשאר בה
- * לתמיד. אין מסלול להסיר אותו, אין דרך לעזוב בעצמך, והקוד נוצר פעם אחת
- * ואי אפשר לשנותו. כלומר דליפה של שישה תווים היא גישה קבועה לכספי
- * המשפחה, למספרי הטלפון ולמקומות העבודה של כל חבריה.
+ * Until now whoever joined a family (by mistake, or with a code leaked on
+ * WhatsApp) stayed in it forever. There was no route to remove them, no way to
+ * leave yourself, and the code was created once and couldn't be changed. So a
+ * leak of six characters meant permanent access to the family's finances, and
+ * to every member's phone number and workplace.
  *
- * המודל היה שטוח לגמרי — כל החברים שווים. הסרה היא הפעולה הראשונה שדורשת
- * הבחנה, ולכן נוסף תפקיד אחד ויחיד: **מנהל המשפחה**. הוא יכול להסיר
- * אחרים; כל השאר הם בני משפחה רגילים שיכולים לעזוב בעצמם. את המנהל עצמו
- * אי אפשר להסיר — אחרת שני חברים היו יכולים להסיר זה את זה עד שלא נשאר
- * אף אחד. כשהוא עוזב, הניהול עובר לוותיק שנשאר.
+ * The model was completely flat: all members equal. Removal is the first
+ * action that requires a distinction, so one single role was added: **the
+ * family manager**. They can remove others; everyone else is a regular family
+ * member who can leave by themselves. The manager can't be removed; otherwise
+ * two members could remove each other until nobody was left. When they leave,
+ * management passes to the longest-standing member who stays.
  */
 
--- ─── מנהל המשפחה ───────────────────────────────────────────────────────────
+-- ─── The family manager ─────────────────────────────────────────────────────
+
 alter table public.families
   add column if not exists manager_id uuid references public.profiles(id) on delete set null;
 
--- למשפחות קיימות: החבר הוותיק ביותר. זו לא ידיעה אלא ההערכה הטובה ביותר
--- שאפשר לגזור בדיעבד, והיא נכונה לכל משפחה שנפתחה דרך ensure_family.
+-- For existing families: the longest-standing member. Not knowledge but the
+-- best estimate that can be derived after the fact, and it is right for every
+-- family opened through ensure_family.
+
 update public.families f
    set manager_id = (select p.id from public.profiles p
                       where p.family_id = f.id order by p.created_at limit 1)
  where f.manager_id is null;
 
--- ─── יצירת משפחה מסמנת בעלות ───────────────────────────────────────────────
+-- ─── Creating a family records ownership ────────────────────────────────────
+
 create or replace function public.create_own_family(p_name text default 'המשפחה שלי')
 returns uuid
 language plpgsql
@@ -52,7 +59,8 @@ begin
 end;
 $$;
 
--- ─── הסרת חבר (בעלים בלבד) ─────────────────────────────────────────────────
+-- ─── Removing a member (owner only) ─────────────────────────────────────────
+
 create or replace function public.remove_family_member(
     p_user_id uuid, p_keep_transactions boolean default true)
 returns void
@@ -82,24 +90,30 @@ begin
     end if;
 
     if p_keep_transactions then
-        -- הכסף יצא מהתקציב המשותף, אז הסכומים נשארים נכונים. השיוך יורד
-        -- והעסקה מוצגת כ"משותפת" — מצב שהתצוגה כבר יודעת להציג.
+        -- The money left the shared budget, so the totals stay right. The
+        -- attribution is dropped and the transaction is shown as "shared", a
+        -- state the view already knows how to display.
+
         update public.transactions set user_id = null
          where family_id = v_family and user_id = p_user_id;
     else
-        -- הטריגר על transactions מארכב כל שורה בדרך החוצה
+        -- The trigger on transactions archives every row on the way out
+
         delete from public.transactions
          where family_id = v_family and user_id = p_user_id;
     end if;
 
-    -- משפחה חדשה וריקה, כדי שהחשבון שלו יישאר שמיש ולא ייתקע בלי משפחה
+    -- A new, empty family, so their account stays usable and isn't stuck
+    -- without a family
+
     v_new := gen_random_uuid();
     insert into public.families (id, name, manager_id) values (v_new, 'המשפחה שלי', p_user_id);
     update public.profiles set family_id = v_new where id = p_user_id;
 end;
 $$;
 
--- ─── עזיבה עצמית (כל אחד) ──────────────────────────────────────────────────
+-- ─── Leaving by yourself (anyone) ───────────────────────────────────────────
+
 create or replace function public.leave_family(p_keep_transactions boolean default true)
 returns uuid
 language plpgsql
@@ -132,15 +146,17 @@ begin
 
     select manager_id into v_manager from public.families where id = v_family;
     if v_manager = v_uid then
-        -- הניהול עובר לוותיק שנשאר. בלי זה משפחה שהמנהל שלה עזב נשארת
-        -- בלי אף אחד שיכול לנהל אותה.
+        -- Management passes to the longest-standing member who stays. Without
+        -- this a family whose manager left is left with nobody who can manage it.
+
         select p.id into v_heir from public.profiles p
           where p.family_id = v_family order by p.created_at limit 1;
         update public.families set manager_id = v_heir where id = v_family;
     end if;
 
-    -- משפחה שנותרה ריקה ובלי היסטוריה היא זבל; עם היסטוריה היא נשמרת,
-    -- בדיוק כמו ב-join_family_by_code.
+    -- A family left empty and without history is junk; with history it is
+    -- kept, just as in join_family_by_code.
+
     if not exists (select 1 from public.profiles where family_id = v_family)
        and not exists (select 1 from public.transactions where family_id = v_family) then
         delete from public.families where id = v_family;
@@ -150,7 +166,8 @@ begin
 end;
 $$;
 
--- ─── החלפת קוד ההזמנה ──────────────────────────────────────────────────────
+-- ─── Replacing the invite code ──────────────────────────────────────────────
+
 create or replace function public.rotate_invite_code()
 returns text
 language plpgsql
@@ -167,8 +184,10 @@ begin
     select family_id into v_family from public.profiles where id = v_uid;
     if v_family is null then raise exception 'no family'; end if;
 
-    -- כל בן משפחה רשאי, ולא רק המנהל: מי שמגלה שהקוד דלף צריך לסגור
-    -- אותו מיד. הסיכון סימטרי — הקוד הישן מפסיק לעבוד, וזו כל המטרה.
+    -- Any family member may, not just the manager: whoever discovers the code
+    -- leaked needs to close it right away. The risk is symmetric: the old code
+    -- stops working, and that is the whole point.
+
     v_code := public.gen_invite_code();
     update public.families set invite_code = v_code where id = v_family;
     return v_code;

@@ -1,20 +1,23 @@
-/* פונקציות SECURITY DEFINER שהיו פתוחות למי שלא מחובר, בלי צורך.
+/* SECURITY DEFINER functions that were open to anyone not signed in, for no
+ * reason.
  *
- * יועץ האבטחה של Supabase סימן שש. אף אחת לא דלפה: כולן נגזרות מ-
- * ‎auth.uid()‎, שהוא ‎null‎ למי שלא מחובר, ולכן לא עשו כלום. אבל ברירת
- * המחדל של Postgres היא ‎execute‎ ל-PUBLIC, ואין סיבה שהדלת תהיה פתוחה.
+ * Supabase's security advisor flagged six. None leaked: they all derive from
+ * `auth.uid()`, which is `null` for anyone not signed in, so they did nothing.
+ * But Postgres's default is `execute` for PUBLIC, and there is no reason for
+ * the door to be open.
  *
- * · ‎delete_my_account‎, ‎join_family_by_code‎, ‎log_login_event‎ — נקראות
- *   מהאפליקציה רק אחרי התחברות (‎log_login_event‎ אחרי ‎set_auth_token‎).
- *   נשארות ל-‎authenticated‎ בלבד.
- * · ‎handle_new_user‎, ‎archive_deleted_transaction‎ — פונקציות trigger.
- *   Postgres בודק ‎execute‎ עליהן רק ביצירת ה-trigger, לא בהפעלה, אז
- *   סגירה לכולם לא עוצרת אותן — רק את הקריאה הישירה דרך ‎/rest/v1/rpc‎.
+ * · `delete_my_account`, `join_family_by_code`, `log_login_event`: called from
+ *   the app only after sign-in (`log_login_event` after `set_auth_token`).
+ *   They stay for `authenticated` only.
+ * · `handle_new_user`, `archive_deleted_transaction`: trigger functions.
+ *   Postgres checks `execute` on them only when creating the trigger, not when
+ *   it fires, so closing them to everyone doesn't stop them, only the direct
+ *   call through `/rest/v1/rpc`.
  *
- * ‎get_my_family_id‎ נשארת פתוחה **בכוונה**: מדיניות ‎profiles_family_read‎
- * (לתפקיד PUBLIC) קוראת לה. סגירה שלה ל-anon הייתה הופכת "אין לך גישה"
- * (רשימה ריקה) לשגיאת הרשאה. היא מחזירה רק את המשפחה של הקורא, ו-‎null‎
- * למי שלא מחובר — אין בה מה לסגור.
+ * `get_my_family_id` stays open **on purpose**: the `profiles_family_read`
+ * policy (for the PUBLIC role) calls it. Closing it to anon would turn "you have
+ * no access" (an empty list) into a permission error. It returns only the
+ * caller's family, and `null` for anyone not signed in: nothing to close there.
  */
 revoke all     on function public.delete_my_account()            from public, anon;
 revoke all     on function public.join_family_by_code(text)      from public, anon;

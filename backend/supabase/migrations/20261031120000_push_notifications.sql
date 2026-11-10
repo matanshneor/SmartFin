@@ -1,25 +1,30 @@
-/* התראות לטלפון — Web Push (מתן, 31.10).
+/* Phone notifications: Web Push (Matan, 31.10).
  *
- * ‎push_subscriptions‎: מכשיר אחד לכל שורה. כל משתמש רואה ומנהל רק את שלו;
- * מי מקבל מה נקבע בשתי פונקציות security definer:
+ * `push_subscriptions`: one device per row. Every user sees and manages only
+ * their own; who gets what is decided by two security definer functions:
  *
- *   ‎push_family_targets‎ — ברגע של פעולה (בן משפחה הצטרף, משכורת נרשמה):
- *     רק חבר במשפחה יכול לקבל את מכשירי המשפחה שלו, ורק שלה.
- *   ‎push_daily‎ — פעם ביום, מ-‎pg_cron‎ דרך האפליקציה. אין שם משתמש מחובר,
- *     ולכן הפונקציה פתוחה ל-anon אבל דורשת סוד ששמור ב-Vault
- *     (‎push_cron_secret‎) — ובלעדיו לא מחזירה כלום. האפליקציה מקבלת את אותו
- *     סוד ממשתנה סביבה (‎PUSH_CRON_SECRET‎). כך לא נוסף לשרת מפתח שירות
- *     שעוקף את כל ה-RLS.
+ *   `push_family_targets`: at the moment of an action (a family member joined,
+ *     a salary was recorded): only a family member can get their family's
+ *     devices, and only theirs.
+ *   `push_daily`: once a day, from `pg_cron` through the app. There is no
+ *     signed-in user there, so the function is open to anon but requires a
+ *     secret kept in the Vault (`push_cron_secret`), and without it returns
+ *     nothing. The app gets the same secret from an environment variable
+ *     (`PUSH_CRON_SECRET`). That way no service key that bypasses all RLS is
+ *     added to the server.
  *
- * ‎push_log‎: מה כבר נשלח (סוג, משפחה, תקופה) — כדי שאף התראה לא תישלח פעמיים,
- * גם אם המשימה רצה פעמיים או ששני בני משפחה רשמו משכורת באותו חודש.
+ * `push_log`: what was already sent (kind, family, period), so no notification
+ * is sent twice, even if the job ran twice or two family members recorded a
+ * salary in the same month.
  *
- * הסודות עצמם לא בקובץ הזה (הריפו ציבורי). הם נוצרים פעם אחת ידנית:
- *   select vault.create_secret('<סוד>', 'push_cron_secret');
- *   select vault.create_secret('https://<האתר>/internal/push/daily', 'push_cron_url');
+ * The secrets themselves aren't in this file (the repo is public). They are
+ * created once by hand:
+ *   select vault.create_secret('<secret>', 'push_cron_secret');
+ *   select vault.create_secret('https://<site>/internal/push/daily', 'push_cron_url');
  */
 
--- ─── מנויים ──────────────────────────────────────────────────────────────────
+-- ─── Subscriptions ──────────────────────────────────────────────────────────
+
 
 create table if not exists public.push_subscriptions (
     endpoint    text primary key check (endpoint like 'https://%' and length(endpoint) <= 1000),
@@ -38,10 +43,11 @@ create policy push_subscriptions_own on public.push_subscriptions
     using (user_id = (select auth.uid()))
     with check (user_id = (select auth.uid()));
 
-/* הרשמת המכשיר הזה למשתמש המחובר. security definer כי אותו טלפון יכול לעבור
- * בין שני בני משפחה (התנתקות והתחברות) — ואז השורה כבר רשומה על השני, ו-RLS
- * לא היה מאפשר לעדכן אותה. מי שמחזיק ב-endpoint הוא הדפדפן עצמו, אז
- * העברתו למחובר הנוכחי לא נותנת לאף אחד משהו שלא היה לו. */
+/* Registers this device for the signed-in user. security definer because the
+ * same phone can move between two family members (sign out and sign in), and
+ * then the row is already registered to the other one, and RLS wouldn't allow
+ * updating it. Whoever holds the endpoint is the browser itself, so moving it
+ * to the current user gives nobody anything they didn't already have. */
 create or replace function public.push_subscribe(p_endpoint text, p_p256dh text, p_auth text)
 returns void
 language plpgsql
@@ -63,7 +69,8 @@ $$;
 revoke all on function public.push_subscribe(text, text, text) from public, anon;
 grant execute on function public.push_subscribe(text, text, text) to authenticated;
 
--- ─── מה נשלח ─────────────────────────────────────────────────────────────────
+-- ─── What was sent ──────────────────────────────────────────────────────────
+
 
 create table if not exists public.push_log (
     kind       text not null,
@@ -72,14 +79,16 @@ create table if not exists public.push_log (
     sent_at    timestamptz not null default now(),
     primary key (kind, family_id, period)
 );
--- בלי מדיניות בכלל: רק הפונקציות למטה נוגעות בה
+-- No policy at all: only the functions below touch it
+
 alter table public.push_log enable row level security;
 
--- ─── ברגע של פעולה ───────────────────────────────────────────────────────────
+-- ─── At the moment of an action ─────────────────────────────────────────────
 
-/* מכשירי המשפחה, חוץ ממי שעשה את הפעולה. ‎p_kind/p_period‎ — אם נשלחו, זו
- * התראה של פעם אחת לתקופה (משכורת: פעם בחודש), והפונקציה רושמת אותה; אם
- * כבר נרשמה — לא מחזירה אף מכשיר. */
+
+/* The family's devices, except whoever performed the action. `p_kind/p_period`:
+ * if sent, this is a once-per-period notification (salary: once a month), and
+ * the function records it; if already recorded, it returns no device. */
 create or replace function public.push_family_targets(p_kind text default null, p_period text default null)
 returns table (endpoint text, p256dh text, auth text)
 language plpgsql
@@ -114,7 +123,8 @@ $$;
 revoke all on function public.push_family_targets(text, text) from public, anon;
 grant execute on function public.push_family_targets(text, text) to authenticated;
 
--- ─── פעם ביום ────────────────────────────────────────────────────────────────
+-- ─── Once a day ─────────────────────────────────────────────────────────────
+
 
 create or replace function public._push_secret_ok(p_secret text)
 returns boolean
@@ -130,11 +140,13 @@ as $$
 $$;
 revoke all on function public._push_secret_ok(text) from public, anon, authenticated;
 
-/* כל מה שצריך לשלוח היום: שורה לכל (התראה, מכשיר). ‎data‎ — המספרים לנוסח;
- * הנוסח עצמו בעברית נבנה באפליקציה (‎backend/push.py‎). כל התראה נרשמת
- * ב-‎push_log‎ כאן, כך שריצה שנייה באותו יום לא מחזירה אותה שוב.
+/* Everything to send today: a row per (notification, device). `data`: the
+ * numbers for the wording; the Hebrew wording itself is built in the app
+ * (`backend/push.py`). Every notification is recorded in `push_log` here, so a
+ * second run on the same day doesn't return it again.
  *
- * ‎p_today‎ מגיע מהאפליקציה (שעון ישראל, ‎backend/clock.py‎) — השרת כאן ב-UTC. */
+ * `p_today` comes from the app (Israel time, `backend/clock.py`); the server
+ * here is in UTC. */
 create or replace function public.push_daily(p_secret text, p_today date)
 returns table (kind text, data jsonb, endpoint text, p256dh text, auth text)
 language plpgsql
@@ -152,7 +164,8 @@ begin
     drop table if exists _due;
     create temporary table _due (kind text, family_id uuid, period text, data jsonb) on commit drop;
 
-    -- חודש נסגר — ב-1 לחודש, לכל משפחה שהיו לה עסקאות (בלי פרויקטים)
+    -- Month closed: on the 1st, for every family that had transactions (no projects)
+
     if extract(day from p_today) = 1 then
         insert into _due
         select 'month_closed', t.family_id, to_char(v_prev, 'YYYY-MM'),
@@ -167,7 +180,9 @@ begin
         group by t.family_id;
     end if;
 
-    -- תשלום אחרון — סדרת תשלומים שמסתיימת היום (התבנית נושאת את הסדרה)
+    -- Last installment: an installment series ending today (the template
+    -- carries the series)
+
     insert into _due
     select 'last_installment', t.family_id, t.id::text,
            jsonb_build_object('description', coalesce(t.description, ''),
@@ -176,7 +191,8 @@ begin
     where t.installments is not null and t.is_recurring
       and t.recurring_end_date = p_today and t.project_id is null;
 
-    -- שבוע בלי עסקה חדשה — אחרי 7, 14 ו-21 יום, ואז שקט
+    -- A week with no new transaction: after 7, 14 and 21 days, then quiet
+
     insert into _due
     select 'quiet_week', q.family_id, 'w' || q.weeks || '-' || to_char(q.last_at, 'YYYY-MM-DD'),
            jsonb_build_object('weeks', q.weeks)
@@ -188,7 +204,8 @@ begin
     ) q
     where q.weeks between 1 and 3;
 
-    -- רק מה שעוד לא נשלח — ורושמים אותו באותה פקודה
+    -- Only what hasn't been sent yet, recorded in the same statement
+
     return query
         with fresh as (
             insert into public.push_log (kind, family_id, period)
@@ -207,7 +224,8 @@ $$;
 revoke all on function public.push_daily(text, date) from public;
 grant execute on function public.push_daily(text, date) to anon, authenticated;
 
-/* מכשיר שהשירות אמר עליו "כבר לא קיים" (404/410) — נמחק. גם כאן הסוד. */
+/* A device the service said "no longer exists" (404/410) is deleted. The
+ * secret here too. */
 create or replace function public.push_forget(p_secret text, p_endpoints text[])
 returns void
 language plpgsql
@@ -224,12 +242,14 @@ $$;
 revoke all on function public.push_forget(text, text[]) from public;
 grant execute on function public.push_forget(text, text[]) to anon, authenticated;
 
--- ─── התזמון ──────────────────────────────────────────────────────────────────
+-- ─── The schedule ───────────────────────────────────────────────────────────
+
 
 create extension if not exists pg_net with schema extensions;
 
-/* כל יום ב-07:05 UTC — 09:05 בחורף ו-10:05 בקיץ בישראל. pg_cron קורא
- * לאפליקציה, והיא שולחת. בלי שני הסודות ב-Vault הקריאה פשוט לא יוצאת. */
+/* Every day at 07:05 UTC: 09:05 in winter and 10:05 in summer in Israel.
+ * pg_cron calls the app, and the app sends. Without both secrets in the Vault
+ * the call simply doesn't go out. */
 select cron.schedule('push-daily', '5 7 * * *', $cron$
     select net.http_post(
         url     := (select decrypted_secret from vault.decrypted_secrets where name = 'push_cron_url'),

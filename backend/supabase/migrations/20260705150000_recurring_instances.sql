@@ -1,5 +1,8 @@
--- מנוע עסקאות קבועות: כל מופע חודשי/שבועי שנוצר אוטומטית מקושר לעסקת המקור.
--- מחיקת עסקת המקור משאירה את המופעים שכבר נוצרו (הכסף כבר זז) אך עוצרת יצירה עתידית.
+-- The recurring transactions engine: every monthly/weekly occurrence created
+-- automatically is linked to the source transaction. Deleting the source
+-- transaction keeps the occurrences already created (the money already moved)
+-- but stops future creation.
+
 alter table public.transactions
   add column if not exists recurring_parent_id uuid references public.transactions(id) on delete set null;
 

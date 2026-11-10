@@ -1,21 +1,24 @@
-/* "מחיקת חשבון לצמיתות" לא מחקה כלום.
+/* "Permanently delete the account" didn't delete anything.
  *
- * ‎delete_my_account‎ מארכבת את הפרופיל (שם, אימייל, טלפון, מקום עבודה),
- * את המשפחה, הקטגוריות והפרויקטים; והטריגר ‎archive_deleted_transaction‎
- * מעתיק **כל** עסקה שנמחקת אי-פעם. הכול ל-‎owner_archive‎, בלי שום קוד
- * בכל הריפו שמנקה אותו. לנצח.
+ * `delete_my_account` archives the profile (name, email, phone, workplace), the
+ * family, the categories and the projects; and the trigger
+ * `archive_deleted_transaction` copies **every** transaction ever deleted. All
+ * into `owner_archive`, with no code anywhere in the repo cleaning it. Forever.
  *
- * מדיניות הפרטיות הבטיחה "מחיקת החשבון... מסירה את הפרופיל ואת הנתונים
- * הקשורים אליו" ו"הנתונים נשמרים כל עוד החשבון פעיל". שתי הטענות לא
- * היו נכונות. באפליקציה מאוחסנת באיחוד האירופי שמעבדת נתונים פיננסיים
- * זה כשל ישיר בסעיף 17 (זכות המחיקה) וב-5(1)(e) (הגבלת אחסון) — וגרוע
- * מזה, מפני שההבטחה נכתבה במפורש.
+ * The privacy policy promised "deleting the account... removes the profile and
+ * the data associated with it" and "data is kept as long as the account is
+ * active". Neither claim was true. In an app hosted in the EU that processes
+ * financial data, that is a direct failure of Article 17 (right to erasure) and
+ * 5(1)(e) (storage limitation), and worse, because the promise was written
+ * explicitly.
  *
- * ובמקביל זה גם מגבר: אין שום הגבלת קצב שמונעת "הוסף-מחק-חזור", וכל
- * מחזור כזה הוסיף שורה קבועה למסד של 500MB.
+ * At the same time it is also an amplifier: no rate limit prevents
+ * "add-delete-repeat", and every such cycle added a permanent row to a 500MB
+ * database.
  *
- * 30 יום הוא החלון: מספיק כדי לעזור למי שמחק בטעות ופנה, וקצר מספיק
- * כדי שההבטחה במדיניות תהיה נכונה. המדיניות עודכנה לומר את זה במפורש.
+ * 30 days is the window: enough to help someone who deleted by mistake and got
+ * in touch, and short enough that the promise in the policy is true. The policy
+ * was updated to say so explicitly.
  */
 create or replace function public.purge_expired_archive()
 returns integer
@@ -35,9 +38,11 @@ $$;
 
 revoke all on function public.purge_expired_archive() from public, anon, authenticated;
 
--- ‎login_events‎ באותו היגיון. המדיניות מצהירה על "רישום כניסות... לצורכי
--- אבטחה ואיתור שימוש לרעה", בלי לומר לכמה זמן — ובלי שום ניקוי. 90 יום
--- מספיקים לחקירה ולא הופכים את הטבלה לתיעוד תנועה קבוע של כל משתמש.
+-- `login_events` on the same logic. The policy declares "recording sign-ins...
+-- for security and abuse detection", without saying for how long, and with no
+-- cleanup at all. 90 days is enough for an investigation and doesn't turn the
+-- table into a permanent movement log of every user.
+
 create or replace function public.purge_expired_login_events()
 returns integer
 language plpgsql
@@ -59,9 +64,10 @@ revoke all on function public.purge_expired_login_events() from public, anon, au
 create index if not exists owner_archive_archived_at_idx
     on public.owner_archive (archived_at);
 
-/* התזמון. ‎pg_cron‎ ולא ניקוי מתוך האפליקציה: ניקוי שתלוי בכך שמישהו
- * ייכנס הוא בדיוק מה שמפסיק לעבוד כשאף אחד לא נכנס — והמקרה שבו הטבלה
- * הכי צריכה להתנקות הוא חשבון שנמחק ואיש לא חוזר אליו. */
+/* The schedule. `pg_cron` and not cleanup from inside the app: a cleanup that
+ * depends on someone signing in is exactly what stops working when nobody
+ * signs in, and the case where the table most needs cleaning is an account
+ * that was deleted and nobody comes back to. */
 create extension if not exists pg_cron;
 
 select cron.unschedule('purge-owner-archive')

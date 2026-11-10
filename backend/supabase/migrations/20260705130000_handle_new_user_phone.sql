@@ -1,5 +1,6 @@
--- מעדכן את יצירת הפרופיל האוטומטית כך שתקרא גם מספר טלפון מהרשמה,
--- לצד השם שכבר נקרא קודם.
+-- Updates the automatic profile creation so it also reads a phone number from
+-- signup, next to the name it already read.
+
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin

@@ -1,8 +1,8 @@
-/* הקריאה האחרונה של anon — families, לבדיקת הבריאות — נסגרת.
+/* anon's last read (families, for the health check) is closed.
  *
- * היא גם לא עבדה: מדיניות ה-RLS של families קוראת את profiles, ול-anon כבר
- * לא הייתה הרשאה עליה, אז ‎/health/db‎ החזיר 401. ‎ping‎ עובר עכשיו דרך
- * ‎rpc/get_my_family_id‎ (SECURITY DEFINER), כך של-anon אין שום הרשאה על
- * אף טבלה.
+ * It didn't work anyway: the RLS policy on families reads profiles, and anon no
+ * longer had a grant on it, so `/health/db` returned 401. `ping` now goes
+ * through `rpc/get_my_family_id` (SECURITY DEFINER), so anon has no grant on
+ * any table.
  */
 revoke select on public.families from anon;

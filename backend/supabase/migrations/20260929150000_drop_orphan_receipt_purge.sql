@@ -1,17 +1,18 @@
-/* הניקוי הלילי של קבלות יתומות — מוסר.
+/* The nightly cleanup of orphan receipts: removed.
  *
- * ‎purge_orphan_receipts‎ (20260922170000) נכשלה בכל אחת משבע הריצות שלה:
- * Supabase חוסמת מחיקה ישירה מ-‎storage.objects‎ ("Direct deletion from
- * storage tables is not allowed. Use the Storage API instead"). היא לא
- * מחקה אף קובץ, ונכשלה כל לילה בלי שאיש ראה.
+ * `purge_orphan_receipts` (20260922170000) failed on every one of its seven
+ * runs: Supabase blocks direct deletes from `storage.objects` ("Direct deletion
+ * from storage tables is not allowed. Use the Storage API instead"). It never
+ * deleted a single file, and failed every night without anyone seeing.
  *
- * מאז 29.9.2026 האפליקציה מוחקת בעצמה, דרך ממשק האחסון: סריקה שננטשה
- * (‎/api/receipts/discard‎), ומחיקות המוניות (פרויקט, הסרה, עזיבה). מה
- * שעוד יכול להתפספס — דפדפן שנסגר באמצע סריקה — הוא נדיר, ומתן בחר
- * (29.9.2026) לא לבנות לזה ניקוי עם מפתח service-role.
+ * Since 29.9.2026 the app deletes by itself, through the storage API: an
+ * abandoned scan (`/api/receipts/discard`), and bulk deletions (project,
+ * removal, leaving). What can still slip through (a browser closed mid-scan) is
+ * rare, and Matan chose (29.9.2026) not to build a cleanup for it with a
+ * service-role key.
  *
- * שני הניקויים הלייליים האחרים (‎purge-login-events‎, ‎purge-owner-archive‎)
- * מוחקים מטבלאות רגילות ועובדים — 7 מתוך 7 — ונשארים.
+ * The two other nightly cleanups (`purge-login-events`, `purge-owner-archive`)
+ * delete from ordinary tables and work (7 out of 7), and stay.
  */
 select cron.unschedule('purge-orphan-receipts')
  where exists (select 1 from cron.job where jobname = 'purge-orphan-receipts');

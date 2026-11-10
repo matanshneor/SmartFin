@@ -1,5 +1,6 @@
--- מיקום עבודה לכל פרופיל + פרטים מלאים (אימייל, טלפון, מיקום עבודה)
--- ברשימת חברי המשפחה בדף ההגדרות.
+-- A workplace per profile + full details (email, phone, workplace) in the
+-- family member list on the settings page.
+
 alter table public.profiles add column if not exists workplace text;
 
 drop function if exists get_family_members(uuid);

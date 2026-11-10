@@ -1,28 +1,32 @@
-/* ‎get_my_family_id()‎ והמדיניות שנשענת עליה — שוחזרו לקבצים ב-22.9.2026.
+/* `get_my_family_id()` and the policy that relies on it, restored to files on
+ * 22.9.2026.
  *
- * שתיהן קיימות במסד מזמן ומעולם לא נכתבו כמיגרציה; הן נוצרו דרך לוח
- * הבקרה. התוצאה היא שבנייה של המסד מאפס מהקבצים האלה **לא מייצרת את
- * המסד הזה**, בשתי דרכים נפרדות:
+ * Both have existed in the database for a long time and were never written as
+ * a migration; they were created through the dashboard. The result is that
+ * building the database from scratch from these files **does not produce this
+ * database**, in two separate ways:
  *
- * 1. ‎20260916110000‎ יוצרת שתי פונקציות ‎language sql‎ שקוראות ל-
- *    ‎get_my_family_id()‎. Postgres מוודא גוף של פונקציית SQL בזמן
- *    היצירה, אז המיגרציה הזאת פשוט נכשלת אם הפונקציה לא קיימת.
+ * 1. `20260916110000` creates two `language sql` functions that call
+ *    `get_my_family_id()`. Postgres validates a SQL function's body at
+ *    creation, so that migration simply fails if the function doesn't exist.
  *
- * 2. ‎profiles_family_read‎ נוצרה בקבצים בגרסה **רקורסיבית**: מדיניות
- *    SELECT על ‎profiles‎ ששואלת את ‎profiles‎ עצמה. בשרת היא מזמן
- *    מנוסחת דרך הפונקציה — שהיא ‎security definer‎ ולכן לא מפעילה את
- *    המדיניות שוב — אבל התיקון הזה נשאר רק שם.
+ * 2. `profiles_family_read` was created in the files in a **recursive**
+ *    version: a SELECT policy on `profiles` that queries `profiles` itself. On
+ *    the server it has long been phrased through the function (which is
+ *    `security definer` and so doesn't trigger the policy again), but that fix
+ *    stayed only there.
  *
- * לכן התאריך: לפני ‎20260916110000‎, שהיא הצרכן הראשון.
+ * Hence the date: before `20260916110000`, its first consumer.
  *
- * ההגדרה זהה בדיוק לזו שבשרת, כולל ההרשאות — אומת ב-rollback מול
- * ‎pg_get_functiondef‎ ו-‎proacl‎. זו מיגרציה של תיעוד, לא של שינוי.
+ * The definition is identical to the server's, including grants; verified in a
+ * rollback against `pg_get_functiondef` and `proacl`. This is a documentation
+ * migration, not a change.
  *
- * הערה: ההרשאה ניתנה גם ל-‎anon‎. לאנונימי ‎auth.uid()‎ הוא ‎NULL‎
- * והפונקציה מחזירה ‎NULL‎, אז אין דליפה — אבל ההרשאה מיותרת. לא
- * נוגעים בה כאן: ‎profiles_family_read‎ חלה על ‎public‎, וביטול
- * ההרשאה עלול להפיל קריאות שהמדיניות מתירה. שינוי כזה צריך בדיקה
- * משלו.
+ * Note: the grant was also given to `anon`. For anonymous callers `auth.uid()`
+ * is `NULL` and the function returns `NULL`, so there is no leak, but the grant
+ * is unnecessary. It isn't touched here: `profiles_family_read` applies to
+ * `public`, and revoking the grant could break reads the policy allows. Such a
+ * change needs its own check.
  */
 create or replace function public.get_my_family_id()
 returns uuid
@@ -36,7 +40,8 @@ $$;
 
 grant execute on function public.get_my_family_id() to authenticated, anon, service_role;
 
--- הגרסה הלא-רקורסיבית, כפי שהיא בשרת
+-- The non-recursive version, as it is on the server
+
 drop policy if exists "profiles_family_read" on public.profiles;
 create policy "profiles_family_read" on public.profiles
     for select using (
