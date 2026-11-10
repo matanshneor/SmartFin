@@ -79,7 +79,7 @@ def test_a_failure_produces_a_record_with_the_traceback(caplog):
 
     with caplog.at_level(logging.ERROR):
         try:
-            raise RuntimeError("Supabase לא ענה")
+            raise RuntimeError("Supabase did not answer")
         except Exception:
             db.logger.exception("get_monthly_summary")
 

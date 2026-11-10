@@ -299,7 +299,7 @@ def _preview(client, blob, name="x.xlsx", **form):
 
 def test_preview_suggests_categories_and_writes_nothing(client, monkeypatch):
     def _no_writes(*a, **k):
-        raise AssertionError("preview כתב למסד")
+        raise AssertionError("preview wrote to the database")
     monkeypatch.setattr(app_module.db, "add_transactions", _no_writes)
     monkeypatch.setattr(app_module.db, "add_transaction", _no_writes)
 
@@ -420,7 +420,7 @@ def test_commit_writes_only_the_approved_rows_in_one_request(client, monkeypatch
 ])
 def test_commit_validates_every_row_and_writes_nothing_on_error(client, monkeypatch, row, message):
     def _no_writes(*a, **k):
-        raise AssertionError("נכתב למרות שגיאה")
+        raise AssertionError("written despite an error")
     monkeypatch.setattr(app_module.db, "add_transactions", _no_writes)
     good = {"date": "2026-10-03", "amount": 10, "description": "ok", "category_id": _FOOD}
     res = _commit(client, [good, row])

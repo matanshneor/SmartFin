@@ -15,7 +15,7 @@ import pytest
 
 from backend import supabase_config as db
 
-_TABLES = ["admin_check_log", "categories", "families", "login_events", "owner_archive",
+_TABLES = ["admin_check_log", "app_opens", "categories", "families", "login_events", "owner_archive",
            "profiles", "project_categories", "projects", "push_log", "push_subscriptions",
            "receipt_scans", "transactions", "web_sessions"]
 

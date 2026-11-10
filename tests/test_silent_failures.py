@@ -22,7 +22,7 @@ pytestmark = pytest.mark.unit
 class _BrokenClient:
     """Every query fails, as in a transient network glitch."""
     def __getattr__(self, _n):
-        def boom(*a, **k): raise RuntimeError("Supabase לא ענה")
+        def boom(*a, **k): raise RuntimeError("Supabase did not answer")
         return boom
 
 

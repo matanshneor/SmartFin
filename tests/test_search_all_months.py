@@ -83,7 +83,7 @@ def test_capped_but_counted(monkeypatch):
 
 def test_too_short_a_query_does_not_search(monkeypatch):
     def boom():
-        raise AssertionError("שליפה על אות אחת")
+        raise AssertionError("a fetch on a single letter")
     monkeypatch.setattr(db, "get_client", boom)
 
     assert db.search_transactions(_FAM, _ME, "א")["results"] == []

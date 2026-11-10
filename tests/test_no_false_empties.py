@@ -45,7 +45,7 @@ class _Exploding:
     def or_(self, *a, **k):          return self
     def rpc(self, *a, **k):          return self
     def execute(self):
-        raise RuntimeError("המסד לא זמין")
+        raise RuntimeError("the database is unavailable")
 
 
 @pytest.fixture

@@ -1124,6 +1124,24 @@ def receipt_scans_this_month(family_id: str) -> int:
         raise DataUnavailable("receipt_scans_this_month") from e
 
 
+def log_app_open() -> bool:
+    """Records that the signed-in user opened the app (Matan, 10.11.2026).
+
+    Runs with the user's token, so the database records the caller and nobody
+    else; it skips a repeat within 5 minutes by itself. A failure is a warning,
+    not an error: a missed open costs one row of statistics, nothing the user
+    sees."""
+    client = get_client()
+    if not client:
+        return False
+    try:
+        client.rpc("log_app_open", {}).execute()
+        return True
+    except Exception as e:
+        logger.warning("log_app_open failed: %s", type(e).__name__)
+        return False
+
+
 def record_receipt_scan(family_id: str, user_id: str):
     """Records a successful scan for the RECEIPT_MONTHLY_LIMIT quota."""
     client = get_client()

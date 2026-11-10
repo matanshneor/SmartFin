@@ -26,7 +26,7 @@ def _venv(code: str) -> str:
     out = subprocess.run([_PY, "-c", _PRELUDE + code], cwd=_ROOT,
                          capture_output=True, text=True, timeout=180)
     if out.returncode != 0:
-        raise RuntimeError(f"חשבונות הבדיקה הזמניים: {out.stderr[-600:]}")
+        raise RuntimeError(f"the temporary test accounts: {out.stderr[-600:]}")
     return out.stdout
 
 

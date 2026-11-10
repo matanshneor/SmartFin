@@ -182,7 +182,7 @@ class _Query:
             hit = hit[:self._db.max_rows]
         if self._single == "single":
             if not hit:
-                raise LookupError(f"{self._table}: single() לא מצא שורה")
+                raise LookupError(f"{self._table}: single() found no row")
             return FakeExecute(dict(hit[0]), total)
         if self._single == "maybe":
             # Like postgrest-py 0.16: with no row it returns `None` and not an

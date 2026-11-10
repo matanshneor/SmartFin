@@ -2485,6 +2485,19 @@ def archive_project_route(project_id):
     return jsonify({"status": "ok", "archived": archived})
 
 
+@app.route("/api/app-open", methods=["POST"])
+@limiter.limit("30 per minute")
+@login_required
+def app_open_route():
+    """The app was opened or came back to the screen (Matan, 10.11.2026).
+
+    Called in the background by `core.js`; the database skips a repeat within 5
+    minutes. Always 204: the page doesn't wait for it and shows nothing either
+    way, and whether it was recorded is not the browser's business."""
+    db.log_app_open()
+    return "", 204
+
+
 @app.route("/api/projects/<project_id>/pin", methods=["PUT"])
 @limiter.limit("30 per minute")
 @login_required

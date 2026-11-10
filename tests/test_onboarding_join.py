@@ -75,7 +75,7 @@ def _success_handler(marker):
             depth -= 1
             if depth == 0:
                 return body[start:i]
-    raise AssertionError("הסוגריים לא נסגרו")
+    raise AssertionError("the braces never closed")
 
 
 def test_the_invite_screen_comes_after_the_wizard_finishes():

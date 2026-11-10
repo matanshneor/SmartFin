@@ -109,7 +109,7 @@ def test_the_settings_page_makes_no_other_trip(monkeypatch):
     monkeypatch.setattr(db, "set_auth_token", lambda t: None)
 
     def separate(*a, **k):
-        raise AssertionError("שליפה נפרדת — היה אמור להגיע מ-get_settings_page")
+        raise AssertionError("a separate fetch: it should have come from get_settings_page")
     # _fetch_* and not get_*: these go through the request cache, which the new path fills
     for fn in ("_fetch_categories", "_fetch_family_members", "_fetch_family",
                "category_monthly_averages", "get_recurring_transactions",

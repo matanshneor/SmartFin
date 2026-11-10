@@ -968,3 +968,26 @@ document.addEventListener('click', function (e) {
         .catch(function () { window.showToast(window.sfNetError(), 'error'); })
         .then(function () { btn.disabled = false; });
 });
+
+
+// ── App opens (Matan, 10.11.2026) ──
+//
+// Records that the app was opened: when a page loads, and when the user comes
+// back to it from another app. Every page that loads this file is behind
+// sign-in, so there is always a user. Fire and forget: nothing waits for it, and
+// a failure only goes to the console; the database itself skips a repeat within
+// 5 minutes, so moving between pages doesn't add rows.
+(function () {
+    function logOpen() {
+        fetch('/api/app-open', {
+            method: 'POST', credentials: 'same-origin', keepalive: true,
+            headers: { 'Accept': 'application/json' },
+        })
+            .then(function (r) { if (!r.ok) console.warn('app-open: HTTP ' + r.status); })
+            .catch(function (e) { console.warn('app-open:', e); });
+    }
+    logOpen();
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') logOpen();
+    });
+})();

@@ -79,7 +79,7 @@ def test_a_single_month_has_no_average_yet(monkeypatch):
 
 def test_no_months_no_query(monkeypatch):
     def boom():
-        raise AssertionError("שליפה בלי חודשים")
+        raise AssertionError("a fetch with no months")
     monkeypatch.setattr(db, "get_client", boom)
 
     assert db.category_trend(_FAM, [], _CATS, today=_TODAY) == {"months": [], "categories": []}

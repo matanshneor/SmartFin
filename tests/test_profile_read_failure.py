@@ -55,7 +55,7 @@ def _login(client):
 def test_a_failed_read_is_not_reported_as_a_missing_profile(monkeypatch):
     """The heart. Without this distinction none of the other tests here can work."""
     class _Boom:
-        def table(self, *a, **k): raise RuntimeError("Supabase לא ענה")
+        def table(self, *a, **k): raise RuntimeError("Supabase did not answer")
 
     monkeypatch.setattr(db, "get_client", lambda: _Boom())
     profile, ok = db.fetch_profile("some-user")
@@ -95,11 +95,11 @@ def test_a_failed_read_never_creates_a_family(monkeypatch):
     class _Recorder:
         def table(self, name):
             created.append(name)
-            raise AssertionError(f"נוצרה כתיבה ל-{name} למרות שהשליפה נכשלה")
+            raise AssertionError(f"a write to {name} happened although the fetch failed")
 
         def rpc(self, name, params):
             created.append(name)
-            raise AssertionError(f"נקראה {name} למרות שהשליפה נכשלה")
+            raise AssertionError(f"{name} was called although the fetch failed")
 
     monkeypatch.setattr(db, "get_client", lambda: _Recorder())
     monkeypatch.setattr(db, "fetch_profile", lambda uid: (None, False))

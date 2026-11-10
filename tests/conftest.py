@@ -61,7 +61,7 @@ def category_of(family_id: str, type_: str = "expense") -> str:
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
-        "unit: בדיקה טהורה שלא נוגעת ב-Supabase — לא מתחברת ולא דורשת משתמשי בדיקה",
+        "unit: a pure test that doesn't touch Supabase: no connection and no test users",
     )
 
 
@@ -84,8 +84,8 @@ def _unit_tests_cannot_reach_supabase(request, monkeypatch):
 
     def _refuse():
         raise AssertionError(
-            "בדיקת יחידה ניסתה לפנות ל-Supabase האמיתי. או שחסר "
-            "monkeypatch על הפונקציה שנקראה, או שהבדיקה הזאת אינה unit."
+            "A unit test tried to reach the real Supabase. Either the function it "
+            "called is missing a monkeypatch, or this test isn't a unit test."
         )
 
     _real_home_page = db.fetch_home_page

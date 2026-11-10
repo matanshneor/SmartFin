@@ -24,13 +24,13 @@ restrained charts and motion.
 ```
 SmartFin/
 ├── backend/
-│   ├── app.py                  # all 86 routes: pages, API, auth, hardening
+│   ├── app.py                  # all 87 routes: pages, API, auth, hardening
 │   ├── clock.py                # Asia/Jerusalem — every "today" in the app comes from here
 │   ├── money.py                # the one rule for showing an amount (agorot only when present)
 │   ├── wording.py              # Hebrew counts, percentages that sum to 100, day labels, month names
 │   ├── logs.py                 # logging setup
 │   ├── supabase_config.py      # data layer: queries, auth, analytics, recurring engine
-│   └── supabase/migrations/    # source of truth for the database schema (70 migrations)
+│   └── supabase/migrations/    # source of truth for the database schema (71 migrations)
 ├── frontend/
 │   ├── templates/              # base, index, month, months, settings, projects,
 │   │                           # project_detail, project_edit, login, onboarding,

@@ -42,7 +42,7 @@ def privileged_sql(sql: str) -> str:
     out = subprocess.run(["supabase", "db", "query", sql, "--linked"],
                          cwd=_BACKEND, capture_output=True, text=True, timeout=120)
     if out.returncode != 0:
-        raise RuntimeError(f"SQL בהרשאות בעלים נכשל: {out.stderr[-400:]}")
+        raise RuntimeError(f"SQL with owner privileges failed: {out.stderr[-400:]}")
     return out.stdout
 
 
@@ -86,18 +86,18 @@ def create_pair(label: str = "run") -> dict:
             # every new user in the app
             response, err = db.sign_in(a["email"], a["password"])
             if err:
-                raise RuntimeError(f"התחברות לחשבון בדיקה חדש נכשלה ({a['email']}): {err}")
+                raise RuntimeError(f"signing in to a new test account failed ({a['email']}): {err}")
             db.set_auth_token(response.session.access_token)
             a["family_id"] = db.ensure_family(a["user_id"], f"משפחת בדיקה {key.upper()}")
             if not a["family_id"]:
-                raise RuntimeError(f"לא נפתחה משפחה לחשבון בדיקה {a['email']}")
+                raise RuntimeError(f"no family was opened for test account {a['email']}")
             # And the onboarding wizard, with the default categories: a family
             # with no categories is sent to `/onboarding` from every page, and no
             # transaction can be entered in it
             from backend.app import _DEFAULT_CATEGORIES
             _, err = db.bulk_add_categories(a["family_id"], _DEFAULT_CATEGORIES)
             if err:
-                raise RuntimeError(f"קטגוריות לחשבון בדיקה {a['email']}: {err}")
+                raise RuntimeError(f"categories for test account {a['email']}: {err}")
             a["token"] = response.session.access_token
     except Exception:
         purge([a["user_id"] for a in accounts.values()])

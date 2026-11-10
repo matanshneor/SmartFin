@@ -135,7 +135,7 @@ def _home_payload(**over):
 
 def test_the_home_page_makes_no_other_trip(home, monkeypatch):
     def separate(*a, **k):
-        raise AssertionError("שליפה נפרדת — היה אמור להגיע מ-get_home_page")
+        raise AssertionError("a separate fetch: it should have come from get_home_page")
     # `_fetch_*` and not `get_*`: these go through the request cache, which the
     # new path fills
     for fn in ("get_family_settings", "get_monthly_summary", "_fetch_categories",
