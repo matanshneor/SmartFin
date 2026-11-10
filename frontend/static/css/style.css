@@ -1,10 +1,10 @@
 /* ════════════════════════════════════════════════════════════════
    SmartFin – Gold Fintech Theme
-   Hero כהה עשיר + כרטיסים לבנים צפים + זהב + אנימציות
+   Rich dark hero + floating white cards + gold + animations
    Mobile-First, RTL
    ════════════════════════════════════════════════════════════════ */
 
-/* הפונט (Rubik) נטען דרך <link> בתבניות — מהיר יותר מ-@import */
+/* The font (Rubik) is loaded through <link> in the templates: faster than @import */
 
 :root {
     /* Hero (dark) */
@@ -24,47 +24,52 @@
 
     /* Gold */
     --color-gold:          #A67C00;
-    /* אותו זהב, כהה יותר, לטקסט בלבד.
-       #A67C00 על לבן נותן 3.82:1 — מתחת ל-4.5 שהתקן דורש לטקסט. הוא כן
-       עובר את הדרישה לתוכן שאינו טקסט (3:1), ולכן מסגרות, קווים ומילויים
-       ממשיכים להשתמש בו והזהות החזותית לא זזה. #846300 עובר גם במקרה
-       הקשה ביותר: טקסט על רקע זהב שקוף מעל רקע העמוד (תגיות). */
+    /* The same gold, darker, for text only.
+       #A67C00 on white gives 3.82:1, below the 4.5 the standard requires for
+       text. It does pass the requirement for non-text content (3:1), so borders,
+       lines and fills keep using it and the visual identity doesn't move.
+       #846300 passes even in the hardest case: text on a translucent gold
+       background over the page background (tags). */
     --color-gold-text:     #846300;
     --color-gold-bright:   #D4AF37;
     --color-gold-dim:      rgba(166, 124, 0, 0.10);
     --color-gold-border:   rgba(166, 124, 0, 0.28);
-    /* הוכהה כדי שטקסט לבן עליו יעבור: הקצה הבהיר נתן 2.75:1, הרחק
-       מתחת לתקן, והוא הכפתור הראשי בהתחברות, בהרשמה ובאשף. */
+    /* Darkened so white text on it passes: the light end gave 2.75:1, far below
+       the standard, and it is the primary button on sign-in, signup and the
+       wizard. */
     --gradient-gold:       linear-gradient(150deg, #966F00 0%, #7F5F00 100%);
     --gradient-gold-text:  linear-gradient(150deg, #E3BE55 0%, #D4AF37 100%);
 
     /* Text */
     --color-text:          #1C1917;
     --color-text-soft:     #44403C;
-    /* ‎#78716C‎ היה ‎4.2:1‎ על הרקע הבהיר — מתחת לסף הנגישות 4.5 (מתן, 13.10) */
+    /* `#78716C` was `4.2:1` on the light background, below the 4.5 accessibility
+       threshold (Matan, 13.10) */
     --color-text-muted:    #6B645F;
 
     /* Semantic */
     --color-income:        #15803D;
     --color-expense:       #B91C1C;
-    /* משמש רק לסכומי חיסכון, שהם טקסט — ולכן אותו ערך כמו
-       --color-gold-text ולא כמו זהב המותג. */
+    /* Used only for savings amounts, which are text, so the same value as
+       --color-gold-text and not as the brand gold. */
     --color-savings:       #846300;
     --color-income-light:  #4ADE80;
     --color-expense-light: #F87171;
     --color-savings-light: #E8C96A;
     --gradient-danger:     linear-gradient(135deg, #DC2626, #B91C1C);
 
-    /* דיו לקווים ולרקעים עדינים (‎rgba(var(--ink-rgb), 0.07)‎) — מתהפך במצב כהה */
+    /* Ink for lines and subtle backgrounds (`rgba(var(--ink-rgb), 0.07)`): flips
+       in dark mode */
     --ink-rgb:             28, 25, 23;
-    /* התראות וכרטיסי אזהרה */
+    /* alerts and warning cards */
     --alert-warn-bg:       #FDF6E7;
     --alert-warn-ink:      #6E5200;
     --alert-danger-bg:     #FCEDED;
     --alert-danger-ink:    #8E1A1A;
     --toggle-off:          #D8D2C4;
-    /* שקוף-למחצה + טשטוש (‎.bottom-nav‎). ב-0.97 בלי טשטוש התוכן שמאחור
-       הבליח חד בין התוויות; ככה הוא נהיה כתם צבע רך. */
+    /* Translucent + blur (`.bottom-nav`). At 0.97 without blur the content behind
+       flashed sharply between the labels; this way it becomes a soft patch of
+       colour. */
     --dock-bg:             rgba(255, 253, 248, 0.72);
     --dock-bg-solid:       #FFFDF8;
 
@@ -88,10 +93,12 @@
     --font-display:        'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* ═══ מצב כהה — ידני בלבד, מהגדרות → תצוגה (מתן, 30.9 — סבב 6, פריט 4) ═══
-   אותו סגנון: חום-כהה במקום לבן, אותו זהב. ירוק, אדום וזהב בהירים יותר —
-   הגוונים של הבהיר נותנים על רקע כהה ניגודיות נמוכה מדי לטקסט.
-   ‎data-theme‎ נקבע ב-js/theme.js, ב-<head>, לפני הציור. */
+/* ═══ Dark mode: manual only, from settings → appearance (Matan, 30.9, round 6,
+   item 4) ═══
+   The same style: dark brown instead of white, the same gold. Green, red and
+   gold lighter: the light theme's shades give too little contrast for text on a
+   dark background.
+   `data-theme` is set in js/theme.js, in <head>, before painting. */
 :root[data-theme="dark"] {
     color-scheme: dark;
     --hero-bg:             #0B0904;
@@ -130,7 +137,7 @@
     --shadow-dock:         0 8px 26px rgba(0, 0, 0, 0.50), 0 1px 4px rgba(0, 0, 0, 0.30);
     --divider-subtle:      rgba(255, 244, 214, 0.07);
 }
-/* תגי "של מי" — הגוונים הכהים של הבהיר לא נקראים על כרטיס כהה */
+/* "Whose" tags: the light theme's dark shades aren't readable on a dark card */
 :root[data-theme="dark"] .owner-0 { background: rgba(96, 165, 250, 0.16);  color: #93C5FD; }
 :root[data-theme="dark"] .owner-1 { background: rgba(167, 139, 250, 0.16); color: #C4B5FD; }
 :root[data-theme="dark"] .owner-2 { background: rgba(236, 120, 190, 0.16); color: #F0A6D3; }
@@ -150,21 +157,22 @@
 
 html {
     -webkit-text-size-adjust: 100%;
-    /* החלקה הצידה לא מעבירה עמוד (מתן, 11.10 — "כשאני גולל הוא מעביר לי
-       בין עמודים"): באנדרואיד זה מכבה את "אחורה" של הדפדפן בהחלקה. באייפון
-       המחווה של המערכת נשארת, ולכן מעבר בין הלשוניות לא נכנס להיסטוריה
-       (‎core.js‎) — אין לאן לחזור. */
+    /* A sideways swipe doesn't change page (Matan, 11.10: "when I scroll it moves
+       me between pages"): on Android this turns off the browser's swipe-back. On
+       iPhone the system gesture stays, so switching tabs doesn't go into history
+       (`core.js`): there is nowhere to go back to. */
     overscroll-behavior-x: none;
-    /* בלי הריבוע האפור שהטלפון צובע על כל נגיעה — הסימן הכי בולט ש"זה אתר".
-       לכפתורים יש ‎:active‎ משלהם (מתן, 7.10 — סבב מגע, סעיף 1) */
+    /* Without the grey square the phone paints on every touch: the most obvious
+       sign that "this is a website". Buttons have their own `:active` (Matan,
+       7.10, touch round, item 1) */
     -webkit-tap-highlight-color: transparent;
 }
 
-/* כפתורים מתנהגים ככפתורים (סבב מגע, 7.10):
-   ‎manipulation‎ — נגיעה כפולה מהירה (שתי קטגוריות, + פעמיים) לא מגדילה את
-   המסך, והלחיצה נקלטת מיד. זום באצבעות נשאר.
-   ‎user-select‎ — לחיצה ארוכה על "שמירה" לא מסמנת את המילה. רק על פקדים:
-   סכומים, תיאורים וקודים נשארים ניתנים להעתקה. */
+/* Buttons behave like buttons (touch round, 7.10):
+   `manipulation`: a quick double tap (two categories, + twice) doesn't zoom the
+   screen, and the tap registers immediately. Pinch zoom stays.
+   `user-select`: a long press on "save" doesn't select the word. Only on
+   controls: amounts, descriptions and codes stay copyable. */
 button, a, [role="button"], label, summary, select {
     touch-action: manipulation;
 }
@@ -173,12 +181,14 @@ button, [role="button"], summary, .nav-item, a.btn-sm, a.submit-btn {
     user-select: none;
     -webkit-touch-callout: none;
 }
-/* גודל טקסט — מהגדרות → תצוגה, לכל טלפון (מתן, 30.9 — סבב 6, פריט 9).
-   כל הגדלים בעמוד ב-rem, אז שינוי אחד כאן מגדיל הכל יחד. */
+/* Text size, from settings → appearance, per phone (Matan, 30.9, round 6,
+   item 9). Every size on the page is in rem, so one change here scales
+   everything together. */
 html[data-text-size="large"]  { font-size: 112.5%; }
 html[data-text-size="xlarge"] { font-size: 125%; }
-/* "גדול מאוד" במסך צר: האחוז בשורת קטגוריה מפנה מקום לשם — בלעדיו "משכורת"
-   נחתכה לאות אחת ליד סכום של שש ספרות. האחוז נשאר בגרף ובשאר הגדלים. */
+/* "Extra large" on a narrow screen: the percentage on a category row makes room
+   for the name; without it "משכורת" was cut to one letter next to a six-digit
+   amount. The percentage stays in the chart and at other sizes. */
 @media (max-width: 380px) {
     html[data-text-size="xlarge"] .legend-pct { display: none; }
 }
@@ -187,11 +197,12 @@ body {
     font-family: var(--font-body);
     background: var(--color-bg);
     color: var(--color-text);
-    /* פיקסל אחד יותר מהמסך — גם בעמוד קצר (מתן, 30.9). באפליקציה המותקנת
-       באייפון, עמוד שאין בו מה לגלול מקבל מסך שנגמר מעל קו הבית, והתפריט
-       התחתון — שכבר מוסיף את השוליים של קו הבית — "עלה" פעמיים את הגובה
-       הזה. זה קרה רק בעמוד הפרויקטים, כשכל הפרויקטים כבר הסתיימו. עמוד
-       שנגלל, ולו בפיקסל, מקבל את המסך המלא — כמו כל שאר העמודים. */
+    /* One pixel taller than the screen, even on a short page (Matan, 30.9). In
+       the app installed on iPhone, a page with nothing to scroll gets a screen
+       that ends above the home indicator, and the bottom menu (which already
+       adds the home indicator's margin) "rose" twice that height. It happened
+       only on the projects page, when every project had already finished. A page
+       that scrolls, even by a pixel, gets the full screen, like every other page. */
     min-height: calc(100vh + 1px);
     min-height: calc(100lvh + 1px);
     line-height: 1.5;
@@ -221,8 +232,9 @@ ul { list-style: none; }
     border-bottom: 1px solid rgba(212, 175, 55, 0.18);
     position: relative;
 }
-/* בכהה הרקע מתחת לרצועה כהה כמוה, ונשאר רק הקו — חוצה את הכרטיס הראשון
-   באמצע ונראה כמו שריטה (מתן, 12.10). בבהיר הוא הגבול בין כהה לקרם. */
+/* In dark mode the background under the strip is as dark as it, and only the
+   line remains, crossing the first card in the middle and looking like a
+   scratch (Matan, 12.10). In light mode it is the border between dark and cream. */
 :root[data-theme="dark"] .page-hero { border-bottom-color: transparent; }
 
 .hero-inner {
@@ -238,7 +250,8 @@ ul { list-style: none; }
     z-index: 2;
     max-width: 560px;
     margin: -30px auto 0;
-    /* מקום לסרגל בלבד — ה-+ יושב בשורה שלו ולא מעל התוכן (מתן, 11.10) */
+    /* Room for the bar only: the + sits on its own row and not over the content
+   (Matan, 11.10) */
     padding: 0 16px calc(var(--dock-height) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 24px);
 }
 
@@ -251,7 +264,7 @@ ul { list-style: none; }
     margin-bottom: 12px;
 }
 
-/* הזכוכית המגדלת ליד האות בדף הבית (מתן, 30.9) */
+/* The magnifying glass next to the letter on the home page (Matan, 30.9) */
 .hero-actions { display: flex; align-items: center; gap: 10px; }
 .hero-icon-btn {
     width: 42px; height: 42px; border-radius: 50%;
@@ -295,11 +308,13 @@ ul { list-style: none; }
     margin-top: 2px;
 }
 
-/* שורת הסבר משנית בראש עמוד — למשל "לא נכללות במאזן החודש" בפרויקטים (מתן, 3.10) */
+/* A secondary explanation line at the top of a page, e.g. "not included in the
+   month's balance" on projects (Matan, 3.10) */
 .hero-note { color: var(--hero-text-muted); font-size: 0.76rem; margin-top: 6px; line-height: 1.45; opacity: 0.85; }
 
-/* הגדרות: שם המשפחה בצד שמאל, באותה שורה עם הכותרת (מתן, 1.10).
-   שם ארוך נשבר לשתי שורות בצד שלו ולא דוחף את "הגדרות". */
+/* Settings: the family name on the left, on the same row as the title (Matan,
+   1.10). A long name wraps to two lines on its own side and doesn't push
+   "settings". */
 .settings-hero-top { align-items: center; gap: 16px; }
 .settings-family-name {
     min-width: 0;
@@ -342,7 +357,8 @@ ul { list-style: none; }
     font-size: 0.78rem;
     font-weight: 500;
     color: var(--hero-text-muted);
-    /* מרווח רחב שייך לאותיות גדולות באנגלית; בעברית הוא מפרק מילים (מתן, 7.10) */
+    /* Wide letter spacing belongs to English capitals; in Hebrew it breaks words
+   apart (Matan, 7.10) */
     letter-spacing: 0.01em;
     margin-bottom: 2px;
 }
@@ -352,7 +368,7 @@ ul { list-style: none; }
     font-weight: 700;
     line-height: 1.15;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.025em;   /* מספר גדול — מהדקים, אחרת הספרות נראות מפוזרות */
+    letter-spacing: -0.025em;   /* A large number: tighten, otherwise the digits look scattered */
     background: var(--gradient-gold-text);
     -webkit-background-clip: text;
     background-clip: text;
@@ -422,9 +438,10 @@ ul { list-style: none; }
 .stats-nav-btn svg { width: 17px; height: 17px; }
 
 /* KPI chips inside hero */
-/* ════ רצועת חודשים מגנטית (ראש עמוד החודש) ════
-   הדפדפן עושה את ה"מגנט" לבד דרך scroll-snap — בלי JS ובלי מאזין גלילה,
-   כך שהגרירה נשארת על thread נפרד ולא נתקעת בזמן עבודה של הדף. */
+/* ════ Magnetic month strip (top of the month page) ════
+   The browser does the "magnet" by itself through scroll-snap, with no JS and no
+   scroll listener, so the drag stays on a separate thread and doesn't stall
+   while the page is busy. */
 
 .month-strip {
     display: flex;
@@ -435,16 +452,16 @@ ul { list-style: none; }
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
-    /* הגרירה לא נגררת לדף שמאחור בקצוות */
+    /* the drag doesn't bleed into the page behind at the edges */
     overscroll-behavior-x: contain;
-    /* פס גלילה נקי: פיירפוקס + IE/Edge ישן (webkit — בכלל נפרד למטה) */
+    /* A clean scrollbar: Firefox + old IE/Edge (webkit is handled separately below) */
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
 
 .month-strip::-webkit-scrollbar { display: none; }
 
-/* ריפוד וירטואלי בקצוות — בלעדיו הפריט הראשון והאחרון לא יכולים להתמרכז */
+/* Virtual padding at the edges: without it the first and last items can't centre */
 .month-strip::before,
 .month-strip::after {
     content: '';
@@ -453,7 +470,7 @@ ul { list-style: none; }
 
 .month-chip {
     scroll-snap-align: center;
-    /* לא מדלג על חודשים בגרירה מהירה */
+    /* doesn't skip months on a fast drag */
     scroll-snap-stop: always;
     flex: 0 0 104px;
     background: var(--hero-chip-bg);
@@ -499,7 +516,7 @@ ul { list-style: none; }
 }
 
 .kpi-chip {
-    container-type: inline-size;   /* ל-‎cqi‎ של הסכום, ראו ‎.summary-card‎ */
+    container-type: inline-size;   /* for the amount's `cqi`, see `.summary-card` */
     background: var(--hero-chip-bg);
     border: 1px solid var(--hero-chip-border);
     border-radius: var(--radius-sm);
@@ -536,7 +553,8 @@ ul { list-style: none; }
     margin-top: 16px;
 }
 
-/* עמוד החודש: מאזן חודשי במלבן רחב, ומתחתיו שלושה מלבנים שווים (מתן, 30.9) */
+/* The month page: the monthly balance in a wide box, and under it three equal
+   boxes (Matan, 30.9) */
 .month-net {
     margin-top: 14px;
     background: var(--hero-chip-bg);
@@ -565,7 +583,7 @@ ul { list-style: none; }
 
 .kpi-chips.kpi-chips-three { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; }
 
-/* מאזן הפרויקט — שורה רחבה מתחת לריבועים */
+/* The project balance: a wide row under the tiles */
 .project-net {
     margin-top: 14px;
     background: var(--hero-chip-bg);
@@ -619,9 +637,10 @@ ul { list-style: none; }
 
 /* ─── Floating navigation dock ────────────────────────────────── */
 
-/* הסרגל וה-+ הם קבוצה אחת ממורכזת (מתן, 11.10): ה-+ יושב משמאל לסרגל,
-   באותה שורה, ולא צף מעל התוכן — שם הוא נראה כאילו הוא שייך למה שמעליו
-   ("לכל החודש"). ‎--dock-w‎ — רוחב הקבוצה; ‎--dock-side‎ — השוליים מכל צד. */
+/* The bar and the + are one centred group (Matan, 11.10): the + sits to the
+   left of the bar, on the same row, and doesn't float over the content, where it
+   looked as if it belonged to what was above it ("for the whole month").
+   `--dock-w`: the group's width; `--dock-side`: the margin on each side. */
 :root {
     --fab-size: 52px;
     --dock-w: min(calc(100vw - 2 * var(--dock-gap)), 560px);
@@ -638,18 +657,20 @@ ul { list-style: none; }
     justify-content: space-around;
     align-items: center;
     background: var(--dock-bg);
-    /* חומר שקוף-למחצה בנוסח אפל (מתן, 7.10 — סעיף 5): התוכן גולל מתחתיו
-       מטושטש, והסרגל נראה צף מעל העמוד ולא פס שתופס מקום */
+    /* A translucent material, Apple-style (Matan, 7.10, item 5): the content
+       scrolls under it blurred, and the bar looks like it floats over the page
+       rather than a strip taking up space */
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(var(--ink-rgb), 0.08);
-    /* קפסולה — קצוות עגולים כמו ה-+ שלידה (מתן, 11.10) */
+    /* A capsule: round ends like the + next to it (Matan, 11.10) */
     border-radius: calc(var(--dock-height) / 2);
     box-shadow: var(--shadow-dock);
     padding: 0 12px;
 }
 
-/* מי שביקש בטלפון פחות שקיפות, או ניגודיות גבוהה — סרגל אטום כמו פעם */
+/* Whoever asked their phone for reduced transparency, or high contrast: an
+   opaque bar as before */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
     .bottom-nav {
         background: var(--dock-bg-solid);
@@ -677,13 +698,14 @@ ul { list-style: none; }
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 999px;          /* כמו הסרגל וה-+ (מתן, 11.10) */
+    border-radius: 999px;          /* like the bar and the + (Matan, 11.10) */
     transition: background 0.3s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s, transform 120ms ease-out;
 }
 
-/* משוב לחיצה — הכפתור מגיב ברגע הנגיעה, לא רק כשהעמוד מתחלף (מתן, 7.10 —
-   סבב תנועה, סעיף 6). עדין בכוונה: לוחצים על אלה עשרות פעמים ביום. בסרגל
-   רק האייקון מתכווץ — כל הכפתור הוא רבע מהרוחב, וזה נראה כמו קפיצה. */
+/* Press feedback: the button responds the moment it is touched, not only when
+   the page changes (Matan, 7.10, motion round, item 6). Subtle on purpose: these
+   are tapped dozens of times a day. In the bar only the icon shrinks: the whole
+   button is a quarter of the width, and it looked like a jump. */
 .nav-item:active .nav-icon { transform: scale(0.94); }
 
 .nav-item .nav-icon svg {
@@ -715,12 +737,12 @@ ul { list-style: none; }
 
 .summary-cards {
     display: grid;
-    /* ‎minmax(0, …)‎: עמודה של ‎1fr‎ לא מתכווצת מתחת לתוכן שלה, וסכום עם
-       אגורות ("₪28,765.43") דחף את העמוד הצידה ברוחב 390 וחתך את
-       החסכונות ב-375 */
+    /* `minmax(0, …)`: a `1fr` column doesn't shrink below its content, and an
+       amount with agorot ("₪28,765.43") pushed the page sideways at width 390
+       and cut off the savings at 375 */
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-bottom: 18px;
-    /* כרטיס אחד עם קווים מפרידים, ולא שלושה כרטיסים צפים (מתן, 11.10) */
+    /* One card with dividing lines, not three floating cards (Matan, 11.10) */
     background: var(--color-card);
     border: var(--border-subtle);
     border-radius: var(--radius);
@@ -737,7 +759,8 @@ ul { list-style: none; }
 
 .summary-card + .summary-card { border-inline-start: 1px solid rgba(var(--ink-rgb), 0.07); }
 
-/* ── הכרטיסים והריבועים לחיצים — מובילים לפירוט של הסוג בעמוד החודש ── */
+/* ── The cards and tiles are tappable: they lead to the type's breakdown on
+   the month page ── */
 a.summary-card,
 a.kpi-chip {
     display: block;
@@ -749,21 +772,24 @@ a.kpi-chip {
 
 a.kpi-chip:active { transform: scale(0.97); }
 
-/* הפירוט שאליו הגיעו — מקום מתחת לראש המסך, והבהוב זהב קצר */
+/* The breakdown arrived at: room under the top of the screen, and a short gold
+   flash */
 #income-breakdown,
 #expense-breakdown,
 #savings-breakdown {
-    /* באפליקציה המותקנת באייפון הדף מצויר גם מתחת לשעון ולאי הדינמי,
-       אז 14px מראש המסך הם בתוך הפס — מתן: "האי ממש דורך על זה".
-       ומעל הכרטיס מופיעה גם הכותרת הדביקה (‎.month-sticky‎, 44px מתחת
-       לפס) — בלעדיה ראש הכרטיס נחתך (מתן, 2.10). 44 + 14 = 58. */
+    /* In the app installed on iPhone the page is also painted under the clock and
+       the dynamic island, so 14px from the top of the screen is inside that band:
+       Matan: "the island is really stepping on it". And above the card the
+       sticky header appears too (`.month-sticky`, 44px under the band); without
+       it the top of the card was cut off (Matan, 2.10). 44 + 14 = 58. */
     scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px));
 }
 
 .chart-card.flash {
-    /* ההבהוב מחליף את אנימציית הכניסה (‎.anim-rise‎, ‎motion.js‎), שמתחילה
-       ב-‎opacity: 0‎ ונשארת ב-1 רק כל עוד היא פעילה. בלי השורה הזאת הכרטיס
-       שאליו קפצו נעלם לגמרי — מתן: "לא רואים כלום, כאילו מחוק" */
+    /* The flash replaces the entrance animation (`.anim-rise`, `motion.js`),
+       which starts at `opacity: 0` and stays at 1 only while it is active.
+       Without this line the card jumped to disappeared entirely: Matan: "you
+       can't see anything, as if it was erased" */
     opacity: 1;
     transform: none;
     animation: breakdown-flash 1.6s ease-out;
@@ -774,13 +800,13 @@ a.kpi-chip:active { transform: scale(0.97); }
     animation: breakdown-flash 1.6s ease-out;
 }
 
-/* שורה ריקה (‎.empty-row‎) שהגיעו אליה מהריבוע למעלה — אותו הבהוב */
+/* An empty row (`.empty-row`) reached from the tile above: the same flash */
 .empty-row.flash {
     animation: breakdown-flash 1.6s ease-out;
 }
 
-/* הקטגוריה שהתראה הובילה אליה (מתן, 11.10) — אותו מרווח מהכותרת הדביקה
-   כמו הפירוטים */
+/* The category an alert led to (Matan, 11.10): the same spacing from the
+   sticky header as the breakdowns */
 .legend-item-wrap[id] { scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px)); }
 
 .legend-item-wrap.flash {
@@ -800,7 +826,7 @@ a.kpi-chip:active { transform: scale(0.97); }
     .legend-item-wrap.flash { animation: none; outline: 3px solid var(--color-gold); outline-offset: 2px; }
 }
 
-/* תא בתוך כרטיס — לחיצה מאירה אותו, לא מזיזה */
+/* A cell inside a card: a tap highlights it, doesn't move it */
 .summary-card:active {
     background: var(--color-card-hover);
 }
@@ -843,8 +869,8 @@ a.kpi-chip:active { transform: scale(0.97); }
 }
 
 .summary-card .card-amount {
-    /* קטן בדיוק כמה שצריך כדי להיכנס: ‎cqi‎ הוא אחוז מרוחב הכרטיס.
-       בכרטיס רחב — הגודל המקורי */
+    /* Exactly as small as needed to fit: `cqi` is a percentage of the card width.
+       In a wide card, the original size */
     font-size: min(1.02rem, 16cqi);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -907,8 +933,8 @@ a.kpi-chip:active { transform: scale(0.97); }
     font-weight: 600;
     color: var(--color-gold-text);
     text-decoration: none;
-    /* 20px גובה היה קטן מדי לאצבע; הריפוד מגדיל את אזור הלחיצה ל-44
-       והשוליים השליליים משאירים את הטקסט במקומו */
+    /* A 20px height was too small for a finger; the padding enlarges the tap
+       area to 44 and the negative margin keeps the text in place */
     display: inline-flex;
     align-items: center;
     min-height: 44px;
@@ -923,7 +949,8 @@ a.kpi-chip:active { transform: scale(0.97); }
 }
 
 
-/* השורה היא מיכל, והריפוד על .tx-head — עליו יושבים פאנלי ההחלקה */
+/* The row is a container, and the padding is on .tx-head: the swipe panels
+   sit on it */
 .transaction-item {
     display: block;
     background: var(--color-card);
@@ -1006,7 +1033,7 @@ a.kpi-chip:active { transform: scale(0.97); }
 .tx-amount.expense { color: var(--color-expense); }
 .tx-amount.savings { color: var(--color-savings); }
 
-/* ── תגי שם צבעוניים: למי שייכת העסקה ── */
+/* ── Coloured name tags: who the transaction belongs to ── */
 
 .owner-pill {
     display: inline-block;
@@ -1024,28 +1051,29 @@ a.kpi-chip:active { transform: scale(0.97); }
     flex-shrink: 0;
 }
 
-/* צבעי בני משפחה — לא-שגרתיים ולא מתנגשים עם הצבעים הסמנטיים
-   (ירוק=הכנסה, אדום=הוצאה, זהב=חיסכון). חייב להישאר מסונכרן עם
-   _OWNER_HEX ב-app.py (משמש בגרף "לפי בן משפחה"). */
-.owner-0 { background: rgba(46, 103, 168, 0.12); color: #2E67A8; }  /* כחול (מתן) */
-.owner-1 { background: rgba(112, 72, 176, 0.12); color: #7048B0; }  /* סגול (אור) */
-.owner-2 { background: rgba(160, 69, 124, 0.12); color: #A0457C; }  /* שזיף-מג'נטה */
-.owner-3 { background: rgba(168, 92, 62, 0.12);  color: #A85C3E; }  /* טרקוטה */
-.owner-4 { background: rgba(94, 115, 145, 0.12); color: #5E7391; }  /* כחול-אפור צפחה */
-.owner-5 { background: rgba(138, 106, 82, 0.12); color: #8A6A52; }  /* חום-טאופ */
-.owner-6 { background: rgba(75, 79, 168, 0.12);  color: #4B4FA8; }  /* אינדיגו */
-.owner-7 { background: rgba(47, 115, 133, 0.12); color: #2F7385; }  /* כחול-פטרול */
+/* Family member colours: unusual, and not clashing with the semantic colours
+   (green=income, red=expense, gold=savings). Must stay in sync with _OWNER_HEX
+   in app.py (used in the "by family member" chart). */
+.owner-0 { background: rgba(46, 103, 168, 0.12); color: #2E67A8; }  /* blue (Matan) */
+.owner-1 { background: rgba(112, 72, 176, 0.12); color: #7048B0; }  /* purple (Or) */
+.owner-2 { background: rgba(160, 69, 124, 0.12); color: #A0457C; }  /* plum-magenta */
+.owner-3 { background: rgba(168, 92, 62, 0.12);  color: #A85C3E; }  /* terracotta */
+.owner-4 { background: rgba(94, 115, 145, 0.12); color: #5E7391; }  /* slate blue-grey */
+.owner-5 { background: rgba(138, 106, 82, 0.12); color: #8A6A52; }  /* taupe brown */
+.owner-6 { background: rgba(75, 79, 168, 0.12);  color: #4B4FA8; }  /* indigo */
+.owner-7 { background: rgba(47, 115, 133, 0.12); color: #2F7385; }  /* petrol blue */
 .owner-shared { background: rgba(var(--ink-rgb), 0.07); color: var(--color-text-muted); }
 
-/* החלון מקבל מיקוד בפתיחה בטלפון (במקום הסכום) — בלי מסגרת סביבו */
+/* The sheet gets focus on open on a phone (instead of the amount): no outline
+   around it */
 .modal-sheet:focus { outline: none; }
 
-/* אייקוני קו בכפתורים ובסימנים (‎backend/icons.py‎, מתן 12.10): בגודל
-   הטקסט ובצבע שלו, כמו האות שהם מחליפים */
+/* Line icons in buttons and markers (`backend/icons.py`, Matan 12.10): at the
+   text's size and in its colour, like the character they replace */
 .ui-icon { width: 1em; height: 1em; flex-shrink: 0; vertical-align: -0.14em; }
 .scan-btn-icon { display: inline-flex; }
 
-/* תג קבלה מצורפת — לחיצה פותחת את התמונה, לא את עריכת העסקה */
+/* An attached-receipt tag: a tap opens the image, not the transaction edit */
 .receipt-badge {
     cursor: pointer;
     position: relative;
@@ -1062,15 +1090,16 @@ a.kpi-chip:active { transform: scale(0.97); }
     font-size: 0.8rem;
     line-height: 1;
     cursor: pointer;
-    /* הסמל הפך מ-<button> ל-<a> (פתיחת קבלה ב-iOS), אז צריך את מה
-       שכפתור קיבל בחינם */
+    /* The icon changed from <button> to <a> (opening a receipt on iOS), so it
+       needs what a button got for free */
     text-decoration: none;
     color: var(--color-gold-text);
 }
 
-/* אזור נגיעה אמיתי: הסמל עצמו 22px, מתחת למינימום הנגישות, והוא יושב
-   בתוך שורה שגם נגררת וגם נלחצת — פספוס פותח את מודאל העריכה במקום את
-   הקבלה. אותו דפוס כמו .install-bar-close ו-.cat-move-btn. */
+/* A real touch area: the icon itself is 22px, below the accessibility minimum,
+   and it sits inside a row that is both dragged and tapped: a miss opens the
+   edit modal instead of the receipt. The same pattern as .install-bar-close and
+   .cat-move-btn. */
 .receipt-badge::before {
     content: '';
     position: absolute;
@@ -1083,14 +1112,15 @@ a.kpi-chip:active { transform: scale(0.97); }
 
 @media (hover: hover) and (pointer: fine) { .receipt-badge:hover { background: var(--color-gold-border); } }
 
-/* בשורות עסקה הסיכה בגובה הטקסט, כדי שלא תגביה את השורה (מתן, 30.9).
-   אזור הלחיצה נשאר 44px דרך ‎::before‎, שלא תופס מקום בפריסה. */
+/* On transaction rows the pin is at text height, so it doesn't make the row
+   taller (Matan, 30.9). The tap area stays 44px through `::before`, which takes
+   no space in the layout. */
 .cat-tx-row .receipt-badge,
 .tx-amount-row .receipt-badge {
     width: 18px;
     height: 18px;
     font-size: 0.68rem;
-    margin-block: -4px;     /* לא תורם לגובה השורה — גם לא פיקסל */
+    margin-block: -4px;     /* contributes nothing to the row's height, not even a pixel */
 }
 
 .tx-amount-row {
@@ -1110,8 +1140,9 @@ a.kpi-chip:active { transform: scale(0.97); }
     border-radius: var(--radius);
 }
 
-/* איור למסך ריק (‎icons.empty_illus‎, מתן 12.10): אייקון קו בזהב בעיגול
-   עדין — באותו סגנון כמו הסרגל והכפתורים, במקום אימוג'י גדול */
+/* An empty-state illustration (`icons.empty_illus`, Matan 12.10): a gold line
+   icon in a soft circle, in the same style as the bar and buttons, instead of a
+   large emoji */
 .empty-illus {
     width: 64px; height: 64px; margin: 0 auto 12px;
     display: flex; align-items: center; justify-content: center;
@@ -1130,8 +1161,9 @@ a.kpi-chip:active { transform: scale(0.97); }
     margin-top: 4px;
 }
 
-/* ─── "הוסיפו למסך הבית" (מתן, 13.10) ─────────────────────────────
-   פס כהה קבוע מעל התפריט התחתון, עד הכניסה הראשונה מהאייקון. ראו ‎js/pwa.js‎. */
+/* ─── "Add to home screen" (Matan, 13.10) ──────────────────────────
+   A fixed dark bar above the bottom menu, until the first visit from the icon.
+   See `js/pwa.js`. */
 .install-bar {
     position: fixed; left: 16px; right: 16px; z-index: 950;
     bottom: calc(var(--dock-height) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 10px);
@@ -1154,8 +1186,8 @@ a.kpi-chip:active { transform: scale(0.97); }
     position: relative; width: 26px; height: 26px; flex-shrink: 0; border: 0; background: none;
     color: inherit; opacity: 0.6; font-size: 0.8rem; cursor: pointer;
 }
-.install-bar-close::before { content: ''; position: absolute; inset: -9px; }   /* אזור נגיעה 44px */
-/* התוכן לא נחבא מתחת לפס */
+.install-bar-close::before { content: ''; position: absolute; inset: -9px; }   /* 44px touch area */
+/* the content isn't hidden under the bar */
 body.has-install-bar .main-content {
     padding-bottom: calc(var(--dock-height) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 96px);
 }
@@ -1175,7 +1207,7 @@ body.has-install-bar .main-content {
 .install-step-pic svg { width: 26px; height: 26px; }
 .install-step-pic img { width: 34px; height: 34px; border-radius: 9px; }
 
-/* ─── Alerts (חריגות) ─────────────────────────────────────────── */
+/* ─── Alerts (overages) ──────────────────────────────────────────── */
 
 .alerts-section {
     display: flex;
@@ -1206,9 +1238,9 @@ body.has-install-bar .main-content {
     color: var(--alert-danger-ink);
 }
 
-/* ─── שורה ריקה בעמוד החודש (מתן, 11.10) ────────────────────────
-   סוג בלי עסקאות החודש: שורה אחת במקום כרטיס ריק, ו"+ הוספה" שפותח את
-   חלון ההוספה על הסוג הזה */
+/* ─── An empty row on the month page (Matan, 11.10) ─────────────────
+   A type with no transactions this month: one row instead of an empty card, and
+   "+ add" that opens the add sheet on that type */
 .empty-row {
     display: flex;
     align-items: center;
@@ -1240,7 +1272,7 @@ body.has-install-bar .main-content {
 }
 .empty-row-add:active { transform: scale(0.96); }
 
-/* התראה היא קישור ליעד שלה (מתן, 11.10) */
+/* An alert is a link to its target (Matan, 11.10) */
 a.alert-card {
     display: block;
     text-decoration: none;
@@ -1251,8 +1283,9 @@ a.alert-card:active { transform: scale(0.98); }
 
 /* ─── FAB ─────────────────────────────────────────────────────── */
 
-/* עיגול זהב משמאל לסרגל, באמצע הגובה שלו (מתן, 11.10). עד אז ריבוע זהב
-   צף מעל התוכן — "גס מדי", ונראה שייך למה שמעליו. */
+/* A gold circle to the left of the bar, at its mid-height (Matan, 11.10).
+   Until then a gold square floating over the content: "too crude", and it
+   looked like it belonged to what was above it. */
 .fab {
     position: fixed;
     bottom: calc(var(--dock-gap) + env(safe-area-inset-bottom, 0px) + (var(--dock-height) - var(--fab-size)) / 2);
@@ -1297,13 +1330,14 @@ a.alert-card:active { transform: scale(0.98); }
     animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-/* ─── כניסה עם הגלילה (מתן, 11.10) ─────────────────────────────────
-   כרטיס שמתחת למסך נכנס כשגוללים אליו, וצמוד לגלילה: עולה ומתבהר בדיוק
-   בקצב האצבע, לאורך 140 הפיקסלים הראשונים שלו על המסך — אותו מרחק לשורה
-   קצרה ולכרטיס גבוה. ‎translate‎ ולא ‎transform‎ — כדי לא לדרוס את
-   ההחלקות, שכותבות ‎transform‎ (כרטיס "השבוע"). החלק הראשון של הכניסה
-   קורה מאחורי הסרגל השקוף; בסוף העמוד גם השורה האחרונה כבר שלמה (התחתית
-   של ‎main‎ גבוהה מ-140 פחות גובה שורה). */
+/* ─── Entering with the scroll (Matan, 11.10) ──────────────────────
+   A card below the screen enters as you scroll to it, tied to the scroll: it
+   rises and brightens exactly at the finger's pace, over its first 140 pixels on
+   screen: the same distance for a short row and a tall card. `translate` and not
+   `transform`, so as not to override the swipes, which write `transform` (the
+   "this week" card). The first part of the entrance happens behind the
+   translucent bar; at the end of the page even the last row is already whole
+   (the bottom of `main` is taller than 140 minus a row height). */
 @keyframes reveal-in {
     from { opacity: 0; translate: 0 28px; }
     to   { opacity: 1; translate: 0 0; }
@@ -1315,7 +1349,8 @@ a.alert-card:active { transform: scale(0.98); }
         animation-range: entry 0% entry 140px;
     }
 }
-/* דפדפן בלי גלילה-כציר-זמן: כניסה רכה ברגע שהכרטיס מופיע */
+/* A browser without scroll-driven animations: a soft entrance the moment the
+   card appears */
 .reveal-fallback {
     opacity: 0;
     translate: 0 26px;
@@ -1327,25 +1362,26 @@ a.alert-card:active { transform: scale(0.98); }
     .reveal-fallback { opacity: 1; translate: none; transition: none; }
 }
 
-/* ─── Toast + דיאלוג אישור ────────────────────────────────────── */
+/* ─── Toast + confirm dialog ─────────────────────────────────────── */
 
-/* תיבת "עסקה קבועה" נעולה — מופע ששייך כבר לסדרה */
+/* A locked "recurring transaction" checkbox: an occurrence already belonging to
+   a series */
 .recurring-group.is-locked .checkbox-label {
     opacity: 0.55;
     cursor: not-allowed;
 }
 
-/* ─── פס "אין חיבור" ───────────────────────────────────────────── */
-/* מתחת ל-toast (200) ומעל כל השאר: הודעה על מצב קבוע לא צריכה לכסות
-   הודעה על מה שקרה עכשיו. */
+/* ─── The "no connection" bar ───────────────────────────────────── */
+/* Below the toast (200) and above everything else: a message about a lasting
+   state shouldn't cover a message about what just happened. */
 .net-banner {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     z-index: 190;
-    /* חום כהה מהפלטה, לא אדום: אין חיבור זו עובדה על הסביבה, לא
-       שגיאה שהמשתמש עשה. #FFF3E2 עליו נותן 8.17:1. */
+    /* Dark brown from the palette, not red: no connection is a fact about the
+       environment, not an error the user made. #FFF3E2 on it gives 8.17:1. */
     background: #6B3F16;
     color: #FFF3E2;
     font-size: 0.82rem;
@@ -1356,8 +1392,8 @@ a.alert-card:active { transform: scale(0.98); }
     box-shadow: 0 2px 12px rgba(20, 16, 7, 0.28);
 }
 
-/* מפורש, ולא בהסתמכות על גיליון הדפדפן: פס שנשאר על המסך אחרי
-   שהחיבור חזר גרוע מפס שלא הופיע. */
+/* Explicit, and not relying on the browser's stylesheet: a bar that stays on
+   screen after the connection returned is worse than a bar that never appeared. */
 .net-banner[hidden] { display: none; }
 
 .toast {
@@ -1382,8 +1418,9 @@ a.alert-card:active { transform: scale(0.98); }
     gap: 14px;
 }
 
-/* עד שתי שורות. ‎nowrap‎ + ‎ellipsis‎ חתכו כל הודעה ארוכה מכ-30 תווים
-   באמצע — כולל האזהרה שהקבלה נמחקה, שהיא בדיוק ההודעה שאסור לאבד. */
+/* Up to two lines. `nowrap` + `ellipsis` cut every message longer than about 30
+   characters in the middle, including the warning that the receipt was deleted,
+   exactly the message that mustn't be lost. */
 .toast .toast-msg {
     overflow: hidden;
     display: -webkit-box;
@@ -1411,8 +1448,8 @@ a.alert-card:active { transform: scale(0.98); }
     transform: translate(-50%, 0);
 }
 
-/* כשחלון העסקה פתוח, הטוסט בתחתית נחת על שדה התאריך. למעלה הוא לא
-   מסתיר שום שדה. */
+/* When the transaction sheet is open, a toast at the bottom landed on the date
+   field. At the top it hides no field. */
 body:has(.modal-overlay.open) .toast {
     bottom: auto;
     top: calc(14px + env(safe-area-inset-top, 0px));
@@ -1442,7 +1479,7 @@ body:has(.modal-overlay.open) .toast {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transition: opacity 0.2s, visibility 0s;   /* גלוי מיד בפתיחה — ראו ‎.modal-overlay.open‎ */
+    transition: opacity 0.2s, visibility 0s;   /* visible immediately on open; see `.modal-overlay.open` */
 }
 
 .confirm-card {
@@ -1472,7 +1509,7 @@ body:has(.modal-overlay.open) .toast {
     color: var(--color-text-muted);
     margin-bottom: 18px;
     line-height: 1.5;
-    white-space: pre-line;      /* שורה שנייה בהודעה — "הוזנה ע״י אור" */
+    white-space: pre-line;      /* A second line in the message: "הוזנה ע״י אור" */
 }
 
 .cat-grid-empty {
@@ -1497,13 +1534,14 @@ body:has(.modal-overlay.open) .toast {
 }
 
 .confirm-yes {
-    /* ‎--gradient-danger‎ ולא ‎--color-expense‎: במצב כהה האדום של הטקסט
-       בהיר, ולבן עליו לא נקרא */
+    /* `--gradient-danger` and not `--color-expense`: in dark mode the text red is
+       light, and white on it isn't readable */
     background: var(--gradient-danger);
     color: #FFFFFF;
 }
 
-/* אישור לפעולה רגילה (לא הרסנית) — למשל סנכרון תבנית קבועה */
+/* Confirming an ordinary (non-destructive) action, e.g. syncing a recurring
+   template */
 .confirm-yes.confirm-yes-neutral {
     background: var(--gradient-gold);
     color: var(--hero-text);
@@ -1511,14 +1549,16 @@ body:has(.modal-overlay.open) .toast {
 
 /* ─── Modal (bottom sheet) ────────────────────────────────────── */
 
-/* ‎visibility‎ ולא רק ‎opacity‎: שקיפות 0 מסתירה מהעין בלבד. האלמנט נשאר
-   ממוקד-לחיץ ונשאר בעץ הנגישות, וזה היה נכון לכל עמוד באפליקציה —
-   המודאל יושב ב-base.html. בפועל: לחיצה על Tab מעבר לתפריט התחתון
-   העבירה את המיקוד לתוך טופס בלתי נראה לכ-15 לחיצות, ו-VoiceOver הקריא
-   את כל טופס העסקה ("הוספת עסקה, הוצאה, הכנסה, חיסכון, סכום בשקלים…")
-   בכל מסך, לפני התוכן האמיתי.
-   ‎visibility‎ מוציא משניהם, וממשיך להתמזג עם המעבר: הוא מתחלף בקפיצה
-   בסוף המעבר, כך שהאלמנט נשאר גלוי לאורך ההיעלמות ההדרגתית. */
+/* `visibility` and not just `opacity`: zero opacity hides from the eye only.
+   The element stays focusable/clickable and stays in the accessibility tree,
+   and that was true for every page in the app: the modal sits in base.html. In
+   practice: pressing Tab past the bottom menu moved focus into an invisible form
+   for about 15 presses, and VoiceOver read out the whole transaction form ("add
+   transaction, expense, income, savings, amount in shekels…") on every screen,
+   before the real content.
+   `visibility` removes it from both, and still blends with the transition: it
+   switches at once at the end of the transition, so the element stays visible
+   throughout the gradual fade. */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -1537,10 +1577,11 @@ body:has(.modal-overlay.open) .toast {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    /* בפתיחה ‎visibility‎ מתחלף **מיד** (בסגירה — בסוף הדעיכה, כמו קודם).
-       במעבר רגיל הוא עוד ‎hidden‎ ברגע הראשון, ובדיוק אז הקוד מעביר את
-       המיקוד לשדה הסכום — והדפדפן מסרב למקד בתוך אלמנט מוסתר. המיקוד
-       נשאר על +, ו-Escape (שנקלט בתוך החלון) לא סגר אותו (מתן, 7.10). */
+    /* On open, `visibility` switches **immediately** (on close, at the end of the
+       fade, as before). With an ordinary transition it is still `hidden` at the
+       first moment, exactly when the code moves focus to the amount field, and
+       the browser refuses to focus inside a hidden element. Focus stayed on +,
+       and Escape (caught inside the sheet) didn't close it (Matan, 7.10). */
     transition: opacity 0.25s, visibility 0s;
 }
 
@@ -1555,14 +1596,15 @@ body:has(.modal-overlay.open) .toast {
     background: var(--color-bg-elevated);
     border-radius: 26px 26px 0 0;
     padding: 14px 20px calc(28px + env(safe-area-inset-bottom, 0px));
-    /* הצל השני הוא המשך של רקע החלון כלפי מטה: כשמושכים אותו למעלה (מתן,
-       11.10) לא נפתח רווח ריק מתחתיו. צל ולא ‎::after‎ — החלון גולל, ומה
-       שמחוץ לו נחתך. */
+    /* The second shadow continues the sheet's background downwards: when it is
+       pulled up (Matan, 11.10) no empty gap opens under it. A shadow and not
+       `::after`: the sheet scrolls, and whatever is outside it is clipped. */
     box-shadow: 0 160px 0 0 var(--color-bg-elevated), 0 -12px 50px rgba(20, 16, 7, 0.25);
     transform: translateY(60px);
-    /* עולה ונעצר חלק, בלי לקפוץ מעבר (מתן, 7.10 — בנוסח אפל, סעיף 4). קפיצה
-       שמורה לתנועה שהייתה בה תנופה של האצבע; לחיצה על + היא לא כזו. העקומה
-       של החלונות באייפון. המשיכה למטה מנהלת את התנועה שלה ב-JS. */
+    /* Rises and stops smoothly, without overshooting (Matan, 7.10, Apple-style,
+       item 4). A bounce is reserved for motion that had the finger's momentum;
+       tapping + isn't like that. The curve of iPhone sheets. The pull down
+       manages its own motion in JS. */
     transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
@@ -1654,8 +1696,8 @@ body:has(.modal-overlay.open) .toast {
     box-shadow: 0 2px 8px rgba(166, 124, 0, 0.30);
 }
 
-/* אותם צבעי סוג-עסקה (הכנסה=ירוק, הוצאה=אדום, חיסכון=זהב) גם בטאבי ניהול
-   קטגוריות — בהגדרות ובעמוד פרויקט */
+/* The same transaction-type colours (income=green, expense=red, savings=gold)
+   in the category management tabs too, in settings and on the project page */
 .cat-type-tabs .toggle-btn[data-cat-tab="income"].active,
 .project-cat-tabs .toggle-btn[data-cat-tab="income"].active {
     background: linear-gradient(135deg, #22A055, #15803D);
@@ -1670,7 +1712,7 @@ body:has(.modal-overlay.open) .toast {
     box-shadow: 0 2px 8px rgba(185, 28, 28, 0.30);
 }
 
-/* Owner toggle — של מי ההוצאה */
+/* Owner toggle: whose expense it is */
 .owner-toggle {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
@@ -1840,7 +1882,7 @@ input[type="number"] {
 }
 
 /* Amount input */
-/* צ'יפים "היום/אתמול" בבורר התאריך */
+/* "Today/yesterday" chips in the date picker */
 .date-quick-chips {
     display: flex;
     gap: 8px;
@@ -2004,8 +2046,8 @@ input[type="number"] {
 .submit-btn:disabled,
 .submit-btn.is-busy { opacity: 0.6; }
 
-/* כפתור השמירה במודאל הוא <label> (ראה ההערה בתבנית): צריך את מה
-   ש-<button> נותן בחינם — פריסה, מרכוז, וסמן יד */
+/* The modal's save button is a <label> (see the note in the template): it needs
+   what a <button> gives for free: layout, centring, and a hand cursor */
 label.submit-btn {
     display: block;
     text-align: center;
@@ -2016,8 +2058,9 @@ label.submit-btn {
 }
 
 label.submit-btn.is-busy { cursor: default; }
-/* עין להצגת הסיסמה (‎js/password-eye.js‎, מתן 12.10). השדה מקבל מקום לכפתור
-   בצד שמאל (RTL — סוף השדה), והכפתור יושב עליו. */
+/* An eye for showing the password (`js/password-eye.js`, Matan 12.10). The
+   field gets room for the button on the left (RTL: the end of the field), and
+   the button sits on it. */
 .pw-wrap { position: relative; display: block; }
 .pw-wrap > .form-input { padding-inline-end: 46px; }
 .pw-eye {
@@ -2028,28 +2071,29 @@ label.submit-btn.is-busy { cursor: default; }
 .pw-eye svg { width: 20px; height: 20px; }
 .pw-eye[aria-pressed="true"] { color: var(--color-gold-text); }
 
-/* מיון "כל העסקאות" (מתן, 12.10) */
+/* Sorting "all transactions" (Matan, 12.10) */
 .tx-sort-chips { display: flex; align-items: center; gap: 6px; margin: 2px 0 8px; }
 .tx-sort-label { font-size: 0.8rem; color: var(--color-text-muted); }
 
-/* "הבא: 1.11" ברשימת העסקאות הקבועות (מתן, 12.10) */
+/* "הבא: 1.11" in the recurring transactions list (Matan, 12.10) */
 .recurring-next { margin: 1px 0 0; font-size: 0.74rem; color: var(--color-text-muted); }
 
-/* "חלק מעסקה קבועה" בראש חלון העריכה (מתן, 12.10) */
+/* "Part of a recurring transaction" at the top of the edit sheet (Matan, 12.10) */
 .tx-series-link {
     display: flex; align-items: center; gap: 6px; margin: -4px 0 10px;
     font-size: 0.82rem; font-weight: 600; color: var(--color-gold-text); text-decoration: none;
 }
 .tx-series-link[hidden] { display: none; }
 
-/* עריכה בלי שינוי — הכפתור אפור, אותו כיתוב (מתן, 12.10; 13.10) */
+/* Editing with no change: the button is grey, same label (Matan, 12.10; 13.10) */
 label.submit-btn.is-unchanged,
 #modalOverlay label.submit-btn.is-unchanged,
 :root[data-theme="dark"] #modalOverlay label.submit-btn.is-unchanged {
     background: var(--color-input); color: var(--color-text-muted); box-shadow: none; cursor: default;
 }
 
-/* פקד ה-submit האמיתי, מוסתר: קיים רק כדי ש-Enter בתוך שדה ישלח את הטופס */
+/* The real submit control, hidden: exists only so Enter inside a field submits
+   the form */
 .submit-fallback {
     position: absolute;
     width: 1px;
@@ -2080,8 +2124,9 @@ a.submit-btn {
     box-shadow: 0 6px 18px rgba(185, 28, 28, 0.32);
 }
 
-/* שורת פעולות של מצב עריכה: "הוסף שוב" + "מחק" זה לצד זה */
-/* הצעות מתיאורים קודמים מתחת לשדה התיאור (מתן, 3.10 — רעיון 41) */
+/* The edit-mode action row: "add again" + "delete" side by side */
+/* Suggestions from earlier descriptions under the description field (Matan,
+   3.10, idea 41) */
 .desc-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .desc-suggest[hidden] { display: none; }
 .desc-suggest-item {
@@ -2090,7 +2135,7 @@ a.submit-btn {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* "הוזנה ע״י אור · אתמול 18:32" — בשורת הכותרת של חלון העריכה (מתן, 3.10 / 5.10) */
+/* "הוזנה ע״י אור · אתמול 18:32": in the edit sheet's header row (Matan, 3.10 / 5.10) */
 .tx-entered-meta { margin: 0; text-align: end; font-size: 0.72rem; line-height: 1.3; color: var(--color-text-muted); max-width: 45%; }
 .tx-entered-meta[hidden] { display: none; }
 
@@ -2124,11 +2169,11 @@ a.submit-btn {
 
 .delete-tx-btn:disabled { opacity: 0.6; }
 
-/* ─── הכנסות וחיסכון — גרף עגול כמו ההוצאות (מתן, 30.9) ─────────── */
+/* ─── Income and savings: a donut like expenses (Matan, 30.9) ─────── */
 .doughnut-total.income  { color: var(--color-income); }
 .doughnut-total.savings { color: var(--color-savings); }
 
-/* חיסכון: סך הכול בראש הכרטיס, בלי גרף */
+/* Savings: the total at the top of the card, no chart */
 .savings-total {
     text-align: center;
     padding: 2px 0 14px;
@@ -2157,7 +2202,7 @@ a.submit-btn {
 }
 
 /* ─── Months comparison ───────────────────────────────────────── */
-/* טבלה אחת: שורה לחודש, עמודה לסוג (מתן, 30.9) */
+/* One table: a row per month, a column per type (Matan, 30.9) */
 
 
 .months-table {
@@ -2191,7 +2236,7 @@ a.submit-btn {
     font-weight: 600;
 }
 
-.months-table th.n { direction: rtl; font-weight: 500; text-align: left; }   /* מעל המספרים שלה */
+.months-table th.n { direction: rtl; font-weight: 500; text-align: left; }   /* above its numbers */
 
 .months-table td.m { font-weight: 700; font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; }
 .months-table td.m a { color: inherit; text-decoration: none; }
@@ -2203,8 +2248,8 @@ a.submit-btn {
 .months-table .bal.surplus { color: var(--color-income); }
 .months-table .bal.deficit { color: var(--color-expense); }
 
-/* כרטיס לכל שנה: השנה בראשו, והטבלה מתחת. שנה קודמת סגורה — כרטיס עם
-   השנה בלבד, ולחיצה עליו פותחת */
+/* A card per year: the year at its top, and the table below. A previous year
+   is collapsed: a card with the year only, and tapping it opens it */
 .year-block.chart-card { padding: 0; overflow: hidden; margin-bottom: 12px; }
 
 .year-title {
@@ -2330,8 +2375,9 @@ a.submit-btn {
     color: var(--color-text-muted);
 }
 
-/* כשספריית הגרפים לא נטענה: הקנבס מוחלף בהודעה, והמספר שהיה מרחף
-   במרכז הדונאט חוזר לזרימה הרגילה — אחרת הוא נופל על הטקסט. */
+/* When the chart library didn't load: the canvas is replaced with a message,
+   and the number that floated in the middle of the donut returns to the normal
+   flow; otherwise it falls onto the text. */
 .chart-unavailable {
     max-width: none;
     height: auto;
@@ -2426,8 +2472,8 @@ a.submit-btn {
     background: var(--color-input);
 }
 
-/* רשימה עצמאית (לא drilldown מתקפל) — למשל בעמוד פרויקט בודד */
-/* עמוד פרויקט: 5 האחרונות, והשאר מאחורי "הצג את כל העסקאות" */
+/* A standalone list (not a collapsible drilldown), e.g. on a single project page */
+/* The project page: the last 5, and the rest behind "show all transactions" */
 #projectTxList:not(.show-all) .tx-extra { display: none; }
 
 .show-all-tx {
@@ -2452,7 +2498,8 @@ a.submit-btn {
 .tx-search-input { font-size: 1rem; padding: 9px 12px; }
 .tx-type-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .tx-type-chip { min-height: 36px; }
-/* שורת הקטגוריות מתחת לסוג (מתן, 30.9): נגללת הצידה כשיש הרבה */
+/* The category row under the type (Matan, 30.9): scrolls sideways when there are
+   many */
 .tx-cat-chips {
     display: flex; gap: 8px; margin-bottom: 8px;
     overflow-x: auto; scrollbar-width: none; padding-bottom: 2px;
@@ -2460,13 +2507,13 @@ a.submit-btn {
 .tx-cat-chips[hidden] { display: none; }
 .tx-cat-chips::-webkit-scrollbar { display: none; }
 .tx-cat-chip { flex: none; white-space: nowrap; min-height: 34px; padding: 6px 12px; font-size: 0.8rem; }
-/* הקטגוריה שמוצגת בגרף "הוצאות לפי קטגוריה" בעמוד ההשוואה — בולטת, כדי
-   שיהיה ברור איזו מהן על המסך (מתן, 3.10) */
-/* הוצאות לפי בן משפחה לאורך החודשים (מתן, 3.10 — רעיון 15) */
+/* The category shown in the "expenses by category" chart on the comparison
+   page: highlighted, so it is clear which one is on screen (Matan, 3.10) */
+/* Expenses by family member over the months (Matan, 3.10, idea 15) */
 .line-chart-wrap.member-trend-wrap { height: 230px; }
 .member-trend-avgs { margin: 10px 0 0; font-size: 0.8rem; color: var(--color-text-muted); text-align: center; }
 
-/* טווח הגרפים בעמוד ההשוואה (מתן, 3.10 — רעיון 24) */
+/* The chart range on the comparison page (Matan, 3.10, idea 24) */
 .range-chips { display: flex; gap: 6px; margin: 4px 0 10px; }
 .range-chips[hidden] { display: none; }
 .range-chip { padding: 5px 12px; font-size: 0.78rem; position: relative; }
@@ -2523,8 +2570,9 @@ a.submit-btn {
     color: var(--color-text-soft);
 }
 
-/* "נרשמה ע״י אור" — בפרויקט שחזר להיות אישי. מידע משני, לא תג: התג
-   הצבעוני כבר אומר "של מי הכסף", וזה משהו אחר. */
+/* "נרשמה ע״י אור": in a project that went back to being personal. Secondary
+   information, not a tag: the coloured tag already says "whose money", and this
+   is something else. */
 .tx-entered-by {
     color: var(--color-text-muted);
     font-size: 0.85em;
@@ -2541,7 +2589,7 @@ a.submit-btn {
 .cat-tx-amount.income  { color: var(--color-income); }
 .cat-tx-amount.savings { color: var(--color-savings); }
 
-/* קטגוריות ללא פעילות — מקופלות */
+/* categories with no activity: collapsed */
 .zero-toggle {
     display: flex;
     align-items: center;
@@ -2567,7 +2615,7 @@ li.zero-cat-row { display: none; }
 
 .legend-dot-zero { background: rgba(var(--ink-rgb), 0.18); }
 
-/* כל העסקאות */
+/* all transactions */
 .all-tx-count {
     font-size: 0.75rem;
     font-weight: 600;
@@ -2602,17 +2650,19 @@ li.zero-cat-row { display: none; }
     height: 240px;
 }
 
-/* הגרף ממלא את כל רוחב המיכל שלו. באג של Safari ב-RTL: קנבס ברוחב 300
-   (ברירת המחדל) בתוך מיכל רחב יותר מקבל ב-getComputedStyle שוליים שמאליים
-   בגודל ההפרש, ו-Chart.js מחסיר אותם — כך שהגרף נתקע על 300 לתמיד, וכל הצד
-   השמאלי של הכרטיס נשאר ריק (צילום של מתן, 30.9). Chrome מחזיר 0 ולא מראה
-   את זה. רוחב 100% מבטל את ההפרש, ואיתו את השוליים המדומים. */
+/* The chart fills its container's full width. A Safari RTL bug: a canvas at
+   width 300 (the default) inside a wider container gets, in getComputedStyle,
+   a left margin the size of the difference, and Chart.js subtracts it, so the
+   chart is stuck at 300 forever, and the whole left side of the card stays empty
+   (Matan's screenshot, 30.9). Chrome returns 0 and doesn't show it. Width 100%
+   removes the difference, and with it the phantom margin. */
 .line-chart-wrap canvas,
 .doughnut-wrap canvas {
     width: 100% !important;
 }
 
-/* עמוד ההשוואה: הגרף רחב — עד שולי הכרטיס — ולא גבוה יותר (מתן, 30.9) */
+/* The comparison page: the chart is wide (to the card's edges), not taller
+   (Matan, 30.9) */
 .line-chart-wrap.compare-chart-wrap { margin-inline: -10px; }
 
 /* ─── Settings: accordion groups ──────────────────────────────── */
@@ -2629,7 +2679,8 @@ li.zero-cat-row { display: none; }
     border-radius: var(--radius);
     box-shadow: var(--shadow-card);
     overflow: hidden;
-    /* פתיחה שסוגרת תיבה מעליה גוללת לכאן — לא מתחת לשעון/לאי באייפון */
+    /* An opening that closes a box above it scrolls here: not under the clock/island
+   on iPhone */
     scroll-margin-top: calc(14px + env(safe-area-inset-top, 0px));
 }
 
@@ -2638,8 +2689,9 @@ li.zero-cat-row { display: none; }
     display: flex;
     align-items: center;
     gap: 12px;
-    /* שורה אחת מאז שהשורה שמתחת לכותרת ירדה (מתן, 11.10). הוקטנה אז כדי
-       שהכול ייכנס במסך אחד — ונראתה קצרה מדי; הורחבה שוב (מתן, 13.10) */
+    /* One row since the line under the title was removed (Matan, 11.10). It was
+       shrunk then so everything fits on one screen, and looked too short; it was
+       widened again (Matan, 13.10) */
     padding: 14px 17px;
     text-align: right;
     -webkit-tap-highlight-color: transparent;
@@ -2730,7 +2782,7 @@ li.zero-cat-row { display: none; }
 
 .cat-manage-bar .cat-type-tabs { flex: 1; }
 
-/* מצב רגיל: שורות נקיות — כפתורי עריכה/מחיקה/סידור והוספה מוסתרים */
+/* Normal mode: clean rows: the edit/delete/reorder and add buttons are hidden */
 #categoriesArea:not(.managing) .edit-cat-btn,
 #categoriesArea:not(.managing) .delete-cat-btn,
 #categoriesArea:not(.managing) .cat-reorder-btns,
@@ -2763,11 +2815,12 @@ li.zero-cat-row { display: none; }
 
 .cat-move-btn svg { width: 12px; height: 12px; }
 
-/* אזור לחיצה נסתר. הכפתור עצמו 30×15 כי שני החצים צמודים זה מעל זה,
-   ואזור סימטרי גדול היה חופף ביניהם — מה שגורם לפספוס להפעיל את הכיוון
-   ההפוך, כלומר גרוע מכלום. הפתרון הוא שכל אחד יתרחב *לכיוון שלו*: החץ
-   העליון כלפי מעלה, התחתון כלפי מטה. כך שניהם מגיעים ל-26px בלי לגעת
-   זה בזה, מעל המינימום של 24 שהתקן מבקש. */
+/* A hidden tap area. The button itself is 30×15 because the two arrows sit
+   right on top of each other, and a large symmetric area would overlap between
+   them, making a miss trigger the opposite direction, i.e. worse than nothing.
+   The fix is for each to expand *in its own direction*: the upper arrow
+   upwards, the lower one downwards. That way both reach 26px without touching
+   each other, above the minimum of 24 the standard asks for. */
 .cat-move-btn::before {
     content: '';
     position: absolute;
@@ -2777,8 +2830,8 @@ li.zero-cat-row { display: none; }
     transform: translateX(-50%);
 }
 
-.cat-move-up::before   { bottom: 0; }   /* מתרחב כלפי מעלה */
-.cat-move-down::before { top: 0; }      /* מתרחב כלפי מטה  */
+.cat-move-up::before   { bottom: 0; }   /* expands upwards */
+.cat-move-down::before { top: 0; }      /* expands downwards */
 
 .cat-move-btn:disabled {
     opacity: 0.25;
@@ -2839,9 +2892,10 @@ li.zero-cat-row { display: none; }
     font-size: 0.85rem;
     font-weight: 600;
 }
-/* קישור שנראה ככפתור ("ביטול" במסך פרויקט חדש חוזר לרשימה) */
+/* A link that looks like a button ("cancel" on the new-project screen returns
+   to the list) */
 .btn-sm { transition: transform 120ms ease-out; }
-.btn-sm:active:not(:disabled) { transform: scale(0.97); }   /* משוב לחיצה — ראו ‎.nav-icon‎ */
+.btn-sm:active:not(:disabled) { transform: scale(0.97); }   /* press feedback; see `.nav-icon` */
 a.btn-sm { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 
 .btn-primary {
@@ -2926,8 +2980,8 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     vertical-align: middle;
 }
 
-/* תג מנהל המשפחה — תפקיד אחד ויחיד במשפחה: מי שרשאי להסיר חברים.
-   אפור ולא זהב, כדי שלא יתחרה ב"אני" שלצידו. */
+/* The family manager tag: one single role in the family: whoever may remove
+   members. Grey and not gold, so it doesn't compete with "me" next to it. */
 .manager-badge {
     display: inline-block;
     font-size: 0.65rem;
@@ -2983,7 +3037,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     font-size: 0.75rem;
     color: var(--color-text-muted);
 }
-/* "₪5,000 ← ₪5,500 מאוקטובר" (מתן, 3.10 — רעיון 40) */
+/* "₪5,000 ← ₪5,500 מאוקטובר" (Matan, 3.10, idea 40) */
 .recurring-price-change { font-size: 0.72rem; color: var(--color-text-muted); margin-top: 1px; font-variant-numeric: tabular-nums; }
 
 .recurring-amount {
@@ -2998,7 +3052,8 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .recurring-amount.expense { color: var(--color-expense); }
 .recurring-amount.savings { color: var(--color-savings); }
 
-/* סיכום וקבוצות (מתן, 11.10 — חלופה א׳): כמה נכנס, יוצא ונחסך כל חודש */
+/* Summary and groups (Matan, 11.10, option A): how much comes in, goes out and
+   is saved every month */
 .recurring-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
@@ -3049,7 +3104,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 
 .category-row {
     display: flex;
-    /* השורה עוטפת כדי שבלוק התקציב יקבל שורה משלו מתחת לשם */
+    /* The row wraps so the budget block gets its own line under the name */
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
@@ -3068,7 +3123,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     font-size: 0.9rem;
 }
 
-/* "בממוצע ₪1,850 בחודש" מתחת לשם (מתן, 3.10 — רעיון 38) */
+/* "₪1,850 a month on average" under the name (Matan, 3.10, idea 38) */
 .cat-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .cat-row-text .cat-row-name { flex: none; }
 .cat-row-avg { font-size: 0.74rem; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
@@ -3124,7 +3179,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     flex-shrink: 0;
 }
 
-/* תג "שייך לפרויקט" על שורת עסקה ברשימות */
+/* A "belongs to a project" tag on a transaction row in lists */
 .project-tag {
     display: inline-flex;
     align-items: center;
@@ -3142,7 +3197,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     text-overflow: ellipsis;
 }
 
-/* קטע "פרויקטים החודש" — סכומים */
+/* The "projects this month" section: amounts */
 .pm-amount {
     font-variant-numeric: tabular-nums;
     direction: ltr;
@@ -3206,8 +3261,8 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 
 .password-form.visible { display: block; }
 
-/* מחיקת חשבון — אזור סכנה */
-/* "אפשרויות מתקדמות" בהגדרות — פעולות נדירות שלא אמורות להיות בהישג יד */
+/* Deleting the account: danger zone */
+/* "Advanced options" in settings: rare actions that shouldn't be within easy reach */
 .advanced-options > .advanced-summary {
     cursor: pointer;
     padding: 12px 0;
@@ -3250,18 +3305,18 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     font-weight: 600;
     font-size: 0.92rem;
     text-decoration: none;
-    /* הכפתור היה <a> והפך ל-<button> בתוך טופס POST (הגנת CSRF), אז
-       צריך את מה ש-<a> קיבל בחינם */
+    /* The button was an <a> and became a <button> inside a POST form (CSRF
+       protection), so it needs what an <a> got for free */
     width: 100%;
     font-family: inherit;
     cursor: pointer;
 }
 
 .logout-form { margin: 0; }
-/* מתחת לכל התיבות, לא בתוך "חשבון" (מתן, 1.10) */
+/* below all the boxes, not inside "account" (Matan, 1.10) */
 .settings-logout { margin-top: 12px; }
 
-/* כותרת עם פעולה בצידה (למשל "כל העסקאות" + ייצוא) */
+/* A heading with an action at its side (e.g. "all transactions" + export) */
 .chart-title-row {
     display: flex;
     align-items: center;
@@ -3272,9 +3327,10 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .chart-title-row .chart-title { margin-bottom: 0; }
 .export-link { text-decoration: none; white-space: nowrap; }
 
-/* תווית שקיימת לקורא מסך ולא לעין.
-   ‎display:none‎ היה מסתיר אותה גם מקורא המסך, כלומר לא היה עושה כלום.
-   הצירוף כאן הוא הדפוס המקובל: האלמנט קיים, בגודל פיקסל, וחתוך. */
+/* A label that exists for the screen reader and not the eye.
+   `display:none` would hide it from the screen reader too, i.e. do nothing. The
+   combination here is the accepted pattern: the element exists, one pixel in
+   size, and clipped. */
 .sr-only {
     position: absolute;
     width: 1px;
@@ -3287,15 +3343,16 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     border: 0;
 }
 
-/* תקציב הקטגוריה — גלוי תמיד, בלי "מצב ניהול".
+/* The category budget: always visible, with no "management mode".
  *
- * הוא היה מוסתר מאחורי אותו מתג שמסתיר עריכה, מחיקה וסידור — ובצדק
- * לגביהם: אלה פעולות על הרשימה עצמה. אבל תקציב הוא לא ניהול רשימה,
- * הוא ההגדרה שבגללה מתקינים אפליקציית תקציב מלכתחילה. להסתיר אותה
- * מאחורי כפתור לא מתויג פירושו שרוב המשתמשים לא ידעו שהיא קיימת.
+ * It used to be hidden behind the same toggle that hides editing, deleting and
+ * reordering, and rightly so for those: they are actions on the list itself. But
+ * a budget isn't list management, it is the setting people install a budgeting
+ * app for in the first place. Hiding it behind an unlabelled button means most
+ * users won't know it exists.
  *
- * ‎flex-wrap‎ על השורה הוא מה שמוריד את הבלוק לשורה משלו במקום לדחוס
- * אותו לצד השם. */
+ * `flex-wrap` on the row is what drops the block onto its own line instead of
+ * squeezing it next to the name. */
 .cat-budget-edit {
     display: flex;
     flex-wrap: wrap;
@@ -3308,7 +3365,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .cat-budget-label {
     font-size: 0.82rem;
     color: var(--color-text-soft);
-    /* דוחף את המתג לקצה השני של השורה, כמו בשאר ההגדרות */
+    /* pushes the switch to the other end of the row, as in the rest of settings */
     margin-inline-end: auto;
 }
 
@@ -3319,20 +3376,21 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     flex-wrap: wrap;
 }
 
-/* ‎display: flex‎ מנצח את ‎[hidden]‎ של גיליון הדפדפן — כלל של המחבר גובר
- * על כלל של הדפדפן. כל עוד הבלוק כולו היה מוסתר מחוץ ל"מצב ניהול" זה
- * לא הורגש; ברגע שהוא נחשף, תיבת הסכום וכפתור השמירה הופיעו לכולם,
- * גם למי שלא הדליק את המתג. אותה מלכודת בדיוק כמו בפס "אין חיבור". */
+/* `display: flex` beats the browser stylesheet's `[hidden]`: an author rule
+ * wins over a browser rule. As long as the whole block was hidden outside
+ * "management mode" this wasn't noticed; the moment it was revealed, the amount
+ * box and the save button appeared for everyone, even those who hadn't turned
+ * the toggle on. Exactly the same trap as in the "no connection" bar. */
 .cat-budget-fields[hidden] { display: none; }
 
 .budget-amount {
     width: 110px;
     padding: 6px 10px;
-    /* 1rem: פחות מזה מזם את העמוד ב-iOS ולא מחזיר */
+    /* 1rem: anything less zooms the page on iOS and doesn't zoom back */
     font-size: 1rem;
 }
 
-/* ─── תקציב יעד לקטגוריה ───────────────────────────────────────── */
+/* ─── A target budget per category ──────────────────────────────── */
 
 .cat-budget { padding: 2px 0 10px; }
 
@@ -3342,13 +3400,14 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     color: var(--color-text-muted);
 }
 
-/* חריגה: המשפט באדום */
+/* overage: the sentence in red */
 .cat-budget.over .cat-budget-text { color: var(--color-expense); font-weight: 600; }
 
-/* ─── פרויקטים החודש ──────────────────────────────────────────── */
+/* ─── Projects this month ────────────────────────────────────────── */
 
-/* שורה לכל פרויקט, באותו דפוס של הקטגוריות. הסכומים נשמרים בנפרד לפי
-   סוג ולא מקוזזים, אז שורה של פרויקט דו-כיווני מחזיקה שני מספרים. */
+/* A row per project, in the same pattern as the categories. The amounts are
+   kept separately by type and not netted, so a row for a two-way project holds
+   two numbers. */
 .legend-amount .pm-amount { margin-inline-start: 6px; font-variant-numeric: tabular-nums; }
 .legend-amount .pm-amount:first-child { margin-inline-start: 0; }
 
@@ -3362,8 +3421,9 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     display: flex;
     align-items: center;
     justify-content: center;
-    /* באפליקציה המותקנת באייפון (black-translucent) הדף מצויר גם מתחת
-       לשעון ולאי הדינמי; בלי המרווח תחילת טופס ארוך נחבאת שם */
+    /* In the app installed on iPhone (black-translucent) the page is also painted
+       under the clock and the dynamic island; without the spacing the start of a
+       long form hides there */
     padding: calc(24px + env(safe-area-inset-top, 0px)) 16px
              calc(24px + env(safe-area-inset-bottom, 0px));
     min-height: 100vh;
@@ -3507,16 +3567,18 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 
 .onboarding-card { text-align: right; }
 
-/* שלב מוסתר כברירת מחדל, והראשון בלבד גלוי.
-   עד עכשיו ההסתרה הייתה style="display:none" על כל שלב בנפרד בתבנית —
-   וב-step1 זה נשכח, כך שמשתמש חדש קיבל את מסך הבחירה ואת השאלה על שם
-   המשפחה זה על גבי זה, במסך הראשון שהוא רואה אחרי ההרשמה. הכלל כאן הופך
-   "מוסתר" לברירת המחדל, כך שאי אפשר לשכוח אותו בשלב שיתווסף בעתיד.
-   ה-JS ממשיך לנהל את המעברים עם style.display, שגובר על שניהם. */
+/* A step is hidden by default, and only the first is visible.
+   Until now hiding was style="display:none" on every step separately in the
+   template, and on step1 it was forgotten, so a new user got the choice screen
+   and the family-name question on top of each other, on the very first screen
+   they see after signing up. The rule here makes "hidden" the default, so it
+   can't be forgotten on a step added in the future.
+   The JS keeps managing the transitions with style.display, which beats both. */
 .onboarding-step { display: none; }
-/* שני מסכי-פתיחה, ושניהם בלעדיים בתבנית: מי שהגיע לאשף רואה את step0,
-   ומי שהצטרף למשפחה שעוד לא סיימה רואה את stepWaiting במקומו. בלי
-   השורה השנייה מסך ההמתנה מרונדר ולא נראה — עמוד ריק לגמרי. */
+/* Two opening screens, both exclusive in the template: whoever reached the
+   wizard sees step0, and whoever joined a family that hasn't finished sees
+   stepWaiting instead. Without the second line the waiting screen is rendered
+   and not visible: a completely blank page. */
 .onboarding-step#step0,
 .onboarding-step#stepWaiting { display: block; }
 
@@ -3580,7 +3642,8 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     margin-bottom: 18px;
 }
 
-/* הקוד הוא 6 תווים ונועד להיקרא בקול — גדול, מרווח, ובלי שבירת מילים */
+/* The code is 6 characters and meant to be read out loud: large, spaced, and
+   with no word breaking */
 .invite-code-card .invite-code-value {
     font-size: 1.6rem;
     font-weight: 700;
@@ -3589,7 +3652,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     word-break: normal;
 }
 
-/* ─── מזלג הפתיחה: משפחה חדשה או הצטרפות ─────────────────────────────────── */
+/* ─── The opening fork: a new family or joining ──────────────────────────── */
 
 .onboarding-choice-list {
     display: flex;
@@ -3647,7 +3710,8 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     line-height: 1.45;
 }
 
-/* שדה הזנת קוד — מיושר לשמאל כמו הקוד עצמו, ובמרווח שמקל על הקלדה נכונה */
+/* The code entry field: left-aligned like the code itself, with spacing that
+   makes typing it correctly easier */
 .invite-code-input {
     text-transform: uppercase;
     letter-spacing: 0.18em;
@@ -3658,10 +3722,10 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .field-hint-ok  { color: var(--color-income); font-weight: 500; }
 .field-hint-bad { color: var(--color-expense); font-weight: 500; }
 
-/* ─── הצטרפות למשפחה מתוך ההגדרות ────────────────────────────────────────── */
+/* ─── Joining a family from settings ─────────────────────────────────────── */
 
-/* הקוד בהגדרות היה hidden וניתן רק להעתקה — עכשיו הוא גלוי, כי קוד בן
-   6 תווים אפשר פשוט להקריא בטלפון */
+/* The code in settings was hidden and could only be copied; now it is visible,
+   because a 6-character code can just be read out over the phone */
 .invite-code-inline {
     font-family: monospace;
     font-size: 1.05rem;
@@ -3698,7 +3762,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 
 .join-family-row .btn-primary { white-space: nowrap; }
 
-/* "או" בין הצטרפות לפתיחת משפחה חדשה (מתן, 11.10) */
+/* "Or" between joining and opening a new family (Matan, 11.10) */
 .family-move-or {
     margin: 12px 0 8px;
     text-align: center;
@@ -3724,8 +3788,9 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     margin-bottom: 14px;
 }
 
-/* מסומנת: ✓ בפינה. לא מסומנת: דהויה, עם מסגרת מקווקווה ושם מחוק — כך שאין
-   ספק מה ייכנס (מתן, 31.10: שניים ביטלו הכל במקום לבחור) */
+/* Selected: a ✓ in the corner. Not selected: faded, with a dashed border and
+   a struck-through name, so there is no doubt what will go in (Matan, 31.10:
+   two people deselected everything instead of choosing) */
 .onboarding-cat-btn {
     position: relative;
     opacity: 0.45;
@@ -3789,9 +3854,9 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     .kpi-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-/* מתג ה-haptic של iOS: חייב להישאר מרונדר (display:none מבטל את האפקט),
-   אבל בלתי נראה. הערכים זהים למה שנבדק במכשיר בפועל — לא לשנות בלי
-   לבדוק שוב שהנקישה עדיין מגיעה. */
+/* The iOS haptic switch: must stay rendered (display:none cancels the effect),
+   but invisible. The values match what was tested on a real device: don't
+   change them without checking again that the tap still arrives. */
 .haptic-switch {
     position: absolute;
     width: 1px;
@@ -3808,16 +3873,17 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
         transition-duration: 0.01ms !important;
     }
     .anim-rise { opacity: 1; }
-    /* ה-0.01ms שלמעלה חל גם על ‎visibility‎ — של החלון ושל כל מה שבתוכו
-       (‎visibility‎ עובר בירושה, וכל צאצא "מתעכב" בעצמו). בפריים של המיקוד
-       שדה הסכום עוד ‎hidden‎, והסמן נשאר על +. נמצא 12.10. */
+    /* The 0.01ms above also applies to `visibility`, of the sheet and of everything
+       inside it (`visibility` is inherited, and every descendant "delays" by
+       itself). On the focus frame the amount field is still `hidden`, and the
+       caret stays on +. Found 12.10. */
     .modal-overlay.open, .modal-overlay.open * { transition: none !important; }
 }
 
-/* ═══ העדפות משפחה (עמוד ההגדרות + שלב באונבורדינג) ═══ */
+/* ═══ Family settings (the settings page + an onboarding step) ═══ */
 
-/* pref-list/pref-row/pref-label/pref-note: משמשים את אשף האונבורדינג בלבד
-   (עמוד ההגדרות משתמש ב-group-row הכללי, כדי להיות תואם לשאר הקבוצות) */
+/* pref-list/pref-row/pref-label/pref-note: used by the onboarding wizard only
+   (the settings page uses the general group-row, to match the other groups) */
 .pref-list {
     list-style: none;
     margin: 0;
@@ -3848,7 +3914,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .group-row.disabled .group-row-label,
 .group-row.disabled .group-row-hint { opacity: 0.45; }
 
-/* מתג הפעלה/כיבוי */
+/* on/off switch */
 .pref-switch {
     position: relative;
     display: inline-block;
@@ -3890,14 +3956,16 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .pref-switch input:disabled + .pref-slider { opacity: 0.4; cursor: not-allowed; }
 .pref-switch input:focus-visible + .pref-slider { outline: 2px solid var(--color-gold-bright); outline-offset: 2px; }
 
-/* שורת "עסקה אחרונה" זמנית (UI אופטימי) — עד שהרענון המלא מחליף אותה בנתון אמיתי */
+/* A temporary "recent transaction" row (optimistic UI), until the full refresh
+   replaces it with real data */
 .tx-pending {
     opacity: 0.6;
     cursor: default;
     pointer-events: none;
 }
 
-/* ── Swipe actions על שורות עסקה: ימינה=עריכה, שמאלה=מחיקה (נוסף ללחיצה) ── */
+/* ── Swipe actions on transaction rows: right=edit, left=delete (in addition
+   to a tap) ── */
 .swipe-content {
     position: relative;
     z-index: 2;
@@ -3948,8 +4016,8 @@ li.transaction-item.swipe-ready {
 }
 
 li.transaction-item.swipe-ready > .swipe-content {
-    /* block, לא flex: הכרטיס הלבן מכיל כותרת + עורך זה מתחת לזה.
-       הפריסה האופקית של השורה עברה ל-.tx-head. */
+    /* block, not flex: the white card holds a header + an editor one under the
+       other. The row's horizontal layout moved to .tx-head. */
     display: block;
     background: var(--color-card);
     border: var(--border-subtle);
@@ -3975,9 +4043,10 @@ li.transaction-item.swipe-ready > .swipe-content {
     width: 100%;
     box-sizing: border-box;
     border-radius: 8px;
-    /* רקע אטום שיסתיר את פאנלי הפעולה עד שמחליקים — תואם לרקע הבז'
-       של .cat-tx-list (drilldown בעמוד החודש). ברשימה עצמאית בעמוד
-       פרויקט הרקע לבן, ראה override למטה. */
+    /* An opaque background that hides the action panels until swiped, matching
+       the beige background of .cat-tx-list (drilldown on the month page). In a
+       standalone list on a project page the background is white; see the
+       override below. */
     background: var(--color-input);
 }
 
@@ -3999,19 +4068,20 @@ li.transaction-item.swipe-ready > .swipe-content {
     padding: 11px 0;
     width: 100%;
     box-sizing: border-box;
-    /* רקע אטום — שורות עסקאות קבועות יושבות על כרטיס לבן בהגדרות */
+    /* opaque background: recurring transaction rows sit on a white card in settings */
     background: var(--color-card);
 }
 
-/* משוב טעינה עדין בזמן שנתוני המודאל נטענים (FAB או שורת עסקה שנלחצה) */
+/* Soft loading feedback while the modal's data loads (the FAB or a tapped
+   transaction row) */
 .is-loading-trigger {
     opacity: 0.55;
     pointer-events: none;
     transition: opacity 0.15s;
 }
 
-/* מרחיבים את אזור הלחיצה בפועל ל-44×44 בלי לשנות את הגודל הוויזואלי —
-   פסאודו-אלמנט שקוף וממורכז, גדול יותר מהאייקון הנראה */
+/* Enlarging the actual tap area to 44×44 without changing the visual size: a
+   transparent, centred pseudo-element, larger than the visible icon */
 .modal-close::before,
 .icon-btn::before,
 .edit-cat-btn::before,
@@ -4028,8 +4098,9 @@ li.transaction-item.swipe-ready > .swipe-content {
     transform: translate(-50%, -50%);
 }
 
-/* וכפתורים רחבים ונמוכים (מתן, 5.10): 44 לגובה בלבד. לרוחב — רק חצי
-   מהרווח שבין שכנים (6px בין כפתורי הטווח), כדי ששני אזורים לא יעלו זה על זה */
+/* And wide, low buttons (Matan, 5.10): 44 in height only. In width only half
+   the gap between neighbours (6px between the range buttons), so two areas
+   don't overlap */
 .range-chip::before,
 .back-to-current::before {
     content: '';
@@ -4041,7 +4112,7 @@ li.transaction-item.swipe-ready > .swipe-content {
     transform: translateY(-50%);
 }
 
-/* ═══ עמודים משפטיים ══════════════════════════════════════════════════════ */
+/* ═══ Legal pages ══════════════════════════════════════════════════════════ */
 
 .legal-body {
     background: var(--color-bg);
@@ -4053,7 +4124,7 @@ li.transaction-item.swipe-ready > .swipe-content {
 .legal-page {
     max-width: 680px;
     margin: 0 auto;
-    /* "← חזרה" ישב בגובה השעון באייפון — ראו ‎.auth-body‎ */
+    /* "← back" sat at the clock's height on iPhone; see `.auth-body` */
     padding: calc(26px + env(safe-area-inset-top, 0px)) 20px
              calc(60px + env(safe-area-inset-bottom, 0px));
 }
@@ -4119,8 +4190,9 @@ li.transaction-item.swipe-ready > .swipe-content {
 
 .legal-footer-links a { color: var(--color-gold-text); text-decoration: none; }
 
-/* קישור חזרה ממסכי ההתחברות אל דף הנחיתה. עד שנוסף, מי שלחץ "פתיחת חשבון"
-   נכנס למסלול חד-כיווני ונאלץ להשתמש בכפתור האחורה של הדפדפן. */
+/* A back link from the auth screens to the landing page. Until it was added,
+   whoever tapped "open an account" entered a one-way path and had to use the
+   browser's back button. */
 .auth-back {
     display: inline-flex;
     align-items: center;
@@ -4150,12 +4222,14 @@ li.transaction-item.swipe-ready > .swipe-content {
     outline-offset: 2px;
 }
 
-/* ═══ דף נחיתה ═══════════════════════════════════════════════════════════════
-   המהות של SmartFin היא תקציב משפחתי משותף — לא צילום קבלה. לכן הגיבור של
-   העמוד הוא מסך החודש עצמו, עם כרטיס "מי הוציא" צף עליו: מסך אחד שכמה
-   אנשים מזינים אליו. צילום הקבלה ירד לסקשן ההזנה, כאחת משלוש דרכים.
-   הטיפוגרפיה זהה לאפליקציה (Rubik דרך --font-display): דף הנחיתה הוא
-   הרושם הראשון, ואם הוא נראה כמו מוצר אחר — זה בדיוק מה שהוא משדר.
+/* ═══ Landing page ═════════════════════════════════════════════════════════
+   SmartFin's essence is a shared family budget, not receipt scanning. So the
+   page's hero is the month screen itself, with a "who spent" card floating on
+   it: one screen several people enter into. Receipt scanning moved down to the
+   entry section, as one of three ways.
+   The typography is identical to the app (Rubik through --font-display): the
+   landing page is the first impression, and if it looks like another product,
+   that is exactly what it signals.
    ────────────────────────────────────────────────────────────────────────── */
 
 .lp {
@@ -4208,7 +4282,7 @@ li.transaction-item.swipe-ready > .swipe-content {
 }
 
 .lp-eyebrow {
-    /* 0.16em פירק את "ניהול תקציב משפחתי" לאותיות בודדות (מתן, 7.10) */
+    /* 0.16em broke "ניהול תקציב משפחתי" into single letters (Matan, 7.10) */
     font-size: 0.76rem; font-weight: 600; letter-spacing: 0.02em;
     color: var(--color-gold-bright); margin: 0 0 16px;
     display: flex; align-items: center; gap: 10px;
@@ -4248,7 +4322,7 @@ li.transaction-item.swipe-ready > .swipe-content {
 
 .lp-micro { margin-top: 20px; font-size: 0.8rem; color: var(--hero-text-muted); }
 
-/* ── החתימה: המסך + מי הוציא ─────────────────────────────────────────────── */
+/* ── The signature: the screen + who spent ───────────────────────────────── */
 
 .lp-showcase {
     position: relative;
@@ -4264,8 +4338,9 @@ li.transaction-item.swipe-ready > .swipe-content {
     background: #17120A;
     box-shadow: 0 30px 70px rgba(0,0,0,0.5);
 }
-/* המסך יושב בתוך הירו הכהה ויורש ממנו טקסט בהיר, מה שהפך את הכרטיסים
-   הלבנים לכמעט בלתי קריאים. מאפסים כאן; ה-app-hero מגדיר לעצמו בהיר בחזרה. */
+/* The screen sits inside the dark hero and inherits light text from it, which
+   made the white cards almost unreadable. Reset here; the app-hero sets light
+   for itself again. */
 .lp-phone-screen {
     background: var(--color-bg); color: var(--color-text);
     border-radius: 30px; overflow: hidden;
@@ -4294,7 +4369,7 @@ li.transaction-item.swipe-ready > .swipe-content {
 .lp-app-card span   { display: block; font-size: 0.58rem; color: var(--color-text-muted); }
 .lp-app-card strong { display: block; font-size: 0.7rem; margin-top: 3px; direction: ltr; }
 
-/* כרטיס "השבוע" במוקאפ — כמו בדף הבית (מתן, 12.10) */
+/* The "this week" card in the mockup, as on the home page (Matan, 12.10) */
 .lp-week {
     margin: 4px 10px 18px; background: var(--color-card); border-radius: 11px;
     padding: 11px 12px 9px; box-shadow: var(--shadow-card);
@@ -4309,8 +4384,9 @@ li.transaction-item.swipe-ready > .swipe-content {
 .lp-week-labels { display: flex; gap: 6px; margin-top: 5px; }
 .lp-week-labels span { flex: 1; text-align: center; font-size: 0.55rem; color: var(--color-text-muted); }
 
-/* הכרטיס הצף: התראת חריגה — מוסיפה עניין ומראה פיצ'ר אמיתי.
-   במובייל הוא יושב מתחת למסך; הצפה שם רק הייתה מסתירה את הקטגוריות. */
+/* The floating card: an overage alert, adds interest and shows a real feature.
+   On mobile it sits under the screen; floating there would only hide the
+   categories. */
 .lp-alert {
     display: flex; align-items: flex-start; gap: 11px;
     width: min(248px, 82vw);
@@ -4356,7 +4432,7 @@ li.transaction-item.swipe-ready > .swipe-content {
 .lp-way h3 { font-size: 1.06rem; font-weight: 700; margin: 0 0 8px; }
 .lp-way p  { font-size: 0.88rem; line-height: 1.66; color: var(--color-text-soft); margin: 0; }
 
-/* ── צילום קבלה: דוגמה קטנה בתוך הכרטיס, לא גיבור העמוד ──────────────────── */
+/* ── Receipt scanning: a small example inside the card, not the page's hero ── */
 
 .lp-way-scan { background: var(--hero-bg); border-color: rgba(255,255,255,0.09); color: var(--hero-text); }
 .lp-way-scan h3 { color: var(--color-gold-bright); }
@@ -4482,8 +4558,8 @@ li.transaction-item.swipe-ready > .swipe-content {
     .lp-hero { padding-bottom: 92px; }
     .lp-hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 48px; padding-top: 60px; }
     .lp-showcase { padding-bottom: 0; align-items: flex-start; }
-    /* הכרטיס חורג החוצה ונוגע רק בקצה המסך — מספיק כדי לקשור ביניהם,
-       בלי להסתיר את הקטגוריות שהמסך אמור להראות */
+    /* The card juts out and only touches the edge of the screen: enough to link
+       them, without hiding the categories the screen is meant to show */
     .lp-alert {
         position: absolute; bottom: 52px; inset-inline-end: 0;
         width: 212px; margin: 0;
@@ -4491,31 +4567,32 @@ li.transaction-item.swipe-ready > .swipe-content {
     .lp-section { padding-top: 92px; }
 }
 
-/* ─── יצירת קשר בתחתית ההגדרות ────────────────────────────────────
-   מחוץ לכל האקורדיונים ותמיד גלויה: זה ערוץ התמיכה היחיד, ומדיניות
-   הפרטיות מבטיחה שהוא יהיה נגיש באפליקציה. */
+/* ─── Contact at the bottom of settings ──────────────────────────────────
+   Outside every accordion and always visible: it is the only support channel,
+   and the privacy policy promises it will be reachable in the app. */
 .settings-contact {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    /* המרווח מהסרגל התחתון (כולל אזור הבית של האייפון) כבר בתחתית ‎main‎ */
+    /* The spacing from the bottom bar (including the iPhone home area) is already
+   at the bottom of `main` */
     padding: 12px 16px 0;
     text-align: center;
 }
 .settings-contact-label { margin: 0; font-size: 0.8125rem; color: var(--color-text-muted); line-height: 1.6; }
 .settings-contact-link {
     display: inline-block;
-    padding: 6px 2px;                       /* יעד נגיעה סביר בתוך שורת טקסט */
+    padding: 6px 2px;                       /* a reasonable touch target inside a line of text */
     color: var(--color-gold-text);
     font-weight: 700;
     text-decoration: none;
 }
 
-/* ─── ניהול הפרויקט: תפריט אחד מתמשך ──────────────────────────────
-   העמוד היה ארבעה ‎chart-card‎ נפרדים עם 16px ביניהם, והאחרון בסגנון
-   אחר לגמרי — מסך אחד של הגדרות שנראה כמו ארבעה שהודבקו. מיכל אחד,
-   והחלוקה נעשית בקו. */
+/* ─── Project management: one continuous menu ────────────────────────────
+   The page was four separate `chart-card`s with 16px between them, and the
+   last in a completely different style: one settings screen that looked like
+   four pasted together. One container, and the division is done with a line. */
 .project-settings {
     background: var(--color-card);
     border: var(--border-subtle);
@@ -4527,12 +4604,14 @@ li.transaction-item.swipe-ready > .swipe-content {
 .project-settings-block { padding: 14px 16px; }
 .project-settings .form-group { margin-bottom: 12px; }
 
-/* מחלקות המעקב בשורה אחת ולא שלוש שורות (מתן, 9.10 — העמוד היה ארוך מדי) */
+/* The tracked departments on one row, not three rows (Matan, 9.10: the page
+   was too long) */
 .track-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }
 
-/* פס השמירה (מתן, 9.10): נשאר בתחתית המסך מעל הסרגל, לכל העמוד ולא רק
-   לחלק הראשון. כשהמקלדת פתוחה הסרגל נעלם (ראו "מקלדת פתוחה"), והפס יורד
-   למקומו כדי לא לרחף באמצע. */
+/* The save bar (Matan, 9.10): stays at the bottom of the screen above the bar,
+   for the whole page and not just the first part. When the keyboard is open the
+   bar disappears (see "keyboard open"), and the save bar drops into its place so
+   it doesn't float in the middle. */
 .project-save-bar {
     position: sticky;
     bottom: calc(var(--dock-height) + var(--dock-gap) * 2 + env(safe-area-inset-bottom, 0px));
@@ -4555,11 +4634,12 @@ li.transaction-item.swipe-ready > .swipe-content {
     .project-save-bar { background: var(--dock-bg-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
-/* סיום ומחיקה בתחתית עמוד הפרויקט (מתן, 9.10) */
+/* Finishing and deleting at the bottom of the project page (Matan, 9.10) */
 .project-finish .group-row { padding: 4px 0; }
 .project-finish > .group-divider { margin: 10px 0; }
 
-/* קטגוריות הפרויקט — כותרת שנפתחת (מתן, 9.10). השורה כולה לחיצה, לא רק החץ */
+/* The project's categories: a collapsible heading (Matan, 9.10). The whole row
+   is tappable, not just the arrow */
 .settings-collapse-title { margin: 0; }
 .settings-collapse {
     display: flex; align-items: center; gap: 8px; width: 100%;
@@ -4570,7 +4650,7 @@ li.transaction-item.swipe-ready > .swipe-content {
 .settings-collapse .expand-chevron { margin-inline-start: auto; transition: transform 0.2s; }
 .settings-collapse[aria-expanded="true"] .expand-chevron { transform: rotate(180deg); }
 
-/* שינויים שעוד לא נשמרו — מסומנים על המסך עד "שמירת השינויים" */
+/* Changes not saved yet: marked on screen until "save changes" */
 .cat-pending-tag {
     display: inline-block; margin-inline-start: 8px;
     font-size: 0.72rem; font-weight: 600; color: var(--color-gold-text);
@@ -4583,43 +4663,45 @@ li.transaction-item.swipe-ready > .swipe-content {
 .project-save-error:empty { display: none; }
 .project-save-error { margin: 0 0 8px; text-align: center; }
 
-/* הכותרת הראשונה כבר נושאת את הריווח של הבלוק */
+/* the first heading already carries the block's spacing */
 .project-settings-block > .chart-title:first-child { margin-top: 0; }
 
-/* קווי ההפרדה נמתחים לרוחב המלא, אחרת הם נראים כמו קו בתוך פסקה
-   ולא כמו גבול בין שני חלקים. */
+/* The dividing lines stretch to the full width; otherwise they look like a
+   line inside a paragraph and not a border between two parts. */
 .project-settings > .group-divider { margin: 0; }
 
-/* ─── אזור המחיקה בתוך הפרויקט ────────────────────────────────── */
+/* ─── The delete area inside the project ─────────────────────────────── */
 .project-danger .group-row-label { color: var(--color-expense); }
 
-/* ─── הפס בדשבורד: הוצאות וחיסכון בנפרד ──────────────────────────
-   קודם זה היה פס אחד שחיבר את שניהם וקרא לסכום "נוצלו" — חודש עם
-   20% הוצאות ו-69% חיסכון הוצג כפס כמעט מלא. כסף שנחסך לא נוצל. */
-/* הגרסה הראשונה צבעה את שני החלקים באותו זהב, אחד מהם דהוי — ובגובה
-   8 פיקסלים זה נראה בדיוק כמו הפס הישן. שינוי שאי אפשר לראות אינו
-   שינוי. הצבעים כאן לקוחים מהשפה שכבר קיימת בכל האפליקציה: הוצאות
-   באדום, חיסכון בזהב. */
+/* ─── The dashboard bar: expenses and savings separately ─────────────────
+   Before, this was one bar that added both together and called the total
+   "used": a month with 20% expenses and 69% savings showed as an almost full
+   bar. Money saved wasn't used. */
+/* The first version coloured both parts the same gold, one of them faded, and
+   at 8 pixels tall it looked exactly like the old bar. A change you can't see
+   isn't a change. The colours here come from the language already used
+   throughout the app: expenses in red, savings in gold. */
 .balance-bar-split {
     display: flex;
     gap: 3px;
-    height: 10px;   /* 8 היה דק מדי מכדי להראות חלוקה */
+    height: 10px;   /* 8 was too thin to show a split */
 }
 .balance-bar-split .balance-bar-fill {
     flex: 0 0 auto;
     border-radius: 99px;
     min-width: 0;
 }
-/* המסלול הריק שמאחור אינו קישוט — הוא מה שעוד לא הוצאת ולא חסכת. */
+/* The empty track behind isn't decoration: it is what you haven't spent or saved yet. */
 
 .balance-bar-fill.spent { background: var(--color-expense); }
 .balance-bar-fill.saved { background: var(--color-savings); }
 
-/* האדום של החריגה חייב לנצח את הצבע הרגיל של חלק ההוצאות, ולכן הוא
-   מוגדר כאן — אחרי — ועם אותה קדימות בתוך ה-hero. */
+/* The overage red must beat the expense part's usual colour, so it is defined
+   here, after it, and with the same specificity inside the hero. */
 .balance-bar-fill.spent.danger { background: var(--gradient-danger); }
 
-/* מפתח צבע לצד כל מספר במקרא, אחרת אי אפשר לדעת איזה חלק הוא מה */
+/* A colour key next to each number in the legend; otherwise there is no way to
+   tell which part is which */
 .balance-bar-legend .bar-key {
     display: inline-block;
     width: 8px;
@@ -4631,7 +4713,8 @@ li.transaction-item.swipe-ready > .swipe-content {
 .balance-bar-legend .bar-key.spent { background: var(--color-expense); }
 .balance-bar-legend .bar-key.saved { background: var(--color-savings); }
 
-/* ב-hero הכהה צריך את הגרסאות הבהירות, אחרת שניהם נבלעים ברקע */
+/* In the dark hero the light versions are needed; otherwise both blend into
+   the background */
 .page-hero .balance-bar-fill.spent { background: var(--color-expense-light); }
 .page-hero .balance-bar-fill.spent.danger { background: var(--gradient-danger); }
 .page-hero .balance-bar-fill.saved { background: var(--color-savings-light); }
@@ -4639,55 +4722,61 @@ li.transaction-item.swipe-ready > .swipe-content {
 .page-hero .balance-bar-legend .bar-key.saved { background: var(--color-savings-light); }
 .page-hero .balance-bar-legend { color: var(--hero-text-muted); }
 
-/* ─── עמוד הגדרות הפרויקט: מקום לנשום ───────────────────────────── */
+/* ─── The project settings page: room to breathe ─────────────────────────── */
 
-/* ה-+ הצף הוא "הוסף עסקה". במסך הגדרות אין לו מה לעשות, והוא ישב
-   בפינה השמאלית התחתונה — בדיוק על "מחק פרויקט". הפעולה הבלתי הפיכה
-   בעמוד הייתה חצי מוסתרת מאחורי כפתור שלא שייך לשם. */
+/* The floating + is "add a transaction". On a settings screen it has nothing to
+   do, and it sat in the bottom-left corner, exactly on "delete project". The
+   irreversible action on the page was half hidden behind a button that didn't
+   belong there. */
 body.no-fab .fab { display: none; }
-body.no-fab .bottom-nav { left: var(--dock-side); }    /* בלי + — הסרגל ברוחב מלא */
-/* בהגדרות אין כפתור +, אז אין צורך במקום בשבילו בתחתית (מתן, 11.10). 96
-   הפיקסלים של ה-+ הפכו את ההגדרות לגבוהות מהמסך גם כשהכול סגור — אחרי
-   החלקה לתחתית הקפיץ נעצר שם, והכותרת "הגדרות" נשארה מחוץ למסך. מרווח
-   מהסרגל בלבד. (עריכת פרויקט — גם בלי +, אבל עם פס שמירה בתחתית.) */
+body.no-fab .bottom-nav { left: var(--dock-side); }    /* no +: the bar at full width */
+/* Settings have no + button, so no room is needed for it at the bottom (Matan,
+   11.10). The +'s 96 pixels made settings taller than the screen even with
+   everything closed: after scrolling to the bottom the spring stopped there, and
+   the "settings" heading stayed off screen. Spacing from the bar only.
+   (Project editing: also without +, but with a save bar at the bottom.) */
 body.settings-page .main-content {
     padding-bottom: calc(var(--dock-height) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 16px);
 }
-/* התנתקות ו"כתבו לנו" בתחתית המסך (מתן, 13.10): העמוד ממלא לפחות את גובה
-   המסך, והתחתית נדחפת למטה. כשתיבה פתוחה והעמוד ארוך — פשוט בסוף, כרגיל.
-   הגובה המינימלי נשאר זה של ‎body‎ (‎100lvh + 1px‎): ‎100dvh‎ כאן החזיר את
-   הבאג של 30.9 — בעמוד שלא גבוה מהמסך התפריט התחתון עולה (מתן, 13.10). */
+/* Sign out and "write to us" at the bottom of the screen (Matan, 13.10): the
+   page fills at least the screen's height, and the bottom is pushed down. When a
+   box is open and the page is long, simply at the end, as usual.
+   The minimum height stays that of `body` (`100lvh + 1px`): `100dvh` here brought
+   back the bug of 30.9: on a page no taller than the screen the bottom menu
+   rises (Matan, 13.10). */
 body.settings-page { display: flex; flex-direction: column; }
 body.settings-page > .main-content { flex: 1 0 auto; display: flex; flex-direction: column; width: 100%; }
 body.settings-page .settings-groups { flex: 1 0 auto; }
 .settings-footer { margin-top: auto; padding-top: 16px; }
 
-/* ‎.category-row:last-child‎ מאפסת את הריפוד התחתון, ומיד אחריה התחילה
-   שורת ההוספה — כך ש"הוסף" נראה כמו כפתור של הקטגוריה האחרונה ולא
-   כמו טופס נפרד. קו וקצת אוויר מפרידים בין "מה שיש" ל"להוסיף חדש". */
+/* `.category-row:last-child` resets the bottom padding, and right after it the
+   add row started, so "add" looked like a button of the last category and not
+   a separate form. A line and a little air separate "what exists" from "add new". */
 #projectCategoriesArea .add-cat-form {
     margin-top: 16px;
     padding-top: 16px;
     border-top: var(--border-subtle);
 }
 
-/* שורת המחיקה הייתה צמודה לתחתית הכרטיס. */
+/* the delete row was stuck to the bottom of the card. */
 .project-settings-block.project-danger { padding-bottom: 22px; }
 
-/* לשוניות "הוצאות / הכנסות / חיסכון" נגעו בשורה הראשונה מתחתיהן.
-   ל-‎.type-toggle‎ אין ‎margin-bottom‎, ו-‎.category-row:first-child‎
-   מאפסת את הריפוד העליון — שתי החלטות סבירות לבד שנפגשות לאפס רווח,
-   כך שהכפתור הפעיל ושורת הקטגוריה הראשונה נראים כמו רכיב אחד.
-   קיים גם בניהול הקטגוריות שבהגדרות, לא רק בפרויקט. */
+/* The "expenses / income / savings" tabs touched the first row under them.
+   `.type-toggle` has no `margin-bottom`, and `.category-row:first-child` resets
+   the top padding: two decisions reasonable on their own that meet at zero
+   spacing, so the active button and the first category row look like one
+   component. Also present in category management in settings, not only in a
+   project. */
 .project-cat-tabs,
 .cat-type-tabs { margin-bottom: 10px; }
 
-/* מזהה ה-id נחוץ כדי לנצח את ‎.category-row:first-child‎ שמאפסת. */
+/* The id selector is needed to beat `.category-row:first-child`, which resets it. */
 #projectCategoriesArea .category-row:first-child,
 #categoriesArea .category-row:first-child { padding-top: 10px; }
 
-/* משיכה למטה לרענון באפליקציה המותקנת (מתן, 30.9 — רעיון 14; כמו באייפון — 13.10):
-   הפס הכהה שנחשף מעל העמוד כשהוא יורד, וגלגל הטעינה של iOS בתוכו */
+/* Pull down to refresh in the installed app (Matan, 30.9, idea 14; like on
+   iPhone, 13.10): the dark band revealed above the page as it comes down, and
+   iOS's loading spinner inside it */
 .ptr-layer {
     position: fixed; top: 0; left: 0; right: 0; height: 0;
     z-index: 0; overflow: hidden; pointer-events: none;
@@ -4704,10 +4793,11 @@ body.ptr-active > .page-hero, body.ptr-active > .main-content {
     transform: translateY(var(--ptr-y, 0px)); transition: var(--ptr-t, none);
 }
 
-/* לפי קטגוריה בעמוד ההשוואה (מתן, 30.9) */
-/* עמודות לפי התוכן: "החודש הכי יקר - ספטמבר" ארוך מהשכנים (מתן, 1.10).
-   הכיתוב בשורה אחת והסכום מתחתיו, ממורכז לאמצע הכיתוב. במסך צר שבו
-   הכיתוב בכל זאת נשבר — הסכומים נשארים בשורה אחת למטה. */
+/* by category on the comparison page (Matan, 30.9) */
+/* Columns by content: "החודש הכי יקר - ספטמבר" is longer than its neighbours
+   (Matan, 1.10). The label on one line and the amount under it, centred on the
+   middle of the label. On a narrow screen where the label wraps anyway, the
+   amounts stay on one line below. */
 .cat-trend-stats {
     display: grid; grid-template-columns: auto auto auto; justify-content: space-between; gap: 8px;
     margin: 4px 0 10px; font-size: 0.78rem; color: var(--color-text-muted);
@@ -4718,11 +4808,11 @@ body.ptr-active > .page-hero, body.ptr-active > .main-content {
     font-variant-numeric: tabular-nums;
 }
 .cat-trend-stats .num { direction: ltr; unicode-bidi: isolate; }
-.cat-trend-stats .nowrap { white-space: nowrap; }   /* "- ספטמבר" לא נשבר אחרי המקף */
+.cat-trend-stats .nowrap { white-space: nowrap; }   /* "- ספטמבר" doesn't break after the dash */
 .line-chart-wrap.cat-trend-wrap { height: 200px; margin-inline: -10px; }
 
-/* מסך החיפוש בכל החודשים (מתן, 30.9 — סבב 6, פריט 2). מעל העמוד ומתחת
-   לחלון העריכה (z-index 100), כדי שנגיעה בתוצאה תפתח אותו מעליו. */
+/* The search-all-months screen (Matan, 30.9, round 6, item 2). Above the page
+   and below the edit sheet (z-index 100), so tapping a result opens it above. */
 .search-screen {
     position: fixed; inset: 0; z-index: 95;
     background: var(--color-bg);
@@ -4748,26 +4838,29 @@ body.search-open { overflow: hidden; }
 .search-summary { margin: 12px 4px 4px; font-size: 0.85rem; color: var(--color-text-muted); }
 .search-results {
     flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;   /* בסוף הרשימה הגלילה נעצרת, לא ממשיכה לעמוד (סבב מגע) */
+    overscroll-behavior: contain;   /* At the end of the list scrolling stops, it doesn't continue to the page
+   (touch round) */
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
 }
 .search-month { margin: 16px 4px 6px; font-size: 0.85rem; font-weight: 700; color: var(--color-text-soft); }
 .search-list { display: block; background: var(--color-card); border-radius: var(--radius); padding: 2px 12px; }
-/* ה-✕ של הדפדפן בשדה חיפוש — יש לנו כפתור סגירה משלנו לידו */
+/* The browser's ✕ in a search field: we have our own close button next to it */
 .search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
-/* פרויקט שהסתיים (מתן, 30.9 — סבב 6, פריט 3) */
+/* A finished project (Matan, 30.9, round 6, item 3) */
 .project-archived-banner {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    /* רקע מלא: הפס יושב על קצה ה-hero הכהה, ורקע שקוף היה בלתי קריא שם */
+    /* A solid background: the bar sits on the edge of the dark hero, and a
+       transparent background was unreadable there */
     background: var(--color-card); border: 1px solid var(--color-gold-border);
     box-shadow: var(--shadow-card);
     color: var(--color-gold-text); font-weight: 600; font-size: 0.9rem;
     border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px;
 }
 
-/* גרירת קטגוריות לסידור (מתן, 30.9 — סבב 6, פריט 5). ‎touch-action: none‎
-   על הידית בלבד: שם הגרירה מזיזה את השורה, ובכל מקום אחר — גוללת את העמוד */
+/* Dragging categories to reorder (Matan, 30.9, round 6, item 5). `touch-action:
+   none` on the handle only: there dragging moves the row, and anywhere else it
+   scrolls the page */
 .cat-drag-handle {
     flex: none; width: 28px; height: 36px;
     display: grid; place-items: center;
@@ -4783,8 +4876,8 @@ body.search-open { overflow: hidden; }
 }
 .category-row.dragging .cat-drag-handle { cursor: grabbing; color: var(--color-gold-text); }
 
-/* בחירת אייקון מתוך רשת (מתן, 30.9 — סבב 6, פריט 8). מעל חלון העסקה (100)
-   ומתחת לאישור (200). */
+/* Picking an icon from a grid (Matan, 30.9, round 6, item 8). Above the
+   transaction sheet (100) and below the confirm (200). */
 .icon-picker {
     position: fixed; inset: 0; z-index: 180;
     background: rgba(12, 9, 4, 0.45);
@@ -4812,8 +4905,9 @@ body.search-open { overflow: hidden; }
 input.emoji-input { cursor: pointer; caret-color: transparent; }
 input.emoji-input[data-free-typing] { cursor: text; caret-color: auto; }
 
-/* הכותרת שנשארת למעלה בעמוד החודש (מתן, 30.9 — סבב 6, פריט 12).
-   בצבעי ה-hero, מתחת לאזור השעה והסוללה, מתחת לחלון העסקה (100). */
+/* The header that stays at the top of the month page (Matan, 30.9, round 6,
+   item 12). In the hero's colours, below the clock and battery area, below the
+   transaction sheet (100). */
 .month-sticky {
     position: fixed; top: 0; left: 0; right: 0; z-index: 60;
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -4828,8 +4922,8 @@ input.emoji-input[data-free-typing] { cursor: text; caret-color: auto; }
 .month-sticky-value.surplus { color: var(--color-income-light); }
 .month-sticky-value.deficit { color: var(--color-expense-light); }
 
-/* בחירת צבע לבן משפחה (מתן, 30.9 — סבב 6, פריט 13): כפתור בשורה שלי,
-   וחלון מלמטה עם תג השם בכל צבע */
+/* Picking a colour for a family member (Matan, 30.9, round 6, item 13): a
+   button on my row, and a bottom sheet with the name tag in every colour */
 .member-color-open {
     display: inline-flex; align-items: center; gap: 8px; margin-top: 8px;
     padding: 6px 12px; min-height: 36px; border-radius: 99px;
@@ -4837,9 +4931,9 @@ input.emoji-input[data-free-typing] { cursor: text; caret-color: auto; }
     color: var(--color-text-soft); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
 }
 .member-color-swatch { width: 16px; height: 16px; border-radius: 50%; flex: none; }
-/* "הצבע שלי" — שורה רגילה ב"הפרטים שלי" (מתן, 11.10), בלי המרווח מלמעלה */
+/* "My colour": an ordinary row in "my details" (Matan, 11.10), without the top spacing */
 .group-row .member-color-open { margin-top: 0; flex: none; }
-/* כותרת "בני המשפחה" מעל הרשימה ב"המשפחה" */
+/* The "family members" heading above the list in "the family" */
 .members-title { margin-bottom: 4px; }
 .color-sheet {
     position: fixed; inset: 0; z-index: 180;
@@ -4856,11 +4950,13 @@ body > .color-sheet { z-index: 180; }
 }
 .color-sheet-title { margin: 0; font-weight: 700; font-size: 1.05rem; }
 
-/* החלונות הקטנים (אייקון, צבע, תקציבים, "איך מצרפים") — עולים מלמטה כמו
-   החלון הראשי, ויורדים באותו מסלול (מתן, 7.10 — סבב תנועה, סעיף 2). קודם
-   הם קפצו בבת אחת, והחלון הראשי ואישור המחיקה כבר זזו — לא היה אחיד.
-   ‎@starting-style‎ — הכניסה, בלי JS. ‎allow-discrete‎ משאיר את החלון מוצג
-   בזמן היציאה; דפדפן שלא מכיר אותם פשוט פותח וסוגר בלי תנועה. */
+/* The small sheets (icon, colour, budgets, "how to add") rise from the bottom
+   like the main sheet, and go down the same path (Matan, 7.10, motion round,
+   item 2). Before, they popped in all at once, while the main sheet and the
+   delete confirm already moved: it wasn't consistent.
+   `@starting-style`: the entrance, with no JS. `allow-discrete` keeps the sheet
+   displayed during the exit; a browser that doesn't know them just opens and
+   closes with no motion. */
 .icon-picker, .color-sheet {
     opacity: 1;
     transition: opacity 250ms ease, display 250ms allow-discrete, overlay 250ms allow-discrete;
@@ -4873,7 +4969,7 @@ body > .color-sheet { z-index: 180; }
 .icon-picker[hidden] .icon-picker-card,
 .color-sheet[hidden] .color-sheet-card {
     transform: translateY(100%);
-    transition-duration: 200ms;            /* יציאה מהירה מהכניסה */
+    transition-duration: 200ms;            /* exiting faster than entering */
     transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
 }
 @starting-style {
@@ -4895,8 +4991,8 @@ body > .color-sheet { z-index: 180; }
 .color-option .owner-pill { font-size: 0.9rem; padding: 5px 12px; }
 .color-sheet-close { align-self: stretch; min-height: 44px; }
 
-/* שלד טעינה (מתן, 30.9 — סבב 6, פריט 14): מעל העמוד, מתחת לתפריט התחתון
-   (50) — שנראה שהלשונית שנלחצה כבר נבחרה */
+/* A loading skeleton (Matan, 30.9, round 6, item 14): above the page, below
+   the bottom menu (50), so the tapped tab looks already selected */
 .skeleton-screen {
     position: fixed; inset: 0; z-index: 45;
     background: var(--color-bg);
@@ -4922,7 +5018,8 @@ body > .color-sheet { z-index: 180; }
 @keyframes sk-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .sk-card { animation: none; } }
 
-/* חלון התקציבים בעמוד החודש (מתן, 30.9) — אותו חלון-מלמטה כמו בחירת הצבע */
+/* The budgets sheet on the month page (Matan, 30.9): the same bottom sheet as
+   picking a colour */
 .budget-sheet-card { max-height: 86vh; max-height: 86dvh; }
 .budget-sheet-list { overscroll-behavior: contain; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
 .budget-sheet-row {
@@ -4937,10 +5034,10 @@ body > .color-sheet { z-index: 180; }
 .budget-sheet-amount .amount-input { font-size: 1rem; padding-block: 8px; }
 .budget-sheet-actions { margin-top: 4px; }
 
-/* "השבוע" בדף הבית (מתן, 30.9) */
+/* "This week" on the home page (Matan, 30.9) */
 .week-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .week-head .chart-title { margin: 0; }
-/* דפדוף לשבועות קודמים (מתן, 2.10) */
+/* Paging to earlier weeks (Matan, 2.10) */
 .week-title-wrap { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .week-nav { display: flex; gap: 6px; flex-shrink: 0; }
 .week-nav-btn {
@@ -4950,7 +5047,7 @@ body > .color-sheet { z-index: 180; }
 }
 .week-nav-btn svg { width: 15px; height: 15px; }
 .week-nav-btn:disabled { opacity: 0.35; }
-.week-nav-btn::before { content: ''; position: absolute; inset: -7px; }   /* אזור לחיצה 44px */
+.week-nav-btn::before { content: ''; position: absolute; inset: -7px; }   /* 44px tap area */
 .week-card.is-loading { opacity: 0.55; transition: opacity 0.15s; }
 .week-range { font-size: 0.75rem; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .week-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 10px; margin: 6px 0 4px; }
@@ -4990,7 +5087,7 @@ body > .color-sheet { z-index: 180; }
 .week-detail-list li.is-fixed { color: var(--color-text-muted); }
 .week-detail-list li.is-fixed .week-detail-amount { color: inherit; font-weight: 500; }
 .week-fixed-tag { font-size: 0.7rem; font-weight: 600; padding: 1px 7px; margin-inline-start: 4px; border-radius: 99px; background: var(--color-input); }
-/* שבוע ריק — שורה אחת במקום גרף ריק (מתן, 18.10) */
+/* An empty week: one row instead of an empty chart (Matan, 18.10) */
 .week-empty-state {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: var(--color-input);
@@ -5004,7 +5101,8 @@ body > .color-sheet { z-index: 180; }
     color: var(--color-gold-text); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
 }
 
-/* חלון ההוצאות של קטגוריה בחודש — עמוד ההשוואה (מתן, 30.9) */
+/* The sheet with a category's expenses in a month: the comparison page
+   (Matan, 30.9) */
 .cat-month-sheet .color-sheet-card { max-height: 80vh; max-height: 80dvh; }
 .cat-month-list { list-style: none; margin: 0; padding: 0; overscroll-behavior: contain; overflow-y: auto; min-height: 0; }
 .cat-month-list li {
@@ -5016,7 +5114,8 @@ body > .color-sheet { z-index: 180; }
 .cat-month-desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cat-month-amount { flex: none; color: var(--color-expense); font-weight: 600; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
 
-/* "איך מצרפים בן משפחה" (מתן, 5.10) — באותו חלון תחתון כמו בחירת הצבע */
+/* "How to add a family member" (Matan, 5.10): in the same bottom sheet as
+   picking a colour */
 .welcome-invite { z-index: 190; }
 .welcome-steps {
     margin: 0; padding-inline-start: 22px;
@@ -5027,17 +5126,18 @@ body > .color-sheet { z-index: 180; }
 .welcome-code { font-weight: 700; letter-spacing: 0.08em; color: var(--color-text); }
 .welcome-invite .submit-btn { margin-top: 4px; }
 
-/* ─── עמוד הפרויקטים (מתן, 5.10) ──────────────────────────────────────
-   מלבן לכל פרויקט, בשפה של שאר האפליקציה: כרטיס לבן עם אותו צל ואותו
-   רדיוס, ומעליו גוון רך — כמו התגים של בני המשפחה (צבע חזק על רקע חלש).
-   ארבעה גוונים, תמיד באותו סדר: כחול, אפרסק, ורוד, ירוק. לא חול: חול הוא
-   צבע הרקע, ומלבן בצבע הרקע נבלע בו. ולא צבעי בני המשפחה — שם צבע אומר
-   "של מי", וכאן הוא רק מבדיל. */
+/* ─── The projects page (Matan, 5.10) ────────────────────────────────────
+   A box per project, in the language of the rest of the app: a white card with
+   the same shadow and radius, and a soft tint over it, like the family member
+   tags (a strong colour on a weak background). Four tints, always in the same
+   order: blue, peach, pink, green. Not sand: sand is the background colour, and
+   a box in the background colour blends into it. And not the family member
+   colours: there a colour says "whose", and here it only distinguishes. */
 :root {
-    --tint-0: rgba(46, 103, 168, 0.13);   /* כחול */
-    --tint-1: rgba(226, 110, 52, 0.13);   /* אפרסק */
-    --tint-2: rgba(200, 40, 70, 0.10);    /* ורוד */
-    --tint-3: rgba(21, 128, 61, 0.12);    /* ירוק */
+    --tint-0: rgba(46, 103, 168, 0.13);   /* blue */
+    --tint-1: rgba(226, 110, 52, 0.13);   /* peach */
+    --tint-2: rgba(200, 40, 70, 0.10);    /* pink */
+    --tint-3: rgba(21, 128, 61, 0.12);    /* green */
 }
 :root[data-theme="dark"] {
     --tint-0: rgba(96, 165, 250, 0.16);
@@ -5079,12 +5179,14 @@ body > .color-sheet { z-index: 180; }
 .project-tile-bar > span.danger { background: var(--color-expense); }
 .project-tile-tag { flex-shrink: 0; font-size: 0.7rem; color: var(--color-text-soft); background: rgba(var(--ink-rgb), 0.06); border-radius: 99px; padding: 1px 8px; }
 
-/* "פרויקט חדש": לבן עם מסגרת מקווקוות — רקע זהבהב התמזג עם רקע העמוד,
-   ובמצב הריק המלבן עולה על שולי הכותרת הכהה, אז הוא אטום */
+/* "New project": white with a dashed border: a goldish background blended with
+   the page background, and in the empty state the box overlaps the edge of the
+   dark header, so it is opaque */
 .project-tile-new { border: 1.5px dashed var(--color-gold-border); box-shadow: none; color: var(--color-gold-text); }
 .project-tile-new .project-tile-sub { color: var(--color-text-soft); }
-/* עיגול עם מסגרת ולא ריבוע זהוב מלא — זה כבר הכפתור הצף של הוספת עסקה,
-   ושני כפתורי + זהים זה לצד זה לא אומרים מה כל אחד עושה */
+/* A circle with a border and not a solid gold square: that is already the
+   floating add-transaction button, and two identical + buttons side by side
+   don't say what each one does */
 .project-tile-plus {
     width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
@@ -5102,9 +5204,9 @@ body > .color-sheet { z-index: 180; }
     box-shadow: var(--shadow-card); color: var(--color-text-soft); text-decoration: none; font-size: 0.85rem;
 }
 
-/* ─── כל העסקאות של החודש: מסך משלו (מתן, 5.10) ────────────────────────
-   כמו מסך החיפוש של דף הבית: מעל העמוד, ומתחת לחלון העריכה — כך שנגיעה
-   בעסקה פותחת עריכה מעליו. */
+/* ─── All of the month's transactions: a screen of its own (Matan, 5.10) ──
+   Like the home page search screen: above the page, and below the edit sheet,
+   so tapping a transaction opens editing above it. */
 .tx-preview { margin-top: 2px; }
 .tx-screen {
     position: fixed; inset: 0; z-index: 95;
@@ -5113,10 +5215,12 @@ body > .color-sheet { z-index: 180; }
 }
 .tx-screen[hidden] { display: none; }
 
-/* מסכים מלאים — חיפוש ו"כל עסקאות החודש" — עולים מעט מלמטה ודוהים פנימה,
-   ויורדים באותו מסלול (מתן, 7.10 — סבב תנועה, סעיף 3). קודם הם הופיעו ברגע.
-   תזוזה קצרה (24px) ולא מסך שלם: לחיפוש נכנסים כדי להקליד מיד. במנוחה
-   ‎transform: none‎ — אחרת המסך נהיה נקודת ייחוס לכל מה שצף בתוכו. */
+/* Full screens (search and "all of the month's transactions") rise slightly
+   from below and fade in, and go down the same path (Matan, 7.10, motion round,
+   item 3). Before, they appeared in an instant. A short move (24px) and not a
+   whole screen: you enter search to type right away. At rest `transform: none`;
+   otherwise the screen becomes the containing block for everything floating
+   inside it. */
 .search-screen, .tx-screen {
     opacity: 1;
     transform: none;
@@ -5127,7 +5231,7 @@ body > .color-sheet { z-index: 180; }
     opacity: 0;
     transform: translateY(24px);
     pointer-events: none;
-    transition-duration: 200ms;            /* יציאה מהירה מהכניסה */
+    transition-duration: 200ms;            /* exiting faster than entering */
     transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
 }
 @starting-style {
@@ -5146,17 +5250,19 @@ body.tx-screen-open { overflow: hidden; }
 .tx-screen-bar .all-tx-count { background: var(--hero-chip-bg); color: var(--hero-text); border: 1px solid var(--hero-chip-border); }
 .tx-screen-body {
     flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;   /* בסוף הרשימה הגלילה נעצרת, לא ממשיכה לעמוד (סבב מגע) */
+    overscroll-behavior: contain;   /* At the end of the list scrolling stops, it doesn't continue to the page
+   (touch round) */
     padding: 14px 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
 }
 .cat-tx-list.tx-screen-list { background: var(--color-card); border: var(--border-subtle); border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 4px 14px; }
 
-/* ─── חלון הוספה/עריכה במסך אחד (מתן, 5.10) ───────────────────────────
-   הקטגוריות בגודל של היום; מה שהתקצר הוא כל השאר: רווחים, "סריקת קבלה",
-   "של מי", התאריך בשורה אחת, תדירות ותאריך סיום זה לצד זה, ושכפול/מחיקה
-   כקישורים. מוגבל לחלון — טפסים בעמודים אחרים לא משתנים. */
-/* החלון עד 96% מגובה המסך (היה 92%), וריפוד תחתון קטן יותר — כך הוא
-   נכנס במסך אחד בלי להקטין את הקטגוריות */
+/* ─── The add/edit sheet on one screen (Matan, 5.10) ─────────────────────
+   The categories at today's size; what got shorter is everything else:
+   spacing, "scan receipt", "whose", the date on one line, frequency and end date
+   side by side, and duplicate/delete as links. Limited to the sheet: forms on
+   other pages don't change. */
+/* The sheet up to 96% of the screen height (was 92%), and smaller bottom
+   padding, so it fits on one screen without shrinking the categories */
 #modalOverlay .modal-sheet { max-height: 96vh; max-height: 96dvh; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 #modalOverlay .modal-handle { margin-bottom: 8px; }
 #modalOverlay .toggle-btn { padding-block: 7px; }
@@ -5173,7 +5279,8 @@ body.tx-screen-open { overflow: hidden; }
 #modalOverlay .recurring-group { margin-top: 12px; margin-bottom: 10px; }
 .modal-sheet.is-edit .recurring-group { margin-top: 8px; }
 
-/* ‎wrap‎: במסך צר או בטקסט "גדול מאוד" "תאריך אחר" יורד שורה במקום לצאת מהמסך (7.10) */
+/* `wrap`: on a narrow screen or with "extra large" text, "another date" drops a
+   line instead of leaving the screen (7.10) */
 .date-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .date-row .date-quick-chips { margin-bottom: 0; }
 .date-pick {
@@ -5184,14 +5291,14 @@ body.tx-screen-open { overflow: hidden; }
 }
 .date-pick.active { color: var(--color-gold-text); background: var(--color-gold-dim); border-color: var(--color-gold-border); }
 .date-pick-change { display: none; }
-/* שדה התאריך האמיתי — שקוף, ומכסה את כל הכפתור: נגיעה פותחת את הבורר */
+/* The real date field: transparent, covering the whole button: a tap opens the picker */
 .date-pick-input {
     position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0;
     font-size: max(1rem, 16px); cursor: pointer; border: 0; padding: 0; margin: 0;
     -webkit-appearance: none; appearance: none; color-scheme: light;
 }
 .date-pick:focus-within { box-shadow: 0 0 0 3px rgba(166, 124, 0, 0.14); border-color: var(--color-gold); }
-/* עריכה: בלי היום/אתמול/שלשום — התאריך המלא בעברית, ו"שינוי" */
+/* Editing: no today/yesterday/day before: the full date in Hebrew, and "change" */
 .modal-sheet.is-edit .date-quick-chips { display: none; }
 .modal-sheet.is-edit .date-pick {
     flex: 1; margin: 0; gap: 10px; min-height: 44px; padding: 5px 12px;
@@ -5205,10 +5312,13 @@ body.tx-screen-open { overflow: hidden; }
 .modal-sheet.is-edit .date-pick-change { display: inline; color: var(--color-gold-text); font-size: 0.8rem; font-weight: 600; }
 
 #modalOverlay .recurring-fields { padding: 12px; margin-top: 10px; }
-/* אחד מתחת לשני (מתן, 7.10): ב-16px "כל חודש (באותו התאריך)" והתאריך לא נכנסו זה לצד זה */
+/* One under the other (Matan, 7.10): at 16px "כל חודש (באותו התאריך)" and the
+   date didn't fit side by side */
 #modalOverlay .recurring-fields.visible { display: grid; grid-template-columns: 1fr; gap: 8px; }
-/* "כל חודש (באותו התאריך)" ארוך — לתדירות יותר רוחב, וטקסט מעט קטן */
-/* 16px ולא 0.88rem: מתחת ל-16 האייפון מגדיל את כל המסך בנגיעה בשדה ולא חוזר (7.10) */
+/* "כל חודש (באותו התאריך)" is long: more width for the frequency, and slightly
+   smaller text */
+/* 16px and not 0.88rem: below 16 the iPhone zooms the whole screen on tapping a
+   field and doesn't zoom back (7.10) */
 #modalOverlay .recurring-fields .form-input { font-size: max(1rem, 16px); padding-inline: 10px; }
 #modalOverlay .recurring-fields select.form-input { padding-left: 28px; background-position: left 10px center; }
 #modalOverlay .recurring-fields .form-group { margin-bottom: 0; min-width: 0; }
@@ -5217,12 +5327,13 @@ body.tx-screen-open { overflow: hidden; }
 #modalOverlay .duplicate-tx-btn,
 #modalOverlay .delete-tx-btn { flex: none; padding: 5px 4px; background: none; border: 0; font-size: 0.88rem; }
 
-/* ─── חלון ההוספה, עיצוב חדש (מתן, 11.10) ────────────────────────────────
-   ארבעה שינויים, הכל בתוך החלון: סריקת קבלה בשורת הכותרת, סכום גדול במרכז
-   בצבע המחלקה, קטגוריות גבוהות יותר עם השם המלא, והפרטים בבלוק אחד עם
-   קווים דקים — ומתחתיו כפתור כהה ורחב, בלי צבע המחלקה. */
+/* ─── The add sheet, new design (Matan, 11.10) ────────────────────────────
+   Four changes, all inside the sheet: receipt scanning in the header row, a
+   large amount in the centre in the department's colour, taller categories with
+   the full name, and the details in one block with thin lines, with a dark,
+   wide button under it, without the department's colour. */
 
-/* סריקת קבלה — בשורת הכותרת, 44px (גודל של נגיעה באצבע) */
+/* Receipt scanning: in the header row, 44px (the size of a finger tap) */
 #modalOverlay .modal-title-row { flex-wrap: wrap; }
 #modalOverlay .scan-btn {
     width: auto; flex: none; margin: 0; min-height: 44px; padding: 0 16px;
@@ -5230,7 +5341,8 @@ body.tx-screen-open { overflow: hidden; }
 }
 #modalOverlay .scan-btn-icon { font-size: 1.1rem; }
 
-/* הסכום — גדול, במרכז, בצבע המחלקה. הרוחב לפי האורך (‎fitAmount‎) */
+/* The amount: large, centred, in the department's colour. The width follows the
+   length (`fitAmount`) */
 #modalOverlay .amount-group { text-align: center; margin-bottom: 10px; }
 #modalOverlay .amount-group .form-label { color: var(--color-text-soft); margin-bottom: 0; }
 #modalOverlay .modal-sheet.expense-mode .amount-group { color: var(--color-expense); }
@@ -5250,13 +5362,13 @@ body.tx-screen-open { overflow: hidden; }
 }
 #modalOverlay .amount-group:focus-within::after { opacity: 0.7; }
 
-/* הקטגוריות — גבוהות יותר, והשם המלא נראה (יורד שורה אם צריך) */
+/* The categories: taller, and the full name visible (wrapping if needed) */
 #modalOverlay .cat-btn { min-height: 76px; justify-content: center; padding: 8px 3px; font-size: 0.75rem; line-height: 1.2; text-align: center; }
 #modalOverlay .cat-btn .cat-emoji { font-size: 1.4rem; line-height: 1.2; }
 #modalOverlay .cat-btn > span:last-child { overflow-wrap: anywhere; }
 
-/* הפרטים — בלוק אחד, שורה לכל פרט. שורה שלא נכנסת ברוחב יורדת: הפקד
-   עובר מתחת לכותרת שלו (משפחה גדולה, טקסט "גדול מאוד") */
+/* The details: one block, a row per detail. A row that doesn't fit the width
+   drops: the control moves under its label (a large family, "extra large" text) */
 #modalOverlay .tx-details {
     background: var(--color-card); border: 1px solid rgba(var(--ink-rgb), 0.09);
     border-radius: var(--radius); margin-bottom: 12px;
@@ -5266,8 +5378,8 @@ body.tx-screen-open { overflow: hidden; }
     margin: 0; padding: 6px 14px; min-height: 52px;
 }
 #modalOverlay .tx-details .detail-row + .detail-row { border-top: 1px solid rgba(var(--ink-rgb), 0.07); }
-/* כל התוויות באותו רוחב — כך "של מי ההוצאה?" ו"תאריך" מקבלים תיבות ברוחב זהה
-   (מתן, 1.11). 100px — "של מי החיסכון?" נכנס בשורה אחת. */
+/* All the labels at the same width, so "של מי ההוצאה?" and "תאריך" get boxes of
+   identical width (Matan, 1.11). 100px: "של מי החיסכון?" fits on one line. */
 #modalOverlay .detail-row > .form-label { flex: 0 0 100px; min-width: 0; margin: 0; font-size: 0.875rem; }
 #modalOverlay .tx-details .detail-row > .form-input {
     flex: 1 1 150px; min-width: 0; border: 0; background: transparent; box-shadow: none;
@@ -5286,8 +5398,8 @@ body.tx-screen-open { overflow: hidden; }
 #modalOverlay .detail-row .date-row { flex: 1 1 200px; gap: 6px; }
 #modalOverlay .detail-row .date-pick { padding: 5px 12px; }
 .date-sub { display: none; }
-/* בהוספה — פס אחד כמו "של מי ההוצאה": היום | אתמול | אחר, והתאריך עצמו
-   מתחת לכל אחד (מתן, 1.11 — "לא מספיק ברור", אפשרות ב) */
+/* When adding: one bar like "של מי ההוצאה": today | yesterday | other, and the
+   date itself under each (Matan, 1.11: "not clear enough", option B) */
 #modalOverlay .modal-sheet:not(.is-edit) .detail-row .date-row {
     display: grid; grid-template-columns: 1fr 1fr 1.15fr; flex: 1 1 190px;
     gap: 3px; padding: 3px; border-radius: 10px; background: var(--color-input);
@@ -5310,7 +5422,8 @@ body.tx-screen-open { overflow: hidden; }
 #modalOverlay .modal-sheet:not(.is-edit) .date-pick-icon { display: inline-flex; }
 #modalOverlay .modal-sheet:not(.is-edit) .date-pick-icon svg { width: 15px; height: 15px; }
 
-/* עסקה קבועה — מתג במקום תיבת סימון, באותו עיצוב כמו בהגדרות (‎.pref-switch‎) */
+/* Recurring transaction: a switch instead of a checkbox, in the same design as
+   in settings (`.pref-switch`) */
 #modalOverlay .tx-details .recurring-group { margin: 0; }
 #modalOverlay .recurring-group .checkbox-label { flex: 1 1 100%; justify-content: space-between; min-height: 40px; }
 #modalOverlay .recurring-group .checkbox-text { order: -1; font-size: 0.875rem; font-weight: 600; color: var(--color-text-soft); }
@@ -5333,7 +5446,8 @@ body.tx-screen-open { overflow: hidden; }
 #modalOverlay .tx-details .recurring-fields { flex-basis: 100%; margin: 0 0 8px; padding: 0; background: transparent; border: 0; }
 #modalOverlay .recurring-group .field-hint { flex-basis: 100%; }
 
-/* כפתור השמירה — כהה ורחב, בכל המחלקות. במצב כהה הוא היה נבלע ברקע, אז שם זהב */
+/* The save button: dark and wide, in every department. In dark mode it
+   blended into the background, so there it is gold */
 #modalOverlay .submit-btn {
     background: linear-gradient(160deg, var(--hero-bg-2) 0%, var(--hero-bg) 70%);
     color: var(--hero-text); border-radius: var(--radius); padding-block: 15px;
@@ -5341,33 +5455,36 @@ body.tx-screen-open { overflow: hidden; }
 }
 :root[data-theme="dark"] #modalOverlay .submit-btn { background: var(--gradient-gold); color: #FFFFFF; box-shadow: var(--shadow-gold); }
 
-/* מקלדת פתוחה (סבב מגע, 7.10): הסרגל התחתון ו-+ יורדים מהדרך. באנדרואיד,
-   עם ‎interactive-widget=resizes-content‎ (ב-viewport), המסך מתכווץ מעל
-   המקלדת — וסרגל צף היה יושב עליה ומכסה את מה שמקלידים. כמו באפליקציות. */
+/* Keyboard open (touch round, 7.10): the bottom bar and + get out of the way.
+   On Android, with `interactive-widget=resizes-content` (in the viewport), the
+   screen shrinks above the keyboard, and a floating bar would sit on it and
+   cover what is being typed. As in apps. */
 @media (pointer: coarse) {
     body:has(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select):focus) .bottom-nav,
     body:has(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select):focus) .fab {
         visibility: hidden;
     }
 }
-/* ופס השמירה בעריכת פרויקט יורד למקום שהסרגל פינה */
+/* and the save bar on project editing drops into the place the bar vacated */
 @media (pointer: coarse) {
     body:has(:is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select):focus) .project-save-bar {
         bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     }
 }
 
-/* החלקה הצידה על אלה שייכת לעמוד (עריכה/מחיקה, דפדוף שבוע), וגלילה למעלה
-   ולמטה — לדפדפן. כשהדפדפן יודע את זה מראש הוא לא מחכה לבדוק, וההחלקה
-   מגיבה מהמגע הראשון (מתן, 11.10). */
+/* A sideways swipe on these belongs to the page (edit/delete, week paging),
+   and scrolling up and down to the browser. When the browser knows this in
+   advance it doesn't wait to check, and the swipe responds from the first touch
+   (Matan, 11.10). */
 .transaction-item, .cat-tx-row, .recurring-row, .week-card { touch-action: pan-y; }
 
 
-/* ─── מעבר רך בין עמודים (מתן, 12.10) ───────────────────────────────────
-   View Transitions בין מסמכים: העמוד הישן דוהה והחדש עולה, בתוך כרבע שנייה.
-   הסרגל התחתון וה-+ נשארים במקום (שם משלהם — לא חלק מהמעבר של הדף).
-   ספארי 18.2+ וכרום; דפדפן ישן — כמו קודם, בלי שום שינוי. מעבר חודש בהחלקה
-   והרענון הרך הם בתוך אותו מסמך, ולא נוגעים בזה. */
+/* ─── A soft transition between pages (Matan, 12.10) ──────────────────────
+   Cross-document View Transitions: the old page fades and the new one rises,
+   within about a quarter of a second. The bottom bar and the + stay in place
+   (a name of their own: not part of the page's transition). Safari 18.2+ and
+   Chrome; an old browser: as before, with no change. Swiping between months and
+   the soft refresh happen within the same document and don't touch this. */
 @view-transition { navigation: auto; }
 ::view-transition-old(root) { animation: 240ms cubic-bezier(0.4, 0, 0.2, 1) both sf-vt-out; }
 ::view-transition-new(root) { animation: 300ms cubic-bezier(0.2, 0, 0, 1) both sf-vt-in; }
@@ -5380,7 +5497,7 @@ body.tx-screen-open { overflow: hidden; }
 }
 
 
-/* ─── צפייה בקבלה בתוך האפליקציה (‎js/receipt-viewer.js‎, מתן 12.10) ─── */
+/* ─── Viewing a receipt inside the app (`js/receipt-viewer.js`, Matan 12.10) ─── */
 .receipt-viewer {
     position: fixed; inset: 0; z-index: 400; background: rgba(8, 6, 3, 0.94);
     display: flex; align-items: center; justify-content: center;
@@ -5400,7 +5517,7 @@ body.tx-screen-open { overflow: hidden; }
 .receipt-viewer-fail a { color: #E3BE55; }
 
 
-/* "מהקבלה" — מה שסריקת הקבלה מילאה (מתן, 12.10) */
+/* "From the receipt": what the receipt scan filled in (Matan, 12.10) */
 #modalOverlay .from-receipt { box-shadow: 0 0 0 2px var(--color-gold); border-radius: 10px; animation: sf-receipt-pulse 1.2s ease-out 1; }
 @keyframes sf-receipt-pulse { from { box-shadow: 0 0 0 6px rgba(166, 124, 0, 0.35); } }
 .amount-input-wrap { position: relative; }
@@ -5410,7 +5527,7 @@ body.tx-screen-open { overflow: hidden; }
 }
 
 
-/* "הבנתי" על התראה (מתן, 12.10) */
+/* "Got it" on an alert (Matan, 12.10) */
 .alert-wrap { position: relative; }
 .alert-wrap[hidden], .alerts-section[hidden] { display: none; }
 .alert-wrap .alert-card { padding-inline-end: 44px; }
@@ -5421,11 +5538,12 @@ body.tx-screen-open { overflow: hidden; }
 }
 
 
-/* "הפרויקט הסתיים?" (מתן, 12.10) */
+/* "Project finished?" (Matan, 12.10) */
 .project-quiet-banner {
     display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; padding: 12px 14px;
-    /* רקע מלא, כמו ‎.project-archived-banner‎: הפס יושב על קצה ה-hero הכהה,
-       ורקע שקוף הסתיר שם את הטקסט (נמצא בצילום, 12.10) */
+    /* A solid background, like `.project-archived-banner`: the bar sits on the
+       edge of the dark hero, and a transparent background hid the text there
+       (found in a screenshot, 12.10) */
     border-radius: var(--radius); background: var(--color-card); border: 1px solid var(--color-gold-border);
     box-shadow: var(--shadow-card); color: var(--color-text); font-size: 0.88rem;
 }
@@ -5433,11 +5551,12 @@ body.tx-screen-open { overflow: hidden; }
 .project-quiet-actions { display: flex; gap: 8px; }
 
 
-/* קבועות מול משתנות (מתן, 12.10) */
-/* קבועות / משתנות בפינות שליד העיגול (מתן, 13.10) — קטן, בלי פס */
+/* fixed versus variable (Matan, 12.10) */
+/* Fixed / variable in the corners next to the ring (Matan, 13.10): small, no bar */
 .donut-row { position: relative; }
-/* מקום לשתי השורות מתחת לעיגול, וקו שמפריד בינן לבין רשימת הקטגוריות
-   (מתן, 13.10: "שיהיה הפרדה ביניהם לבין הרשימה") */
+/* Room for the two lines under the ring, and a line separating them from the
+   category list (Matan, 13.10: "so there's a separation between them and the
+   list") */
 .donut-row.has-split { padding-bottom: 30px; margin-bottom: 6px; border-bottom: 1px solid var(--divider-subtle); }
 .split-corner {
     position: absolute; bottom: 12px; right: 0; text-align: right;
@@ -5447,7 +5566,7 @@ body.tx-screen-open { overflow: hidden; }
 .split-corner b { font-size: 0.74rem; font-weight: 700; color: var(--color-text-soft); }
 
 
-/* פרויקט מוצמד בבית (מתן, 12.10) */
+/* a project pinned on home (Matan, 12.10) */
 .pinned-project {
     display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 14px;
     border-radius: var(--radius); background: var(--color-card); box-shadow: var(--shadow-card);
@@ -5461,7 +5580,7 @@ body.tx-screen-open { overflow: hidden; }
 .pinned-project-sub .deficit, .pinned-project-sub .deficit b { color: var(--color-expense); }
 
 
-/* "תשלום 3 מתוך 12" בשורה (מתן, 12.10) */
+/* "תשלום 3 מתוך 12" on the row (Matan, 12.10) */
 .installment-tag { color: var(--color-gold-text); font-weight: 600; }
 
 .installments-group[hidden] { display: none; }
@@ -5471,12 +5590,12 @@ body.tx-screen-open { overflow: hidden; }
 .installments-hint { font-size: 0.86rem; color: var(--color-text-muted); }
 
 
-/* "מה חדש" (מתן, 12.10) */
+/* "what's new" (Matan, 12.10) */
 .whats-new-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .whats-new-list li { display: flex; gap: 10px; align-items: flex-start; font-size: 0.92rem; line-height: 1.45; }
 .whats-new-icon { flex-shrink: 0; width: 28px; text-align: center; }
 
-/* בן משפחה הצטרף (מתן, 12.10) — בצבע שלו (‎owner-N‎) */
+/* A family member joined (Matan, 12.10): in their colour (`owner-N`) */
 .member-joined {
     display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 14px;
     border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600; background: var(--color-gold-dim);
@@ -5485,8 +5604,9 @@ body.tx-screen-open { overflow: hidden; }
 .member-joined-text { flex: 1; }
 .member-joined-close { width: 32px; height: 32px; border: 0; border-radius: 50%; background: none; color: inherit; opacity: 0.6; cursor: pointer; }
 
-/* "החשבון שלי" (מתן, 13.10): שורות כמו ב"עסקאות קבועות" — אייקון, שם, מה רשום
-   מתחת, וחץ. כל השורה היא הכפתור; העריכה נפתחת מתחתיה. */
+/* "My account" (Matan, 13.10): rows like in "recurring transactions": icon,
+   name, what is recorded below, and an arrow. The whole row is the button; the
+   editor opens under it. */
 .acct-list { list-style: none; margin: 0; padding: 0; }
 .acct-list > li { border-bottom: 1px solid var(--divider-subtle); }
 .acct-list > li:last-child { border-bottom: none; }
@@ -5518,14 +5638,15 @@ body.tx-screen-open { overflow: hidden; }
 .acct-list .password-form { margin-top: 2px; }
 .acct-list .password-form.visible, .acct-list .account-edit.visible { padding-bottom: 12px; }
 
-/* "שמירה" כבוי עד שמשנים משהו (מתן, 13.10) — אותו מראה כמו בחלון העסקה */
+/* "Save" disabled until something changes (Matan, 13.10): the same look as in
+   the transaction sheet */
 .btn-primary:disabled, .project-save-btn:disabled {
     background: var(--color-input); color: var(--color-text-muted);
     box-shadow: none; cursor: default; opacity: 1;
 }
 
 
-/* "ספטמבר נסגר" (מתן, 13.10) — ביום הראשון של החודש בדף הבית */
+/* "September closed" (Matan, 13.10): on the first day of the month on the home page */
 .recap-wrap { margin-bottom: 14px; }
 .recap-card {
     padding: 16px 16px 14px; border-radius: var(--radius);
@@ -5550,12 +5671,12 @@ body.tx-screen-open { overflow: hidden; }
     text-decoration: none; padding-top: 10px; border-top: 1px solid var(--divider-subtle);
 }
 
-/* הרשמה: הבעיה מתחת לשדה שלה, בזמן ההקלדה (מתן, 13.10 — ‎login.js‎) */
+/* Signup: the problem under its field, while typing (Matan, 13.10; `login.js`) */
 .field-error { margin: 5px 2px 0; font-size: 0.8rem; font-weight: 500; color: var(--color-expense); }
 .field-error[hidden] { display: none; }
 .form-input[aria-invalid="true"] { border-color: var(--color-expense); }
 
-/* ייבוא מהאשראי (‎/import‎, מתן 31.10) */
+/* importing from the card company (`/import`, Matan 31.10) */
 .import-steps { margin: 0 0 16px; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: var(--color-text-soft); }
 .import-steps b { font-weight: 600; color: var(--color-text); }
 .import-file-btn { cursor: pointer; padding: 12px 24px; font-size: 0.95rem; }
@@ -5600,8 +5721,9 @@ body.tx-screen-open { overflow: hidden; }
 }
 .import-done .edit-actions { justify-content: center; }
 .settings-import { margin: 4px 0 28px; text-align: center; font-size: 0.875rem; }
-/* כפתור קטן ולא קישור (מתן, 31.10): "זה לא נראה לחיץ". ברוחב הטקסט, בזהב
-   בהיר — שקט מהקבוצות שמעליו, ורחוק מספיק מ"התנתקות" */
+/* A small button and not a link (Matan, 31.10): "it doesn't look tappable". At
+   the text's width, in light gold: quieter than the groups above it, and far
+   enough from "sign out" */
 .settings-import-link {
     display: inline-block; padding: 9px 18px; border-radius: var(--radius-sm);
     background: var(--color-gold-dim); border: 1px solid var(--color-gold-border);
@@ -5611,14 +5733,15 @@ body.tx-screen-open { overflow: hidden; }
 .settings-import-link:active { transform: scale(0.97); }
 .export-links { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
-/* שחזור קטגוריות ברירת המחדל — בתחתית מצב הניהול (מתן, 31.10) */
+/* Restoring the default categories: at the bottom of management mode (Matan, 31.10) */
 .restore-defaults { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--divider-subtle); text-align: center; }
 .restore-defaults .field-hint { margin-top: 6px; }
 
-/* מקרא שלב הקטגוריות באשף — שלוש שורות טקסט, בלי סימנים (מתן, 31.10) */
+/* The legend of the wizard's category step: three lines of text, no symbols
+   (Matan, 31.10) */
 .onboarding-legend { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: var(--color-text-soft); text-align: center; }
 
-/* משפחה חדשה בלי עסקאות — שתי דרכים להתחיל (מתן, 31.10) */
+/* A new family with no transactions: two ways to start (Matan, 31.10) */
 .hero-start-actions { display: flex; flex-direction: column; gap: 10px; margin: 18px auto 0; max-width: 320px; }
 .hero-start-btn {
     display: block; padding: 13px 18px; border-radius: var(--radius-sm); text-align: center; text-decoration: none;
@@ -5630,16 +5753,18 @@ body.tx-screen-open { overflow: hidden; }
 .hero-start-btn:active { transform: scale(0.97); }
 .hero-start-hint { margin-top: 10px; font-size: 0.78rem; color: var(--hero-text-muted); }
 
-/* הוראת קבע בייבוא — להפוך לעסקה קבועה (מתן, 1.11) */
+/* A standing order in the import: make it a recurring transaction (Matan, 1.11) */
 .import-recurring { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--color-gold-text); font-weight: 600; cursor: pointer; }
 .import-recurring input { width: 16px; height: 16px; accent-color: var(--color-gold); flex-shrink: 0; }
 
-/* סיכום החודש — כל מספר בצבע של המחלקה שלו, כמו בכרטיסים שמעליו (מתן, 1.11) */
+/* The month summary: every number in its department's colour, as in the cards
+   above it (Matan, 1.11) */
 .recap-fig.income .recap-fig-value  { color: var(--color-income); }
 .recap-fig.expense .recap-fig-value { color: var(--color-expense); }
 .recap-fig.savings .recap-fig-value { color: var(--color-savings); }
 
-/* עסקה קבועה צפויה בחודש עתידי (מתן, 1.11) — נספרת, אבל עוד לא קרתה */
+/* A projected recurring transaction in a future month (Matan, 1.11): counted,
+   but hasn't happened yet */
 .cat-tx-row.is-projected { cursor: pointer; }
 .cat-tx-row.is-projected .cat-tx-desc, .cat-tx-row.is-projected .cat-tx-amount { opacity: 0.75; }
 .projected-tag {
@@ -5647,7 +5772,7 @@ body.tx-screen-open { overflow: hidden; }
     color: var(--color-gold-text); background: var(--color-gold-dim); border: 1px dashed var(--color-gold-border);
 }
 
-/* ── "2026 שלכם" — הסיכום השנתי (מתן, 1.11) ── */
+/* ── "2026 שלכם": the yearly summary (Matan, 1.11) ── */
 .year-card {
     display: flex; align-items: center; gap: 12px; width: 100%; text-align: start;
     padding: 16px; border: 0; border-radius: var(--radius); cursor: pointer;
@@ -5666,7 +5791,8 @@ body.tx-screen-open { overflow: hidden; }
     display: flex; align-items: flex-end; justify-content: center;
     opacity: 0; transition: opacity 0.25s;
 }
-/* ‎display: flex‎ גובר על ‎hidden‎ — בלי זה המסך הסגור, השקוף, חסם כל לחיצה בעמוד */
+/* `display: flex` beats `hidden`: without this the closed, transparent screen
+   blocked every tap on the page */
 .yr-overlay[hidden] { display: none; }
 .yr-overlay.open { opacity: 1; }
 .yr-sheet {
@@ -5730,7 +5856,8 @@ body.tx-screen-open { overflow: hidden; }
     margin-top: 4px; padding: 14px; border: 0; border-radius: var(--radius-sm); cursor: pointer;
     background: var(--color-text); color: var(--color-bg); font-size: 1rem; font-weight: 700;
 }
-/* בדף הבית: רווח מהכרטיס הבא, ו-✕ בהיר בקצה — החץ זז פנימה כדי לא להתנגש בו */
+/* On the home page: spacing from the next card, and a light ✕ at the edge: the
+   arrow moves inwards so it doesn't collide with it */
 .year-card-wrap { margin-bottom: 14px; }
 .year-card-wrap .year-card { padding-inline-end: 46px; }
 .year-card-wrap .alert-dismiss { color: var(--hero-text); opacity: 0.6; }

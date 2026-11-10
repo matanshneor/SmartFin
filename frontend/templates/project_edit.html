@@ -2,19 +2,21 @@
 
 {% block title %}SmartFin – עריכת {{ project.name }}{% endblock %}
 
-{# ה-+ הצף הוא "הוסף עסקה חדשה". במסך הגדרות אין לו משמעות, והוא ישב
-   בפינה השמאלית התחתונה — בדיוק על כפתור "מחק פרויקט", כך שהפעולה
-   המסוכנת בעמוד הוסתרה חלקית מאחורי כפתור שלא שייך לכאן.
-   האלמנט נשאר בעמוד כי ‎transactions.js‎ נקשר אליו ישירות; רק מוסתר. #}
+{# The floating + is "add a new transaction". On a settings screen it has no
+   meaning, and it sat in the bottom-left corner, exactly on the "delete
+   project" button, so the dangerous action on the page was partly hidden behind
+   a button that didn't belong there.
+   The element stays on the page because `transactions.js` binds to it
+   directly; it is only hidden. #}
 {% block body_class %}no-fab{% endblock %}
 
 {% block hero %}
 <div class="hero-top">
     <div>
         <a href="{{ url_for('project_detail', project_id=project.id) }}" class="stats-nav-btn" aria-label="חזרה לפרויקט" style="margin-inline-end:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{# קודקוד ב-x=15: החץ מצביע ימינה. בעברית ימינה היא
-                   "אחורה" — הגלגל הקודם היה הגלגל של "הבא".
-                   month.html ו-login.html עשו את זה נכון. #}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{# Vertex at x=15: the arrow points right. In Hebrew right is "back": the
+                   previous chevron was the "next" one. month.html and
+                   login.html got it right. #}
                 <polyline points="9 18 15 12 9 6"/></svg>
         </a>
         <h1 class="hero-title">עריכת פרויקט</h1>
@@ -25,13 +27,14 @@
 
 {% block content %}
 
-{# תפריט אחד מתמשך, לא ארבעה כרטיסים.
-   העמוד היה ארבעה ‎chart-card‎ נפרדים עם רווח של 16px ביניהם, והרביעי
-   (המחיקה) אפילו בסגנון אחר — כך שמסך אחד של הגדרות נראה כמו ארבעה
-   מסכים שהודבקו. עכשיו זה מיכל אחד, והחלוקה נעשית בקו הפרדה. #}
+{# One continuous menu, not four cards.
+   The page was four separate `chart-card`s with a 16px gap between them, and
+   the fourth (deletion) even in a different style, so one settings screen looked
+   like four screens pasted together. Now it is one container, and the division
+   is done with a dividing line. #}
 <section class="project-settings">
 
-<!-- הגדרות הפרויקט: שם, תיאור, תקציב יעד, סוגי מעקב -->
+<!-- project settings: name, description, target budget, tracked types -->
 <div class="project-settings-block">
     <h2 class="chart-title">פרטי הפרויקט</h2>
 
@@ -56,8 +59,9 @@
                        aria-describedby="budgetTargetHint"
                        value="{{ project.budget_target if project.budget_target is not none else '' }}">
             </div>
-            {# השדה עמד בלי מילת הסבר אחת: שתי מילים וקופסה לסכום, בלי
-               לומר אם מדובר בתקרה, בתחזית או בכסף שכבר הופרש. #}
+            {# The field stood without a single word of explanation: two words and a box
+               for an amount, without saying whether it is a ceiling, a
+               forecast or money already set aside. #}
             <p class="field-hint" id="budgetTargetHint">
                 כמה תכננתם להוציא. בעמוד הפרויקט יופיע פס שמראה כמה
                 מהסכום כבר נוצל — בלי לחסום כלום.
@@ -88,7 +92,7 @@
 
 <div class="group-divider"></div>
 
-<!-- בעלות: אישי / משותף -->
+<!-- ownership: personal / shared -->
 <div class="project-settings-block">
     <h2 class="chart-title">בעלות</h2>
     <div class="group-row" style="margin-top:14px;">
@@ -104,7 +108,7 @@
                 {% endif %}
             </p>
         </div>
-        {# השינוי נרשם ונשלח רק ב"שמירת השינויים" (מתן, 9.10) #}
+        {# The change is recorded and sent only on "save changes" (Matan, 9.10) #}
         {% if project.is_personal %}
         <button type="button" class="btn-sm btn-ghost" id="shareProjectBtn">הפיכה למשותף</button>
         {% elif project.created_by == user.id %}
@@ -117,10 +121,11 @@
 
 <div class="group-divider"></div>
 
-<!-- קטגוריות ייעודיות לפרויקט -->
+<!-- the project's own categories -->
 <div class="project-settings-block">
-    {# כותרת שנפתחת (מתן, 9.10): את הקטגוריות עורכים לעיתים רחוקות, והן היו
-       רוב האורך של העמוד. המספר — כדי שיהיה ברור שיש שם משהו בלי לפתוח. #}
+    {# A collapsible heading (Matan, 9.10): categories are edited rarely, and they
+       were most of the page's length. The number, so it is clear there is
+       something there without opening it. #}
     <h2 class="chart-title settings-collapse-title">
         <button type="button" class="settings-collapse" id="projectCatToggle"
                 aria-expanded="false" aria-controls="projectCatBody">
@@ -163,8 +168,9 @@
 
 </section>
 
-{# השמירה בפס שנשאר בתחתית המסך (מתן, 9.10): בראש העמוד, מתחת לפרטים, היא
-   נראתה שייכת רק לחלק הראשון. ‎form=‎ — הכפתור מחוץ לטופס ועדיין שולח אותו. #}
+{# Saving is in a bar that stays at the bottom of the screen (Matan, 9.10): at
+   the top of the page, under the details, it looked like it belonged only to the
+   first part. `form=`: the button is outside the form and still submits it. #}
 <p class="form-error project-save-error" id="projectSaveError" role="alert"></p>
 <div class="project-save-bar">
     <button type="submit" form="editProjectForm" class="btn-primary project-save-btn">שמירת השינויים</button>

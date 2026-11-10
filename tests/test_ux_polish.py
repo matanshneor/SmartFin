@@ -167,7 +167,9 @@ def test_the_normal_case_is_untouched():
     """בקרת-נגד: מי שיש לו הכנסות רואה בדיוק מה שראה קודם."""
     html = _read("frontend/templates/index.html")
 
-    assert "נשאר בעו״ש החודש" in html
+    # The label users see (Matan, 1.10). This used to look for "נשאר בעו״ש החודש",
+    # which survived only inside a template comment after the label changed.
+    assert "'מאזן החודש'" in html
     assert "מתוך ₪{{ summary.income | money }} הכנסות החודש" in html
 
 

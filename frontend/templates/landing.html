@@ -15,10 +15,10 @@
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 {% set og_title = "SmartFin – תקציב אחד לכל המשפחה" %}
 {% set og_description = "כל אחד מזין מהטלפון שלו, וכולם רואים כמה נשאר החודש — לפי קטגוריה ולפי בן משפחה." %}
-    {# תצוגה מקדימה בשיתוף (וואטסאפ, טלגרם, פייסבוק, iMessage).
-       בלעדיה קישור לאפליקציה פיננסית מוצג כשורת טקסט חשופה — בלי שם,
-       בלי תיאור ובלי תמונה — וזה נראה חשוד בדיוק ברגע שמבקשים מאנשים
-       למסור נתוני כסף. #}
+    {# A preview when shared (WhatsApp, Telegram, Facebook, iMessage).
+       Without it a link to a financial app shows as a bare line of text (no
+       name, no description and no image), and that looks suspicious exactly
+       at the moment people are asked to hand over money data. #}
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="SmartFin">
     <meta property="og:locale" content="he_IL">
@@ -60,7 +60,7 @@
             <p class="lp-micro">בחינם · עברית מלאה · בלי פרסומות</p>
         </div>
 
-        <!-- החתימה: מסך אחד שכמה אנשים מזינים אליו -->
+        <!-- The signature: one screen several people enter into -->
         <div class="lp-showcase" aria-hidden="true">
             <div class="lp-phone">
                 <div class="lp-phone-screen">
@@ -76,8 +76,9 @@
                         <div class="lp-app-card"><span>הוצאות</span><strong>₪11,580</strong></div>
                         <div class="lp-app-card"><span>חיסכון</span><strong>₪2,000</strong></div>
                     </div>
-                    {# כרטיס "השבוע" כמו בדף הבית (מתן, 12.10): הפסים לכל קטגוריה
-                       תיארו מסך בית ישן. ימים שעוד לא הגיעו — ריקים, כמו במוצר. #}
+                    {# The "this week" card as on the home page (Matan, 12.10): the bars per
+                       category described an old home screen. Days that
+                       haven't come yet are empty, as in the product. #}
                     <div class="lp-week">
                         <div class="lp-week-top"><span>השבוע</span><b>₪1,240</b></div>
                         <div class="lp-week-bars">
@@ -90,7 +91,7 @@
                 </div>
             </div>
 
-            <!-- התראת חריגה: פיצ'ר אמיתי, ומוסיף עניין בלי להמציא אנשים -->
+            <!-- An overage alert: a real feature, and adds interest without inventing people -->
             <div class="lp-alert">
                 <span class="lp-alert-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none">
@@ -99,10 +100,11 @@
                     </svg>
                 </span>
                 <span class="lp-alert-body">
-                    {# המספרים כאן חייבים להיות אלה שהמוצר באמת מראה: התראה
-                       על קטגוריה קיימת רק כשיש לה תקציב והוא נחצה (מתן,
-                       11.10 — התראת "מעל הממוצע" הוסרה). ההוצאה במוקאפ,
-                       ₪2,910, מעל תקציב של ₪2,500 בדיוק ב-₪410. #}
+                    {# The numbers here must be the ones the product really shows: an alert
+                       about a category exists only when it has a budget and
+                       it was crossed (Matan, 11.10: the "above average" alert
+                       was removed). The expense in the mockup, ₪2,910, is above
+                       a ₪2,500 budget by exactly ₪410. #}
                     <span class="lp-alert-title">מזון: חריגה מהתקציב</span>
                     <span class="lp-alert-text">₪2,910 מתוך תקציב של ₪2,500 — חריגה של ₪410</span>
                 </span>
@@ -130,8 +132,9 @@
             </article>
             <article class="lp-answer">
                 <h3>האם חרגתם</h3>
-                {# התראה על קטגוריה = תקציב שנחצה (מתן, 11.10). "מעל הממוצע"
-                   הוסר מהמוצר, אז גם מכאן. #}
+                {# An alert about a category = a budget that was crossed (Matan, 11.10).
+                   "Above average" was removed from the product, so from here
+                   too. #}
                 <p>קובעים תקציב לקטגוריות שחשוב לכם לעקוב אחריהן, וחריגה ממנו
                    מופיעה בדף הבית תוך כדי החודש.</p>
             </article>
@@ -189,7 +192,7 @@
                 <h3>מותקן כאפליקציה</h3>
                 <p>נוסף למסך הבית ישירות מהדפדפן. בלי חנות אפליקציות ובלי התקנה.</p>
             </article>
-            {# נשארים מחוברים (מתן, 13.10 — במקום Face ID, שהוסר) #}
+            {# Staying signed in (Matan, 13.10: instead of Face ID, which was removed) #}
             <article class="lp-feature">
                 <h3>נכנסים ישר</h3>
                 <p>מתחברים פעם אחת, ומאז פותחים ונכנסים — בלי להקליד סיסמה בכל פעם.</p>

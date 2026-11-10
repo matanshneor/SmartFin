@@ -1,5 +1,6 @@
-{# כרטיס "השבוע" — בדף הבית, ומ-‎/api/week‎ בדפדוף לשבועות קודמים (מתן, 2.10).
-   ‎week.offset‎: כמה שבועות אחורה. החלקה או החצים מחליפים את כל הכרטיס. #}
+{# The "this week" card: on the home page, and from `/api/week` when paging to
+   earlier weeks (Matan, 2.10). `week.offset`: how many weeks back. A swipe or
+   the arrows replace the whole card. #}
 {% set ago = week.offset or 0 %}
 <section class="chart-card week-card" aria-labelledby="weekTitle" data-offset="{{ ago }}">
     <div class="week-head">
@@ -18,8 +19,9 @@
             </button>
         </div>
     </div>
-    {# שבוע בלי אף הוצאה (גם לא קבועה או מוזנת מראש): במקום ₪0 ושבעה פסים
-       מקווקווים שנראים כמו טעינה — שורה אחת קצרה (מתן, 18.10) #}
+    {# A week with no expense at all (not even recurring or entered in advance):
+       instead of ₪0 and seven dashed bars that look like loading, one short
+       row (Matan, 18.10) #}
     {% set week_empty = (not week.total) and (not week.recurring_total)
         and not (week.days | selectattr('transactions') | list)
         and not (week.days | selectattr('recurring') | list) %}
@@ -38,8 +40,9 @@
     {% else %}
     <div class="week-total">
         <span class="week-sum">₪{{ week.total | round | int | money }}</span>
-        {# השבוע הנוכחי: רק סך השבוע שעבר, כעובדה — "פחות/יותר" באמצע שבוע
-           לא היה מובן (מתן, 11.10). שבוע שהסתיים: שלם מול שלם. #}
+        {# The current week: only last week's total, as a fact: "less/more" mid-week
+           wasn't understandable (Matan, 11.10). A finished week: whole against
+           whole. #}
         {% if ago == 0 and week.last_week %}
         <span class="week-cmp same">שבוע שעבר: ₪{{ week.last_week | round | int | money }}</span>
         {% elif week.diff is not none and (week.diff | round | int) != 0 %}
@@ -47,14 +50,16 @@
         {% elif week.diff is not none %}
         <span class="week-cmp same">כמו השבוע שלפניו</span>
         {% endif %}
-        {# עסקאות קבועות לא נספרות בסך ובעמודות — רק מוצגות (מתן, 11.10) #}
+        {# Recurring transactions aren't counted in the total and the bars, only shown
+   (Matan, 11.10) #}
         {% if week.recurring_total %}
         <span class="week-fixed">+ ₪{{ week.recurring_total | round | int | money }} בעסקאות קבועות</span>
         {% endif %}
     </div>
     <div class="week-bars" role="group" aria-label="הוצאות לפי יום">
         {% for d in week.days %}
-        {# יום שעוד לא הגיע נעול — אלא אם הוזנה אליו עסקה מראש (מתן, 4.10) #}
+        {# A day that hasn't come yet is locked, unless a transaction was entered for
+   it in advance (Matan, 4.10) #}
         {% set ahead = d.future and not d.total and not d.recurring %}
         {% set h = 10 if ahead else ([6, ((d.total / week.max * 84) | round | int) if week.max else 6] | max) %}
         <button type="button" class="week-day{% if d.today %} today{% endif %}{% if d.selected %} is-selected{% endif %}{% if ahead %} future{% endif %}{% if not d.future and not d.total %} zero{% endif %}"
@@ -67,8 +72,9 @@
         </button>
         {% endfor %}
     </div>
-    {# ‎if‎ בתוך הלולאה ולא מסנן עליה: ‎loop.index0‎ חייב להיות מספר היום
-       בשבוע, ויום נעול יכול לבוא לפני יום עם עסקה שהוזנה מראש #}
+    {# `if` inside the loop and not a filter on it: `loop.index0` must be the day
+       number in the week, and a locked day can come before a day with a
+       transaction entered in advance #}
     {% for d in week.days %}{% if not (d.future and not d.total and not d.recurring) %}
     <div class="week-detail" data-day="{{ loop.index0 }}" {% if not d.selected %}hidden{% endif %}>
         <p class="week-detail-head"><span>{{ 'היום' if d.today else 'יום ' ~ d.label }} · {{ d.day }}.{{ d.month }}</span>{% if d.total or not d.recurring %}<span>₪{{ d.total | money }}</span>{% endif %}</p>

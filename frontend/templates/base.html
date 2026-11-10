@@ -26,16 +26,18 @@
         </div>
     </header>
 
-    {# data-soft-reload מסמן שהעמוד בטוח להחלפה בלי ניווט: כל ההאזנות בו
-       מואצלות, ואין בו מופעי Chart.js שצריך לחבר מחדש. עמוד שלא מסמן את
-       עצמו ממשיך לקבל רענון מלא, שזו ההתנהגות הקיימת. #}
+    {# data-soft-reload marks the page as safe to swap without navigation: all its
+       listeners are delegated, and it has no Chart.js instances to reconnect.
+       A page that doesn't mark itself keeps getting a full reload, which is
+       the existing behaviour. #}
     <main class="main-content"{% block soft_reload %}{% endblock %}{% block main_attrs %}{% endblock %}>
         {% block content %}{% endblock %}
     </main>
 
-    {# "הוסיפו למסך הבית" (מתן, 13.10) — פס קבוע מעל התפריט התחתון, עד שנכנסים
-       פעם אחת מהאייקון (אז השרת זוכר: ‎app_installed‎). ✕ מסתיר עד הכניסה הבאה.
-       מחוץ ל-‎main‎: הרענון הרך מחליף את ‎main‎. ראו ‎js/pwa.js‎. #}
+    {# "Add to home screen" (Matan, 13.10): a fixed bar above the bottom menu, until
+       the app is opened once from the icon (then the server remembers:
+       `app_installed`). ✕ hides it until the next visit.
+       Outside `main`: the soft refresh replaces `main`. See `js/pwa.js`. #}
     {% set _installed = ((family_settings or {}).get('app_installed') or {}).get(session.get('user_id')) %}
     <div class="install-bar" id="installBar" role="region" aria-label="הוספה למסך הבית" hidden{% if _installed %} data-installed{% endif %}>
         <img class="install-bar-icon" src="{{ url_for('static', filename='icons/icon-180.png') }}" alt="" width="40" height="40">
@@ -47,8 +49,9 @@
         <button type="button" class="install-bar-close" id="installBarClose" aria-label="הסתרה עד הכניסה הבאה">✕</button>
     </div>
 
-    {# התראות — מופעלות כברירת מחדל, אבל הטלפון דורש לחיצת אישור אחת (מתן, 1.11).
-       אותו פס כמו "הוסיפו למסך הבית", ורק כשהוא לא מוצג. ראו ‎js/push.js‎. #}
+    {# Notifications: on by default, but the phone requires one tap to allow
+       (Matan, 1.11). The same bar as "add to home screen", and only when that
+       isn't shown. See `js/push.js`. #}
     {% if push_key %}
     <div class="install-bar" id="pushBar" role="region" aria-label="התראות" hidden>
         <img class="install-bar-icon" src="{{ url_for('static', filename='icons/icon-180.png') }}" alt="" width="40" height="40">
@@ -158,23 +161,28 @@
             <div class="modal-header">
                 <div class="modal-title-row">
                     <h2 class="modal-title" id="modalTitle">הוספת עסקה</h2>
-                    {# מי הזין ומתי (מתן, 3.10) — נטען כשהחלון נפתח לעריכה. בשורת
-                       הכותרת ולא בתחתית: כך חלון העריכה נכנס במסך אחד (מתן, 5.10) #}
+                    {# Who entered it and when (Matan, 3.10): loaded when the sheet opens for
+                       editing. In the header row and not at the bottom: this
+                       way the edit sheet fits on one screen (Matan, 5.10) #}
                     <p class="tx-entered-meta" id="txEnteredMeta" hidden></p>
-                    {# סריקת קבלה בשורת הכותרת ולא ברוחב מלא מעליה (מתן, 11.10) —
-                       חוסך שורה שלמה. הוצאות בלבד, ולא בעריכה (‎setType‎) #}
+                    {# Receipt scanning in the header row and not at full width above it (Matan,
+                       11.10): saves a whole row. Expenses only, and not when
+                       editing (`setType`) #}
                     <button class="scan-btn" id="scanBtn" type="button">
                         <span class="scan-btn-icon" aria-hidden="true">{{ ui_icon("camera") }}</span>
                         <span class="scan-btn-text">סריקת קבלה</span>
                     </button>
                 </div>
-                {# "חלק מעסקה קבועה" (מתן, 12.10) — במופע של עסקה קבועה: מה זה, ואיך
-                   מגיעים לתבנית עצמה. הקישור לעסקאות הקבועות בהגדרות, שם היא נפתחת לעריכה. #}
+                {# "Part of a recurring transaction" (Matan, 12.10): on an occurrence of a
+                   recurring transaction: what it is, and how to reach the
+                   template itself. The link goes to recurring transactions in
+                   settings, where it opens for editing. #}
                 <a class="tx-series-link" id="txSeriesLink" href="{{ url_for('settings') }}" hidden>
                     {{ ui_icon("repeat") }}<span>חלק מעסקה קבועה · עריכה לכל החודשים</span>
                 </a>
-                {# "צפייה בקבלה" (מתן, 13.10): הסמל הקטן בשורה יושב בתוך כפתור העריכה,
-                   ו-VoiceOver לא מגיע אליו — מכאן כן. ‎receipt-viewer.js‎ פותח אותו. #}
+                {# "View receipt" (Matan, 13.10): the small icon on the row sits inside the
+                   edit button, and VoiceOver doesn't reach it; from here it
+                   does. `receipt-viewer.js` opens it. #}
                 <a class="tx-series-link tx-receipt-link" id="txReceiptLink" href="#" target="_blank" rel="noopener" hidden>
                     {{ ui_icon("receipt") }}<span>צפייה בקבלה</span>
                 </a>
@@ -188,15 +196,16 @@
             <!-- Form -->
             <form class="tx-form" id="txForm" novalidate>
 
-                {# הסכום גדול ובמרכז, בצבע המחלקה (מתן, 11.10) #}
+                {# The amount large and centred, in the department's colour (Matan, 11.10) #}
                 <div class="form-group amount-group">
                     <label class="form-label" for="txAmount">סכום</label>
                     <div class="amount-input-wrap">
                         <span class="amount-currency">₪</span>
-                        {# ‎type="text"‎ ולא ‎number‎: פסיקים בזמן ההקלדה ("48,000", מתן 12.10) —
-                           שדה מספר לא מקבל אותם. ‎inputmode="decimal"‎ שומר על מקלדת
-                           המספרים עם נקודה. ‎placeholder="0"‎ ולא "0.00" — אגורות רק
-                           כשמקלידים אותן, כמו בשאר האתר. #}
+                        {# `type="text"` and not `number`: commas while typing ("48,000", Matan
+                           12.10), which a number field doesn't accept.
+                           `inputmode="decimal"` keeps the number keyboard with a
+                           period. `placeholder="0"` and not "0.00": agorot only
+                           when typed, as in the rest of the site. #}
                         <input class="form-input amount-input" type="text" id="txAmount"
                                placeholder="0" inputmode="decimal" enterkeyhint="next"
                                autocomplete="off" spellcheck="false" required>
@@ -211,16 +220,17 @@
                     <input type="hidden" id="txReceiptPath" name="receipt_path">
                 </div>
 
-                {# כל הפרטים בבלוק אחד, שורה לכל פרט עם קו דק ביניהן — כמו
-                   בהגדרות של האייפון (מתן, 11.10) #}
+                {# All the details in one block, a row per detail with a thin line between
+                   them, like the iPhone's settings (Matan, 11.10) #}
                 <div class="tx-details">
-                {# התיאור מיד אחרי הקטגוריה — שניהם עונים על "על מה" (מתן, 5.10) #}
+                {# The description right after the category: both answer "what for" (Matan, 5.10) #}
                 <div class="form-group detail-row">
                     <label class="form-label" for="txDescription">תיאור קצר</label>
                     <input class="form-input" type="text" id="txDescription"
                            placeholder="למשל: שופרסל, משכורת…" maxlength="80" enterkeyhint="done"
                            autocomplete="off" aria-autocomplete="list" aria-controls="descSuggest">
-                    {# השלמה מתיאורים קודמים (מתן, 3.10 — רעיון 41): רק התיאור, לא הקטגוריה #}
+                    {# Autocomplete from earlier descriptions (Matan, 3.10, idea 41): only the
+   description, not the category #}
                     <div class="desc-suggest" id="descSuggest" role="listbox" aria-label="תיאורים קודמים" hidden></div>
                 </div>
 
@@ -231,17 +241,18 @@
                 </div>
 
 
-                {# שורה אחת (מתן, 5.10): בהוספה — היום/אתמול ו"אחר" בפס אחד כמו "של מי
-                   ההוצאה", עם התאריך עצמו מתחת לכל אחד (מתן, 1.11 — אפשרות ב);
-                   בעריכה — רק התאריך, בעברית, עם "שינוי". שדה התאריך עצמו שקוף
-                   ומכסה את הכפתור, כך שנגיעה פותחת את הבורר של המכשיר. #}
+                {# One row (Matan, 5.10): when adding, today/yesterday and "other" in one bar
+                   like "של מי ההוצאה", with the date itself under each (Matan,
+                   1.11, option B); when editing, only the date, in Hebrew, with
+                   "change". The date field itself is transparent and covers the
+                   button, so a tap opens the device's picker. #}
                 <div class="form-group detail-row">
                     <label class="form-label" for="txDate">תאריך</label>
                     <div class="date-row">
                         <div class="date-quick-chips">
                             <button type="button" class="date-chip" data-days="0">היום<span class="date-sub" aria-hidden="true"></span></button>
                             <button type="button" class="date-chip" data-days="-1">אתמול<span class="date-sub" aria-hidden="true"></span></button>
-                            {# "שלשום" הוסר (מתן, 11.10) — "תאריך אחר" מכסה אותו #}
+                            {# "The day before" was removed (Matan, 11.10): "another date" covers it #}
                         </div>
                         <div class="date-pick">
                             <span class="date-pick-icon" aria-hidden="true">{{ ui_icon("calendar") }}</span>
@@ -259,7 +270,7 @@
                         <span class="checkbox-text">עסקה קבועה</span>
                     </label>
 
-                    {# תדירות ותאריך סיום באותה שורה (מתן, 5.10) #}
+                    {# Frequency and end date on the same row (Matan, 5.10) #}
                     <div class="recurring-fields" id="recurringFields">
                         <div class="form-group">
                             <label class="form-label" for="txFrequency">תדירות</label>
@@ -278,8 +289,9 @@
                     </div>
                 </div>
 
-                {# תשלומים (מתן, 12.10): הסכום למעלה הוא המחיר המלא; השרת מחלק
-                   לתשלום בכל חודש עד הסוף. הוצאות בלבד, ולא בעריכה (‎transactions.js‎) #}
+                {# Installments (Matan, 12.10): the amount above is the full price; the server
+                   splits it into a payment every month until the end. Expenses
+                   only, and not when editing (`transactions.js`) #}
                 <div class="form-group detail-row recurring-group installments-group" id="installmentsGroup">
                     <label class="checkbox-label">
                         <input type="checkbox" id="txInstallments" class="checkbox-input">
@@ -295,9 +307,10 @@
 
                 </div>{# ‎.tx-details‎ #}
 
-                {# בתחתית ולא אחרי הסכום (מתן, 30.9): רוב העסקאות לא בפרויקט.
-                   מוסתר לגמרי כשאין פרויקט שעוקב אחרי הסוג (‎buildProjectSelect‎).
-                   בחירה כאן מחליפה את רשת הקטגוריות שלמעלה — ה-JS גולל אליה. #}
+                {# At the bottom and not after the amount (Matan, 30.9): most transactions
+                   aren't in a project. Hidden entirely when no project tracks
+                   the type (`buildProjectSelect`). A choice here replaces the
+                   category grid above; the JS scrolls to it. #}
                 <div class="form-group" id="projectGroup" style="display:none;">
                     <label class="form-label" for="txProject">שייך לפרויקט (אופציונלי)</label>
                     <select class="form-input" id="txProject">
@@ -307,10 +320,11 @@
 
                 <div class="form-error" id="formError" role="alert"></div>
 
-                {# כפתור השליחה הוא <label> של מתג ה-switch הנסתר, כי WebKit
-                   נותן haptic רק על מגע אמיתי בפקד — לא על שינוי מקוד. הכפתור
-                   הנסתר שמעליו שומר על שליחה עם Enter מתוך שדות הטופס, שהייתה
-                   הולכת לאיבוד בלי פקד submit אמיתי. #}
+                {# The submit button is the <label> of the hidden switch, because WebKit gives
+                   haptics only on a real touch on the control, not on a change
+                   from code. The hidden button above it keeps submitting with
+                   Enter from inside the form fields, which would be lost without
+                   a real submit control. #}
                 <button type="submit" class="submit-fallback" tabindex="-1" aria-hidden="true"></button>
 
                 <label class="submit-btn" id="submitBtn" for="hapticSubmit" role="button" tabindex="0">
@@ -330,19 +344,21 @@
         </div>
     </div>
 
-    <!-- Toast: הודעת משוב קטנה -->
+    <!-- Toast: a small feedback message -->
     <div class="toast" id="appToast" role="status" aria-live="polite"></div>
 
-    <!-- דיאלוג אישור מעוצב (מחליף את confirm של הדפדפן) -->
-    {# ‎aria-labelledby/describedby‎: בלעדיהם קורא מסך הכריז "ביטול, לחצן,
-   דיאלוג" ולא אמר על **מה** שואלים — כולל על "למחוק את החשבון
-   לצמיתות?". מודאל העסקה עשה את זה נכון; זה לא. #}
+    <!-- A styled confirm dialog (replaces the browser's confirm) -->
+    {# `aria-labelledby/describedby`: without them a screen reader announced
+   "cancel, button, dialog" and didn't say **what** is being asked, including
+   for "permanently delete the account?". The transaction modal did it right;
+   this one didn't. #}
 <div class="confirm-overlay" id="confirmOverlay" role="alertdialog" aria-modal="true"
      aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
         <div class="confirm-card">
             <p class="confirm-title" id="confirmTitle"></p>
             <p class="confirm-message" id="confirmMessage"></p>
-            {# בחירה בתוך האישור — למשל לאן להעביר עסקאות של קטגוריה שנמחקת #}
+            {# A choice inside the confirm, e.g. where to move the transactions of a
+   category being deleted #}
             <select class="form-input confirm-choice" id="confirmChoice" hidden
                     aria-labelledby="confirmMessage"></select>
             <div class="confirm-actions">
@@ -354,9 +370,10 @@
 
     {% include "_notice.html" %}
 
-    <!-- נתוני שרת לצד הלקוח. type="application/json" אינו מורץ על ידי
-         הדפדפן, ולכן CSP קפדני לא חוסם אותו — וזה מה שמאפשר להוציא את כל
-         ה-JS לקבצים חיצוניים בלי לאבד גישה למשתני Jinja. -->
+    <!-- Server data for the client side. type="application/json" isn't run by
+         the browser, so a strict CSP doesn't block it, and that is what allows
+         moving all the JS into external files without losing access to Jinja
+         variables. -->
     <script type="application/json" id="sf-page-data">
         {{ {'attribution': (family_settings.owner_attribution if family_settings else {}), 'singleMember': (single_member() if single_member is defined else false), 'lists': (client_lists() if client_lists is defined else {}), 'pushKey': push_key or None} | tojson }}
     </script>
@@ -371,11 +388,11 @@
     {% block scripts %}{% endblock %}
 
 
-    <!-- ── הצעת התקנה ל-PWA (מסך הבית) ── -->
+    <!-- ── The PWA install offer (home screen) ── -->
     <script src="{{ url_for('static', filename='js/pwa.js') }}"></script>
     <script src="{{ url_for('static', filename='js/push.js') }}"></script>
 
-    <!-- ── אנימציות גלובליות: count-up, כניסה מדורגת, פסי התקדמות ── -->
+    <!-- ── Global animations: count-up, staggered entrance, progress bars ── -->
     <script src="{{ url_for('static', filename='js/motion.js') }}"></script>
 
     <script src="{{ url_for('static', filename='js/transactions.js') }}"></script>

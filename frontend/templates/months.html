@@ -11,8 +11,9 @@
 </div>
 
 
-{# בלי סכום כולל של כל החודשים (החלטה של מתן, 30.9): העמוד משווה חודשים
-   זה לזה, וסכום של כל התקופה — בלי לומר איזו — לא עונה על שום שאלה שלו. #}
+{# No grand total of all months (Matan's decision, 30.9): the page compares
+   months with each other, and a total for the whole period (without saying
+   which) answers none of its questions. #}
 {% endblock %}
 
 {% block content %}
@@ -22,7 +23,8 @@
 <!-- Comparison chart -->
 <section class="chart-card">
     <h2 class="chart-title">הכנסות · הוצאות · חיסכון</h2>
-    {# במשפט אחד — בלי להשוות גבהים בעין (מתן, 12.10). ‎db.trend_verdict‎ #}
+    {# In one sentence, without comparing heights by eye (Matan, 12.10).
+   `db.trend_verdict` #}
     {% if verdict %}
     {% set than = {3: 'מהממוצע של 3 החודשים שלפניו', 2: 'מהממוצע של החודשיים שלפניו', 1: 'מהחודש שלפניו'}[verdict.count] %}
     {% set like = {3: 'כמו הממוצע של 3 החודשים שלפניו', 2: 'כמו הממוצע של החודשיים שלפניו', 1: 'כמו בחודש שלפניו'}[verdict.count] %}
@@ -36,7 +38,8 @@
         (₪{{ verdict.avg | money }})
     </p>
     {% endif %}
-    {# טווח לשני הגרפים (מתן, 3.10 — רעיון 24). לא נשמר: בכניסה הבאה — חצי שנה #}
+    {# A range for both charts (Matan, 3.10, idea 24). Not kept: next visit, half
+   a year #}
     <div class="range-chips" role="group" aria-label="טווח הגרפים" {% if trend_data | length <= 3 %}hidden{% endif %}>
         <button type="button" class="date-chip range-chip" data-range="3" aria-pressed="false">3 חודשים</button>
         <button type="button" class="date-chip range-chip active" data-range="6" aria-pressed="true">חצי שנה</button>
@@ -47,8 +50,9 @@
     </div>
 </section>
 
-{# לפי קטגוריה (מתן, 30.9 — אפשרות א): בוחרים קטגוריה ורואים כמה יצא עליה
-   בכל חודש. אותם חודשים כמו הגרף שמעל. הנתונים ב-‎sf-view-data‎. #}
+{# By category (Matan, 30.9, option A): pick a category and see how much went
+   to it every month. The same months as the chart above. The data is in
+   `sf-view-data`. #}
 {% if cat_trend and cat_trend.categories %}
 <section class="chart-card cat-trend-card" id="cat-trend">
     <h2 class="chart-title">הוצאות לפי קטגוריה</h2>
@@ -65,8 +69,9 @@
 </section>
 {% endif %}
 
-{# הוצאות לפי בן משפחה לאורך החודשים (מתן, 3.10 — רעיון 15). אותו טווח כמו
-   הגרפים שמעל. רק כששיוך ההוצאות פעיל ויש יותר מבן משפחה אחד. #}
+{# Expenses by family member over the months (Matan, 3.10, idea 15). The same
+   range as the charts above. Only when expense attribution is on and there is
+   more than one family member. #}
 {% if member_series %}
 <section class="chart-card member-trend-card">
     <h2 class="chart-title">הוצאות לפי בן משפחה</h2>
@@ -77,15 +82,16 @@
 </section>
 {% endif %}
 
-<!-- Month list — מציג 6 חודשים אחרונים; השאר מאחורי "הצג עוד" -->
-{# טבלה לכל שנה, והשנה מעליה (מתן, 30.9 — הצעה ג): שורה לחודש, עמודה לסוג.
-   השנה הנוכחית (ומה שאחריה) פתוחה במלואה; שנים קודמות הן כותרת בלבד,
-   ולחיצה פותחת אותן. ‎<details>‎ — פתיחה וסגירה בלי JS, ונגיש מעצמו.
-   שקלים שלמים — זו סקירה; האגורות בעמוד של כל חודש. #}
+<!-- Month list: shows the last 6 months; the rest behind "show more" -->
+{# A table per year, with the year above it (Matan, 30.9, proposal C): a row
+   per month, a column per type. The current year (and what is after it) is
+   open in full; previous years are a heading only, and a tap opens them.
+   `<details>`: opening and closing with no JS, and accessible by itself.
+   Whole shekels: this is an overview; the agorot are on each month's page. #}
 <div id="monthsArchive">
 {% for year_group in archive | groupby('year') | reverse %}
-    {# ‎groupby‎ ממיין לפי השנה ושומר את סדר החודשים בתוכה (מהחדש לישן) #}
-    {# השנה בראש הכרטיס של הטבלה שלה — מחוץ לכרטיס היא נראתה מנותקת ממנו #}
+    {# `groupby` sorts by year and keeps the month order within it (newest first) #}
+    {# The year at the top of its table's card: outside the card it looked detached from it #}
     <details class="year-block chart-card" {% if year_group.grouper >= today_year %}open{% endif %}>
         <summary class="year-title">
             <span>{{ year_group.grouper }}</span>
@@ -107,8 +113,9 @@
                 </thead>
                 <tbody>
                 {% for entry in year_group.list %}
-                    {# המאזן החודשי: הכנסות פחות הוצאות פחות חיסכון (חיסכון גם
-                       יוצא מהחשבון), עקבי עם הדשבורד. הסימן לפי המספר המעוגל. #}
+                    {# The monthly balance: income minus expenses minus savings (savings also
+                       leave the account), consistent with the dashboard. The
+                       sign follows the rounded number. #}
                     {% set balance = ((entry.income | float) - (entry.expense | float) - (entry.savings | float)) | round | int %}
                     {% set is_current = entry.year == today_year and entry.month == today_month %}
                     <tr class="month-row{% if is_current %} is-current{% endif %}"
@@ -130,8 +137,9 @@
 {% endfor %}
 </div>
 
-{# סיכום השנה (מתן, 1.11) — בתחתית העמוד, לא למעלה. נפתח בלחיצה. במהלך השנה
-   "2026 עד עכשיו" (גם בדצמבר), ובינואר "סיכום 2026" (אפשרות ב). בלי אימוג'י. #}
+{# The year summary (Matan, 1.11): at the bottom of the page, not the top. Opens
+   on tap. During the year "2026 עד עכשיו" (in December too), and in January
+   "סיכום 2026" (option B). No emoji. #}
 <button type="button" class="year-card months-year-card" data-year-recap="{{ recap_year }}">
     <span class="year-card-text">
         <span class="year-card-title">{% if recap_partial %}{{ recap_year }} עד עכשיו{% else %}סיכום {{ recap_year }}{% endif %}</span>

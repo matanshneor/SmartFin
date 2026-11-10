@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 
-{# העמוד בטוח להחלפה: month.js לא נקשר ישירות לאף אלמנט (הכול בהאצלה
-   מ-document), והגרפים והמקרא נצבעים מחדש ב-‎sf:refreshed‎. בלי שלושת
-   אלה רענון רך כאן השאיר canvas מנותקים וחיפוש מת. #}
+{# The page is safe to swap: month.js isn't bound directly to any element
+   (everything is delegated from document), and the charts and legend are
+   redrawn on `sf:refreshed`. Without these three a soft refresh here left
+   detached canvases and a dead search. #}
 {% block soft_reload %} data-soft-reload{% endblock %}
-{# חודש שאינו הנוכחי: + מתחיל מתאריך בתוכו (transactions.js ‎defaultTxDate‎).
-   בלי זה, מי שנכנס למרץ כדי להשלים קנייה שמר, שמע "העסקה נוספה" — והיא
-   נרשמה בספטמבר. על ‎main‎ ולא בבלוק הסקריפטים: הרענון הרך מחליף אותו. #}
+{# A month that isn't the current one: + starts from a date within it
+   (transactions.js `defaultTxDate`). Without this, whoever went into March to
+   add a missing purchase saved, heard "the transaction was added", and it was
+   recorded in September. On `main` and not in the scripts block: the soft
+   refresh replaces it. #}
 {% block main_attrs %}{% if not is_current %} data-default-month="{{ '%04d-%02d' % (year, month) }}"{% endif %}{% endblock %}
 {% block title %}SmartFin – {{ month_label }}{% endblock %}
 
@@ -24,7 +27,8 @@
         </p>
     </div>
     <div class="stats-month-nav">
-        {# חיפוש בכל החודשים — גם מכאן (מתן, 12.10): כאן נזכרים "מתי שילמנו את זה?" #}
+        {# Search across all months, from here too (Matan, 12.10): this is where people
+   wonder "when did we pay that?" #}
         <button type="button" class="stats-nav-btn" id="searchOpen" aria-label="חיפוש בכל העסקאות" aria-haspopup="dialog">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
         </button>
@@ -37,7 +41,7 @@
     </div>
 </div>
 
-{# רצועת חודשים מגנטית: גוללים לצדדים, נעצרת מיושרת, לחיצה נכנסת לחודש #}
+{# A magnetic month strip: scroll sideways, it stops aligned, a tap enters the month #}
 {% if strip_months | length > 1 %}
 <nav class="month-strip" id="monthStrip" aria-label="מעבר בין חודשים">
     {% for m in strip_months %}
@@ -51,13 +55,15 @@
 </nav>
 {% endif %}
 
-{# לחיצה על הכנסות/הוצאות/חיסכון מובילה לפירוט שלהם למטה (בקשת מתן, 30.9).
-   בחודש ריק הפירוטים לא מוצגים, ואז אין לאן להוביל. המאזן לא לחיץ — בחירתו. #}
+{# Tapping income/expenses/savings leads to their breakdown below (Matan's
+   request, 30.9). In an empty month the breakdowns aren't shown, and then there
+   is nowhere to lead. The balance isn't tappable: his choice. #}
 {% set has_breakdown = month_transactions or project_month.transactions %}
-{# מאזן חודשי במלבן רחב, ומתחתיו שלושה מלבנים שווים (מתן, 30.9). המאזן:
-   הכנסות פחות הוצאות וחיסכון. כמו דף הבית: חודש בלי הכנסה אינו גירעון — עוד
-   אין ממה להחסיר, אז "—" ניטרלי ולא "₪-800" באדום. הגירעון נקבע לפי המספר
-   שמוצג, מעוגל לשקל, והמינוס לפני ה-₪ גם בלי JS. #}
+{# The monthly balance in a wide box, and under it three equal boxes (Matan,
+   30.9). The balance: income minus expenses and savings. As on the home page: a
+   month with no income isn't a deficit (there is nothing to subtract from yet),
+   so a neutral "—" and not "₪-800" in red. The deficit is decided by the number
+   shown, rounded to the shekel, and the minus before the ₪ even without JS. #}
 {% set no_income_yet = summary.income <= 0 %}
 {% set deficit = not no_income_yet and (summary.remaining | round) < 0 %}
 <div class="month-net {% if deficit %}deficit{% elif not no_income_yet %}surplus{% endif %}">
@@ -90,9 +96,9 @@
 
 {% block content %}
 {% macro tx_row(tx, freq_labels) %}
-    {# מופע צפוי בחודש עתידי (מתן, 1.11): בלי ‎data-id‎ — לא נפתח לעריכה ולא
-       מחליק, כי זו עוד לא עסקה. לחיצה שואלת: לדלג על החודש הזה, או לערוך
-       את הסדרה עצמה (‎projected.js‎). #}
+    {# A projected occurrence in a future month (Matan, 1.11): no `data-id`, so it
+       doesn't open for editing or swipe, because it isn't a transaction yet. A
+       tap asks: skip this month, or edit the series itself (`projected.js`). #}
     {% if tx.projected %}
     <div class="cat-tx-row is-projected" role="button" tabindex="0" data-cat-key="{{ tx.get('cat_key', '') }}"
         data-search="{{ tx.category_name or '' }} {{ tx.project_name or '' }}"
@@ -134,15 +140,18 @@
     'biweekly':   'כל שבועיים'
 } %}
 
-{# ההתראות מוצגות רק בדף הבית (מתן, 11.10). כאן חריגה מתקציב כבר כתובה
-   תחת הקטגוריה, ומאזן שלילי — באדום בראש העמוד. #}
+{# Alerts are shown only on the home page (Matan, 11.10). Here a budget overage
+   is already written under the category, and a negative balance is red at the
+   top of the page. #}
 
-{# חודש בלי אף עסקה היה מרנדר חמישה כרטיסי גרף ריקים בזה אחר זה, בלי
-   שום הסבר. משפחה חדשה נוחתת כאן ישר מהדשבורד ורואה מסך שנראה שבור.
-   כל שאר העמודים כבר מטפלים במצב הזה — זה היחיד שנשכח. #}
-{# ריק = אין שום עסקה, גם לא של פרויקט. ‎month_transactions‎ כבר מסוננת
-   מעסקאות פרויקט (הן מוצגות בנפרד), אז חודש שכולו שיפוץ הציג "לא נרשמו
-   עסקאות" — ואזור הפרויקטים, שיושב בתוך ה-else, לא הוצג בכלל. #}
+{# A month with no transaction at all used to render five empty chart cards one
+   after another, with no explanation. A new family lands here straight from the
+   dashboard and sees a screen that looks broken. Every other page already
+   handles this state; this one was forgotten. #}
+{# Empty = no transaction at all, not even a project's. `month_transactions` is
+   already filtered of project transactions (they are shown separately), so a
+   month that was all renovation showed "no transactions recorded", and the
+   projects section, sitting inside the else, wasn't shown at all. #}
 {% if not month_transactions and not project_month.transactions %}
 <section class="chart-card">
     <div class="empty-state">
@@ -161,10 +170,11 @@
 </section>
 {% else %}
 
-{# סוג בלי שום עסקה החודש — שורה אחת במקום כרטיס ריק בגובה חצי מסך (מתן,
-   11.10). הריבוע למעלה כבר אומר ₪0; השורה מאשרת שזה לא באג, ו"+ הוספה"
-   פותח את חלון ההוספה על הסוג הזה (‎data-add-type‎, ‎transactions.js‎).
-   ה-id נשאר, כדי שלחיצה על הריבוע למעלה תגיע לכאן. #}
+{# A type with no transaction this month: one row instead of an empty card half
+   a screen tall (Matan, 11.10). The tile above already says ₪0; the row confirms
+   it isn't a bug, and "+ add" opens the add sheet on that type
+   (`data-add-type`, `transactions.js`).
+   The id stays, so tapping the tile above arrives here. #}
 {% macro empty_row(anchor, icon, text, type) %}
 <div class="empty-row" id="{{ anchor }}">
     <span class="empty-row-icon" aria-hidden="true">{{ icon }}</span>
@@ -173,16 +183,19 @@
 </div>
 {% endmacro %}
 
-{# סדר החלקים נקבע על ידי מתן (30.9) — ראו test_month_sections.test_the_sections_come_in_matans_order.
-   הוצאות לפני הכנסות (מתן, 12.10): בגללן פותחים את העמוד, וחריגה מתקציב
-   נראית כבר במסך הראשון. הכנסות הן לרוב משכורת אחת שכמעט לא משתנה. #}
-<!-- הוצאות לפי קטגוריה -->
+{# The order of the sections was set by Matan (30.9); see
+   test_month_sections.test_the_sections_come_in_matans_order.
+   Expenses before income (Matan, 12.10): they are why the page is opened, and a
+   budget overage is visible on the first screen. Income is usually one salary
+   that hardly changes. #}
+<!-- expenses by category -->
 {% set expense_active = expense_breakdown | selectattr('total', 'gt', 0) | list %}
 {% set expense_zero   = expense_breakdown | rejectattr('total', 'gt', 0) | list %}
 <section class="chart-card" id="expense-breakdown">
-    {# כפתור אחד לכל התקציבים, במקום קישור לתקציב אחרי כל שורה (מתן,
-       30.9). רק בחודש הנוכחי: התקציב נשמר לקטגוריה ולא לחודש, אז קביעה מתוך
-       מרץ הייתה משפיעה מהיום והלאה — בזמן שהמסך מרמז שמתקצבים את מרץ. #}
+    {# One button for all the budgets, instead of a budget link after every row
+       (Matan, 30.9). Only in the current month: the budget is stored per
+       category and not per month, so setting it from March would take effect
+       from today on, while the screen implies you are budgeting March. #}
     <div class="chart-title-row">
         <h2 class="chart-title">הוצאות לפי קטגוריה</h2>
         {% if is_current %}
@@ -190,7 +203,8 @@
         {% endif %}
     </div>
     {% if is_current %}
-    {# הקטגוריות לחלון התקציבים — בתוך ‎main‎, כדי שיתעדכנו ברענון רך #}
+    {# The categories for the budgets sheet: inside `main`, so they update on a
+   soft refresh #}
     <script type="application/json" id="sf-budgets">{{ expense_breakdown | selectattr('category_id') | list | tojson }}</script>
     {% endif %}
     {% if expense_active %}
@@ -202,8 +216,9 @@
                 <p class="doughnut-label">הוצאות</p>
             </div>
         </div>
-        {# קבועות מול משתנות (מתן, 12.10) — בקטן, שתיהן בפינה אחת ליד הגרף (מתן,
-           13.10: בלי הפס ובלי שורת השמות; "בקטן יותר ובאותו צד") #}
+        {# Fixed versus variable (Matan, 12.10): small, both in one corner next to the
+           chart (Matan, 13.10: without the bar and without the names line;
+           "smaller and on the same side") #}
         {% if fixed_split %}
         <div class="split-corner">
             <p><span>קבועות</span> <b>₪{{ fixed_split.fixed | money }}</b></p>
@@ -242,7 +257,7 @@
         {% else %}
         {% set cat_txs = month_transactions | selectattr('type', 'equalto', 'expense')
                                             | selectattr('category_name', 'equalto', item.name) | list %}
-        {# העוגן שאליו התראה על הקטגוריה מובילה (‎db.category_anchor‎) #}
+        {# The anchor an alert about the category leads to (`db.category_anchor`) #}
         <li class="legend-item-wrap"{% if item.category_id %} id="cat-{{ item.category_id }}"{% endif %}>
             <div class="legend-item {% if cat_txs %}clickable{% endif %}" {% if cat_txs %}role="button" tabindex="0" aria-expanded="false"{% endif %}>
                 <span class="legend-dot" style="background: var(--chart-color-{{ (item.color_idx if item.color_idx is defined else loop.index0) % 12 }});"></span>
@@ -257,15 +272,16 @@
                 {% endif %}
             </div>
 
-            {# תקציב יעד, אם המשפחה קבעה אחד לקטגוריה הזאת. האחוז למעלה
-               מודד כמה הקטגוריה מתוך סך ההוצאות; זה מודד מול ההחלטה.
-               רק המשפט, בלי פס (מתן, 13.10: "הקו לא יעיל ולא אינפורמטיבי"). #}
+            {# A target budget, if the family set one for this category. The percentage
+               above measures the category's share of total expenses; this
+               measures against the decision. Only the sentence, no bar (Matan,
+               13.10: "the line isn't useful or informative"). #}
             {% if item.budget %}
             <div class="cat-budget {% if item.budget_over %}over{% endif %}">
-                {# בחודש שנגמר אין "נשאר" — אין מה להוציא יותר. הניסוח
-                   הזה הציג לחודש מרץ משפט שנכון רק להיום, ועוד מול
-                   הסכום שקבוע **עכשיו**: התקציב נשמר כמפה גלובלית לפי
-                   קטגוריה, בלי חודש ובלי היסטוריה. #}
+                {# A finished month has no "left": there is nothing more to spend. This
+                   wording showed March a sentence true only for today, and
+                   against the amount set **now**: the budget is stored as a
+                   global map by category, with no month and no history. #}
                 <p class="cat-budget-text">
                     {% if item.budget_over %}
                     חריגה של ₪{{ item.budget_excess | money }} מתוך ₪{{ item.budget | money }}
@@ -300,7 +316,7 @@
                 </div>
                 {% endif %}
                 {% endfor %}
-                {# מהקטגוריה להיסטוריה שלה בעמוד ההשוואה (מתן, 3.10 — רעיון 23) #}
+                {# From the category to its history on the comparison page (Matan, 3.10, idea 23) #}
                 {% if item.category_id and not item.is_project %}
                 <div class="cat-tx-row cat-tx-more">
                     <a href="{{ url_for('months', cat=item.category_id) }}#cat-trend">השוואה לחודשים קודמים ←</a>
@@ -334,7 +350,7 @@
     </ul>
 </section>
 
-<!-- הכנסות — גרף עגול כמו ההוצאות (מתן, 30.9) -->
+<!-- income: a donut like expenses (Matan, 30.9) -->
 {% set income_sources = income_sources | default([]) %}
 {% set income_projects = income_breakdown | selectattr('total', 'gt', 0) | selectattr('is_project') | list %}
 {% if not income_sources and not income_projects %}
@@ -342,7 +358,8 @@
 {% else %}
 <section class="chart-card" id="income-breakdown">
     <h2 class="chart-title">הכנסות</h2>
-    {# משכורת לכל אחד, בצבע של בן המשפחה, וכל השאר ביחד באפור (‎income_sources‎) #}
+    {# A salary per person, in the family member's colour, and everything else
+   together in grey (`income_sources`) #}
     {% if income_sources %}
     <div class="doughnut-wrap">
         <canvas id="incomeChart" role="img" aria-label="הכנסות לפי מקור"></canvas>
@@ -404,7 +421,7 @@
 </section>
 {% endif %}
 
-<!-- חיסכון — סך הכול ופירוט, בלי גרף (מתן, 30.9) -->
+<!-- savings: the total and a breakdown, no chart (Matan, 30.9) -->
 {% set savings_home = savings_home | default([]) %}
 {% set savings_projects = savings_breakdown | selectattr('total', 'gt', 0) | selectattr('is_project') | list %}
 {% if not savings_home and not savings_projects %}
@@ -412,10 +429,11 @@
 {% else %}
 <section class="chart-card" id="savings-breakdown">
     <h2 class="chart-title">חיסכון</h2>
-    {# כמה הופרש, איזה חלק מההכנסות, ולכל יעד — איזה חלק מהחיסכון (‎savings_home‎,
-       בלי פרויקטים). צבעי היעדים — גוונים של זהב (‎_SAVINGS_HEX‎). #}
+    {# How much was set aside, what share of income, and for each goal, what share
+       of savings (`savings_home`, without projects). The goal colours are shades
+       of gold (`_SAVINGS_HEX`). #}
     {% set savings_total = savings_home | sum(attribute='total') %}
-    {# בלי גרף עגול: אין כאן השוואה, רק לאן הלך הכסף (מתן) #}
+    {# No donut: there is no comparison here, only where the money went (Matan) #}
     {% if savings_home %}
     <div class="savings-total">
         <p class="savings-total-label">סה״כ חיסכון החודש</p>
@@ -481,10 +499,11 @@
 </section>
 {% endif %}
 
-{# "עסקאות קבועות" הוסר מעמוד החודש (מתן, 2.10): העסקאות האלה כבר מופיעות
-   בשאר העסקאות של החודש, והניהול שלהן בהגדרות ← עסקאות קבועות. #}
+{# "Recurring transactions" was removed from the month page (Matan, 2.10): these
+   transactions already appear among the month's other transactions, and they
+   are managed in settings → recurring transactions. #}
 
-<!-- חלוקה בין בני המשפחה — גרף לכל סוג עסקה שהמשפחה משייכת -->
+<!-- split between family members: a chart for every transaction type the family attributes -->
 {% for mb in member_breakdowns %}
 <section class="chart-card">
     <h2 class="chart-title">{{ mb.label }} לפי בן משפחה</h2>
@@ -494,19 +513,22 @@
 </section>
 {% endfor %}
 
-<!-- כל העסקאות של החודש -->
-{# האחרונות למעלה, והרשימה המלאה — עם החיפוש והסינון — במסך משלה
-   (מתן, 5.10). עד אז הכל היה שורת "הצגת הכל" אחת שנפתחה במקום. #}
-{# ‎freq_labels‎ מועבר במפורש: ‎set‎ שבתוך הבלוק לא נראה מתוך מאקרו #}
+<!-- all of the month's transactions -->
+{# The latest on top, and the full list (with search and filter) on its own
+   screen (Matan, 5.10). Until then it was all one "show all" row that opened
+   in place. #}
+{# `freq_labels` is passed explicitly: a `set` inside the block isn't visible
+   from a macro #}
 {% set tx_preview = 5 %}
 {% if month_transactions %}
 <section class="chart-card" id="allTx">
     <div class="chart-title-row">
         <h2 class="chart-title">כל העסקאות</h2>
-        {# קישור ולא fetch: הדפדפן מוריד את הקובץ בעצמו. ה-Service Worker
-           לא מיירט אותו כי הוא לא ‎/static/‎ ולא ‎/api/‎. #}
+        {# A link and not fetch: the browser downloads the file by itself. The Service
+           Worker doesn't intercept it because it isn't `/static/` or `/api/`. #}
         <span class="export-links">
-        {# ייבוא מהאשראי (מתן, 31.10) — ליד הייצוא, כי שם מחפשים "קובץ" #}
+        {# Import from the card company (Matan, 31.10): next to the export, because
+   that is where people look for "a file" #}
         <a class="btn-sm btn-ghost export-link" href="{{ url_for('import_page') }}">ייבוא מהאשראי</a>
         <a class="btn-sm btn-ghost export-link"
            href="{{ url_for('month_csv', year=year, month=month) }}"
@@ -534,7 +556,8 @@
         </div>
         <div class="tx-screen-body">
             <div class="tx-search-wrap">
-                {# סינון לפי סוג (מתן, 30.9): רק הסוגים שיש החודש, ורק כשיש יותר מאחד #}
+                {# Filter by type (Matan, 30.9): only the types present this month, and only
+   when there is more than one #}
                 {% set present = month_transactions | map(attribute='type') | list %}
                 {% set tx_types = [('expense', 'הוצאות'), ('income', 'הכנסות'), ('savings', 'חיסכון')]
                                   | selectattr(0, 'in', present) | list %}
@@ -546,9 +569,9 @@
                     {% endfor %}
                 </div>
                 {% endif %}
-                {# שורת קטגוריות לכל סוג — נפתחת כשבוחרים אותו (מתן, 30.9 — אפשרות א).
-                   "כל ההוצאות" או כמה קטגוריות יחד. כשיש החודש סוג אחד בלבד (אין
-                   שורת סוגים), השורה שלו פתוחה מההתחלה. #}
+                {# A category row per type: opens when it is chosen (Matan, 30.9, option A).
+                   "All expenses" or several categories together. When the month
+                   has only one type (no type row), its row is open from the start. #}
                 {% set cat_chips = tx_cat_chips if tx_cat_chips is defined else {} %}
                 {% set all_labels = {'expense': 'כל ההוצאות', 'income': 'כל ההכנסות', 'savings': 'כל החיסכון'} %}
                 {% for key, label in [('expense', 'הוצאות'), ('income', 'הכנסות'), ('savings', 'חיסכון')] %}
@@ -562,7 +585,7 @@
                 </div>
                 {% endif %}
                 {% endfor %}
-                {# מיון (מתן, 12.10): "סכום" — הגדולות קודם. לא נשמר: בכל פתיחה — לפי תאריך #}
+                {# Sorting (Matan, 12.10): "amount", largest first. Not kept: every open, by date #}
                 <div class="tx-sort-chips" role="group" aria-label="סדר העסקאות">
                     <span class="tx-sort-label">סדר:</span>
                     <button type="button" class="date-chip tx-sort-chip active" data-sort="date" aria-pressed="true">תאריך</button>
@@ -582,9 +605,10 @@
 </section>
 {% endif %}
 
-<!-- פרויקטים החודש — מוחרג מהמאזן החודשי, בסוף העמוד (מתן, 30.9).
-     שורה לכל פרויקט שנפתחת לעסקאות שלו: הרשימה הייתה שטוחה, וחודש עם
-     שיפוץ וטיול יחד לא אפשר להפריד ביניהם — וזו בדיוק השאלה שנשאלת. -->
+<!-- Projects this month: excluded from the monthly balance, at the end of the
+     page (Matan, 30.9). A row per project that opens to its transactions: the
+     list was flat, and a month with a renovation and a trip together couldn't
+     tell them apart, and that is exactly the question being asked. -->
 {% if project_month.projects %}
 <section class="chart-card">
     <h2 class="chart-title">פרויקטים החודש</h2>
@@ -596,9 +620,9 @@
             <div class="legend-item clickable" role="button" tabindex="0" aria-expanded="false">
                 <span class="legend-icon">{{ proj.icon }}</span>
                 <span class="legend-name">{{ proj.name }}</span>
-                {# כל סוג בנפרד ולא סכום מקוזז: פרויקט עם החזר כספי היה
-                   נראה "זול יותר", ו-₪0 על פרויקט דו-כיווני מסתיר את שני
-                   הצדדים. ברוב הפרויקטים יש רק הוצאות, אז זה מספר אחד. #}
+                {# Each type separately and not a netted total: a project with a refund would
+                   look "cheaper", and ₪0 on a two-way project hides both sides.
+                   Most projects have only expenses, so it is one number. #}
                 <span class="legend-amount">
                     {% if proj.expense %}<span class="pm-amount expense">-₪{{ proj.expense | money }}</span>{% endif %}
                     {% if proj.income %}<span class="pm-amount income">+₪{{ proj.income | money }}</span>{% endif %}
@@ -639,12 +663,14 @@
 
 {% block scripts %}
 {% include "_search_screen.html" %}
-{# Chart.js נטען רק כשיש מה לצייר — 70KB דחוסים שאין טעם להוריד לחודש ריק #}
+{# Chart.js is loaded only when there is something to draw: 70KB compressed
+   that there is no point downloading for an empty month #}
 {% if month_transactions %}
 <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
 {% endif %}
-{# מחוץ לתנאי בכוונה: בחודש ריק אין ספרייה, וזה בדיוק המקרה שבו צריך
-   מישהו שיגיד לשאר הקוד "אין גרפים" במקום שייפול עליהם #}
+{# Outside the condition on purpose: in an empty month there is no library,
+   and that is exactly the case that needs someone to tell the rest of the code
+   "no charts" instead of it falling over them #}
 <script src="{{ url_for('static', filename='js/chart-setup.js') }}"></script>
 
 <script type="application/json" id="sf-view-data">

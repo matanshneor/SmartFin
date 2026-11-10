@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 
 {% block title %}SmartFin – הגדרות{% endblock %}
-{# בלי + בהגדרות (מתן, 1.10): אין כאן עסקאות, והכפתור רק מסתיר שורות #}
+{# No + in settings (Matan, 1.10): there are no transactions here, and the
+   button only hides rows #}
 {% block body_class %}no-fab settings-page{% endblock %}
 
 {% block hero %}
-{# שם המשפחה בצד שמאל, באותה שורה עם "הגדרות" (מתן, 1.10 — אפשרות ה) #}
+{# The family name on the left, on the same row as "settings" (Matan, 1.10,
+   option E) #}
 <div class="hero-top settings-hero-top">
     <h1 class="hero-title">הגדרות</h1>
     <p class="settings-family-name">{{ family.get('name', 'המשפחה שלי') }}</p>
@@ -15,26 +17,28 @@
     <div class="member-avatar-lg">{{ user.avatar_initial }}</div>
     <div>
         <p class="hero-profile-name" id="heroProfileName">{{ account.full_name }}</p>
-        {# המייל ולא "חשבון משפחתי · N חברים" (מתן, 1.10) — מספר החברים
-           כבר בתיבת המשפחה, והמייל אומר עם איזה חשבון מחוברים #}
+        {# The email and not "family account · N members" (Matan, 1.10): the number of
+           members is already in the family box, and the email says which
+           account you are signed in with #}
         <p class="hero-profile-sub" dir="ltr" style="text-align:right;">{{ account.email }}</p>
     </div>
 </div>
 {% endblock %}
 
-{# שורת קטגוריה — מקור אחד לשורות בטעינה ולשורה שנוספת אחר כך (ה-‎<template>‎
-   מתחת לרשימות). עד היום JS בנה שורה משלו: בלי בקרת התקציב, ועם ✕ גם
-   למי שאינו מנהל — ושינוי שם החליף את השורה המקורית באותה גרסה חסרה. #}
+{# A category row: one source for the rows on load and for a row added later
+   (the `<template>` under the lists). Until now JS built a row of its own:
+   without the budget control, and with ✕ even for non-managers, and renaming
+   replaced the original row with that incomplete version. #}
 {% macro category_row(cat, type_key, limit, is_manager) %}
                     <li class="category-row" data-id="{{ cat.id }}" data-custom="{{ cat.is_custom | lower }}"
                         data-name="{{ cat.name }}" data-icon="{{ cat.icon }}">
-                        {# ידית גרירה (מתן, 30.9 — סבב 6, פריט 5). ‎aria-hidden‎: במקלדת
-                           ובקורא מסך החצים ▲▼ עושים את אותו דבר #}
+                        {# A drag handle (Matan, 30.9, round 6, item 5). `aria-hidden`: on the keyboard
+                           and the screen reader the ▲▼ arrows do the same thing #}
                         <span class="cat-drag-handle" aria-hidden="true" title="גררו כדי לשנות את הסדר">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
                         </span>
                         <span class="cat-row-icon">{{ cat.icon }}</span>
-                        {# הממוצע מחוץ ל-‎.cat-row-name‎: שינוי שם מחליף את הטקסט שלו #}
+                        {# The average outside `.cat-row-name`: renaming replaces its text #}
                         <span class="cat-row-text">
                             <span class="cat-row-name">{{ cat.name }}</span>
                             {% set avg = (cat_averages or {}).get(cat.id|string) %}
@@ -61,14 +65,15 @@
                             </button>
                         </div>
 
-                        {# תקציב יעד — רק להוצאות. זה מה שמגבילים; תקציב
-                           להכנסה או לחיסכון לא אומר כלום.
-                           גלוי תמיד, בלי "מצב ניהול": זו ההגדרה המרכזית
-                           של האפליקציה ולא פעולת ניהול רשימה. #}
+                        {# A target budget: expenses only. That is what gets limited; a budget for
+                           income or savings means nothing.
+                           Always visible, with no "management mode": it is the
+                           app's central setting and not a list-management
+                           action. #}
                         {% if type_key == 'expense' %}
                                                 <div class="cat-budget-edit">
-                            {# אותו מתג בדיוק כמו בשאר ההגדרות (pref-switch),
-                               ולא תיבת סימון: זו הדלקה/כיבוי של אפשרות. #}
+                            {# Exactly the same switch as in the rest of settings (pref-switch), and
+                               not a checkbox: this turns an option on/off. #}
                             <span class="cat-budget-label">קביעת תקציב חודשי</span>
                             <label class="pref-switch">
                                 <input type="checkbox" class="budget-enabled" data-id="{{ cat.id }}"
@@ -76,9 +81,10 @@
                                        aria-label="קביעת תקציב חודשי ל{{ cat.name }}">
                                 <span class="pref-slider"></span>
                             </label>
-                            {# השמירה מפורשת ולא אוטומטית: סכום נכתב ספרה-ספרה,
-                               ושמירה על כל הקשה שומרת גם את "2" ואת "20" בדרך
-                               ל-"200". כפתור אומר מתי סיימת. #}
+                            {# Saving is explicit and not automatic: an amount is typed digit by
+                               digit, and saving on every keystroke also saves "2"
+                               and "20" on the way to "200". A button says when
+                               you are done. #}
                             <div class="cat-budget-fields" {% if not limit %}hidden{% endif %}>
                                 <input class="form-input budget-amount" type="number" min="1" step="1"
                                        inputmode="decimal" placeholder="₪ לחודש"
@@ -97,13 +103,13 @@
 
 <div class="settings-groups">
 
-    {# בלי שורה מתחת לכותרות (מתן, 11.10): כותרת ואייקון בלבד, בכל הקבוצות.
-       סדר הקבוצות: המשפחה, ואז לפי כמה נכנסים לכל אחת —
-       קטגוריות ועסקאות קבועות קודם, הגדרות של פעם אחת אחריהן, ו"החשבון שלי"
-       אחרון, ממש מעל "התנתקות". #}
-    <!-- ═══ המשפחה שלי ═══ -->
-    {# מה שמשותף לכל המשפחה (מתן, 11.10). רשימת בני המשפחה לקריאה בלבד — את
-       הפרטים שלי עורכים ב"החשבון שלי". #}
+    {# No line under the headings (Matan, 11.10): heading and icon only, in every
+       group. The order of the groups: the family, then by how often each is
+       visited: categories and recurring transactions first, one-time settings
+       after them, and "my account" last, right above "sign out". #}
+    <!-- ═══ My family ═══ -->
+    {# What is shared by the whole family (Matan, 11.10). The family member list is
+       read-only: my details are edited in "my account". #}
     <section class="settings-group" id="family-settings">
         <button type="button" class="settings-group-header" aria-expanded="false">
             <span class="group-icon">
@@ -112,7 +118,7 @@
                 </svg>
             </span>
             <span class="group-text">
-                {# רק הכותרת (מתן, 1.10): שם המשפחה כבר בראש העמוד #}
+                {# Only the heading (Matan, 1.10): the family name is already at the top of the page #}
                 <span class="group-title">המשפחה שלי</span>
             </span>
             <span class="group-chevron">
@@ -121,7 +127,7 @@
         </button>
 
         <div class="settings-group-body">
-            <!-- שם המשפחה -->
+            <!-- the family name -->
             <div class="group-row">
                 <div class="group-row-info">
                     <p class="group-row-label">שם המשפחה</p>
@@ -131,8 +137,9 @@
             </div>
 
             <div class="family-name-edit" id="familyNameEdit">
-                {# בלי תווית, קורא מסך מקריא "שדה טקסט" ותו לא. הכותרת
-                   שלצד השדה קיימת חזותית אבל לא מקושרת אליו. #}
+                {# Without a label, a screen reader reads "text field" and nothing more. The
+                   heading next to the field exists visually but isn't linked
+                   to it. #}
                 <label class="sr-only" for="familyNameInput">שם המשפחה</label>
                 <input class="form-input" type="text" id="familyNameInput"
                        value="{{ family.get('name', 'המשפחה שלי') }}" maxlength="50">
@@ -162,19 +169,20 @@
             </ul>
             {% endif %}
 
-            <!-- הזמנת בן משפחה -->
+            <!-- inviting a family member -->
             {% if family.get('invite_code') %}
             <div class="group-divider"></div>
-            {# שתי קומות: בשורה אחת, עם הקוד ושני כפתורים, ההסבר נמעך למילה
-               בשורה (נראה ב-390, 30.9) #}
+            {# Two levels: on one row, with the code and two buttons, the explanation was
+               squeezed to a word per line (seen at 390, 30.9) #}
             <div class="group-row group-row-stack">
                 <div class="group-row-info">
                     <p class="group-row-label">הזמנת בן משפחה</p>
                     <p class="group-row-hint">
                         מוסרים את הקוד, והוא מצטרף למשפחה — בהרשמה או דרך המסך הזה.
-                        {# תפוגה. קוד תקף הוא קריאה **וכתיבה** מלאות על כל ההיסטוריה
-                           הפיננסית של המשפחה, ועד עכשיו הוא לא פג לעולם — מי שקיבל
-                           אותו פעם אחת נכנס איתו תמיד, גם שנה אחרי שעזב. #}
+                        {# Expiry. A valid code is full read **and write** access to the family's
+                           whole financial history, and until now it never
+                           expired: whoever got it once could always get in with
+                           it, even a year after leaving. #}
                         {% if invite_expired %}
                             <strong>הקוד פג. הפיקו חדש כדי להזמין.</strong>
                         {% elif invite_expires_in is not none %}
@@ -185,8 +193,9 @@
                 <div class="invite-actions">
                 <span class="invite-code-inline" id="inviteCode">{{ family['invite_code'] }}</span>
                 <button class="btn-sm btn-ghost" id="copyCodeBtn">העתקה</button>
-                {# החלפת קוד פוסלת גם הזמנות שכבר נשלחו, ולכן היא של המנהל.
-                   הכלל נאכף בשרת ממילא; ההסתרה כאן רק לא מציעה פעולה שתיכשל. #}
+                {# Replacing the code also invalidates invitations already sent, so it is the
+                   manager's. The rule is enforced on the server anyway; hiding it
+                   here just doesn't offer an action that would fail. #}
                 {% if user.id == family.get('manager_id') %}
                 <button class="btn-sm btn-ghost" id="rotateCodeBtn">קוד חדש</button>
                 {% endif %}
@@ -194,11 +203,12 @@
             </div>
             {% endif %}
 
-            {# עזיבה והצטרפות למשפחה אחרת — שורה אחת (מתן, 11.10). הצטרפות היא
-               פעולה של פעם בחיים, ובפועל היא אותו מהלך כמו עזיבה: יוצאים מהמשפחה
-               הזאת, ועוברים לאחרת או לחדשה וריקה. מי שלבד במשפחה לא "עוזב" —
-               אצלו השורה היא רק הצטרפות. ‎#join-family‎ נשאר: קישור הזמנה
-               (‎/join/<code>‎) פותח את החלונית וממלא בה את הקוד. #}
+            {# Leaving and joining another family: one row (Matan, 11.10). Joining is a
+               once-in-a-lifetime action, and in practice it is the same move as
+               leaving: you leave this family, and move to another or to a new,
+               empty one. Someone alone in the family doesn't "leave": for them
+               the row is only joining. `#join-family` stays: an invite link
+               (`/join/<code>`) opens the panel and fills in the code. #}
             {% set alone = members | length <= 1 %}
             <div class="group-divider"></div>
             <div class="group-row">
@@ -227,13 +237,15 @@
                 {% endif %}
             </div>
 
-            {# פעולות נדירות של המשפחה — מקופלות (מתן, 11.10). איפוס העסקאות עבר
-               לכאן מ"אבטחה וחשבון": הוא מוחק עסקאות של המשפחה, לא את החשבון.
-               הסרת בן משפחה — רק למנהל; הכלל נאכף ב-DB ממילא. #}
+            {# The family's rare actions: collapsed (Matan, 11.10). The transaction reset
+               moved here from "security and account": it deletes the family's
+               transactions, not the account.
+               Removing a family member: manager only; the rule is enforced in
+               the DB anyway. #}
             <div class="group-divider"></div>
             <details class="advanced-options">
                 <summary class="advanced-summary">אפשרויות מתקדמות</summary>
-                <!-- איפוס עסקאות: מחיקת כל העסקאות, החשבון נשמר -->
+                <!-- transaction reset: deletes all transactions, the account is kept -->
                 <div class="group-row">
                     <div class="group-row-info">
                         <p class="group-row-label">איפוס עסקאות</p>
@@ -254,7 +266,7 @@
                             <button type="button" class="toggle-btn active" id="resetScopeFamily" data-scope="family">כל עסקאות המשפחה</button>
                             <button type="button" class="toggle-btn" id="resetScopeMine" data-scope="mine">רק העסקאות שלי</button>
                             {% else %}
-                            {# מחיקת ההיסטוריה של כל המשפחה היא של המנהל בלבד. #}
+                            {# Deleting the whole family's history is the manager's only. #}
                             <button type="button" class="toggle-btn active" id="resetScopeMine" data-scope="mine">רק העסקאות שלי</button>
                             {% endif %}
                         </div>
@@ -292,7 +304,7 @@
         </div>
     </section>
 
-    <!-- ═══ קבוצה 2: קטגוריות ═══ -->
+    <!-- ═══ Group 2: categories ═══ -->
     <section class="settings-group">
         <button type="button" class="settings-group-header" aria-expanded="false">
             <span class="group-icon">
@@ -333,7 +345,7 @@
                 </template>
                 {% endfor %}
 
-                <!-- הוספת קטגוריה — מוצג במצב ניהול, לפי הטאב הפעיל -->
+                <!-- adding a category: shown in management mode, by the active tab -->
                 <form class="add-cat-form" id="addCatForm" novalidate>
                     <input type="hidden" id="newCatType" value="expense">
                     <div class="add-cat-row">
@@ -346,9 +358,9 @@
                     <p class="form-error" id="addCatError" role="alert"></p>
                 </form>
 
-                {# שחזור ברירת המחדל (מתן, 31.10) — "למי שמחק בטעות או רוצה את
-                   הקטגוריות של ברירת המחדל". רק מוסיף את מה שחסר; במצב ניהול,
-                   כמו ההוספה #}
+                {# Restoring the defaults (Matan, 31.10): "for whoever deleted by mistake or
+                   wants the default categories". Only adds what is missing; in
+                   management mode, like adding #}
                 <div class="restore-defaults" id="restoreDefaultsRow">
                     <button type="button" class="btn-sm btn-ghost" id="restoreDefaultCatsBtn">החזרת קטגוריות ברירת המחדל</button>
                     <p class="field-hint">מוסיף רק את מה שחסר. הקטגוריות הקיימות והעסקאות לא משתנות.</p>
@@ -357,7 +369,7 @@
         </div>
     </section>
 
-    <!-- ═══ קבוצה 3: עסקאות קבועות ═══ -->
+    <!-- ═══ Group 3: recurring transactions ═══ -->
     <section class="settings-group">
         <button type="button" class="settings-group-header" aria-expanded="false">
             <span class="group-icon">
@@ -376,10 +388,11 @@
 
         <div class="settings-group-body">
             {% if recurring %}
-            {# סיכום למעלה ורשימה לפי סוג, בלי ✕ בכל שורה (מתן, 11.10 — חלופה א׳).
-               נגיעה בשורה פותחת עריכה, ושם "הסרת העסקה הקבועה" עוצרת את הסדרה
-               (‎transactions.js‎); החלקה שמאלה עושה אותו דבר. הסכומים בסיכום
-               הם לחודש: שבועי ×52/12, דו-שבועי ×26/12. #}
+            {# A summary on top and a list by type, with no ✕ on every row (Matan, 11.10,
+               option A). Tapping a row opens editing, and there "remove the
+               recurring transaction" stops the series (`transactions.js`); a
+               swipe left does the same. The amounts in the summary are
+               monthly: weekly ×52/12, biweekly ×26/12. #}
             {% set per_month = {'weekly': 52 / 12, 'biweekly': 26 / 12} %}
             {% set rec_groups = [('income', 'נכנס כל חודש', 'הכנסות'),
                                  ('expense', 'יוצא כל חודש', 'הוצאות'),
@@ -413,10 +426,10 @@
                         <span class="recurring-icon">{{ tx.category_icon }}</span>
                         <div class="recurring-details">
                             <p class="recurring-name">{{ tx.description or tx.category_name }}</p>
-                            {# "הבא: 1.11" — מתי זה יורד שוב (מתן, 12.10) #}
+                            {# "הבא: 1.11": when it is charged again (Matan, 12.10) #}
                             {% set next_label = (next_charges or {}).get(tx.id) %}
                             {% if next_label %}<p class="recurring-next">{{ next_label }}</p>{% endif %}
-                            {# "₪5,000 ← ₪5,500 מאוקטובר" — השינוי האחרון בסכום (מתן, 3.10 — רעיון 40) #}
+                            {# "₪5,000 ← ₪5,500 מאוקטובר": the latest change in the amount (Matan, 3.10, idea 40) #}
                             {% set change = (price_changes or {}).get(tx.id) %}
                             {% if change %}
                             <p class="recurring-price-change">₪{{ change.old | money }} ← ₪{{ tx.amount | money }} מ{{ hebrew_months[change.since[5:7] | int] }}</p>
@@ -443,9 +456,10 @@
         </div>
     </section>
 
-    <!-- ═══ קבוצה: שיוך עסקאות ═══ -->
-    {# עד 11.10 "העדפות משפחה". אחרי שההתראות ומקום העבודה ירדו, נשארו כאן רק
-       מתגי השיוך — והכותרת אומרת את זה. #}
+    <!-- ═══ Group: transaction attribution ═══ -->
+    {# Until 11.10 "family settings". After the alerts and the workplace were
+       removed, only the attribution switches remained here, and the heading says
+       so. #}
     <section class="settings-group">
         <button type="button" class="settings-group-header" aria-expanded="false">
             <span class="group-icon">
@@ -499,13 +513,14 @@
                 </label>
             </div>
 
-            {# "התראות על חריגות" ו"מקום עבודה על שורות משכורת" ירדו (מתן,
-               11.10). מי שרוצה התראות קובע תקציב לקטגוריה — חריגה ממנו מופיעה
-               בבית. מקום העבודה מוצג תמיד מתחת למשכורת. #}
+            {# "Overage alerts" and "workplace on salary rows" were removed (Matan,
+               11.10). Whoever wants alerts sets a budget for a category: going
+               over it appears on home. The workplace is always shown under the
+               salary. #}
         </div>
     </section>
 
-    <!-- ═══ תצוגה — לכל טלפון בנפרד (מתן, 30.9 — סבב 6) ═══ -->
+    <!-- ═══ Appearance: per phone (Matan, 30.9, round 6) ═══ -->
     <section class="settings-group" id="display-settings">
         <button type="button" class="settings-group-header" aria-expanded="false">
             <span class="group-icon">
@@ -524,7 +539,7 @@
         <div class="settings-group-body">
             <div class="form-group">
                 <label class="form-label" id="themeLabel">מראה</label>
-                {# ידני בלבד: האפליקציה בהירה עד שבוחרים כהה (החלטת מתן) #}
+                {# Manual only: the app is light until dark is chosen (Matan's decision) #}
                 <div class="type-toggle" role="group" aria-labelledby="themeLabel">
                     <button type="button" class="toggle-btn theme-choice" data-theme-choice="light" aria-pressed="true">בהיר</button>
                     <button type="button" class="toggle-btn theme-choice" data-theme-choice="dark" aria-pressed="false">כהה</button>
@@ -538,16 +553,18 @@
                     <button type="button" class="toggle-btn text-size-choice" data-size="xlarge" aria-pressed="false">גדול מאוד</button>
                 </div>
             </div>
-            {# "צליל ורטט בשמירה" ירד (מתן, 11.10): הצליל הוסר, והרטט שקט —
-               אין מה לכבות. #}
-            {# התראות לטלפון (מתן, 31.10) — לכל מכשיר בנפרד, כמו המראה. מופיע רק
-               כשהשרת מוגדר לשלוח (‎VAPID_PRIVATE_KEY‎). #}
+            {# "Sound and vibration on save" was removed (Matan, 11.10): the sound was
+               removed, and the vibration is silent: nothing to turn off. #}
+            {# Phone notifications (Matan, 31.10): per device, like the appearance.
+               Appears only when the server is configured to send
+               (`VAPID_PRIVATE_KEY`). #}
         </div>
     </section>
 
-    <!-- ═══ התראות ═══ -->
-    {# קבוצה משלה (מתן, 1.11 — דוגמה ב): בתוך "תצוגה" המתג נראה מבולגן ולא
-       כמו משהו נפרד. מוצגת רק כשהשרת מוגדר לשלוח (‎VAPID_PRIVATE_KEY‎). #}
+    <!-- ═══ Notifications ═══ -->
+    {# A group of its own (Matan, 1.11, example B): inside "appearance" the switch
+       looked messy and not like something separate. Shown only when the server is
+       configured to send (`VAPID_PRIVATE_KEY`). #}
     {% if push_key %}
     <section class="settings-group" id="notification-settings">
         <button type="button" class="settings-group-header" aria-expanded="false">
@@ -565,8 +582,8 @@
         </button>
 
         <div class="settings-group-body">
-            {# מתג אחד, בלי הסבר. שורה מתחתיו רק כשמשהו מונע — חסום בטלפון,
-               או אייפון מחוץ לאפליקציה המותקנת. #}
+            {# One switch, no explanation. A line under it only when something prevents
+               it: blocked on the phone, or an iPhone outside the installed app. #}
             <div class="group-row" id="pushSettings">
                 <div class="group-row-info">
                     <p class="group-row-label">התראות לטלפון</p>
@@ -582,11 +599,12 @@
     {% endif %}
 
 
-    <!-- ═══ החשבון שלי ═══ -->
-    {# סדר בהגדרות (מתן, 11.10): כל מה ששייך רק לי — במקום אחד. עד אז השם ומקום
-       העבודה נערכו מעיפרון בשורה שלי ברשימת בני המשפחה, הצבע מכפתור באותה
-       שורה, ומייל, טלפון וסיסמה ב"אבטחה וחשבון". כל שורה כאן: מה רשום, וכפתור
-       עדכון. #}
+    <!-- ═══ My account ═══ -->
+    {# Order in settings (Matan, 11.10): everything that belongs only to me, in one
+       place. Until then the name and workplace were edited from a pencil on my row
+       in the family member list, the colour from a button on the same row, and
+       email, phone and password in "security and account". Every row here: what
+       is recorded, and an update button. #}
     <section class="settings-group" id="my-details">
         <button type="button" class="settings-group-header" aria-expanded="false">
             <span class="group-icon">
@@ -595,7 +613,7 @@
                 </svg>
             </span>
             <span class="group-text">
-                {# בלי המייל מתחת: הוא כבר בראש העמוד #}
+                {# No email underneath: it is already at the top of the page #}
                 <span class="group-title">החשבון שלי</span>
             </span>
             <span class="group-chevron">
@@ -604,8 +622,9 @@
         </button>
 
         <div class="settings-group-body">
-            {# "החשבון שלי" (מתן, 13.10): כמו "עסקאות קבועות" — אייקון, שם, מה רשום
-               מתחת, וחץ. נגיעה בשורה פותחת את העריכה שלה, במקום כפתורי "עדכון". #}
+            {# "My account" (Matan, 13.10): like "recurring transactions": icon, name, what
+               is recorded below, and an arrow. Tapping the row opens its editor,
+               instead of "update" buttons. #}
             <p class="recurring-group-title">פרטים</p>
             <ul class="acct-list">
                 <li>
@@ -656,7 +675,7 @@
                 {% endif %}
             </ul>
             {% if member_colors and user.id in member_colors %}
-            {# חלון בחירת הצבע: כל צבע עם דוגמה של תג השם שלי בצבע הזה #}
+            {# The colour picker sheet: each colour with a sample of my name tag in that colour #}
             {% set me = members | selectattr('id', 'equalto', user.id) | first %}
             {% set mine = member_colors.get(user.id) %}
             <div class="color-sheet" id="memberColorSheet" role="dialog" aria-modal="true" aria-labelledby="memberColorTitle" hidden>
@@ -680,7 +699,7 @@
             </div>
             {% endif %}
 
-            {# מייל, טלפון וסיסמה — פרטי ההתחברות, במקום אחד (מתן, 1.10) #}
+            {# Email, phone and password: the sign-in details, in one place (Matan, 1.10) #}
             <p class="recurring-group-title">התחברות</p>
             <ul class="acct-list">
                 <li>
@@ -775,7 +794,7 @@
             <div class="group-divider"></div>
             <details class="advanced-options">
                 <summary class="advanced-summary">אפשרויות מתקדמות</summary>
-                <!-- מחיקת חשבון לצמיתות -->
+                <!-- permanently deleting the account -->
                 <div class="group-row">
                     <div class="group-row-info">
                         <p class="group-row-label">מחיקת חשבון</p>
@@ -804,27 +823,30 @@
         </div>
     </section>
 
-    {# התנתקות מתחת לכל התיבות, ולא בתוך "חשבון" (מתן, 1.10).
-       טופס POST ולא קישור: GET /logout אפשר להפעיל מאתר אחר עם
-       ‎<img src="...">‎ ולנתק את המשתמש בלי ידיעתו. SameSite=Lax
-       מתיר בדיוק את הצורה הזאת של ניווט GET. #}
-    {# בתחתית המסך, גם כשכל התיבות סגורות והעמוד קצר (מתן, 13.10) #}
+    {# Sign out below all the boxes, and not inside "account" (Matan, 1.10).
+       A POST form and not a link: GET /logout can be triggered from another site
+       with `<img src="...">` and sign the user out without their knowledge.
+       SameSite=Lax allows exactly that kind of GET navigation. #}
+    {# At the bottom of the screen, even when every box is closed and the page is
+       short (Matan, 13.10) #}
     <div class="settings-footer">
-    {# ייבוא מהאשראי (מתן, 31.10): פעולה של פעם בחודש — שורת טקסט שקטה מעל
-       "התנתקות", ולא תיבה משלה בין הקבוצות #}
+    {# Import from the card company (Matan, 31.10): a once-a-month action: a quiet
+       text line above "sign out", and not a box of its own among the groups #}
     <p class="settings-import"><a class="settings-import-link" href="{{ url_for('import_page') }}">ייבוא עסקאות מחברת האשראי</a></p>
     <form method="POST" action="{{ url_for('logout') }}" class="logout-form settings-logout">
         <button type="submit" class="logout-btn">התנתקות</button>
     </form>
 
-    {# תמיכה. הייתה קבורה בתוך "אבטחה וחשבון", מעל שינוי סיסמה ומחיקת
-       חשבון — ומי שמשהו לא עובד אצלו לא מחפש עזרה מתחת ל"אבטחה". כאן
-       היא תמיד גלויה, ובלי לפתוח שום אקורדיון.
+    {# Support. It used to be buried inside "security and account", above changing
+       the password and deleting the account, and someone for whom something
+       doesn't work doesn't look for help under "security". Here it is always
+       visible, without opening any accordion.
 
-       הכתובת גלויה כרגיל: העמוד הזה מאחורי התחברות, וההסתרה מבוטים
-       נחוצה רק בעמודים הציבוריים. #}
-    {# שורה אחת ולא שתיים (מתן, 11.10): כשכל הקבוצות סגורות, ההגדרות נכנסות
-       במסך אחד גם באפליקציה המותקנת — והכותרת לא נעלמת אחרי החלקה לתחתית. #}
+       The address is visible as usual: this page is behind sign-in, and hiding
+       from bots is needed only on public pages. #}
+    {# One row and not two (Matan, 11.10): when every group is closed, settings fit
+       on one screen even in the installed app, and the heading doesn't vanish
+       after scrolling to the bottom. #}
     <section class="settings-contact">
         <p class="settings-contact-label">משהו לא עובד, או שאלה על הנתונים שלכם?
             <a class="settings-contact-link" href="mailto:matanshneor1@gmail.com?subject=SmartFin">כתבו לנו</a></p>

@@ -7,7 +7,7 @@
     <div>
         <h1 class="hero-title">פרויקטים</h1>
         <p class="hero-subtitle">תקציב לפרויקט — טיול, שיפוץ, אירוע ועוד</p>
-        {# מתן (3.10): שיהיה ברור שכסף של פרויקט לא נכנס למאזן של החודש #}
+        {# Matan (3.10): make it clear that project money doesn't go into the month's balance #}
         <p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש — הן נספרות רק בתוך הפרויקט</p>
     </div>
 </div>
@@ -15,16 +15,18 @@
 
 {% block content %}
 
-{# מלבן לכל פרויקט, בגוון משלו (מתן, 5.10).
+{# A box per project, in its own tint (Matan, 5.10).
 
-   בלי סכומים ובלי התקדמות מבחוץ — רק בתוך הפרויקט (מתן, 5.10). הסכום
-   הוצא מהרשימה כבר ב-30.9: "₪4,200" לבד לא אומר כלום, ובתוך הפרויקט הוא
-   מוצג עם כל ההקשר. ומחיקה — גם היא רק בתוך הפרויקט. #}
-{# ארבעה גוונים, תמיד באותו סדר — כחול, אפרסק, ורוד, ירוק — כך ששניים
-   זהים אף פעם לא נוגעים זה בזה (מתן, 5.10) #}
-{# כמה נשאר — במשפט אחד, בלי לפתוח את הפרויקט (מתן, 12.10; הפך את ההחלטה
-   מ-5.10). עם יעד: נשארו מתוך היעד, ופס. בלי יעד: כמה יצא (או נחסך, בפרויקט
-   חיסכון). פרויקט שעוד אין בו כלום — בלי שורה. #}
+   No amounts and no progress from the outside, only inside the project (Matan,
+   5.10). The amount was taken out of the list already on 30.9: "₪4,200" alone
+   says nothing, and inside the project it is shown with all the context. And
+   deletion, too, is only inside the project. #}
+{# Four tints, always in the same order (blue, peach, pink, green), so two
+   identical ones never touch (Matan, 5.10) #}
+{# How much is left, in one sentence, without opening the project (Matan, 12.10;
+   reversed the decision of 5.10). With a target: left of the target, and a bar.
+   Without a target: how much went out (or was saved, in a savings project). A
+   project with nothing in it yet: no line. #}
 {% macro tile_progress(p) %}
 {% if p.budget_target %}
 {% set left = p.budget_target - p.spent %}
@@ -58,8 +60,9 @@
 
 <section class="projects-gallery" id="activeProjects" aria-label="פרויקטים פעילים">
     {% if projects %}
-    {# פרויקט פעיל אחד: + פותח טופס שהוא כבר בחור בו, כמו בעמוד הפרויקט
-       (מתן, 1.10). כמה פעילים — אין דרך לדעת לאיזה, הטופס נפתח רגיל. #}
+    {# One active project: + opens a form with it already selected, as on the
+       project page (Matan, 1.10). Several active ones: no way to know which, so
+       the form opens normally. #}
     {% if projects | length == 1 %}<span id="sfPageProject" data-project-id="{{ projects[0].id }}" hidden></span>{% endif %}
     <div class="project-grid" id="projectsList">
         {% for p in projects %}{{ tile(p, loop.index0) }}{% endfor %}
@@ -69,7 +72,7 @@
         </a>
     </div>
     {% else %}
-    {# בלי פרויקטים פעילים: לא "אין כלום" — הזמנה להתחיל, עם רעיונות #}
+    {# No active projects: not "there's nothing", an invitation to start, with ideas #}
     <div class="project-grid" id="projectsList">
         <a class="project-tile project-tile-new" id="newProjectBtn" href="{{ url_for('project_new') }}">
             <span class="project-tile-plus" aria-hidden="true">＋</span>
@@ -93,7 +96,7 @@
 </section>
 
 
-{# מופיע רק כשיש כאלה — חלק ריק "פרויקטים שהסתיימו" לא אומר כלום #}
+{# Appears only when there are any: an empty "finished projects" section says nothing #}
 {% if finished_projects %}
 <section class="finished-projects" id="finishedProjects">
     <h2 class="projects-section-title">הסתיימו</h2>

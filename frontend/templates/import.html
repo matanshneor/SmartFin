@@ -2,9 +2,10 @@
 
 {% block title %}SmartFin – ייבוא מהאשראי{% endblock %}
 
-{# ייבוא מחברת האשראי (מתן, 31.10): מעלים את קובץ פירוט העסקאות, רואים
-   קטגוריה מוצעת וסימון של מה שכבר קיים, ומאשרים. בלי ה-+ הצף — הוא
-   "הוספת עסקה", ואין לו משמעות באמצע ייבוא. #}
+{# Importing from the card company (Matan, 31.10): upload the transaction
+   statement file, see a suggested category and a mark on what already exists,
+   and confirm. Without the floating +: it is "add a transaction", and has no
+   meaning in the middle of an import. #}
 {% block body_class %}no-fab{% endblock %}
 
 {% block hero %}
@@ -21,7 +22,7 @@
 
 {% block content %}
 
-{# שלב 1 — העלאה #}
+{# Step 1: upload #}
 <section class="chart-card" id="importUpload">
     <h2 class="chart-title">איך זה עובד</h2>
     <ol class="import-steps">
@@ -43,7 +44,7 @@
     </p>
 </section>
 
-{# שלב 2 — קובץ שלא זוהה: המשתמש אומר איזו עמודה היא מה #}
+{# Step 2: an unrecognised file: the user says which column is what #}
 <section class="chart-card" id="importMapping" hidden>
     <h2 class="chart-title">איזו עמודה היא מה?</h2>
     <p class="field-hint">לא זיהינו את המבנה של הקובץ הזה. בחרו פעם אחת — ובפעם הבאה במכשיר הזה הוא ייקרא לבד.</p>
@@ -64,7 +65,7 @@
     </div>
 </section>
 
-{# שלב 3 — בדיקה ואישור #}
+{# Step 3: review and confirm #}
 <section class="chart-card" id="importReview" hidden>
     <div class="chart-title-row">
         <h2 class="chart-title">מה נמצא בקובץ</h2>
@@ -106,7 +107,7 @@
     </div>
 </section>
 
-{# שלב 4 — סיום #}
+{# Step 4: done #}
 <section class="chart-card import-done" id="importDone" hidden>
     <p class="import-done-icon" aria-hidden="true">✓</p>
     <h2 class="chart-title" id="importDoneTitle"></h2>

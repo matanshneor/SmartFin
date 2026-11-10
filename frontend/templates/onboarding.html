@@ -43,14 +43,15 @@
 
             <div class="form-error" id="onboardingError" role="alert"></div>
 
-            <!-- Step 0: המזלג — משפחה חדשה או הצטרפות לקיימת.
-                 בלי המסך הזה היה נרטיב יחיד ("אתה בעלים של משפחה חדשה"),
-                 ומי שקיבל קוד הזמנה לא מצא שום דרך להשתמש בו ופתח משפחה
-                 כפולה בלי לדעת. -->
-            {# הצטרפת למשפחה שעדיין באמצע ההגדרה. ההצטרפות הצליחה —
-               פשוט אין עדיין קטגוריות, וזה מה שהאפליקציה מודדת. בלי
-               המסך הזה נראה כאן מסך הפתיחה, שנקרא ככישלון ומציע
-               "פותחים משפחה חדשה" — כלומר פיצול המשפחה לשתיים. #}
+            <!-- Step 0: the fork: a new family or joining an existing one.
+                 Without this screen there was a single narrative ("you own a new
+                 family"), and whoever got an invite code found no way to use it
+                 and opened a duplicate family without knowing. -->
+            {# You joined a family that is still mid-setup. The join succeeded: there
+               just aren't any categories yet, and that is what the app
+               measures. Without this screen the welcome screen showed here,
+               which reads as a failure and offers "open a new family", i.e.
+               splitting the family in two. #}
             {% if waiting_for %}
             <section class="onboarding-step" id="stepWaiting">
                 <h2 class="auth-form-title">הצטרפתם בהצלחה</h2>
@@ -60,9 +61,10 @@
                     לעשות בינתיים.
                 </p>
                 <div class="onboarding-actions">
-                    {# ‎onclick‎ היה כאן, וה-CSP (‎script-src 'self'‎ בלי ‎unsafe-inline‎)
-                       חסם אותו בשקט — הכפתור היחיד במסך היחיד שאין ממנו יציאה.
-                       המאזין יושב ב-onboarding.js, לפני היציאה המוקדמת. #}
+                    {# `onclick` used to be here, and the CSP (`script-src 'self'` without
+                       `unsafe-inline`) silently blocked it: the only button on
+                       the only screen with no way out. The listener sits in
+                       onboarding.js, before the early return. #}
                     <button type="button" class="submit-btn" id="waitingRefreshBtn">רענון</button>
                 </div>
             </section>
@@ -90,7 +92,7 @@
                 </div>
             </section>
 
-            <!-- Step join: הזנת קוד הזמנה -->
+            <!-- Step join: entering an invite code -->
             <section class="onboarding-step" id="stepJoin" style="display:none;">
                 <h2 class="auth-form-title">מה הקוד שקיבלתם?</h2>
                 <p class="onboarding-sub">
@@ -111,7 +113,7 @@
                 </div>
             </section>
 
-            <!-- Step 1: שם המשפחה -->
+            <!-- Step 1: the family name -->
             {% endif %}
 
             <section class="onboarding-step" id="step1" style="display:none;">
@@ -130,13 +132,15 @@
                 </div>
             </section>
 
-            <!-- Step 2: קוד הזמנה -->
-            {# ההזמנה היא המסך האחרון, ולא שלב 2 כמו קודם.
-               הקוד הוצג באמצע האשף, לפני שנוצרו הקטגוריות — ומי שקיבל
-               אותו והצטרף מיד נחת בעצמו על האשף (האפליקציה מזהה
-               "משפחה לא מוגדרת" לפי היעדר קטגוריות), בלי שום הסבר.
-               זה נראה ככישלון, והמוצא המתבקש — "פותחים משפחה חדשה" —
-               פיצל את המשפחה לשתיים. אין הזמנה לפני שיש למה להזמין. #}
+            <!-- Step 2: invite code -->
+            {# The invitation is the last screen, not step 2 as before.
+               The code was shown in the middle of the wizard, before the
+               categories were created, and whoever got it and joined right
+               away landed on the wizard themselves (the app recognises "a family
+               not set up" by the absence of categories), with no explanation.
+               It looked like a failure, and the obvious way out ("open a new
+               family") split the family in two. No invitation before there is
+               something to invite to. #}
             <section class="onboarding-step" id="stepInvite" style="display:none;">
                 <h2 class="auth-form-title">הכל מוכן</h2>
                 <p class="onboarding-sub">
@@ -156,7 +160,7 @@
                 </div>
             </section>
 
-            <!-- Step 3: איך תרצו לעקוב? (שיוך עסקאות לבני משפחה) -->
+            <!-- Step 3: how would you like to track? (attributing transactions to family members) -->
             <section class="onboarding-step" id="step2" style="display:none;">
                 <h2 class="auth-form-title">איך תרצו לעקוב?</h2>
                 <p class="onboarding-sub">
@@ -200,14 +204,17 @@
                 </div>
             </section>
 
-            <!-- Step 4: קטגוריות -->
+            <!-- Step 4: categories -->
             <section class="onboarding-step" id="step3" style="display:none;">
-                {# שני אנשים ביטלו כאן את כל הקטגוריות במקום לבחור אותן (מתן, 31.10):
-                   הכותרת הייתה "בחרו את הקטגוריות" — אבל כולן כבר מסומנות, אז
-                   "לבחור" אחת פירושו ללחוץ עליה, וזה בדיוק מה שמבטל אותה. עכשיו
-                   הכותרת אומרת שהן כבר שלכם, ✓ על כל מסומנת, ומונה חי. #}
+                {# Two people deselected all the categories here instead of choosing them
+                   (Matan, 31.10): the heading was "choose the categories", but
+                   they are all already selected, so "choosing" one means tapping
+                   it, and that is exactly what deselects it. Now the heading says
+                   they are already yours, a ✓ on every selected one, and a live
+                   counter. #}
                 <h2 class="auth-form-title">הקטגוריות שלכם</h2>
-                {# שלוש שורות, אחת לכל פעולה, בלי סימנים לידן (מתן, 31.10 — נוסח ג) #}
+                {# Three lines, one per action, with no symbols next to them (Matan, 31.10,
+   wording C) #}
                 <ul class="onboarding-legend">
                     <li>כל המסומנות כבר נבחרו</li>
                     <li>לא צריכים קטגוריה? לחצו עליה כדי להוריד</li>
@@ -247,9 +254,10 @@
                 </div>
             </section>
 
-            {# הדרך היחידה החוצה. בלעדיה מי שנרשם עם מייל שגוי, או שהצטרף
-               למשפחה הלא נכונה עם קוד שקיבל בטעות, תקוע כאן לגמרי: באשף
-               אין ניווט, אין תפריט ואין אף קישור. #}
+            {# The only way out. Without it, whoever signed up with a wrong email, or
+               joined the wrong family with a code they got by mistake, is
+               completely stuck here: the wizard has no navigation, no menu and
+               not a single link. #}
             <form class="onboarding-escape" method="post" action="{{ url_for('logout') }}">
                 <button type="submit" class="btn-link-quiet">התנתקות</button>
             </form>

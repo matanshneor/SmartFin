@@ -2,8 +2,9 @@
 
 {% block title %}SmartFin – פרויקט חדש{% endblock %}
 
-{# מסך משלו (מתן, 5.10) — קודם הטופס נפתח בתוך רשימת הפרויקטים. כמו מסך
-   העריכה: בלי ה-+ הצף, שהוא "הוספת עסקה" ואין לו משמעות כאן. #}
+{# A screen of its own (Matan, 5.10): before, the form opened inside the project
+   list. Like the edit screen: without the floating +, which is "add a
+   transaction" and has no meaning here. #}
 {% block body_class %}no-fab{% endblock %}
 
 {% block hero %}
@@ -19,8 +20,9 @@
 {% endblock %}
 
 {% block content %}
-{# אייקון שהגיע מרעיון ("✈️ טיול") מסומן כאוטומטי: שינוי השם ל"שיפוץ מטבח"
-   מחליף אותו בהצעה החדשה, כמו אייקון שהוצע לפי השם (‎icon-picker.js‎) #}
+{# An icon that came from an idea ("✈️ טיול") is marked as automatic: renaming
+   to "שיפוץ מטבח" replaces it with the new suggestion, like an icon suggested by
+   name (`icon-picker.js`) #}
 <section class="chart-card">
     <form class="add-cat-form" id="newProjectForm" novalidate>
         <div class="form-group">

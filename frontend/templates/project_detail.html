@@ -6,9 +6,9 @@
 <div class="hero-top">
     <div>
         <a href="{{ url_for('projects') }}" class="stats-nav-btn" aria-label="חזרה לפרויקטים" style="margin-inline-end:10px;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{# קודקוד ב-x=15: החץ מצביע ימינה. בעברית ימינה היא
-                   "אחורה" — הגלגל הקודם היה הגלגל של "הבא".
-                   month.html ו-login.html עשו את זה נכון. #}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{# Vertex at x=15: the arrow points right. In Hebrew right is "back": the
+                   previous chevron was the "next" one. month.html and
+                   login.html got it right. #}
                 <polyline points="9 18 15 12 9 6"/></svg>
         </a>
         <h1 class="hero-title">
@@ -21,9 +21,9 @@
     </div>
 </div>
 
-{# עלות / שווי הפרויקט — הכנסות פחות הוצאות, בשורה נפרדת מעל הריבועים
-   (מתן, 30.9). רק בפרויקט שעוקב אחרי שניהם — בפרויקט של הוצאות בלבד זה סתם
-   מינוס של ההוצאות. חיסכון לא נכלל. #}
+{# The project's cost / value: income minus expenses, on a separate row above
+   the tiles (Matan, 30.9). Only in a project that tracks both: in an
+   expenses-only project it is just minus the expenses. Savings aren't included. #}
 {% if project.track_income and project.track_expense %}
 {% set net = ((project.income or 0) - (project.spent or 0)) | round(2) %}
 <div class="project-net {% if net > 0 %}surplus{% elif net < 0 %}deficit{% endif %}">
@@ -31,8 +31,8 @@
     <p class="project-net-value">{% if net > 0 %}+{% elif net < 0 %}-{% endif %}₪{{ (net | abs) | money }}</p>
 </div>
 {% endif %}
-{# עמודות שוות לפי מספר הריבועים: שניים — חצי-חצי (ולא שני שלישים), ארבעה —
-   שתיים על שתיים (ולא שלושה ועוד אחד בודד) #}
+{# Equal columns by the number of tiles: two, half and half (not two thirds);
+   four, two by two (not three plus a single one) #}
 {% set chip_count = (1 if project.track_expense else 0) + (1 if project.track_income else 0)
                   + (1 if project.track_savings else 0) + (2 if project.budget_target else 0) %}
 {% set columns = 2 if chip_count == 4 else ([chip_count, 3] | min) %}
@@ -66,8 +66,9 @@
     </div>
     {% endif %}
 </div>
-{# התקדמות מול היעד — בחלק העליון, מתחת לריבועים, ולא בכרטיס נפרד שחזר
-   על אותם מספרים (מתן, 1.10 — אפשרות ב). רק כשיש תקציב יעד. #}
+{# Progress against the target: at the top, under the tiles, and not in a
+   separate card that repeated the same numbers (Matan, 1.10, option B). Only
+   when there is a target budget. #}
 {% if project.budget_target %}
 {% set used_pct = ((project.spent / project.budget_target) * 100) | round | int %}
 <div class="hero-bar">
@@ -82,8 +83,9 @@
 {% endblock %}
 
 {% block content %}
-{# + בעמוד הפרויקט פותח טופס שהפרויקט כבר בחור בו (מתן, 30.9 — רעיון 8).
-   בתוך ‎main‎, כדי שיתחלף יחד עם העמוד ברענון רך. #}
+{# + on the project page opens a form with the project already selected (Matan,
+   30.9, idea 8). Inside `main`, so it is replaced together with the page on a
+   soft refresh. #}
 <span id="sfPageProject" data-project-id="{{ project.id }}" hidden></span>
 {% set freq_labels = {
     'monthly_same': 'כל חודש',
@@ -94,15 +96,15 @@
 } %}
 
 {% if project.archived %}
-{# פרויקט שהסתיים (מתן, 30.9): הכל נשאר כמו שהוא, רק אומרים את זה #}
+{# A finished project (Matan, 30.9): everything stays as it is, we just say so #}
 <div class="project-archived-banner" role="status">
     <span>✓ הפרויקט הסתיים</span>
     <button type="button" class="btn-sm btn-ghost" data-archive-project="{{ project.id }}"
             data-archived="false" data-name="{{ project.name }}">פתיחה מחדש</button>
 </div>
 {% endif %}
-{# "הפרויקט הסתיים?" (מתן, 12.10) — אותה פעולה כמו "הפרויקט הסתיים" למטה.
-   "לא עכשיו" — מסתיר לחודש, בטלפון הזה (‎core.js‎). #}
+{# "Project finished?" (Matan, 12.10): the same action as "project finished"
+   below. "Not now" hides it for a month, on this phone (`core.js`). #}
 {% if quiet_since %}
 <div class="project-quiet-banner" role="status" data-project-quiet="{{ project.id }}">
     <span>לא נוספו כאן עסקאות מאז {{ quiet_since }}. לסמן שהפרויקט הסתיים?</span>
@@ -114,7 +116,7 @@
 </div>
 {% endif %}
 <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:2px;">
-    {# הצמדה לבית (מתן, 12.10) — לא לפרויקט שהסתיים #}
+    {# Pin to home (Matan, 12.10): not for a finished project #}
     {% if not project.archived %}
     <button type="button" class="btn-sm btn-ghost" data-pin-project="{{ project.id }}"
             data-pinned="{{ 'true' if is_pinned else 'false' }}">{{ '📌 מוצמד לבית' if is_pinned else '📌 הצמדה לבית' }}</button>
@@ -123,7 +125,7 @@
 </div>
 
 
-<!-- גרף עוגה: חלוקה לפי קטגוריה, לכל סוג נעקב שיש בו עסקאות -->
+<!-- pie chart: a split by category, for every tracked type that has transactions -->
 {% set type_labels = {'expense': 'הוצאות', 'income': 'הכנסות', 'savings': 'חיסכון'} %}
 {% set chart_titles = {'expense': 'הוצאות לפי קטגוריה', 'income': 'הכנסות לפי קטגוריה', 'savings': 'חיסכון לפי קטגוריה'} %}
 {% set type_totals = {'expense': project.spent, 'income': project.income, 'savings': project.savings} %}
@@ -191,8 +193,9 @@
 <section class="chart-card">
     <h2 class="chart-title">כל העסקאות ({{ project.transactions | length }})</h2>
     {% if project.transactions %}
-    {# 5 האחרונות, והשאר מאחורי כפתור (מתן, 30.9): רשימה ארוכה של כל העסקאות
-       דחקה את כל השאר. הרשימה ממוינת מהחדשה לישנה (‎get_project_detail‎). #}
+    {# The last 5, and the rest behind a button (Matan, 30.9): a long list of every
+       transaction pushed everything else out. The list is sorted newest first
+       (`get_project_detail`). #}
     {% set first_shown = 5 %}
     <div role="group" class="cat-tx-list cat-tx-list-standalone" id="projectTxList">
         {% for tx in project.transactions %}
@@ -211,9 +214,10 @@
             {% if tx.has_receipt %}
             <span class="receipt-badge" data-href="{{ url_for('view_receipt', tx_id=tx.id) }}" title="צפייה בקבלה" aria-hidden="true">{{ ui_icon("receipt") }}</span>
             {% endif %}
-            {# סימן ולא רק צבע: ברשימה הזאת הכנסות והוצאות מעורבבות, ולמי שלא
-               מבחין בין ירוק לאדום (~8% מהגברים) הצבע לבדו לא אומר כלום.
-               אותו סימון כמו ברשימת האחרונות בבית. #}
+            {# A sign and not just a colour: in this list income and expenses are mixed,
+               and for someone who can't tell green from red (~8% of men)
+               colour alone says nothing. The same marking as in the recent list
+               on home. #}
             <span class="cat-tx-amount {{ tx.type }}">{% if tx.type == 'income' %}+{% elif tx.type == 'expense' %}-{% endif %}₪{{ tx.amount | money }}</span>
         </div>
         {% endfor %}
@@ -232,11 +236,13 @@
     {% endif %}
 </section>
 
-{# סיום ומחיקה — בתחתית עמוד הפרויקט ולא בעמוד העריכה (מתן, 9.10): אלה
-   פעולות על הפרויקט כולו, לא שינוי בהגדרות שלו, ועמוד העריכה נשאר רק
-   לעריכה. באותו כרטיס, והסיום קודם — זו הדרך הרכה, ורוב מי שחושב למחוק
-   פרויקט שנגמר בעצם רוצה רק שהוא לא יפריע. לפרויקט שכבר הסתיים — הפס
-   למעלה מציע "פתיחה מחדש", אז כאן נשארת רק המחיקה. #}
+{# Finishing and deleting: at the bottom of the project page and not on the
+   edit page (Matan, 9.10): these are actions on the whole project, not a
+   change to its settings, and the edit page stays for editing only. In the
+   same card, and finishing first: it is the soft path, and most people
+   thinking of deleting a finished project really just want it out of the way.
+   For a project already finished the bar at the top offers "reopen", so only
+   deletion stays here. #}
 {% set tx_count = (project.transactions or []) | length %}
 <section class="chart-card project-finish">
     {% if not project.archived %}
@@ -251,9 +257,10 @@
     <div class="group-divider"></div>
     {% endif %}
 
-    {# הכפתור ישב קודם כ-✕ ברשימת הפרויקטים, במרחק נגיעה אחת מהשם ובלי שום
-       הקשר על מה עומד להימחק. כאן, בתוך הפרויקט, כבר ראיתם את הסכומים ואת
-       העסקאות — ברור מה יאבד. #}
+    {# The button used to sit as a ✕ in the project list, one tap away from the
+       name and with no context about what is about to be deleted. Here, inside
+       the project, you have already seen the amounts and the transactions: it
+       is clear what will be lost. #}
     <div class="project-danger">
     <div class="group-row">
         <div class="group-row-info">
@@ -271,9 +278,10 @@
     </div>
 
     <div class="password-form" id="deleteProjectForm">
-        {# אין יותר בחירה "להשאיר את העסקאות": הן נחתו בבית כ"ללא קטגוריה"
-           והחודשים שעברו התייקרו, בזמן שהמסך הבטיח "יחזרו לקטגוריה הרגילה".
-           הסכומים כאן אמיתיים, מהפרויקט עצמו. #}
+        {# There is no longer a "keep the transactions" choice: they landed in the
+           household as "uncategorised" and past months became more expensive,
+           while the screen promised "they'll return to their regular category".
+           The amounts here are real, from the project itself. #}
         {% set amounts = [] %}
         {% if project.spent %}{% set _ = amounts.append('הוצאות ₪' ~ (project.spent | money)) %}{% endif %}
         {% if project.income %}{% set _ = amounts.append('הכנסות ₪' ~ (project.income | money)) %}{% endif %}

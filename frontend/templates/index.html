@@ -3,12 +3,12 @@
 {% block title %}SmartFin – בית{% endblock %}
 
 {% block hero %}
-{# הפס מפוצל: הוצאות וחיסכון בנפרד.
-   קודם הוא חיבר את שניהם למספר אחד וקרא לו "נוצלו" — כלומר חודש שבו
-   הוצאת 20% מההכנסות וחסכת 69% הוצג כפס זהב כמעט מלא עם המילה
-   "נוצלו 89%". כסף שנחסך לא נוצל, הוא רק עבר מקום.
-   וגרוע מזה: הפס הפך לאדום מעל 90%, כך שעוד קצת חיסכון היה צובע
-   אותו באדום — אזהרה על התנהגות טובה. #}
+{# The bar is split: expenses and savings separately.
+   Before, it added both into one number and called it "used": so a month in
+   which you spent 20% of income and saved 69% showed as an almost full gold bar
+   with the word "used 89%". Money saved wasn't used, it just moved.
+   And worse: the bar turned red above 90%, so a bit more saving would colour it
+   red: a warning about good behaviour. #}
 {% set spent_pct = ((summary.expense / summary.income * 100) | round | int) if summary.income > 0 else 0 %}
 {% set saved_pct = ((summary.savings / summary.income * 100) | round | int) if summary.income > 0 else 0 %}
 
@@ -18,7 +18,7 @@
         <h1 class="month-title">{{ month_label }}</h1>
     </div>
     <div class="hero-actions">
-        {# חיפוש בכל החודשים (מתן, 30.9 — סבב 6, פריט 2) #}
+        {# Search across all months (Matan, 30.9, round 6, item 2) #}
         <button type="button" class="hero-icon-btn" id="searchOpen" aria-label="חיפוש בכל העסקאות" aria-haspopup="dialog">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
         </button>
@@ -29,9 +29,10 @@
 </div>
 
 {% if is_new_family %}
-{# משפחה בלי אף עסקה (מתן, 31.10): שתי דרכים מפורשות להתחיל, ולא רק "לחצו על +".
-   משפחה שנרשמה ולא רשמה כלום בימים הראשונים כמעט לא חוזרת — והייבוא מכניס
-   חודש שלם בכמה דקות. נעלם מעצמו ברגע שיש עסקה ראשונה. #}
+{# A family with no transaction at all (Matan, 31.10): two explicit ways to
+   start, and not just "tap +". A family that signed up and recorded nothing in
+   the first days almost never comes back, and the import brings in a whole
+   month in a few minutes. Goes away by itself once there is a first transaction. #}
 <section class="hero-balance hero-start" aria-label="ברוכים הבאים">
     <p class="hero-label">עדיין אין נתונים החודש</p>
     <p class="hero-empty-message">בואו נתחיל</p>
@@ -43,22 +44,26 @@
     <p class="hero-start-hint">בייבוא: קובץ האקסל או ה-PDF של דף החיוב, וכל החודש נכנס בכמה דקות</p>
 </section>
 {% else %}
-{# חודש בלי הכנסות אינו גירעון.
-   כמעט כל משתמש חדש מזין הוצאה לפני משכורת, ואז המסך הראשון שלו הציג
-   ‎-₪120‎ באדום גדול מתחת ל"נשאר בעו״ש החודש" — כלומר האפליקציה פותחת
-   בהודעה שמשהו לא בסדר. חשבונאית זה נכון; מה שקרה בפועל הוא שעדיין אין
-   מה להחסיר ממנו. מציגים את מה שיצא, בניטרלי, ואומרים מה חסר. #}
+{# A month with no income isn't a deficit.
+   Almost every new user enters an expense before a salary, and then their first
+   screen showed `-₪120` in big red under "left in the account this month", i.e.
+   the app opens with a message that something is wrong. Accounting-wise that's
+   right; what actually happened is that there is nothing to subtract from yet.
+   Show what went out, neutrally, and say what is missing. #}
 {% set no_income_yet = summary.income <= 0 %}
 <section class="hero-balance" aria-label="מאזן החודש">
-    {# "מאזן החודש" (מתן, 1.10; לפני כן "מאזן חודשי") ולא "נשאר בעו״ש" — מתן (30.9): הביטוי לא יופיע באפליקציה #}
+    {# "מאזן החודש" (Matan, 1.10; before that "מאזן חודשי") and not "נשאר בעו״ש":
+   Matan (30.9): the phrase won't appear in the app #}
     <p class="hero-label">{{ 'יצא החודש' if no_income_yet else 'מאזן החודש' }}</p>
     {% set shown = (summary.expense + summary.savings) if no_income_yet else summary.remaining %}
-    {# גירעון לפי המספר **שמוצג** (מעוגל לשקל), לא לפי המדויק: 40 אגורות של
-       גירעון הוצגו "-₪0" באדום — הצבע אמר גירעון, המספר אמר אפס. #}
+    {# A deficit by the number **shown** (rounded to the shekel), not the exact
+       one: a deficit of 40 agorot showed "-₪0" in red: the colour said deficit,
+       the number said zero. #}
     {% set deficit = not no_income_yet and (summary.remaining | round) < 0 %}
-    {# המספר הגדול בשקלים שלמים (מתן, 30.9) — היתרה במבט אחד. בשאר המקומות
-       האגורות מוצגות כשיש (‎format_money‎). מספר שלם ב-‎data-countup‎ גם
-       גורם לאנימציה לספור בלי אגורות (‎motion.js‎). #}
+    {# The big number in whole shekels (Matan, 30.9): the balance at a glance.
+       Elsewhere agorot are shown when present (`format_money`). A whole number
+       in `data-countup` also makes the animation count without agorot
+       (`motion.js`). #}
     {% set shown_whole = (shown | abs) | round | int %}
     <p class="hero-amount {% if deficit %}deficit{% endif %}"
        data-countup="{{ shown_whole }}"
@@ -73,14 +78,16 @@
         {%- endif -%}
     </p>
 
-    {# בלי הכנסות אין ממה לנצל, והפס הציג "נוצלו 0% מההכנסות" ליד מינוס
-       אדום — בדיוק המסך הראשון של כל משתמש חדש, שכמעט תמיד מזין הוצאה
-       לפני משכורת. ‎aria-valuenow="0"‎ אמר לקורא מסך את אותו דבר בקול.
-       אחוז שאי אפשר לחשב אינו אפס; הוא לא קיים. #}
+    {# Without income there is nothing to use from, and the bar showed "used 0% of
+       income" next to a red minus: exactly every new user's first screen, who
+       almost always enters an expense before a salary. `aria-valuenow="0"` said
+       the same thing out loud to a screen reader. A percentage that can't be
+       computed isn't zero; it doesn't exist. #}
     {% if summary.income > 0 %}
     <div class="hero-bar">
-        {# ‎aria-valuenow‎ הוא ההוצאות בלבד: זה המספר שקורא מסך צריך
-           לשמוע כשהוא שומע "התקדמות", וזה גם מה שהאדום מודד. #}
+        {# `aria-valuenow` is the expenses only: that is the number a screen reader
+           needs to hear when it hears "progress", and it is also what the red
+           measures. #}
         <div class="balance-bar-track balance-bar-split" role="progressbar"
              aria-valuenow="{{ spent_pct }}" aria-valuemin="0" aria-valuemax="100"
              aria-label="הוצאתם {{ spent_pct }}% מההכנסות, וחסכתם {{ saved_pct }}% מההכנסות">
@@ -89,9 +96,10 @@
             <div class="balance-bar-fill saved"
                  style="width: {{ [saved_pct, 100 - [spent_pct, 100] | min] | min }}%;"></div>
         </div>
-        {# "הוצאות 20%" לא אמר אחוז ממה. השורה שמעל הפס כבר אומרת
-           "מתוך ₪11,527 הכנסות החודש", אבל המקרא לא התחבר אליה ואי אפשר
-           לדרוש ממישהו להרכיב את שתי השורות בראש. עכשיו זה כתוב במילים. #}
+        {# "Expenses 20%" didn't say a percentage of what. The line above the bar
+           already says "of ₪11,527 income this month", but the legend didn't
+           connect to it, and you can't expect someone to combine the two lines
+           in their head. Now it is written out in words. #}
         <div class="balance-bar-legend">
             <span><span class="bar-key spent"></span> הוצאתם {{ spent_pct }}% מההכנסות</span>
             <span><span class="bar-key saved"></span> חסכתם {{ saved_pct }}% מההכנסות</span>
@@ -130,8 +138,8 @@
     </a>
 
     <a class="summary-card savings" href="{{ url_for('month_view') }}#savings-breakdown">
-        {# מטבעות ולא שעון (מתן, 12.10) — ליד חץ למעלה וחץ למטה, שעון נקרא
-           "זמן" או "ממתין", לא כסף ששמים בצד #}
+        {# Coins and not a clock (Matan, 12.10): next to an up arrow and a down arrow,
+           a clock reads as "time" or "pending", not money put aside #}
         <div class="card-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>
@@ -142,8 +150,9 @@
     </a>
 </section>
 
-{# "ספטמבר נסגר" (מתן, 13.10): ביום הראשון של החודש בלבד — "יום למחרת זה
-   נעלם לבד". ✕ מסתיר אותו בטלפון הזה (אותו מנגנון כמו ההתראות, ‎core.js‎). #}
+{# "September closed" (Matan, 13.10): on the first day of the month only ("the
+   next day it goes away by itself"). ✕ hides it on this phone (the same
+   mechanism as the alerts, `core.js`). #}
 {% if recap %}
 {% set rm = hebrew_months[recap.month] %}
 <div class="alert-wrap recap-wrap" data-alert-key="recap|{{ recap.year }}-{{ recap.month }}">
@@ -153,7 +162,8 @@
         <h2 class="recap-title">{{ rm }} נסגר</h2>
     </div>
     <div class="recap-figures">
-        {# הכנסות · הוצאות · חיסכון (מתן, 1.11) — במקום נכנס · יצא · נשאר, כל אחד בצבע שלו #}
+        {# Income · expenses · savings (Matan, 1.11), instead of in · out · left, each
+   in its own colour #}
         <div class="recap-fig income"><span class="recap-fig-label">הכנסות</span><span class="recap-fig-value">₪{{ recap.income | money }}</span></div>
         <div class="recap-fig expense"><span class="recap-fig-label">הוצאות</span><span class="recap-fig-value">₪{{ recap.expense | money }}</span></div>
         <div class="recap-fig savings"><span class="recap-fig-label">חיסכון</span><span class="recap-fig-value">₪{{ recap.savings | money }}</span></div>
@@ -169,14 +179,15 @@
             <span>הכי הרבה הלך על <b>{{ recap.top.name }}</b> — ₪{{ recap.top.total | money }}</span></li>
         {% endif %}
     </ul>
-    {# בלי "חסכתם" — כבר במספרים — ובלי קישור לסיכום המלא (מתן, 1.11: "זהו") #}
+    {# No "you saved" (it is already in the numbers) and no link to the full
+   summary (Matan, 1.11: "that's it") #}
 </section>
 <button type="button" class="alert-dismiss recap-close" aria-label="סגירה">✕</button>
 </div>
 {% endif %}
 
-{# "2026 שלכם" (מתן, 1.11) — 1–15 בינואר, כשהשנה כבר נגמרה. לחיצה פותחת את
-   הסיכום (‎_year_recap.html‎); רק מי שלוחץ רואה אותו. #}
+{# "Your 2026" (Matan, 1.11): January 1–15, when the year is already over. A tap
+   opens the summary (`_year_recap.html`); only whoever taps sees it. #}
 {% if year_recap_year %}
 <div class="alert-wrap year-card-wrap" data-alert-key="year-recap|{{ year_recap_year }}">
 <button type="button" class="year-card" data-year-recap="{{ year_recap_year }}">
@@ -190,13 +201,15 @@
 </div>
 {% endif %}
 
-{# התראות החודש (מתן, 11.10) — רק כשיש. אותן התראות כמו בעמוד החודש,
-   ולחיצה מובילה ליעד שלהן שם: הקטגוריה שחרגה, או פירוט ההוצאות. #}
+{# The month's alerts (Matan, 11.10): only when there are any. The same alerts
+   as on the month page, and a tap leads to their target there: the category
+   that went over, or the expense breakdown. #}
 {% if alerts %}
 <section class="alerts-section" aria-label="התראות">
     {% for alert in alerts %}
-    {# "הבנתי" (מתן, 12.10): ✕ מסתיר את ההתראה עד סוף החודש, בטלפון הזה. המפתח
-       כולל את הטקסט — חריגה שגדלה (₪350 → ₪800) היא התראה חדשה, וחוזרת. #}
+    {# "Got it" (Matan, 12.10): ✕ hides the alert until the end of the month, on
+       this phone. The key includes the text: an overage that grew (₪350 →
+       ₪800) is a new alert, and comes back. #}
     <div class="alert-wrap" data-alert-key="{{ month_label }}|{{ alert.target or '' }}|{{ alert.text }}">
     <a class="alert-card {{ alert.severity }}"
        href="{{ url_for('month_view') }}{% if alert.target %}#{{ alert.target }}{% endif %}">
@@ -208,14 +221,14 @@
 </section>
 {% endif %}
 
-{# בן משפחה שהצטרף מאז הביקור הקודם — ממלא ‎js/whats-new.js‎ #}
+{# A family member who joined since the last visit: filled by `js/whats-new.js` #}
 <div class="member-joined" id="memberJoined" role="status" hidden>
     <span class="member-joined-text"></span>
     <button type="button" class="member-joined-close" aria-label="סגירה">✕</button>
 </div>
 
-{# פרויקט מוצמד (מתן, 12.10) — מהעמוד של הפרויקט, "הצמדה לבית". אותו חישוב
-   כמו "כמה נשאר" ברשימת הפרויקטים. #}
+{# A pinned project (Matan, 12.10): from the project's page, "pin to home". The
+   same calculation as "how much is left" in the project list. #}
 {% if pinned_project %}
 {% set p = pinned_project %}
 <a class="pinned-project" href="{{ url_for('project_detail', project_id=p.id) }}">
@@ -239,15 +252,16 @@
 </a>
 {% endif %}
 
-{# השבוע (מתן, 30.9): הוצאות שוטפות מראשון עד שבת — בלי עסקאות קבועות ובלי
-   פרויקטים. נגיעה ביום מציגה את העסקאות שלו. מופיע כשיש השבוע או בשבוע
-   שעבר משהו להראות. #}
+{# This week (Matan, 30.9): running expenses Sunday to Saturday, without
+   recurring transactions and without projects. Tapping a day shows its
+   transactions. Appears when this week or last week has something to show. #}
 {% if week and (week.total or week.recurring_total or week.last_week or week.has_older) %}
 {% include "_week_card.html" %}
 {% endif %}
 
-{# "תקציבים החודש" הוסר מדף הבית (מתן, 3.10): "מיותר בדף הבית". התקציבים
-   נשארו בעמוד החודש ← הוצאות לפי קטגוריה. #}
+{# "Budgets this month" was removed from the home page (Matan, 3.10):
+   "redundant on the home page". The budgets stayed on the month page →
+   expenses by category. #}
 
 <!-- Recent Transactions -->
 <section class="transactions-section">
@@ -259,8 +273,9 @@
     {% if transactions %}
     <ul class="transactions-list" aria-label="רשימת עסקאות אחרונות">
         {% for tx in transactions %}
-        {# role/tabindex על .tx-head: הוא מה שנפתח לעריכה. בתוך ה-li יושבים גם
-           תג הקבלה (קישור) ופאנלי ההחלקה, ו-role="button" לא אמור לעטוף אותם #}
+        {# role/tabindex on .tx-head: it is what opens for editing. Inside the li also
+           sit the receipt tag (a link) and the swipe panels, and role="button"
+           shouldn't wrap them #}
         <li class="transaction-item" data-id="{{ tx.id }}" data-amount="{{ tx.amount }}" data-type="{{ tx.type }}"
             data-category-id="{{ tx.category_id or '' }}" data-project-category-id="{{ tx.project_category_id or '' }}" data-description="{{ tx.description }}"
             data-date="{{ tx.date }}" data-user-id="{{ tx.user_id or '' }}"
@@ -275,14 +290,15 @@
                 </div>
                 <div class="tx-details">
                     <p class="tx-name">{{ tx.category_name }}</p>
-                    {# היום בתוך השורה — "היום · רמי לוי", "אתמול", "ראשון, 27.9" (מתן, 30.9) #}
+                    {# The day inside the row: "היום · רמי לוי", "אתמול", "ראשון, 27.9" (Matan, 30.9) #}
                     <p class="tx-meta">
                         {{- tx.date | day_label }}{% if tx.workplace or tx.description %} · {{ tx.workplace or tx.description }}{% endif %}{% if tx.installments and tx.installment_no %} · תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}{% endif -%}
                     </p>
                 </div>
                 <div class="tx-side">
-                    {# הקבלה באותה שורה עם הסכום ולא בשורה משלה מתחתיו — בשורה
-                       משלה היא הגביהה את כל השורה ב-9px (מתן, 30.9) #}
+                    {# The receipt on the same line as the amount and not on its own line below
+                       it: on its own line it made the whole row 9px taller
+                       (Matan, 30.9) #}
                     <div class="tx-amount-row">
                     {% if tx.has_receipt %}
                     <span class="receipt-badge" data-href="{{ url_for('view_receipt', tx_id=tx.id) }}" title="צפייה בקבלה" aria-hidden="true">{{ ui_icon("receipt") }}</span>
@@ -314,17 +330,17 @@
 {% endblock %}
 
 {% block scripts %}
-{# מסך החיפוש — מחוץ ל-‎main‎, כדי שרענון רך (אחרי עריכה מתוך התוצאות) לא
-   יסגור אותו באמצע #}
+{# The search screen: outside `main`, so a soft refresh (after editing from the
+   results) doesn't close it midway #}
 {% include "_search_screen.html" %}
 {% if year_recap_year %}{% include "_year_recap.html" %}{% endif %}
-{# "מה חדש" ובן משפחה שהצטרף (‎js/whats-new.js‎, מתן 12.10) #}
+{# "What's new" and a family member who joined (`js/whats-new.js`, Matan 12.10) #}
 <span id="sfHomeInfo" hidden data-new-family="{{ 'true' if is_new_family else 'false' }}"
       data-me="{{ user.id }}" data-family="{{ user.family_id }}"
       data-members='{{ (home_members or []) | tojson }}'></span>
 <script src="{{ url_for('static', filename='js/whats-new.js') }}"></script>
 
-{# "איך מצרפים בן משפחה" — פעם אחת, אחרי אשף הפתיחה (מתן, 5.10) #}
+{# "How to add a family member": once, after the onboarding wizard (Matan, 5.10) #}
 {% if welcome_invite %}
 <div class="color-sheet welcome-invite" id="welcomeInvite" role="dialog" aria-modal="true" aria-labelledby="welcomeInviteTitle"
      data-code="{{ welcome_invite.code }}" data-family="{{ welcome_invite.family_name }}">

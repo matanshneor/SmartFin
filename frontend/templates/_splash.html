@@ -1,6 +1,7 @@
-{# מסך פתיחה לאפליקציה המותקנת באייפון (מתן, 12.10): במקום מסך ריק עד שהעמוד
-   נטען — הלוגו על הרקע הכהה. iOS דורש תמונה מדויקת לכל גודל מסך (לאורך).
-   התמונות נוצרו מראש (‎static/icons/splash/‎). #}
+{# A splash screen for the app installed on iPhone (Matan, 12.10): instead of a
+   blank screen until the page loads, the logo on the dark background. iOS
+   requires an exact image for every screen size (portrait). The images were
+   generated in advance (`static/icons/splash/`). #}
 <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="{{ url_for('static', filename='icons/splash/splash-1320x2868.png') }}">
 <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="{{ url_for('static', filename='icons/splash/splash-1290x2796.png') }}">
 <link rel="apple-touch-startup-image" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="{{ url_for('static', filename='icons/splash/splash-1206x2622.png') }}">
