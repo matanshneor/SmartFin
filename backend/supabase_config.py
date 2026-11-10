@@ -155,11 +155,16 @@ def _warm_ping_once(client) -> bool:
         if _warm_state["busy"]:
             return False
         try:
-            # כל תשובה טובה — גם 401 על טוקן שפג. המטרה היא החיבור, לא הנתונים.
-            # שורה אחת לכל היותר (שורש ה-API מחזיר את כל תיאור הסכמה — כבד).
-            client.postgrest.session.get("families", params={"select": "id", "limit": "1"},
-                                        # קצר מה-3 שניות שבקשה מחכה למנעול — כך הן לעולם לא חופפות
-                                        timeout=2)
+            # המטרה היא החיבור, לא הנתונים — אבל עם מפתח ה-anon ולא עם הטוקן
+            # שנשאר על הלקוח מהבקשה האחרונה. הטוקן הזה פג אחרי שעה, וכל נגיעה
+            # נדחתה ב-401: כ-3,800 ביום, שהסתירו ביומנים כל דחייה אמיתית
+            # (מתן, 10.11.2026 — בדיקת אבטחה, נקודה 4). אותה פונקציה כמו ‎ping‎:
+            # ל-anon אין הרשאה על אף טבלה, והיא מגיעה עד Postgres בלי.
+            key = os.environ.get("SUPABASE_KEY", "")
+            client.postgrest.session.post("rpc/get_my_family_id", json={},
+                                         headers={"Authorization": f"Bearer {key}"},
+                                         # קצר מה-3 שניות שבקשה מחכה למנעול — כך הן לעולם לא חופפות
+                                         timeout=2)
         except Exception:
             pass
         _warm_state["last"] = time.monotonic()

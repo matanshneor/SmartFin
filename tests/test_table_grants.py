@@ -65,3 +65,27 @@ def test_the_list_covers_every_table():
 def test_the_health_check_still_reaches_the_database(anon_rest):
     """בדיקת הבריאות רצה כ-anon. אחרי שנסגרה כל טבלה היא עוברת דרך פונקציה."""
     assert db.ping() == (True, "ok")
+
+
+def test_the_warm_ping_is_accepted_even_with_a_stale_token(anon_rest, monkeypatch):
+    """נקודה 4: הנגיעה שמחזיקה את החיבור חם נדחתה כ-3,800 פעמים ביום, כי
+    נשאה את הטוקן שפג של המשתמש האחרון. עכשיו — גם עם טוקן כזה על הלקוח —
+    התשובה היא 200, והיומנים נקיים לדחיות אמיתיות."""
+    client = db.get_client()
+    session = client.postgrest.session
+    statuses = []
+    real_post = session.post
+
+    def spy(*a, **k):
+        r = real_post(*a, **k)
+        statuses.append(r.status_code)
+        return r
+    monkeypatch.setattr(session, "post", spy)
+    monkeypatch.setitem(db._warm_state, "busy", False)
+    monkeypatch.setitem(db._warm_state, "last", 0.0)
+    db.set_auth_token("eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.stale")
+    try:
+        assert db._warm_ping_once(client) is True
+    finally:
+        db.set_auth_token("")
+    assert statuses == [200]

@@ -83,8 +83,8 @@ class _Session:
     def __init__(self):
         self.calls = []
 
-    def get(self, path, **kw):
-        self.calls.append((path, kw.get("params")))
+    def post(self, path, **kw):
+        self.calls.append((path, kw.get("headers")))
 
 
 class _Client:
@@ -102,7 +102,8 @@ def warm(monkeypatch):
     return clock
 
 
-def test_a_quiet_worker_pings_and_a_busy_one_does_not(warm):
+def test_a_quiet_worker_pings_and_a_busy_one_does_not(warm, monkeypatch):
+    monkeypatch.setenv("SUPABASE_KEY", "anon-key")
     c = _Client()
     assert db._warm_ping_once(c) is False, "רק עכשיו הייתה פעילות"
     warm["t"] += db.WARM_IDLE_SECONDS + 1
@@ -111,13 +112,15 @@ def test_a_quiet_worker_pings_and_a_busy_one_does_not(warm):
     db.request_finished()
     warm["t"] += db.WARM_IDLE_SECONDS + 1
     assert db._warm_ping_once(c) is True
-    # שורה אחת לכל היותר — לא שורש ה-API (כל תיאור הסכמה)
-    assert c.postgrest.session.calls == [("families", {"select": "id", "limit": "1"})]
+    # פונקציה קטנה — לא שורש ה-API (כל תיאור הסכמה). ועם מפתח ה-anon, לא
+    # עם הטוקן שנשאר על הלקוח: הוא פג, וכל נגיעה נדחתה (בדיקת אבטחה 10.11)
+    assert c.postgrest.session.calls == [("rpc/get_my_family_id",
+                                          {"Authorization": "Bearer anon-key"})]
 
 
 def test_a_failed_ping_is_harmless(warm):
     c = _Client()
-    c.postgrest.session.get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down"))
+    c.postgrest.session.post = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down"))
     warm["t"] += db.WARM_IDLE_SECONDS + 1
     assert db._warm_ping_once(c) is True
 
