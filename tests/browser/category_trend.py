@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: "לפי קטגוריה" בעמוד ההשוואה (מתן, 30.9 — סבב 6, פריט 1).
+"""A real browser test: "לפי קטגוריה" on the comparison page (Matan, 30.9: round 6,
+item 1).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/category_trend.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -66,7 +67,7 @@ try:
         print("סופר:", state())
         card.evaluate("el => window.scrollTo(0, el.getBoundingClientRect().top + scrollY - 70)"); page.wait_for_timeout(500)
         page.screenshot(path="/tmp/cat_trend.png"); page.set_viewport_size({"width": 320, "height": 700}); page.wait_for_timeout(300); card.locator("#catTrendStats").screenshot(path="/tmp/cat_stats_320.png"); page.set_viewport_size({"width": 390, "height": 844}); page.wait_for_timeout(300); card.locator("#catTrendStats").screenshot(path="/tmp/cat_stats_390.png"); page.set_viewport_size({"width": 390, "height": 844})
-        # נגיעה בעמודה של חודש — חלון עם ההוצאות של הקטגוריה באותו חודש
+        # touching a month's column: a window with the category's expenses that month
         def tap_month(i):
             pt = page.evaluate("""(i) => { const ch = Chart.getChart('categoryChart'); const r = ch.canvas.getBoundingClientRect();
                 return {x: r.left + ch.getDatasetMeta(0).data[i].x, y: r.top + ch.chartArea.bottom - 4}; }""", i)
@@ -75,12 +76,13 @@ try:
         print("sheet:", page.inner_text("#catMonthTitle"), "|", page.inner_text(".cat-month-sheet .color-sheet-hint"),
               "|", [t.replace("\n", " ") for t in page.locator(".cat-month-list li").all_inner_texts()])
         page.screenshot(path="/tmp/cat_month_sheet.png")
-        # מתן (1.10): בלי התווית השחורה שצפה על הגרף, וכותרת "הוצאות לפי קטגוריה"
+        # Matan (1.10): without the black label floating on the chart, and a
+        # "הוצאות לפי קטגוריה" heading
         print("no tooltip:", page.evaluate("(() => { const t = Chart.getChart('categoryChart').tooltip; return !t || !t.opacity; })()"))
         print("title:", card.locator("h2").inner_text())
         page.keyboard.press("Escape"); page.wait_for_timeout(200)
         print("escape closes:", page.locator(".cat-month-sheet").count() == 0)
-        # "לעמוד החודש" — העמוד המלא מלמעלה, לא חתוך בפירוט (מתן, 1.10)
+        # "לעמוד החודש": the full page from the top, not cut at the breakdown (Matan, 1.10)
         tap_month(1)
         page.click(".cat-month-sheet a.btn-ghost")
         page.wait_for_url(lambda u: "/month?" in u, timeout=15000); page.wait_for_timeout(1200)

@@ -1,7 +1,9 @@
-"""כפתור שמירה דולק רק כשמשהו השתנה — בכל מקום (מתן, 13.10).
+"""A save button is enabled only when something changed, everywhere (Matan,
+13.10).
 
-"בכל המקומות שיש אפשרות לשמור שינויים — שהאפשרות לא תהיה דלוקה אם לא שונה
-כלום, ותידלק כשמשנים. שלא יהיה רשום 'אין שינויים' — אותו כיתוב, כבוי או פעיל.\""""
+"Wherever there is an option to save changes, the option shouldn't be enabled if
+nothing changed, and should turn on when you change something. Don't write 'no
+changes': the same caption, disabled or enabled.\""""
 from pathlib import Path
 
 import pytest

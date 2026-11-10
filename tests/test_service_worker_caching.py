@@ -1,15 +1,16 @@
 """
-בדיקות למה שה-Service Worker שומר במטמון.
+Tests for what the Service Worker keeps in cache.
 
-הוא הגיש עמודים שמורים כשהרשת חלשה. זה נכון לעמוד תוכן — ולא לעמוד
-שמציג כסף. משתמש בחיבור סלולרי גרוע קיבל מסך מלא ומעוצב עם
-"נשאר בעו״ש ₪1,270" מהביקור הקודם, אולי מלפני ימים. אנימציית הספירה
-אפילו רצה עליהם, אז הם נראו טריים. שום דבר לא סימן שזה ישן.
+It served cached pages when the network was weak. That is right for a content
+page, and not for a page showing money. A user on a poor cellular connection got a
+full, styled screen with "נשאר בעו״ש ₪1,270" from the previous visit, maybe from
+days ago. The count-up animation even ran on them, so they looked fresh. Nothing
+indicated it was stale.
 
-הודעה ברורה שאין חיבור טובה ממספר שקרי — במיוחד כשמישהו עלול לקבל
-החלטה כספית על סמך המסך הזה.
+A clear message that there is no connection is better than a false number,
+especially when someone might make a financial decision based on that screen.
 
-בדיקות על תוכן הקובץ: אין כאן סביבת Service Worker להריץ בה.
+Tests on the file's content: there is no Service Worker environment here to run in.
 """
 import re
 from pathlib import Path
@@ -24,11 +25,11 @@ _SW = (Path(__file__).resolve().parent.parent
 
 def _cacheable():
     m = re.search(r"CACHEABLE_PAGES\s*=\s*\[([^\]]*)\]", _SW)
-    assert m, "לא נמצאה רשימת העמודים הניתנים לשמירה"
+    assert m, "the list of cacheable pages wasn't found"
     return set(re.findall(r"'([^']+)'", m.group(1)))
 
 
-# ─── מה לא נשמר ──────────────────────────────────────────────────────────────
+# ─── What isn't cached ───────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("page,what", [
     ("/",          "יתרה ועסקאות אחרונות"),
@@ -39,59 +40,60 @@ def _cacheable():
     ("/login",     "המייל השמור בטופס"),
 ])
 def test_pages_with_money_or_personal_data_are_never_served_from_cache(page, what):
-    assert page not in _cacheable(), f"{page} נשמר במטמון — {what}"
+    assert page not in _cacheable(), f"{page} is cached: {what}"
 
 
 def test_only_the_legal_pages_are_cacheable():
-    """הם זהים לכל המשתמשים ולא משתנים. כל השאר — לא."""
+    """They are identical for all users and don't change. Everything else isn't."""
     assert _cacheable() == {"/privacy", "/terms"}
 
 
 def test_api_calls_are_still_never_intercepted():
-    """בקרת-נגד: נתוני עסקאות משתנים כל הזמן, והגשה שקטה של תשובה ישנה
-    גרועה משגיאת רשת ברורה."""
+    """Control: transaction data changes all the time, and silently serving a stale
+    response is worse than a clear network error."""
     assert "url.pathname.startsWith('/api/')" in _SW
 
 
 def test_static_assets_are_still_cached():
-    """בקרת-נגד: בלי זה כל טעינה מורידה מחדש 99KB CSS ו-77KB JS."""
+    """Control: without this every load downloads 99KB of CSS and 77KB of JS again."""
     assert "url.pathname.startsWith('/static/')" in _SW
     assert "stale-while-revalidate" in _SW or "cache.put(e.request, res.clone())" in _SW
 
 
-# ─── מה מוצג במקום ───────────────────────────────────────────────────────────
+# ─── What is shown instead ───────────────────────────────────────────────────
 
 def test_there_is_an_offline_page_and_it_says_why_there_are_no_numbers():
-    """"אין חיבור" לבד משאיר את המשתמש לתהות אם הנתונים שלו אבדו."""
+    """"No connection" alone leaves the user wondering whether their data was lost."""
     assert "function offlinePage()" in _SW
     assert "אין חיבור לאינטרנט" in _SW
     assert "לא מוצגים כאן נתונים ישנים" in _SW
 
 
 def test_the_offline_page_offers_a_way_forward():
-    """באפליקציה מותקנת בטלפון אין כפתור רענון על המסך, אז בלי כפתור
-    הדרך היחידה קדימה היא לנחש."""
+    """An app installed on a phone has no refresh button on screen, so without a
+    button the only way forward is guessing."""
     assert "location.reload()" in _SW
 
 
 def test_the_offline_page_looks_like_the_app():
-    """גיליון הסגנון כבר במטמון, אז זה בחינם — וההבדל הוא בין מסך של
-    האפליקציה לבין שגיאת דפדפן גולמית."""
+    """The stylesheet is already cached, so this is free, and the difference is
+    between an app screen and a raw browser error."""
     assert "/static/css/style.css" in _SW
 
 
 def test_the_installed_app_gets_our_offline_page_not_the_browsers():
-    """‎start_url‎ במניפסט הוא ‎/‎. כשהוא לא עבר דרך ה-Service Worker,
-    פתיחת האפליקציה בלי רשת הציגה את מסך השגיאה של הדפדפן."""
+    """start_url in the manifest is /. When it didn't go through the Service Worker,
+    opening the app with no network showed the browser's error screen."""
     import json
     manifest = json.loads((Path(__file__).resolve().parent.parent
                            / "frontend/static/manifest.json").read_text(encoding="utf-8"))
 
-    # ‎?app=1‎ מסמן פתיחה מהאייקון; ה-Service Worker מסתכל על ‎pathname‎ בלבד
+    # ?app=1 marks opening from the icon; the Service Worker looks at pathname only
     assert manifest["start_url"].split("?")[0] == "/"
     assert "/" not in _cacheable()
-    # ‎/‎ נופל למסלול ה-fetch-with-fallback ולא ל-return מוקדם
-    # (מאז 3.10 — קודם תשובה שנטענה בנגיעה, אם יש; אחרת רשת; ובלי רשת — המסך שלנו)
+    # / falls into the fetch-with-fallback path and not into an early return
+    # (since 3.10: first a response loaded on touch, if any; otherwise network; and
+    # with no network, our screen)
     block = _SW[_SW.index("if (!CACHEABLE_PAGES.includes(url.pathname)) {"):]
     block = block[:block.index("return;")]
     assert ".then(res => res || fetch(e.request))" in block
@@ -99,26 +101,27 @@ def test_the_installed_app_gets_our_offline_page_not_the_browsers():
 
 
 def test_old_caches_are_purged_when_the_version_changes():
-    """זה המנגנון שגורם לתיקון להגיע למשתמשים קיימים: בלי המחיקה הזאת
-    הם ממשיכים לקבל את מה שכבר שמור אצלם, ושינוי הגרסה לא שווה כלום.
+    """This is the mechanism that makes the fix reach existing users: without this
+    deletion they keep getting what is already cached on their side, and changing
+    the version is worth nothing.
 
-    הגרסה עצמה לא מקובעת כאן בכוונה — היא אמורה להשתנות בכל פריסה
-    שנוגעת בנכסים, ובדיקה שצריך לערוך בכל פעם היא בדיקה שמפסיקים
-    לכבד ומתחילים לעדכן אוטומטית בלי לקרוא."""
+    The version itself isn't pinned here on purpose: it is meant to change on every
+    deploy touching assets, and a test that needs editing every time is a test
+    people stop respecting and start updating automatically without reading."""
     assert re.search(r"const CACHE\s*=\s*'smartfin-v\d+'", _SW), \
-        "אין קבוע גרסה למטמון"
+        "no cache version constant"
     activate = _SW[_SW.index("'activate'"):_SW.index("'fetch'")]
     assert "keys.filter(k => k !== CACHE)" in activate and "caches.delete" in activate
 
 
 def test_nothing_is_precached_by_url_any_more():
-    """הרשימה הוסרה בכוונה, ולא מרשלנות.
+    """The list was removed on purpose, not out of carelessness.
 
-    מאז שכתובות הנכסים נושאות חתימת תוכן (‎?v=…‎) שנקבעת בשרת, רשימה
-    קבועה כאן לא יכולה לדעת אותה. היא הייתה מורידה כתובות בלי חתימה
-    שאף עמוד לא מבקש — הורדה כפולה של כל קובץ, ומטמון שלא נוגעים בו.
+    Since asset URLs carry a content hash (?v=…) set on the server, a fixed list
+    here can't know it. It would download unhashed URLs no page asks for: a double
+    download of every file, and a cache nobody touches.
 
-    וזה ממילא מיותר: כתובת חתומה מוגשת עם תוקף של שנה, אז הדפדפן שומר
-    אותה בעצמו כבר מהביקור הראשון."""
+    And it is redundant anyway: a hashed URL is served with a one-year lifetime, so
+    the browser caches it by itself from the first visit."""
     assert "addAll" not in _SW
     assert "PRECACHE" not in _SW

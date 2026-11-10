@@ -1,17 +1,19 @@
 """
-בדיקות למסנן שמנקה אירועי Sentry לפני שליחה.
+Tests for the filter that scrubs Sentry events before sending.
 
-SmartFin מטפלת בנתונים פיננסיים, ומסלול סריקת הקבלה נושא תמונה של קבלה
-אמיתית. שליחת גוף הבקשה לשירות חיצוני סותרת ישירות את מדיניות הפרטיות,
-ולכן ההבטחה הזאת צריכה להיאכף בבדיקה ולא רק להיכתב בהערה: שדרוג עתידי של
-ברירות המחדל ב-SDK לא יורגש בשום דרך אחרת.
+SmartFin handles financial data, and the receipt-scan route carries an image of a
+real receipt. Sending the request body to an external service directly contradicts
+the privacy policy, so this promise needs to be enforced by a test and not only
+written in a comment: a future upgrade of the SDK's defaults wouldn't be noticed
+any other way.
 
-הבדיקות כאן כיסו בתחילה רק את event["request"] — בדיוק החלק שכן נוקה.
-הן עברו במלואן בזמן שהמשתנים המקומיים של כל frame, ובהם הסיסמה עצמה,
-נשלחו החוצה. בדיקה שמאשרת רק את מה שכבר עובד גרועה מאין בדיקה, כי היא
-קונה ביטחון בלי לספק אותו — ולכן החלק החדש למטה בודק את מה שדלף.
+The tests here initially covered only event["request"]: exactly the part that was
+scrubbed. They passed in full while the local variables of every frame, including
+the password itself, were sent out. A test that confirms only what already works
+is worse than no test, because it buys confidence without providing it, so the
+new part below tests what leaked.
 
-טהורות לגמרי — המסנן הוא פונקציה על מילון.
+Completely pure: the filter is a function over a dict.
 """
 import pytest
 
@@ -21,14 +23,15 @@ pytestmark = pytest.mark.unit
 
 
 def test_request_body_is_removed():
-    """הגוף של /api/receipts/scan מכיל תמונת קבלה."""
+    """The body of /api/receipts/scan contains a receipt image."""
     event = {"request": {"data": {"image": "base64-of-a-real-receipt"}, "url": "/api/receipts/scan"}}
 
     assert "data" not in _scrub_event(event, {})["request"]
 
 
 def test_cookies_are_removed():
-    """העוגייה נושאת את טוקני Supabase — שליחתה שקולה למסירת החשבון."""
+    """The cookie carries the Supabase tokens: sending it is equivalent to handing over
+    the account."""
     event = {"request": {"cookies": {"session": "eyJhbGciOi..."}}}
 
     assert "cookies" not in _scrub_event(event, {})["request"]
@@ -40,11 +43,11 @@ def test_sensitive_headers_are_removed(header):
 
     headers = _scrub_event(event, {})["request"]["headers"]
     assert header not in headers
-    assert headers["User-Agent"] == "Safari", "כותרות לא רגישות נשארות — הן עוזרות לאבחן"
+    assert headers["User-Agent"] == "Safari", "non-sensitive headers stay: they help diagnose"
 
 
 def test_the_useful_parts_survive():
-    """הניקוי חייב להשאיר מספיק כדי שהדיווח יהיה שווה משהו."""
+    """The scrubbing must leave enough for the report to be worth something."""
     event = {
         "request":   {"url": "/month", "method": "GET", "data": {"x": 1}},
         "exception": {"values": [{"type": "KeyError"}]},
@@ -57,17 +60,19 @@ def test_the_useful_parts_survive():
 
 
 def test_an_event_without_a_request_section_is_untouched():
-    """שגיאות ברקע (למשל סקריפט) מגיעות בלי request — אסור שזה יתפוצץ."""
+    """Background errors (for example a script) arrive without a request: this mustn't
+    blow up."""
     event = {"exception": {"values": [{"type": "ValueError"}]}}
 
     assert _scrub_event(event, {}) == event
 
 
-# ─── מה שלא היה מכוסה, ודלף ──────────────────────────────────────────────────
+# ─── What wasn't covered, and leaked ─────────────────────────────────────────
 
 def test_local_variables_never_leave_the_server():
-    """הדליפה האמיתית. ה-SDK מצרף לכל frame את המשתנים שהיו בזיכרון, אז
-    חריגה במסלול התחברות שלחה את הסיסמה עצמה לשירות חיצוני."""
+    """The real leak. The SDK attaches to every frame the variables that were in
+    memory, so an exception in a sign-in route sent the password itself to an
+    external service."""
     event = {"exception": {"values": [{
         "type": "RuntimeError",
         "stacktrace": {"frames": [
@@ -80,11 +85,11 @@ def test_local_variables_never_leave_the_server():
     frames = _scrub_event(event, {})["exception"]["values"][0]["stacktrace"]["frames"]
 
     for frame in frames:
-        assert "vars" not in frame, f"משתנים מקומיים נשלחו מ-{frame['function']}"
+        assert "vars" not in frame, f"local variables were sent from {frame['function']}"
 
 
 def test_the_stack_itself_survives():
-    """בקרת-נגד: בלי שמות הפונקציות הדיווח חסר ערך."""
+    """Control: without the function names the report is worthless."""
     event = {"exception": {"values": [{"stacktrace": {"frames": [
         {"function": "scan_receipt_route", "lineno": 1420, "vars": {"image_bytes": b"..."}},
     ]}}]}}
@@ -95,7 +100,7 @@ def test_the_stack_itself_survives():
 
 
 def test_the_invite_code_in_the_query_string_is_removed():
-    """‎/api/family/preview?code=XXXXXX — קוד הזמנה הוא גישה מלאה למשפחה."""
+    """/api/family/preview?code=XXXXXX: an invite code is full access to the family."""
     event = {"request": {"url": "/api/family/preview", "query_string": "code=AB12CD"}}
 
     assert "query_string" not in _scrub_event(event, {})["request"]
@@ -103,16 +108,16 @@ def test_the_invite_code_in_the_query_string_is_removed():
 
 @pytest.mark.parametrize("key", ["password", "access_token", "api_key", "image_bytes"])
 def test_secrets_sent_explicitly_in_extra_are_masked(key):
-    """מה שהקוד ישלח בעצמו מחר, לא רק מה שה-SDK אוסף היום."""
+    """What the code will send by itself tomorrow, not only what the SDK collects today."""
     event = {"extra": {key: "sensitive", "family_id": "11111111"}}
 
     scrubbed = _scrub_event(event, {})["extra"]
     assert scrubbed[key] == "[scrubbed]"
-    assert scrubbed["family_id"] == "11111111", "מזהים שימושיים לאבחון נשארים"
+    assert scrubbed["family_id"] == "11111111", "identifiers useful for diagnosis stay"
 
 
 def test_breadcrumb_data_is_masked():
-    """ה-SDK מתעד ב-breadcrumbs בקשות שקדמו לשגיאה."""
+    """The SDK records in breadcrumbs the requests that preceded the error."""
     event = {"breadcrumbs": [
         {"category": "http", "data": {"authorization": "Bearer ey...", "url": "/api/x"}},
     ]}
@@ -123,8 +128,8 @@ def test_breadcrumb_data_is_masked():
 
 
 def test_the_sdk_is_configured_not_to_collect_locals_in_the_first_place():
-    """הניקוי הוא השכבה השנייה. הראשונה היא לא לאסוף אותם מלכתחילה —
-    ובלעדיה כל נתיב שהמסנן לא חשב עליו נשאר פתוח."""
+    """Scrubbing is the second layer. The first is not collecting them in the first
+    place, and without it every path the filter didn't think of stays open."""
     from pathlib import Path
     src = (Path(__file__).resolve().parent.parent / "backend/app.py").read_text(encoding="utf-8")
 
@@ -132,7 +137,7 @@ def test_the_sdk_is_configured_not_to_collect_locals_in_the_first_place():
 
 
 def test_a_malformed_event_does_not_crash_the_filter():
-    """המסנן רץ על כל שגיאה. אם הוא עצמו מתפוצץ, איבדנו את הדיווח."""
+    """The filter runs on every error. If it blows up itself, we've lost the report."""
     for event in ({}, {"exception": None}, {"breadcrumbs": [None]},
                   {"extra": "not-a-dict"}, {"exception": {"values": [{}]}}):
         _scrub_event(event, {})

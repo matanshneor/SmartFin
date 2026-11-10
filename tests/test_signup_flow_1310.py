@@ -1,4 +1,5 @@
-"""ההרשמה (מתן, 13.10): נכנסים ישר, כל בעיה מתחת לשדה שלה, ובלי "אימות סיסמה"."""
+"""Sign-up (Matan, 13.10): go straight in, every problem below its own field, and
+no "אימות סיסמה"."""
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -76,7 +77,7 @@ def test_otherwise_it_is_the_login_screen_like_before(anon, monkeypatch, why):
 
 
 def test_no_confirm_field_but_an_old_form_is_still_checked(anon, monkeypatch):
-    monkeypatch.setattr(app_module.db, "sign_up", lambda *a, **k: pytest.fail("נרשם"))
+    monkeypatch.setattr(app_module.db, "sign_up", lambda *a, **k: pytest.fail("signed up"))
 
     html = anon.post("/signup", data=_form(password_confirm="different")).get_data(as_text=True)
 
@@ -98,14 +99,15 @@ def test_the_live_checks_use_the_server_rules():
     assert r'_EMAIL_RE = re.compile(r"^[^@\s]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")' in src
     assert r"const PHONE_RE = /^0(5\d|7\d|[2-4689])\d{7}$/;" in js
     assert r'_PHONE_RE = re.compile(r"^0(5\d|7\d|[2-4689])\d{7}$")' in src
-    # הנעילה של הכפתור לא נועלת כשהבדיקה עצרה את השליחה
+    # the button lock doesn't lock when the check stopped the submit
     assert "if (e.defaultPrevented || btn.disabled) return;" in js
     assert js.index("signupChecks(document.getElementById('signupPanel'));") < \
         js.index("guardSubmit(document.getElementById('signupPanel')")
 
 
 def test_a_new_family_starts_with_matans_categories():
-    """מתן (13.10): ההוצאות וההכנסות כמו אצלו היום, ובחיסכון — השקעות ופיקדון בנקאי."""
+    """Matan (13.10): expenses and income as he has them today, and in savings:
+    investments and a bank deposit."""
     from backend.app import _DEFAULT_CATEGORIES as cats
     by = lambda t: [c["name"] for c in cats if c["type"] == t]
     assert by("expense") == ["דיור ושכירות", "חשבונות ומנויים", "רכב ותחבורה", "בריאות",

@@ -1,15 +1,16 @@
-"""בדיקת דפדפן אמיתי: מחיקת קטגוריה שיש בה עסקאות מעבירה אותן לפני המחיקה.
+"""A real browser test: deleting a category with transactions moves them before the
+deletion.
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-מתחברת כמשתמש הבדיקה א' (RLS_TEST_* ב-.env) וכותבת למסד האמיתי — ומנקה
-אחריה.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, signs in as test user A (RLS_TEST_* in .env) and writes to the real
+database, and cleans up after itself.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/category_delete_move.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -23,7 +24,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -63,8 +64,9 @@ try:
         page.goto(BASE + "/settings")
         btn = page.locator(f'.delete-cat-btn[data-id="{src}"]')
 
-        # 1. ביטול: שום דבר לא נמחק. (לא Escape: בדפדפן בלי חלון אין לדף מיקוד
-        # מקלדת, והדיאלוג לא מקבל את המקש — בדיקה ראשונה נפלה על זה.)
+        # 1. Cancel: nothing is deleted. (Not Escape: in a headless browser the page
+        # has no keyboard focus, and the dialog doesn't get the key: a first test
+        # failed on that.)
         btn.evaluate("b => b.click()")
         page.wait_for_selector("#confirmOverlay.open", timeout=5000)
         print("dialog:", page.inner_text("#confirmMessage"))
@@ -76,11 +78,11 @@ try:
         page.wait_for_timeout(300)
         print("after cancel, row still there:", btn.count() == 1)
 
-        # נגיעה כפולה: שאלה אחת בלבד
+        # a double tap: only one question
         n_usage = []
         page.on("request", lambda r: n_usage.append(1) if r.url.endswith("/usage") else None)
 
-        # 2. בחירה ואישור
+        # 2. Choose and confirm
         btn.evaluate("b => { b.click(); b.click(); }")
         page.wait_for_selector("#confirmOverlay.open", timeout=5000)
         page.select_option("#confirmChoice", dst)
@@ -111,4 +113,4 @@ finally:
     ])
     subprocess.run([os.path.join(ROOT, ".venv/bin/python3"), "-c", check], cwd=ROOT)
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later

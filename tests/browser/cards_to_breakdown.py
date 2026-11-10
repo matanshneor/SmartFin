@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: לחיצה על הכנסות/הוצאות/חיסכון (בבית ובעמוד החודש) מובילה לפירוט שלהם.
+"""A real browser test: tapping income/expenses/savings (on the home page and the
+month page) leads to their breakdown.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/cards_to_breakdown.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -74,7 +75,7 @@ try:
             print(f"month {kind} chip →", landed(f"{kind}-breakdown"))
         page.evaluate("window.scrollTo(0, 0)"); page.wait_for_timeout(300)
         page.click('a.kpi-link[href="#expense-breakdown"]')
-        page.wait_for_timeout(2500)                     # אחרי שההבהוב נגמר
+        page.wait_for_timeout(2500)                     # after the flash ends
         print("after the flash ends, opacity:",
               page.evaluate("getComputedStyle(document.getElementById('expense-breakdown')).opacity"))
         page.screenshot(path="/tmp/go_landed.png")

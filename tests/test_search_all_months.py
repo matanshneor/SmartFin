@@ -1,8 +1,9 @@
-"""חיפוש בכל החודשים (מתן, 30.9 — סבב 6, פריט 2).
+"""Search across all months (Matan, 30.9: round 6, item 2).
 
-זכוכית מגדלת בראש דף הבית. מחפש בתיאור, בשם הקטגוריה, במקום העבודה ובשם
-הפרויקט; מספר מוצא גם עסקאות בסכום הזה. מהחדש לישן, עד 100, עם כמה נמצאו
-ומה הסכום. עסקאות בפרויקט אישי של מישהו אחר — לא קיימות.
+A magnifying glass at the top of the home page. Searches in the description, the
+category name, the workplace and the project name; a number also finds
+transactions of that amount. Newest to oldest, up to 100, with how many were found
+and the total. Transactions in someone else's personal project don't exist.
 """
 import pytest
 
@@ -56,7 +57,7 @@ def test_a_number_finds_that_amount(monkeypatch):
     r = _search([_tx("a", "2026-09-01", 690, "ביטוח"), _tx("b", "2026-09-02", 1690, "משהו"),
                  _tx("c", "2026-09-03", 90, "קוד 690")], "690", monkeypatch)
 
-    assert sorted(t["id"] for t in r["results"]) == ["a", "c"]   # 1690 אינו 690
+    assert sorted(t["id"] for t in r["results"]) == ["a", "c"]   # 1690 isn't 690
 
 
 def test_case_and_spaces_do_not_matter(monkeypatch):
@@ -77,7 +78,7 @@ def test_capped_but_counted(monkeypatch):
     r = _search(rows, "קפה", monkeypatch, limit=5)
 
     assert len(r["results"]) == 5 and r["count"] == 7 and r["truncated"]
-    assert r["totals"]["expense"] == 70         # הסכום של כל מה שנמצא, לא רק המוצג
+    assert r["totals"]["expense"] == 70         # the total of everything found, not only what's shown
 
 
 def test_too_short_a_query_does_not_search(monkeypatch):
@@ -89,7 +90,7 @@ def test_too_short_a_query_does_not_search(monkeypatch):
     assert db.search_transactions(_FAM, _ME, "  ")["results"] == []
 
 
-# ── המסלול ─────────────────────────────────────────────────────────────
+# ── The route ─────────────────────────────────────────────────────────
 
 def test_the_route_answers_json(monkeypatch):
     app.config["TESTING"] = True

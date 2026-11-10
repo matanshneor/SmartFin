@@ -1,8 +1,9 @@
-"""משפחה של אדם אחד (מתן, 5.10): בלי "של מי".
+"""A one-person family (Matan, 5.10): no "של מי".
 
-לא התגית ליד כל עסקה, לא הגרף "לפי בן משפחה" ולא השאלה בחלון. רק
-בתצוגה — ההעדפה לא משתנה, הבחירה בחלון ממשיכה להישלח כמו תמיד, וכשמצטרף
-מישהו הכל חוזר.
+Not the tag next to every transaction, not the "לפי בן משפחה" chart and not the
+question in the window. Display only: the preference doesn't change, the choice in
+the window keeps being sent as always, and when someone joins everything comes
+back.
 """
 import json
 from pathlib import Path
@@ -61,7 +62,7 @@ def test_alone_there_is_no_whose_tag_and_the_window_hides_the_question(home):
     assert "owner-pill" not in rows[:rows.index("</ul>")]
     data = _page_data(html)
     assert data["singleMember"] is True
-    assert data["attribution"]["expense"] is True, "ההעדפה עצמה לא השתנתה"
+    assert data["attribution"]["expense"] is True, "the preference itself didn't change"
 
 
 def test_with_someone_else_everything_comes_back(home):
@@ -73,7 +74,8 @@ def test_with_someone_else_everything_comes_back(home):
 
 
 def test_the_window_still_sends_the_choice_when_the_question_is_hidden():
-    """בלי השליחה השרת היה רושם על המחובר עסקה שהייתה משותפת."""
+    """Without sending it the server would record a shared transaction under whoever
+    is signed in."""
     js = (_ROOT / "frontend/static/js/transactions.js").read_text(encoding="utf-8")
     assert "owner:               window.SF_ATTRIBUTION[currentType] ? (txOwner.value || null) : null," in js
     assert "(hasOwner && !window.SF_PAGE_DATA.singleMember)" in js

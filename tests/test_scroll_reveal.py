@@ -1,9 +1,12 @@
-"""כניסה עם הגלילה (מתן, 11.10): "שמה שנכנס יתחיל להיכנס לאט עם הגלילה".
+"""Entrance on scroll (Matan, 11.10): "what comes in should start coming in
+slowly with the scroll".
 
-כרטיס שמתחת למסך נכנס כשגוללים אליו, צמוד למיקום הגלילה — לא אנימציה בזמן
-שרצה בטעינה כשאיש לא רואה. בדפדפן (כרום, נתוני דוגמה): השקיפות עולה בהדרגה
-עם הגלילה (0.30 → 0.51 → 0.73 → 0.94 → 1), בסוף כל עמוד אין כרטיס דהוי, ובמסלול
-החלופי (בלי ‎animation-timeline‎) כרטיס שדילגו מעליו מופיע כשגוללים אליו.
+A card below the screen comes in when you scroll to it, tied to the scroll
+position: not a time-based animation that runs on load when nobody is looking. In
+the browser (Chrome, sample data): opacity rises gradually with the scroll (0.30 →
+0.51 → 0.73 → 0.94 → 1), at the end of every page no card is faded, and on the
+fallback path (without animation-timeline) a card that was skipped over appears
+when you scroll to it.
 """
 from pathlib import Path
 
@@ -20,11 +23,11 @@ def test_cards_below_the_fold_enter_with_the_scroll():
     block = _CSS[_CSS.index("@supports (animation-timeline: view()) {"):]
     block = block[:block.index("}\n}")]
     assert "animation-timeline: view(block);" in block
-    assert "animation-range: entry 0% entry 140px;" in block      # אותו מרחק לכל כרטיס
+    assert "animation-range: entry 0% entry 140px;" in block      # the same distance for every card
 
 
 def test_the_reveal_moves_with_translate_not_transform():
-    """‎transform‎ דורס את ההחלקות (כרטיס "השבוע" כותב ‎transform‎)."""
+    """transform overrides the swipes (the "השבוע" card writes transform)."""
     keyframes = _CSS[_CSS.index("@keyframes reveal-in {"):]
     keyframes = keyframes[:keyframes.index("}\n}")]
     assert "translate:" in keyframes and "transform" not in keyframes

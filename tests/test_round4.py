@@ -1,4 +1,4 @@
-"""סבב 4: "מה חדש" אחרי עדכון, ובן משפחה שהצטרף (מתן, 12.10)."""
+"""Round 4: "מה חדש" after an update, and a family member who joined (Matan, 12.10)."""
 from pathlib import Path
 
 import pytest
@@ -24,11 +24,11 @@ def test_the_home_page_carries_what_the_script_needs():
 def test_member_joined_skips_me_and_the_first_visit_on_a_phone():
     assert "m.id !== page.dataset.me" in _JS
     assert "if (known === null) return;" in _JS
-    assert "textContent" in _JS and "innerHTML" not in _JS      # שם בן משפחה — טקסט בלבד
+    assert "textContent" in _JS and "innerHTML" not in _JS      # a family member's name: text only
 
 
 def test_home_and_month_log_how_long_each_query_took():
-    """מהירות הטעינה (מתן, 12.10): קודם מודדים, ורק אחר כך מתקנים."""
+    """Load speed (Matan, 12.10): first measure, and only then fix."""
     app = (_ROOT / "backend/app.py").read_text(encoding="utf-8")
     assert 'logger.info("timing %s total=%.0fms %s"' in app
     assert "return {name: _timed(name, fn) for name, fn in tasks.items()}" in app
@@ -37,8 +37,9 @@ def test_home_and_month_log_how_long_each_query_took():
 
 
 def test_a_slice_tap_opens_the_row_through_its_own_click():
-    """‏‎toggleExpand‎ מוגדרת בבלוק האינטראקטיביות; מבלוק הגרפים היא לא קיימת,
-    והנגיעה בפלח זרקה ‎ReferenceError‎ ולא פתחה כלום (נמצא בצילום, 12.10)."""
+    """toggleExpand is defined in the interactivity block; from the charts block it
+    doesn't exist, and touching a slice threw a ReferenceError and opened nothing
+    (found in a screenshot, 12.10)."""
     js = (_ROOT / "frontend/static/js/month.js").read_text(encoding="utf-8")
     body = js[js.index("function openSlice"):]
     body = body[:body.index("\n}\n")]

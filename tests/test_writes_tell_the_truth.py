@@ -1,17 +1,18 @@
-"""כתיבה שלא נגעה בשום שורה אמרה "נשמר".
+"""A write that touched no row said "saved".
 
-הסבב הקודם תיקן את זה לעסקאות. שמונה מסלולי כתיבה נוספים נשארו: עריכת
-קטגוריה, סידור קטגוריות, עריכת פרויקט, קטגוריות פרויקט, מחיקת פרויקט
-ושם המשפחה. כולם עשו ‎.update(...).eq(...).execute()‎ ואז ‎return True‎
-בלי להסתכל ב-‎.data‎.
+The previous round fixed this for transactions. Eight more writing routes remained:
+editing a category, ordering categories, editing a project, project categories,
+deleting a project and the family name. All did .update(...).eq(...).execute() and
+then return True without looking at .data.
 
-התרחיש הוא לא תיאורטי. אמא משנה את השם של "מסעדות" בזמן שאבא מוחק את
-אותה קטגוריה שנייה קודם: ה-‎PUT‎ לא מתאים לשום שורה, הפונקציה מחזירה
-‎True‎, המסלול מחזיר ‎{"status":"ok"}‎ וה-JS צובע את השם החדש על המסך.
-אמא בטוחה שהשינוי נשמר. הוא לא.
+The scenario isn't theoretical. Mum renames "מסעדות" while dad deletes the same
+category a second earlier: the PUT matches no row, the function returns True, the
+route returns {"status":"ok"} and the JS paints the new name on screen. Mum is sure
+the change was saved. It wasn't.
 
-זה אותו דפוס בדיוק של ‎DataUnavailable‎ — הצלחה מדומה — רק בכיוון
-הכתיבה, ובו הוא שקט אפילו יותר: אין אפילו מספר שנראה שגוי.
+This is exactly the same pattern as DataUnavailable (a fake success), just in the
+write direction, where it is even quieter: there isn't even a number that looks
+wrong.
 """
 import pytest
 
@@ -45,7 +46,7 @@ def fake(monkeypatch):
     return f
 
 
-# ═══ הדבר עצמו קיים ═══════════════════════════════════════════════════════════
+# ═══ The thing itself exists ═══════════════════════════════════════════════════
 
 def test_editing_a_category_that_exists_reports_success(fake):
     assert db.update_category("c1", _FAM, "אוכל בחוץ", "🍕") is True
@@ -61,18 +62,19 @@ def test_editing_a_project_category_reports_success(fake):
     assert db.update_project_category("pc1", "p1", _FAM, "צבע", "🎨") is True
 
 
-# ═══ ומה שקורה כשהוא כבר לא ═══════════════════════════════════════════════════
+# ═══ And what happens when it no longer does ═══════════════════════════════════
 
 def test_editing_a_category_someone_else_deleted_is_not_success(fake):
-    """הלב, והתרחיש האמיתי: בן משפחה אחר מחק אותה שנייה קודם."""
+    """The heart, and the real scenario: another family member deleted it a second
+    earlier."""
     fake.tables["categories"] = []
 
     assert db.update_category("c1", _FAM, "אוכל בחוץ", "🍕") is False
 
 
 def test_a_category_of_another_family_cannot_be_renamed(fake):
-    """הבידוד. ‎eq("family_id")‎ מסנן, אבל התשובה אמרה "נשמר" בכל מקרה,
-    אז נראה היה שזה עבד."""
+    """Isolation. eq("family_id") filters, but the response said "saved" anyway, so it
+    looked like it worked."""
     fake.tables["categories"][0]["family_id"] = _OTHER
 
     assert db.update_category("c1", _FAM, "שלי עכשיו", "🍕") is False
@@ -96,17 +98,17 @@ def test_deleting_a_project_category_that_is_gone_is_not_success(fake):
 def test_editing_a_project_that_is_gone_is_not_success(fake):
     fake.tables["projects"] = []
 
-    # ‎None‎ = "לא נמצא" (המסלול עונה 404), להבדיל מ-‎False‎ = תקלה (500). העיקר:
-    # לא ‎True‎ — אין "נשמר" על פרויקט שאיננו
+    # None = "not found" (the route answers 404), as opposed to False = a fault
+    # (500). The main thing: not True: no "saved" on a project that isn't there
     assert db.update_project("p1", _FAM, "שיפוץ", 5000, None, "🔨",
                              True, False, False) is None
 
 
-# ═══ מחיקת פרויקט מדווחת כמה כסף נעלם ═════════════════════════════════════════
+# ═══ Deleting a project reports how much money vanished ═══════════════════════
 
 def test_deleting_a_project_with_its_transactions_says_how_many(fake):
-    """"מחק גם עסקאות" לא נשא שום מספר. זו הפעולה ההרסנית ביותר שכל חבר
-    יכול לעשות בלי סיסמה ובלי הרשאת מנהל."""
+    """"Also delete transactions" carried no number. It is the most destructive action
+    any member can do with no password and no manager privilege."""
     ok, wiped = db.delete_project("p1", _FAM)
 
     assert ok is True
@@ -115,10 +117,11 @@ def test_deleting_a_project_with_its_transactions_says_how_many(fake):
 
 
 def test_deleting_a_project_that_is_gone_is_not_success(fake):
-    """ובלי לגעת בעסקאות: "לא נמצא" אחרי שהן כבר נמחקו הוא הגרוע מכולם."""
+    """And without touching the transactions: "not found" after they were already
+    deleted is the worst of all."""
     fake.tables["projects"] = []
 
     ok, wiped = db.delete_project("p1", _FAM)
 
     assert ok is False and wiped == 0
-    assert len(fake.rows("transactions")) == 2, "העסקאות נמחקו לפני שהתברר שאין פרויקט"
+    assert len(fake.rows("transactions")) == 2, "the transactions were deleted before it turned out there is no project"

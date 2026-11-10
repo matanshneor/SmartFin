@@ -1,10 +1,11 @@
 """
-בדיקות RLS אוטומטיות: מוודאות שמשפחה א' לא יכולה לקרוא, לעדכן או למחוק
-נתונים של משפחה ב' — בכל טבלה שיש בה family_id. רצות מול הפרויקט האמיתי
-(אין פרויקט Supabase ייעודי נפרד לבדיקות בשלב זה), כנגד שני משתמשי בדיקה
-זמניים שכל ריצה יוצרת ומוחקת (tests/_test_accounts.py).
+Automatic RLS tests: make sure family A can't read, update or delete family B's
+data, in every table with a family_id. They run against the real project (there is
+no separate Supabase project dedicated to tests at this stage), against two
+temporary test users that each run creates and deletes (tests/_test_accounts.py).
 
-כל בדיקה מנקה את עצמה גם אם היא נכשלת (finally), כדי לא להשאיר זבל בטבלאות.
+Every test cleans up after itself even if it fails (finally), so as not to leave
+garbage in the tables.
 """
 import uuid
 
@@ -17,9 +18,9 @@ def _table(name):
 
 
 def _assert_isolated(table_name, insert_payload, family_a, family_b, update_patch):
-    """דפוס משותף לכל הטבלאות: מכניסים שורה כמשפחה א', ומוודאים שמשפחה ב'
-    לא רואה אותה, לא יכולה לעדכן אותה ולא למחוק אותה — בעוד שמשפחה א' עצמה
-    כן יכולה לגשת אליה כרגיל (בקרת-נגד: ש-RLS לא פשוט חוסם את כולם)."""
+    """A pattern shared by all tables: insert a row as family A, and make sure family B
+    doesn't see it, can't update it and can't delete it, while family A itself can
+    access it as usual (control: that RLS doesn't simply block everyone)."""
     db.set_auth_token(family_a["token"])
     inserted = _table(table_name).insert(insert_payload).execute()
     assert inserted.data, f"insert as family A failed for {table_name}"
@@ -100,10 +101,11 @@ def test_project_categories_isolation(family_a, family_b):
 
 
 def test_receipt_scans_isolation(family_a, family_b):
-    """receipt_scans היא רק מונה-שימוש (append-only) — יש לה policy של
-    INSERT+SELECT בלבד, בכוונה, בלי UPDATE/DELETE. אז אין מה "לנקות" כאן
-    ברמת RLS רגילה; השורה הבודדת שהבדיקה יוצרת נשארת (וזה בסדר, בדיוק כמו
-    כל סריקת קבלה אמיתית שנשארת לצמיתות לצורך ספירת המכסה החודשית/כוללת)."""
+    """receipt_scans is only a usage counter (append-only): it has an INSERT+SELECT
+    policy only, on purpose, with no UPDATE/DELETE. So there is nothing to "clean"
+    here at the normal RLS level; the single row the test creates stays (and that is
+    fine, exactly like every real receipt scan that stays permanently for counting
+    the monthly/total quota)."""
     db.set_auth_token(family_a["token"])
     inserted = _table("receipt_scans").insert(
         {"family_id": family_a["family_id"], "user_id": family_a["user_id"]}
@@ -119,23 +121,24 @@ def test_receipt_scans_isolation(family_a, family_b):
 
 
 def test_families_table_isolation(family_a, family_b):
-    """משפחה ב' לא יכולה לקרוא את שורת ה-families של משפחה א', גם לא לפי id ישיר."""
+    """Family B can't read family A's families row, not even by direct id."""
     db.set_auth_token(family_b["token"])
     cross_read = _table("families").select("id").eq("id", family_a["family_id"]).execute()
     assert cross_read.data == [], "family B must NOT be able to read family A's families row"
 
 
 def test_profiles_table_isolation(family_a, family_b):
-    """משפחה ב' לא יכולה לקרוא את הפרופיל של המשתמש במשפחה א'."""
+    """Family B can't read the profile of the user in family A."""
     db.set_auth_token(family_b["token"])
     cross_read = _table("profiles").select("id").eq("id", family_a["user_id"]).execute()
     assert cross_read.data == [], "family B must NOT be able to read family A's profile row"
 
 
 def _assert_owner_only_table(table_name, insert_payload, family_a):
-    """הטבלאות הפנימיות של בעל האתר (owner_archive, login_events) הן
-    RLS-מופעל-בלי-שום-policy: אף לקוח — גם משתמש מחובר — לא קורא ולא כותב.
-    הכתיבה קורית רק דרך פונקציות/טריגרים SECURITY DEFINER בצד ה-DB."""
+    """The site owner's internal tables (owner_archive, login_events) are
+    RLS-enabled-with-no-policy: no client (not even a signed-in user) reads or
+    writes. Writing happens only through SECURITY DEFINER functions/triggers on
+    the DB side."""
     db.set_auth_token(family_a["token"])
 
     read = _table(table_name).select("id").limit(5).execute()

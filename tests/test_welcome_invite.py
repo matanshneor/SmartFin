@@ -1,8 +1,9 @@
-""""איך מצרפים בן משפחה" (מתן, 5.10).
+""""איך מצרפים בן משפחה" (Matan, 5.10).
 
-כשפותחים משפחה, הכניסה הראשונה לבית מסבירה איך מצרפים בן משפחה, עם כפתור
-ששולח את ההזמנה. פעם אחת: רק כשמגיעים מאשף הפתיחה (‎?welcome=1‎), ורק כשעוד
-אין במשפחה אף אחד אחר.
+When a family is opened, the first visit to the home page explains how to add a
+family member, with a button that sends the invite. Once: only when arriving from
+the opening wizard (?welcome=1), and only when there is no one else in the family
+yet.
 """
 from pathlib import Path
 

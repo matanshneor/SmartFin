@@ -1,10 +1,11 @@
-"""סדר בהגדרות (מתן, 11.10): "זה שלי, או של המשפחה?"
+"""Order in settings (Matan, 11.10): "is this mine, or the family's?"
 
-עד אז השם ומקום העבודה נערכו מעיפרון ברשימת בני המשפחה, הצבע מכפתור באותה
-שורה, ומייל, טלפון וסיסמה בקבוצה שלישית, "אבטחה וחשבון". עכשיו:
-"החשבון שלי" — כל מה ששייך רק לי; "המשפחה שלי" — מה שמשותף, עם רשימת בני
-משפחה לקריאה בלבד. הסדר: המשפחה ראשונה, אחריה לפי כמה נכנסים לכל קבוצה,
-ו"החשבון שלי" אחרון, מעל "התנתקות".
+Until then the name and workplace were edited from a pencil in the family member
+list, the colour from a button on the same row, and email, phone and password in a
+third group, "אבטחה וחשבון". Now: "החשבון שלי": everything that belongs only to me;
+"המשפחה שלי": what is shared, with a read-only family member list. The order: the
+family first, then by how often each group is visited, and "החשבון שלי" last, above
+"התנתקות".
 """
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def test_the_family_group_holds_what_is_shared():
     for el in ("editFamilyNameBtn", "copyCodeBtn", "toggleFamilyMoveBtn",
                "toggleResetAccountBtn", "removeMemberBtn"):
         assert f'id="{el}"' in family, el
-    # הרשימה לקריאה בלבד — בלי עריכה של הפרטים שלי מתוכה
+    # the list is read-only: no editing of my details from within it
     members = family[family.index('class="members-settings-list"'):]
     members = members[:members.index("</ul>")]
     assert "<button" not in members
@@ -43,13 +44,14 @@ def test_the_groups_come_in_matans_order():
     titles = re.findall(r'<span class="group-title">([^<]+)</span>', _HTML)
     assert titles == ["המשפחה שלי", "קטגוריות", "עסקאות קבועות", "שיוך עסקאות",
                       "תצוגה", "התראות", "החשבון שלי"]
-    # "החשבון שלי" ממש מעל "התנתקות"
+    # "החשבון שלי" right above "התנתקות"
     assert _HTML.index('id="my-details"') < _HTML.index('class="logout-form') 
     assert '<span class="group-title">אבטחה וחשבון</span>' not in _HTML
 
 
 def test_rare_actions_are_folded_away():
-    """מחיקת חשבון, איפוס עסקאות והסרת בן משפחה — תחת "אפשרויות מתקדמות"."""
+    """Deleting an account, resetting transactions and removing a family member: under
+    "אפשרויות מתקדמות"."""
     for anchor, el in (('id="my-details"', "toggleDeleteAccountBtn"),
                        ('id="family-settings"', "toggleResetAccountBtn"),
                        ('id="family-settings"', "removeMemberBtn")):

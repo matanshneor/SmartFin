@@ -1,9 +1,10 @@
-"""עסקאות מילוי לעמוד החודש (7.10).
+"""Filler transactions for the month page (7.10).
 
-מאז 5.10 עמוד החודש מציג 5 עסקאות אחרונות, ו"לכל עסקאות החודש"
-(‎#txScreenOpen‎) מופיע רק כשיש יותר מ-5. סקריפטים שיצרו עסקה או שתיים
-וחיכו לכפתור — נתקעו. ‎fill_month‎ משלימה עד שיש יותר מ-5. החשבונות
-זמניים (‎_accounts‎), אז אין מה לנקות.
+Since 5.10 the month page shows the 5 latest transactions, and "לכל עסקאות החודש"
+(#txScreenOpen) appears only when there are more than 5. Scripts that created a
+transaction or two and waited for the button got stuck. fill_month tops up until
+there are more than 5. The accounts are temporary (_accounts), so there is nothing
+to clean.
 """
 import datetime
 import json

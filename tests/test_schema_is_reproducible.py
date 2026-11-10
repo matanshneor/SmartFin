@@ -1,20 +1,21 @@
 """
-המסד לא היה ניתן לשחזור מהריפו.
+The database couldn't be reproduced from the repo.
 
-‎get_my_family_id()‎ קיימת במסד, נקראת משתי מיגרציות שנדחפו
-(‎20260916110000‎), מ-‎supabase_config.py‎, וממדיניות ה-RLS
-‎profiles_family_read‎ — ולא היה לה שום ‎CREATE‎ בקבצים. היא נוצרה
-דרך לוח הבקרה ומעולם לא נכתבה כמיגרציה.
+get_my_family_id() exists in the database, is called from two pushed migrations
+(20260916110000), from supabase_config.py, and from the RLS policy
+profiles_family_read, and it had no CREATE in the files. It was created through
+the dashboard and never written as a migration.
 
-בנייה מאפס מהקבצים נתנה סכימה שבה ‎get_family_members‎ ו-
-‎get_months_archive‎ נכשלות — והראשונה בולעת את הכשל ומחזירה רשימה
-ריקה, כלומר משפחה שמוצגת בלי אף חבר.
+Building from scratch from the files gave a schema where get_family_members and
+get_months_archive fail, and the first swallows the failure and returns an empty
+list, that is, a family shown without a single member.
 
-זה מחסיר בדיוק מהעבודה שסידרה את ספר המיגרציות ל-36/36: הפנקס היה
-שלם, התוכן לא.
+This takes exactly away from the work that brought the migration ledger to 36/36:
+the ledger was complete, the content wasn't.
 
-הבדיקה כאן לא בודקת את המסד — היא בודקת שהקבצים מספיקים לעצמם: כל
-פונקציה ש-SQL בריפו קורא לה חייבת להיות מוגדרת ב-SQL בריפו.
+The test here doesn't check the database: it checks that the files are
+self-sufficient: every function that SQL in the repo calls must be defined in SQL
+in the repo.
 """
 import re
 from pathlib import Path
@@ -25,7 +26,7 @@ pytestmark = pytest.mark.unit
 
 _MIGRATIONS = Path(__file__).resolve().parent.parent / "backend/supabase/migrations"
 
-# פונקציות של Postgres ושל Supabase עצמה — לא אמורות להיות מוגדרות אצלנו
+# functions of Postgres and of Supabase itself: shouldn't be defined by us
 _BUILTIN = {
     "auth", "count", "coalesce", "nullif", "btrim", "lower", "upper", "now",
     "gen_random_uuid", "gen_random_bytes", "date_trunc", "to_jsonb", "jsonb_build_object",
@@ -53,21 +54,22 @@ def _tables(all_sql):
 
 
 def _called(all_sql):
-    """קריאות ל-‎public.<name>(‎ — בלי טבלאות.
+    """Calls to public.<name>(, without tables.
 
-    ‎insert into public.transactions (amount, ...)‎ נראה בדיוק כמו
-    קריאה לפונקציה אם מסתכלים רק על שם ואחריו סוגר."""
+    insert into public.transactions (amount, ...) looks exactly like a function
+    call if you only look at a name followed by a parenthesis."""
     names = set(re.findall(r"public\.([a-z_][a-z0-9_]*)\s*\(", all_sql, re.I))
     return {n for n in names if n not in _tables(all_sql)}
 
 
 def test_every_function_the_migrations_call_is_also_defined_there():
-    """זה הכלל שהופר. מיגרציה שקוראת לפונקציה שלא מוגדרת בריפו הופכת
-    את הריפו ללא-מספיק — והכשל מתגלה רק כשמישהו בונה מסד מאפס."""
+    """This is the rule that was broken. A migration calling a function not defined in
+    the repo makes the repo insufficient, and the failure shows up only when someone
+    builds a database from scratch."""
     all_sql = "\n".join(_sql().values())
     missing = sorted(_called(all_sql) - _defined(all_sql) - _BUILTIN)
 
-    assert not missing, f"נקראות ולא מוגדרות: {missing}"
+    assert not missing, f"called and not defined: {missing}"
 
 
 def test_the_function_that_was_missing_is_there_now():
@@ -77,24 +79,25 @@ def test_the_function_that_was_missing_is_there_now():
 
 
 def test_it_is_defined_before_the_migrations_that_use_it():
-    """סדר הקבצים הוא סדר ההרצה. פונקציה שנוצרת אחרי מי שקורא לה
-    תיכשל בבנייה מאפס, גם אם שתיהן קיימות."""
+    """File order is run order. A function created after its caller will fail in a
+    build from scratch, even if both exist."""
     files = _sql()
     defined_in = next(n for n, s in files.items()
                       if re.search(r"create (?:or replace )?function\s+public\.get_my_family_id", s, re.I))
     callers = [n for n, s in files.items()
                if "public.get_my_family_id(" in s and n != defined_in]
 
-    assert callers, "הבדיקה לא מצאה קוראים — כנראה השתנה הניסוח"
+    assert callers, "the test found no callers: the wording probably changed"
     late = [n for n in callers if n < defined_in]
     assert not late, (
-        f"{defined_in} מוגדרת אחרי {late} — בנייה מאפס תיכשל שם, כי "
-        f"Postgres מוודא גוף של פונקציית SQL בזמן היצירה")
+        f"{defined_in} is defined after {late}: a build from scratch will fail there, because "
+        f"Postgres validates a SQL function's body at creation time")
 
 
 def test_the_restored_definition_matches_what_the_database_has():
-    """אומת ב-rollback מול המסד החי לפני הדחיפה: ההגדרה וההרשאות
-    זהות בדיוק, כלומר המיגרציה היא תיעוד ולא שינוי."""
+    """Verified in a rollback against the live database before the push: the
+    definition and grants are identical, that is, the migration is documentation
+    and not a change."""
     sql = _sql()["20260916105900_get_my_family_id.sql"]
 
     assert "SELECT family_id FROM profiles WHERE id = auth.uid();" in sql
@@ -104,35 +107,36 @@ def test_the_restored_definition_matches_what_the_database_has():
 
 
 def test_the_profiles_policy_is_not_the_recursive_version():
-    """המדיניות בקבצים הייתה רקורסיבית: מדיניות SELECT על ‎profiles‎
-    ששואלת את ‎profiles‎. בשרת היא מזמן עוברת דרך הפונקציה, שהיא
-    ‎security definer‎ ולכן לא מפעילה את המדיניות שוב — אבל התיקון
-    נשאר רק שם, ובנייה מהריפו הייתה מייצרת מדיניות שבורה."""
+    """The policy in the files was recursive: a SELECT policy on profiles that queries
+    profiles. On the server it has long gone through the function, which is
+    security definer and so doesn't trigger the policy again, but the fix stayed
+    only there, and a build from the repo would produce a broken policy."""
     files = _sql()
     fix = files["20260916105900_get_my_family_id.sql"]
 
     assert 'create policy "profiles_family_read"' in fix
     assert "public.get_my_family_id()" in fix
-    # והיא באה אחרי הגרסה הרקורסיבית, אז היא דורסת אותה
+    # and it comes after the recursive version, so it overrides it
     recursive = [n for n, s in files.items()
                  if 'CREATE POLICY "profiles_family_read"' in s]
     assert recursive and all(n < "20260916105900" for n in recursive)
 
 
-# ─── ושהדחיפה מאפס בכלל מגיעה לסוף ──────────────────────────────────────────
+# ─── And that a push from scratch actually reaches the end ──────────────────
 #
-# הבדיקות למעלה מוודאות שהתוכן שלם. הן לא בדקו שהקבצים **רצים**: תשע
-# מדיניות היו מוגדרות פעמיים, ול-‎CREATE POLICY‎ אין ‎IF NOT EXISTS‎, אז
-# ‎supabase db push‎ על מסד ריק נעצר ב-42710 על הקובץ השלישי. הפנקס היה
-# מלא, אז בפרויקט המקושר זה לא נראה — ושחזור מאסון, סביבת בדיקות ו-
-# ‎db reset‎ כולם נכשלו בשקט עד שמישהו היה צריך אותם.
+# The tests above make sure the content is complete. They didn't check that the
+# files **run**: nine policies were defined twice, and CREATE POLICY has no
+# IF NOT EXISTS, so supabase db push on an empty database stopped at 42710 on the
+# third file. The ledger was full, so on the linked project it wasn't visible, and
+# disaster recovery, a test environment and db reset all silently failed until
+# someone needed them.
 
 _POLICY = re.compile(r'create\s+policy\s+"([^"]+)"\s+on\s+([\w.]+)', re.I)
 _DROP_POLICY = re.compile(r'drop\s+policy\s+if\s+exists\s+"([^"]+)"\s+on\s+([\w.]+)', re.I)
 
 
 def test_no_policy_is_created_twice_without_being_dropped_first():
-    """אותה מדיניות בשני קבצים היא שגיאה קשה בדחיפה, לא אזהרה."""
+    """The same policy in two files is a hard error on push, not a warning."""
     seen = {}
     offenders = []
 
@@ -147,17 +151,17 @@ def test_no_policy_is_created_twice_without_being_dropped_first():
             seen[key] = name
 
     assert not offenders, (
-        "מדיניות שנוצרת פעמיים בלי drop קודם עוצרת דחיפה מאפס:\n  "
+        "a policy created twice without a prior drop stops a push from scratch:\n  "
         + "\n  ".join(offenders)
     )
 
 
 def test_no_function_changes_its_return_type_without_a_drop():
-    """‎create or replace function‎ לא יכולה לשנות טיפוס החזרה. על מסד
-    קיים זה לא מורגש; על מסד ריק זה עוצר את הדחיפה."""
-    # הטיפוס נלקח עד מילת המפתח שאחריו, לא עד סוף השורה: ‎returns table‎
-    # נפרס על כמה שורות, וחיתוך בשורה הראשונה משווה ‎'table ('‎ לחתימה
-    # מלאה ומדווח על שינוי שלא קרה.
+    """create or replace function can't change a return type. On an existing database
+    it isn't noticed; on an empty database it stops the push."""
+    # The type is taken up to the keyword after it, not to the end of the line:
+    # returns table spans several lines, and cutting at the first line compares
+    # 'table (' to a full signature and reports a change that didn't happen.
     create = re.compile(
         r"create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\([^)]*\)\s*"
         r"returns\s+(.*?)\s+(?:language|as\s*\$)", re.I | re.S)
@@ -167,7 +171,7 @@ def test_no_function_changes_its_return_type_without_a_drop():
         t = re.sub(r"\s+", " ", t).strip().lower()
         t = re.sub(r"\s*\(\s*", "(", t)
         t = re.sub(r"\s*\)", ")", t)
-        # ‎int‎ ו-‎integer‎ הם אותו טיפוס ב-Postgres; הבדל כתיב אינו שינוי.
+        # int and integer are the same type in Postgres; a spelling difference isn't a change.
         return re.sub(r"\bint\b", "integer", t)
 
     signatures, offenders = {}, []
@@ -181,6 +185,6 @@ def test_no_function_changes_its_return_type_without_a_drop():
             signatures[fn] = ret
 
     assert not offenders, (
-        "פונקציה שמשנה טיפוס החזרה בלי drop עוצרת דחיפה מאפס:\n  "
+        "a function changing its return type without drop stops a push from scratch:\n  "
         + "\n  ".join(offenders)
     )

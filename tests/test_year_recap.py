@@ -1,5 +1,5 @@
-""""2026 שלכם" — סיכום השנה (מתן, 1.11): נפתח בלחיצה, רק מי שלוחץ רואה;
-יש בו פרויקטים; ובלי שנה קודמת מלאה — בלי השוואה."""
+""""2026 שלכם": the year recap (Matan, 1.11): opens on tap, only whoever taps
+sees it; it has projects; and without a complete previous year, no comparison."""
 import datetime
 from pathlib import Path
 
@@ -39,7 +39,7 @@ def test_the_year_in_numbers(monkeypatch):
             _r("2026-08-01", "income", 10000), _r("2026-08-05", "expense", 7000, "rent"),
             _r("2026-08-09", "expense", 3000, None, "p1")]
     d = _recap(monkeypatch, rows)
-    assert (d["income"], d["expense"], d["savings"]) == (20000, 9000, 1000)   # בלי הפרויקט
+    assert (d["income"], d["expense"], d["savings"]) == (20000, 9000, 1000)   # without the project
     assert d["savings_rate"] == 5 and d["count"] == 6
     assert d["best"] == 3 and d["costliest"] == 8
     assert [c["name"] for c in d["top"]] == ["דירה", "סופר"]
@@ -90,20 +90,20 @@ def test_the_api_returns_only_for_the_one_who_asks(monkeypatch):
 
 
 def test_the_closed_screen_does_not_block_the_page():
-    """‎display: flex‎ גבר על ‎hidden‎ — המסך הסגור והשקוף חסם כל לחיצה."""
+    """display: flex beat hidden: the closed, transparent screen blocked every tap."""
     css = (ROOT / "frontend/static/css/style.css").read_text(encoding="utf-8")
     assert ".yr-overlay[hidden] { display: none; }" in css
 
 
-# ─── "2026 עד עכשיו" — בקרה במהלך השנה (מתן, 1.11 — אפשרות ב) ──────────────
+# ─── "2026 עד עכשיו": a check during the year (Matan, 1.11: option B) ────────
 
 def test_during_the_year_it_is_up_to_today_against_the_same_period(monkeypatch):
     rows = [_r("2025-01-05", "expense", 1000, "food"), _r("2025-12-01", "expense", 9000, "food"),
             _r("2026-01-05", "expense", 1200, "food"), _r("2026-07-20", "expense", 300, "fun")]
     d = _recap(monkeypatch, rows, today=datetime.date(2026, 7, 10))
     assert d["partial"] is True and d["through"] == 7
-    assert d["expense"] == 1200                         # 20.7 עוד לא הגיע
-    assert d["compare"]["expense_diff"] == 200          # מול ינואר–10.7 של 2025, לא מול כל 2025
+    assert d["expense"] == 1200                         # 20.7 hasn't arrived yet
+    assert d["compare"]["expense_diff"] == 200          # against January–10.7 of 2025, not against all of 2025
 
 
 def test_at_the_end_of_the_year_it_is_the_full_summary(monkeypatch):
@@ -122,7 +122,7 @@ def test_when_it_is_a_checkpoint(today, partial):
 def test_no_emoji_and_not_at_the_top():
     html = (ROOT / "frontend/templates/months.html").read_text(encoding="utf-8")
     assert "{{ recap_year }} עד עכשיו" in html and "🎉" not in html
-    assert html.index("data-year-recap") > html.index("{% block content %}")   # לא ב-hero
+    assert html.index("data-year-recap") > html.index("{% block content %}")   # not in the hero
     assert "🎉" not in (ROOT / "frontend/templates/index.html").read_text(encoding="utf-8")
     js = (ROOT / "frontend/static/js/year-recap.js").read_text(encoding="utf-8")
     assert not any(e in js for e in ("🏆", "💸", "💪", "👏", "📈", "📉", "🐷"))

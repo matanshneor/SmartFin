@@ -1,4 +1,5 @@
-"""הגדרות: שם המשפחה בצד שמאל של ראש העמוד (מתן, 1.10 — אפשרות ה)."""
+"""Settings: the family name on the left side of the page header (Matan, 1.10:
+option E)."""
 from pathlib import Path
 
 import pytest
@@ -25,8 +26,8 @@ def test_renaming_updates_the_name_at_the_top():
 
 
 def test_the_family_box_title_is_just_the_title():
-    """מתן (1.10): בכותרת התיבה רק "המשפחה שלי" — בלי שם המשפחה (כבר
-    בראש העמוד) ובלי מספר החברים."""
+    """Matan (1.10): the box heading has only "המשפחה שלי": without the family name
+    (already at the top of the page) and without the member count."""
     html = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
     header = html[html.index('<span class="group-title">המשפחה שלי</span>'):]
     header = header[:header.index("</button>")]

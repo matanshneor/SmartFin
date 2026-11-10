@@ -1,15 +1,17 @@
-"""בדיקת דפדפן אמיתי: חלון ההוספה וכרטיס הסיכום בעיצוב החדש (מתן, 11.10).
+"""A real browser test: the add window and summary card in the new design (Matan,
+11.10).
 
-סכום גדול במרכז בצבע המחלקה, קטגוריות עם השם המלא, הפרטים בבלוק אחד,
-כפתור כהה, סריקת קבלה בשורת הכותרת — והכל במסך אחד כשאין עסקה קבועה.
-שומרת צילומים ב-‎/tmp/sf_redesign_*.png‎.
+A large amount in the centre in the class colour, categories with the full name,
+the details in one block, a dark button, receipt scanning in the header row, and
+everything on one screen when there is no recurring transaction. Saves screenshots
+to /tmp/sf_redesign_*.png.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/add_window_redesign.py
 """
 import os, sys, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 env = dict(os.environ); env["PORT"] = "8099"
@@ -30,17 +32,18 @@ def check(name, ok):
 OUT = """() => { const s = document.querySelector('.modal-sheet'), r = s.getBoundingClientRect();
     return [...s.querySelectorAll('*')].filter(e => { const b = e.getBoundingClientRect();
         return b.width > 0 && (b.left < r.left - 1 || b.right > r.right + 1); }).map(e => e.id || e.className).slice(0, 4); }"""
-# שם קטגוריה שלא נכנס — רחב מהכפתור שלו, או חתוך
+# a category name that doesn't fit: wider than its button, or cut off
 CUT_NAMES = """() => [...document.querySelectorAll('#categoryGrid .cat-btn')].filter(b => {
     const n = b.lastElementChild, br = b.getBoundingClientRect(), nr = n.getBoundingClientRect();
     return n.scrollWidth > n.clientWidth + 1 || nr.left < br.left - 1 || nr.right > br.right + 1
         || nr.bottom > br.bottom + 1; }).map(b => b.textContent.trim())"""
 FITS = "() => { const s = document.querySelector('.modal-sheet'); return s.scrollHeight <= s.clientHeight + 1; }"
-# ה-₪ צמוד למספר: הרווח בין הסימן לספרה הראשונה (לא לקצה השדה) קטן
+# the ₪ is attached to the number: the gap between the sign and the first digit
+# (not the field's edge) is small
 GAP = """() => { const c = document.querySelector('.amount-currency').getBoundingClientRect();
     const i = document.getElementById('txAmount'), r = i.getBoundingClientRect();
     return Math.round(r.left + parseFloat(getComputedStyle(i).paddingLeft) - c.right); }"""
-# "תאריך אחר" באותה שורה עם היום/אתמול
+# "תאריך אחר" on the same row as today/yesterday
 ONE_ROW = """() => { const t = document.querySelectorAll('.date-quick-chips .date-chip, .date-pick');
     const tops = [...t].map(e => Math.round(e.getBoundingClientRect().top)); return Math.max(...tops) - Math.min(...tops) < 6; }"""
 

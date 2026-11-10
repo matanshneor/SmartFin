@@ -1,6 +1,6 @@
-"""לחיצה על מופע "צפוי" בחודש עתידי (מתן, 1.11): "דלג על החודש הזה" או
-"עריכת הסדרה". הדילוג נרשם ב-‎recurring_skips‎ של התבנית (המופע עוד לא
-קיים), ו"בטל" מוריד אותו."""
+"""Tapping a "צפוי" occurrence in a future month (Matan, 1.11): "דלג על החודש הזה"
+or "עריכת הסדרה". The skip is recorded in the template's recurring_skips (the
+occurrence doesn't exist yet), and "בטל" removes it."""
 import datetime
 from pathlib import Path
 
@@ -48,7 +48,8 @@ def test_undo_removes_the_skip(client):
 
 @pytest.mark.parametrize("bad", ["2026-11-01", "2026-10-10", "nope", None, 5])
 def test_only_dates_that_have_not_come(client, bad):
-    """מה שכבר ירד הוא עסקה אמיתית — נמחק כמו עסקה, לא מדלגים עליו."""
+    """What already went out is a real transaction: deleted like a transaction, not
+    skipped."""
     c, calls = client
     r = c.put(f"/api/recurring/{_TPL}/skip", json={"date": bad})
     assert r.status_code == 422 and calls == []

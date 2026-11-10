@@ -1,7 +1,8 @@
-""""בטל" אחרי עריכה (מתן, 30.9 — סבב 6, פריט 10).
+""""בטל" after an edit (Matan, 30.9: round 6, item 10).
 
-הביטול הוא עריכה נוספת עם הערכים הקודמים, ועם ‎if_match‎: הערכים שהעריכה
-שלנו השאירה. אם מישהו שינה את העסקה מאז — 409, ולא דורסים את השינוי שלו.
+Undo is another edit with the previous values, and with if_match: the values our
+edit left. If someone changed the transaction since, 409, and their change isn't
+overwritten.
 """
 import pytest
 
@@ -57,7 +58,7 @@ def test_undo_restores_when_nothing_changed_since(client):
 
 
 def test_undo_does_not_overwrite_someone_elses_later_edit(client):
-    client.state["row"]["amount"] = 350          # אור תיקנה בינתיים
+    client.state["row"]["amount"] = 350          # Or fixed it in the meantime
 
     res = _undo(client, _AFTER)
 
@@ -74,7 +75,7 @@ def test_any_field_changed_since_blocks_the_undo(client, field, value):
 
 
 def test_money_is_compared_as_money(client):
-    """‎320‎ מהמסד מול ‎320.0‎ מהדפדפן — זה אותו סכום."""
+    """320 from the database versus 320.0 from the browser: that is the same amount."""
     client.state["row"]["amount"] = "320.00"
     assert _undo(client, {**_AFTER, "amount": 320.0}).status_code == 200
 

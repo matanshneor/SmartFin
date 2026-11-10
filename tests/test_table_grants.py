@@ -1,11 +1,12 @@
-"""השומר בכניסה (מתן, 10.11.2026 — בדיקת אבטחה, נקודה 3).
+"""The guard at the entrance (Matan, 10.11.2026: security check, item 3).
 
-ל-anon — מי שלא מחובר — אין שום הרשאה על אף טבלה. עד היום הוא קיבל
-את ברירת המחדל של Supabase: הכל, כולל מחיקה וריקון של טבלה שלמה, וכל
-ההגנה נשענה על RLS בלבד. RLS עדיין נועלת כל שורה; זו שכבה שנייה, כך
-שכלל RLS אחד שייכתב לא נכון בעתיד לא יספיק כדי לחשוף נתונים.
+anon (whoever isn't signed in) has no privilege at all on any table. Until now it
+got Supabase's default: everything, including deleting and emptying a whole table,
+and all the protection relied on RLS alone. RLS still locks every row; this is a
+second layer, so one RLS rule written wrong in the future won't be enough to
+expose data.
 
-רצות מול המסד האמיתי (מדלגות ב-CI, כמו כל בדיקות המסד).
+They run against the real database (skipped in CI, like all database tests).
 """
 import os
 
@@ -23,15 +24,16 @@ _TABLES = ["admin_check_log", "categories", "families", "login_events", "owner_a
 def anon_rest():
     url, key = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
     if not url or not key:
-        pytest.skip("אין SUPABASE_URL — הבדיקות מול המסד האמיתי רצות רק מקומית")
+        pytest.skip("No SUPABASE_URL: the tests against the real database run locally only")
     headers = {"apikey": key, "Authorization": f"Bearer {key}"}
     with httpx.Client(base_url=url.rstrip("/") + "/rest/v1/", headers=headers,
                       timeout=10) as c:
         yield c
 
 
-# עמודה קיימת לסינון — כך שגם אילו הייתה הרשאה, עדכון/מחיקה לא היו נוגעים
-# בשום שורה. בלי סינון קיים, PostgREST נכשל על העמודה לפני שהוא בודק הרשאה.
+# An existing column to filter on, so that even if there were a privilege, an
+# update/delete wouldn't touch any row. Without an existing filter, PostgREST fails
+# on the column before it checks the privilege.
 _KEY = {"push_log": "kind", "push_subscriptions": "endpoint", "web_sessions": "sid_hash"}
 
 
@@ -48,9 +50,10 @@ def test_anon_cannot_touch_any_table(anon_rest, table):
 
 
 def test_the_list_covers_every_table():
-    """טבלה חדשה שלא ברשימה לא הייתה נבדקת. ‎_TABLES‎ מול המסד עצמו."""
+    """A new table not in the list wouldn't be checked. _TABLES against the database
+    itself."""
     if not os.environ.get("SUPABASE_URL"):
-        pytest.skip("אין SUPABASE_URL")
+        pytest.skip("No SUPABASE_URL")
     import json
     import subprocess
     out = subprocess.run(
@@ -63,14 +66,16 @@ def test_the_list_covers_every_table():
 
 
 def test_the_health_check_still_reaches_the_database(anon_rest):
-    """בדיקת הבריאות רצה כ-anon. אחרי שנסגרה כל טבלה היא עוברת דרך פונקציה."""
+    """The health check runs as anon. After every table was closed it goes through a
+    function."""
     assert db.ping() == (True, "ok")
 
 
 def test_the_warm_ping_is_accepted_even_with_a_stale_token(anon_rest, monkeypatch):
-    """נקודה 4: הנגיעה שמחזיקה את החיבור חם נדחתה כ-3,800 פעמים ביום, כי
-    נשאה את הטוקן שפג של המשתמש האחרון. עכשיו — גם עם טוקן כזה על הלקוח —
-    התשובה היא 200, והיומנים נקיים לדחיות אמיתיות."""
+    """Item 4: the touch that keeps the connection warm was rejected about 3,800 times
+    a day, because it carried the expired token of the last user. Now, even with
+    such a token on the client, the response is 200, and the logs are clean for
+    real rejections."""
     client = db.get_client()
     session = client.postgrest.session
     statuses = []

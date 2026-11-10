@@ -1,7 +1,8 @@
-"""עמוד ההגדרות בנסיעה אחת למסד (מתן, 13.10 — "הכי מהירה שאפשר").
+"""The settings page in one trip to the database (Matan, 13.10: "as fast as
+possible").
 
-אחות של ‎test_home_page_rpc.py‎: ‎get_settings_page‎ מחליפה תשע שליפות
-ברצף (‎300-530ms‎ בלוגים), והחישובים נשארים אותן פונקציות.
+A sibling of test_home_page_rpc.py: get_settings_page replaces nine sequential
+fetches (300-530ms in the logs), and the calculations stay the same functions.
 """
 from datetime import date
 from pathlib import Path
@@ -52,7 +53,7 @@ def _payload(**over):
         "category_totals": {"c1": 15000, "c2": 0},
         "recurring": [
             _rent("new", 5500, "2026-10-01"),
-            # תשלום קבוע בפרויקט אישי של מישהו אחר — לא מוצג (‎_filter_hidden_personal_projects‎)
+            # a recurring payment in someone else's personal project: not shown (_filter_hidden_personal_projects)
             _rent("secret", 300, "2026-10-01", project_id="p9",
                   projects={"owner_id": _OTHER, "name": "x", "icon": "🔒"}),
         ],
@@ -87,7 +88,7 @@ def test_one_call_with_the_same_three_month_window(real_fetch):
 def test_the_figures_are_the_same_functions_as_before(real_fetch):
     page, _ = real_fetch(_payload())
 
-    # ‎₪15,000‎ בשלושה חודשים → ‎₪5,000‎ בחודש; קטגוריה בלי הוצאה לא מופיעה
+    # ₪15,000 over three months → ₪5,000 a month; a category with no expense doesn't appear
     assert page["cat_averages"] == {"c1": 5000}
     assert page["tx_count"] == 42
     assert page["members"][0]["name"] == "מתן" and page["members"][0]["full_name"] == "מתן שניאור"
@@ -109,7 +110,7 @@ def test_the_settings_page_makes_no_other_trip(monkeypatch):
 
     def separate(*a, **k):
         raise AssertionError("שליפה נפרדת — היה אמור להגיע מ-get_settings_page")
-    # ‎_fetch_*‎ ולא ‎get_*‎: אלה עוברות דרך מטמון הבקשה, שהמסלול החדש ממלא
+    # _fetch_* and not get_*: these go through the request cache, which the new path fills
     for fn in ("_fetch_categories", "_fetch_family_members", "_fetch_family",
                "category_monthly_averages", "get_recurring_transactions",
                "recurring_price_changes", "family_transaction_count", "get_profile"):
@@ -143,12 +144,12 @@ def test_the_function_guards_the_family_like_its_sisters():
 
 
 def test_each_part_mirrors_the_query_it_replaces():
-    # ממוצעים: בלי פרויקטים, חלון ‎[from, to)‎
+    # averages: without projects, window [from, to)
     assert "and t.project_id is null" in _SQL
     assert "and t.date >= p_avg_from" in _SQL and "and t.date <  p_avg_to" in _SQL
-    # התבניות מהגדולה לקטנה, כמו ‎.order("amount", desc=True)‎
+    # templates from largest to smallest, like .order("amount", desc=True)
     assert ") order by t.amount desc" in _SQL
-    # המופע האחרון של כל תבנית שהסתיימה
+    # the last occurrence of every template that ended
     assert "distinct on (i.recurring_parent_id)" in _SQL
     assert "order by i.recurring_parent_id, i.date desc" in _SQL
     assert "order by c.sort_order nulls last, c.name" in _SQL

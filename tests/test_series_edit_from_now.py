@@ -1,12 +1,13 @@
-"""עריכת עסקה קבועה מ"עסקאות קבועות" בהגדרות — מהחודש הנוכחי והלאה (מתן, 2.10).
+"""Editing a recurring transaction from "עסקאות קבועות" in settings: from the
+current month on (Matan, 2.10).
 
-התבנית היא גם העסקה של החודש הראשון, ולכן עריכה שלה כתבה מחדש את ינואר:
-שכר דירה מינואר ב-₪5,000 שנערך באוקטובר ל-₪5,500 הפך גם את ינואר ל-₪5,500,
-ואוקטובר — שכבר נוצר — נשאר ₪5,000. עכשיו השינוי נכתב על המופע של החודש
-והסדרה מתפצלת בו, כמו "עדכון להבא".
+The template is also the first month's transaction, so editing it rewrote January:
+rent from January at ₪5,000 edited in October to ₪5,500 turned January into
+₪5,500 too, and October (already created) stayed ₪5,000. Now the change is written
+on this month's occurrence and the series splits there, like "עדכון להבא".
 
-הפיצול חי ב-SQL, אז הבדיקות רצות מול המסד האמיתי בתור משפחת הבדיקה,
-עם שעון קבוע, ומנקות אחריהן.
+The split lives in SQL, so the tests run against the real database as the test
+family, with a fixed clock, and clean up after themselves.
 """
 import datetime
 import uuid
@@ -30,7 +31,8 @@ def _freeze(monkeypatch, day):
 
 @pytest.fixture
 def make_series(family_a):
-    """סדרה + המופעים שכבר "נוצרו". מחזירה פונקציה; מנקה בסוף."""
+    """A series + the occurrences already "created". Returns a function; cleans up at
+    the end."""
     db.set_auth_token(family_a["token"])
     fid = family_a["family_id"]
     marker = f"SEF-{uuid.uuid4().hex[:8]}"
@@ -79,7 +81,7 @@ def _edit(tpl, s, payload):
 
 
 def test_this_months_occurrence_takes_the_change_and_history_stays(make_series, monkeypatch):
-    """הדוגמה של מתן: שכר דירה מינואר, נערך בספטמבר."""
+    """Matan's example: rent from January, edited in September."""
     _freeze(monkeypatch, datetime.date(2026, 9, 20))
     s = make_series
     months = [f"2026-{m:02d}-01" for m in range(2, 10)]
@@ -89,10 +91,10 @@ def test_this_months_occurrence_takes_the_change_and_history_stays(make_series, 
 
     assert out["series_from"] == "2026-09-01"
     rows = _rows(s)
-    assert float(rows["2026-01-01"]["amount"]) == 5000, "ינואר נכתב מחדש"
-    assert rows["2026-01-01"]["description"] == s["marker"], "גם התיאור של ינואר"
+    assert float(rows["2026-01-01"]["amount"]) == 5000, "January was rewritten"
+    assert rows["2026-01-01"]["description"] == s["marker"], "January's description too"
     for d in months[:-1]:
-        assert float(rows[d]["amount"]) == 5000, f"{d} השתנה"
+        assert float(rows[d]["amount"]) == 5000, f"{d} changed"
     sep = rows["2026-09-01"]
     assert float(sep["amount"]) == 5500 and sep["description"] == s["marker"] + "-חדש"
     assert sep["is_recurring"] is True and sep["recurring_parent_id"] is None
@@ -100,8 +102,8 @@ def test_this_months_occurrence_takes_the_change_and_history_stays(make_series, 
 
 
 def test_when_this_months_occurrence_is_still_ahead_it_starts_there(make_series, monkeypatch):
-    """משכורת ב-20 לחודש, והיום ה-10: המופע של החודש נוצר עכשיו, עם הערכים
-    החדשים, ומשם הסדרה החדשה."""
+    """A salary on the 20th of the month, and today is the 10th: this month's
+    occurrence is created now, with the new values, and from there the new series."""
     _freeze(monkeypatch, datetime.date(2026, 9, 10))
     s = make_series
     tpl = s["build"]("2026-06-20", "monthly_same", ["2026-07-20", "2026-08-20"])
@@ -113,7 +115,7 @@ def test_when_this_months_occurrence_is_still_ahead_it_starts_there(make_series,
     assert [float(rows[d]["amount"]) for d in ("2026-06-20", "2026-07-20", "2026-08-20")] == [5000] * 3
     assert float(rows["2026-09-20"]["amount"]) == 5500 and rows["2026-09-20"]["is_recurring"] is True
     assert rows["2026-06-20"]["recurring_end_date"] == "2026-09-19"
-    # כשיגיע ה-20 המנוע לא יכפיל אותו
+    # when the 20th arrives the engine won't duplicate it
     _freeze(monkeypatch, datetime.date(2026, 9, 25))
     db.materialize_recurring(s["fid"])
     assert len([d for d in _rows(s) if d.startswith("2026-09")]) == 1
@@ -132,7 +134,7 @@ def test_a_changed_frequency_goes_to_the_new_series(make_series, monkeypatch):
 
 
 def test_a_series_that_started_this_month_is_edited_as_before(make_series, monkeypatch):
-    """אין עבר להגן עליו — עריכה רגילה של התבנית."""
+    """There is no past to protect: a normal edit of the template."""
     _freeze(monkeypatch, datetime.date(2026, 9, 20))
     s = make_series
     tpl = s["build"]("2026-09-01", "monthly_1", [])
@@ -148,10 +150,10 @@ def test_an_end_date_before_this_month_is_refused(make_series, monkeypatch):
     out = _edit(tpl, s, _payload(tpl, recurring_end_date=datetime.date(2026, 8, 15)))
 
     assert "תאריך הסיום" in out["error"]
-    assert float(_rows(s)["2026-09-01"]["amount"]) == 5000, "נכתב למרות הסירוב"
+    assert float(_rows(s)["2026-09-01"]["amount"]) == 5000, "written despite the refusal"
 
 
-# ─── "₪5,000 ← ₪5,500 מאוקטובר" בהגדרות (מתן, 3.10 — רעיון 40) ──────────────
+# ─── "₪5,000 ← ₪5,500 מאוקטובר" in settings (Matan, 3.10: idea 40) ──────────
 
 def _active(s):
     return [r for r in _rows(s).values() if r["is_recurring"] and not r["recurring_end_date"]]
@@ -161,7 +163,7 @@ def test_after_a_change_the_settings_line_knows_the_old_amount(make_series, monk
     _freeze(monkeypatch, datetime.date(2026, 9, 20))
     s = make_series
     tpl = s["build"]("2026-07-01", "monthly_1", ["2026-08-01", "2026-09-01"])
-    _edit(tpl, s, _payload(tpl))                              # 5,000 → 5,500 מספטמבר
+    _edit(tpl, s, _payload(tpl))                              # 5,000 → 5,500 from September
 
     active = _active(s)
     assert len(active) == 1
@@ -177,7 +179,7 @@ def test_a_series_that_never_changed_has_no_line(make_series, monkeypatch):
 
 
 def test_a_change_without_a_new_amount_has_no_line(make_series, monkeypatch):
-    """שינוי תיאור בלבד מפצל גם הוא — אבל אין "← ₪" להראות."""
+    """A description-only change splits too, but there is no "← ₪" to show."""
     _freeze(monkeypatch, datetime.date(2026, 9, 20))
     s = make_series
     tpl = s["build"]("2026-07-01", "monthly_1", ["2026-08-01", "2026-09-01"])

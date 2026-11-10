@@ -1,4 +1,5 @@
-"""הגדרות: תיבה אחת פתוחה בכל רגע, והתנתקות מתחת לכל התיבות (מתן, 1.10)."""
+"""Settings: one box open at any moment, and sign-out below all the boxes (Matan,
+1.10)."""
 import json
 import re
 import subprocess
@@ -14,8 +15,8 @@ _HTML = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
 
 
 def _accordion(clicks):
-    """מריץ ב-node את קוד האקורדיון האמיתי על ארבע תיבות מדומות.
-    מחזיר, אחרי כל לחיצה, אילו תיבות פתוחות ואם הייתה גלילה."""
+    """Runs the real accordion code in node over four fake boxes. Returns, after each
+    tap, which boxes are open and whether there was a scroll."""
     code = _JS[_JS.index("// ── Accordion"):_JS.index("// ── Category type tabs")]
     harness = """
     const scrolled = [];
@@ -69,11 +70,12 @@ def test_tapping_the_open_box_closes_it():
 
 
 def test_scrolls_only_when_an_open_box_above_was_closed():
-    """סגירה מעל מקפיצה את העמוד; סגירה מתחת — לא, ואין סיבה לגלול."""
+    """Closing above makes the page jump; closing below doesn't, and there is no reason
+    to scroll."""
     steps = _accordion([0, 3, 1])
-    assert steps[0]["scrolled"] == []          # לא נסגר כלום
-    assert steps[1]["scrolled"] == [3]         # 0 נסגרה מעל 3
-    assert steps[2]["scrolled"] == []          # 3 נסגרה מתחת ל-1
+    assert steps[0]["scrolled"] == []          # nothing closed
+    assert steps[1]["scrolled"] == [3]         # 0 closed above 3
+    assert steps[2]["scrolled"] == []          # 3 closed below 1
 
 
 def test_logout_sits_under_all_the_boxes_not_inside_account():

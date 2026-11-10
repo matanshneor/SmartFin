@@ -1,14 +1,16 @@
 """
-בדיקות להישארות מחוברים.
+Tests for staying signed in.
 
-הדרישה: מי שהתחבר נשאר מחובר תמיד, אלא אם יצא ביוזמתו.
+The requirement: whoever signed in stays signed in always, unless they sign out
+themselves.
 
-שני דברים יכולים לשבור את זה, ושניהם מכוסים כאן:
-1. פקיעת העוגייה — היא חייבת להיות ארוכה, והחלון חייב לנוע קדימה עם כל
-   שימוש, אחרת משתמש פעיל היה מנותק בסוף התקופה.
-2. כישלון רענון הטוקן — טוקן הגישה של Supabase חי כשעה ומוחלף אוטומטית.
-   קודם כל שגיאה ברענון ניקתה את ה-session, כך שבליפ רשת אחד היה מנתק.
-   רק דחייה אמיתית של ה-refresh token מצדיקה ניתוק.
+Two things can break this, and both are covered here:
+1. Cookie expiry: it must be long, and the window must move forward with every
+   use; otherwise an active user would be signed out at the end of the period.
+2. Token refresh failure: the Supabase access token lives about an hour and is
+   replaced automatically. Before, every refresh error cleared the session, so
+   one network blip would sign out. Only a real rejection of the refresh token
+   justifies signing out.
 """
 import time
 from datetime import timedelta
@@ -23,56 +25,58 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture(autouse=True)
 def _no_real_refresh(monkeypatch):
-    """ברירת מחדל: הרענון לא זמין, ובאופן לא-קטלני.
+    """Default: refresh isn't available, in a non-fatal way.
 
-    בלי זה כל בקשה בקובץ הזה פנתה ל-GoTrue האמיתי עם טוקן מזויף —
-    קריאת רשת אמיתית לייצור, בתוך בדיקה שמסומנת ‎unit‎. בדיקה שבודקת
-    התנהגות רענון ספציפית דורסת את זה בעצמה."""
+    Without this every request in this file went to the real GoTrue with a fake
+    token: a real network call to production, inside a test marked unit. A test
+    checking specific refresh behaviour overrides this itself."""
     monkeypatch.setattr(app_module.db, "refresh_session",
                         lambda _t: (None, "unit test", False))
     monkeypatch.setattr(app_module.db, "set_auth_token", lambda _t: None)
 
 
-# ─── הגדרות העוגייה ──────────────────────────────────────────────────────────
+# ─── Cookie settings ─────────────────────────────────────────────────────────
 
 def test_an_active_session_is_not_interrupted():
-    """המספר הזה חל רק על סשן **נטוש**: משתמש פעיל דוחף את התפוגה קדימה
-    בכל בקשה (הבדיקה הבאה), אז 90 יום לא מנתקים אף אחד שמשתמש.
+    """This number applies only to an **abandoned** session: an active user pushes the
+    expiry forward on every request (the next test), so 90 days doesn't sign out
+    anyone who is using it.
 
-    עשר שנים פירושן שמכשיר שנמכר, טלפון שאבד או דפדפן במחשב משותף
-    נשארים מחוברים לנצח — ולמשתמש אין שום פעולה שסוגרת אותם."""
+    Ten years means a sold device, a lost phone or a browser on a shared computer
+    stay signed in forever, and the user has no action that closes them."""
     assert app.permanent_session_lifetime >= timedelta(days=30), \
-        "קצר מדי — מי שנכנס פעם בחודש ייזרק"
+        "too short: whoever comes in once a month will be thrown out"
     assert app.permanent_session_lifetime <= timedelta(days=180), \
-        "ארוך מדי — סשן נטוש לא נסגר בשום שלב"
+        "too long: an abandoned session never closes"
 
 
 def test_changing_the_password_disconnects_other_devices():
-    """בלי זה שינוי סיסמה לא עשה כלום למי שכבר מחובר: הסשן מתחדש
-    מעצמו, וטוקן הרענון ממשיך להחליף את עצמו."""
+    """Without this, changing the password did nothing to whoever is already signed
+    in: the session renews itself, and the refresh token keeps replacing itself."""
     from pathlib import Path
     src = (Path(__file__).resolve().parent.parent
            / "backend/supabase_config.py").read_text(encoding="utf-8")
     fn = src[src.index("def update_password("):]
     fn = fn[:fn.index("\ndef ")]
 
-    assert "auth/v1/logout" in fn, "שינוי סיסמה לא מנתק שום מכשיר אחר"
+    assert "auth/v1/logout" in fn, "a password change doesn't sign out any other device"
     assert '"scope": "others"' in fn, \
-        "ניתוק גלובלי היה מנתק גם את מי שביצע את השינוי"
+        "a global sign-out would also sign out whoever made the change"
 
 
 def test_the_expiry_window_slides_with_every_request():
-    """בלי זה גם חלון ארוך היה נגמר בסוף, בלי קשר לשימוש."""
+    """Without this even a long window would end eventually, regardless of use."""
     assert app.config["SESSION_REFRESH_EACH_REQUEST"] is True
 
 
 def test_the_cookie_stays_hardened():
-    """ההתמדה לא באה על חשבון ההקשחה — העוגייה נושאת טוקני Supabase."""
+    """Persistence doesn't come at the expense of hardening: the cookie carries
+    Supabase tokens."""
     assert app.config["SESSION_COOKIE_HTTPONLY"] is True
     assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax"
 
 
-# ─── הבחנה בין תקלה זמנית לדחייה אמיתית ──────────────────────────────────────
+# ─── Telling a transient glitch from a real rejection ────────────────────────
 
 class _FakeSession:
     access_token = "fresh-access"
@@ -86,7 +90,8 @@ class _FakeResponse:
 
 @pytest.fixture
 def client_with_expiring_token(monkeypatch):
-    """לקוח מחובר שהטוקן שלו כבר פג, כך שכל בקשה מנסה לרענן."""
+    """A signed-in client whose token has already expired, so every request tries to
+    refresh."""
     app.config["TESTING"] = True
     with app.test_client() as c:
         with c.session_transaction() as sess:
@@ -95,23 +100,24 @@ def client_with_expiring_token(monkeypatch):
             sess["family_id"]          = None
             sess["access_token"]       = "stale"
             sess["refresh_token"]      = "some-refresh-token"
-            sess["token_expires_at"]   = 0        # פג מזמן
+            sess["token_expires_at"]   = 0        # expired long ago
         yield c
 
 
 def test_a_network_blip_does_not_sign_the_user_out(client_with_expiring_token, monkeypatch):
-    """זה הלב: תקלה זמנית משאירה את המשתמש מחובר."""
+    """This is the heart: a transient glitch keeps the user signed in."""
     monkeypatch.setattr(app_module.db, "refresh_session",
                         lambda _t: (None, "temporary failure", False))
 
     client_with_expiring_token.get("/__test/noop")
 
     with client_with_expiring_token.session_transaction() as sess:
-        assert sess.get("user_id"), "בליפ רשת ניתק את המשתמש"
+        assert sess.get("user_id"), "a network blip signed the user out"
 
 
 def test_a_rejected_refresh_token_does_sign_the_user_out(client_with_expiring_token, monkeypatch):
-    """בקרת-נגד: כשהטוקן נדחה באמת אין מה לשחזר, וניתוק נקי הוא הנכון."""
+    """Control: when the token is really rejected there is nothing to recover, and a
+    clean sign-out is right."""
     monkeypatch.setattr(app_module.db, "refresh_session",
                         lambda _t: (None, "Invalid Refresh Token", True))
 
@@ -122,19 +128,21 @@ def test_a_rejected_refresh_token_does_sign_the_user_out(client_with_expiring_to
 
 
 def test_a_rejection_while_the_access_token_still_works_does_not_sign_out(monkeypatch):
-    """מרוץ הסיבוב של Supabase: שני workers, שתי בקשות מקבילות, ו-refresh
-    token שמסובב בכל רענון. הבקשה שמגיעה שנייה מקבלת "כבר נעשה בו שימוש"
-    למרות שההתחברות חיה לגמרי — הרענון פשוט נעשה כבר על ידי האחרת.
+    """Supabase's rotation race: two workers, two parallel requests, and a refresh
+    token rotated on every refresh. The request arriving second gets "already used"
+    although the sign-in is fully alive: the refresh was simply already done by the
+    other.
 
-    מה שמבדיל בין דחייה אמיתית לתוצאה של המרוץ הוא טוקן הגישה: כל עוד הוא
-    בתוקף, יש במה להמשיך להשתמש והבקשה הבאה תנסה לרענן שוב."""
+    What distinguishes a real rejection from a result of the race is the access
+    token: as long as it is valid, there is something to keep using and the next
+    request will try to refresh again."""
     app.config["TESTING"] = True
     with app.test_client() as c:
         with c.session_transaction() as sess:
             sess["user_id"]          = "00000000-0000-0000-0000-000000000000"
             sess["access_token"]     = "still-valid"
             sess["refresh_token"]    = "already-rotated-by-the-other-worker"
-            # בתוך חלון הרענון המוקדם (120 שניות) אבל עוד לא פג
+            # inside the early refresh window (120 seconds) but not yet expired
             sess["token_expires_at"] = time.time() + 60
 
         monkeypatch.setattr(app_module.db, "refresh_session",
@@ -143,21 +151,23 @@ def test_a_rejection_while_the_access_token_still_works_does_not_sign_out(monkey
         response = c.get("/__test/noop")
 
         with c.session_transaction() as sess:
-            assert sess.get("user_id"), "מרוץ סיבוב טוקנים ניתק את המשתמש"
+            assert sess.get("user_id"), "a token rotation race signed the user out"
 
-        # ולא פחות חשוב: הבקשה הכושלת לא כותבת עוגייה. אילו כתבה, היא
-        # הייתה דורסת את הטוקן החדש והתקין שהבקשה האחרת כבר שמרה.
+        # And no less important: the failed request doesn't write a cookie. Had it
+        # written, it would have overwritten the new valid token the other request
+        # already saved.
         assert not any(h[0] == "Set-Cookie" and h[1].startswith("session=")
-                       for h in response.headers), "בקשה כושלת דרסה את עוגיית ה-session"
+                       for h in response.headers), "a failed request overwrote the session cookie"
 
 
 def _noop_view():
-    """עמוד מאומת שלא נוגע במסד.
+    """An authenticated page that doesn't touch the database.
 
-    הבדיקות כאן בודקות עוגיות וטוקנים, לא נתונים. הן השתמשו ב-/settings
-    כעמוד נוח, וזה קשר אותן במקרה לשליפות אמיתיות — מאז שכישלון שליפה
-    נזרק במקום להיבלע (ראו DataUnavailable), העמוד הזה נכשל בגלוי עם
-    טוקן מזויף, וזה הצית כישלונות בבדיקות שאין להן קשר לנושא."""
+    The tests here check cookies and tokens, not data. They used /settings as a
+    convenient page, and that tied them by chance to real fetches: since a fetch
+    failure is raised instead of swallowed (see DataUnavailable), this page fails
+    openly with a fake token, and that set off failures in tests unrelated to the
+    subject."""
     return "ok"
 
 
@@ -165,8 +175,9 @@ app.add_url_rule("/__test/noop", "test_noop", _noop_view)
 
 
 def _session_writing_view():
-    """עמוד שכותב ל-session תוך כדי טיפול בבקשה, כמו שהדשבורד עושה עם
-    recurring_synced. קיים כדי לבדוק שהקפאת העוגייה עומדת גם מולו."""
+    """A page that writes to the session while handling the request, as the dashboard
+    does with recurring_synced. It exists to check that freezing the cookie holds
+    against it too."""
     from flask import session as flask_session
     flask_session["touched_by_the_view"] = "1"
     return "ok"
@@ -177,10 +188,11 @@ app.add_url_rule("/__test/session-writer", "test_session_writer", _session_writi
 
 def test_freezing_the_cookie_survives_a_view_that_writes_to_the_session(
         client_with_expiring_token, monkeypatch):
-    """מלכודת: ביטול הכתיבה נעשה אחרי ה-view דווקא. אילו נעשה לפניו, כתיבה
-    כלשהי ל-session בתוך ה-view הייתה מחזירה את הכתיבה לחיים — והעוגייה
-    שהייתה נכתבת כבר לא הייתה קבועה, כלומר נמחקת בסגירת הדפדפן. זה בדיוק
-    הניתוק שהמנגנון הזה אמור למנוע."""
+    """A trap: cancelling the write is done specifically after the view. Had it been
+    done before, any write to the session inside the view would bring the write
+    back to life, and the cookie that would be written would no longer be
+    permanent, that is, deleted when the browser closes. That is exactly the
+    sign-out this mechanism is meant to prevent."""
     monkeypatch.setattr(app_module.db, "refresh_session",
                         lambda _t: (None, "temporary failure", False))
 
@@ -188,11 +200,12 @@ def test_freezing_the_cookie_survives_a_view_that_writes_to_the_session(
 
     session_cookies = [h[1] for h in response.headers
                        if h[0] == "Set-Cookie" and h[1].startswith("session=")]
-    assert not session_cookies, f"העוגייה נכתבה בכל זאת: {session_cookies}"
+    assert not session_cookies, f"the cookie was written anyway: {session_cookies}"
 
 
 def test_a_network_blip_does_not_overwrite_the_cookie(client_with_expiring_token, monkeypatch):
-    """אותו נימוק, בתקלה זמנית: אין לנו מה לשמור, אז לא נוגעים בעוגייה."""
+    """The same reasoning, on a transient glitch: we have nothing to save, so we don't
+    touch the cookie."""
     monkeypatch.setattr(app_module.db, "refresh_session",
                         lambda _t: (None, "temporary failure", False))
 
@@ -203,8 +216,9 @@ def test_a_network_blip_does_not_overwrite_the_cookie(client_with_expiring_token
 
 
 def test_a_successful_refresh_stores_the_rotated_token(client_with_expiring_token, monkeypatch):
-    """Supabase מסובב את ה-refresh token בכל רענון. אם לא נשמור את החדש,
-    הרענון הבא ייכשל והמשתמש ינותק אחרי כשעה."""
+    """Supabase rotates the refresh token on every refresh. If we don't save the new
+    one, the next refresh will fail and the user will be signed out after about an
+    hour."""
     monkeypatch.setattr(app_module.db, "refresh_session",
                         lambda _t: (_FakeResponse(), None, False))
 
@@ -216,10 +230,10 @@ def test_a_successful_refresh_stores_the_rotated_token(client_with_expiring_toke
         assert sess["user_id"]
 
 
-# ─── יציאה יזומה ─────────────────────────────────────────────────────────────
+# ─── Deliberate sign-out ─────────────────────────────────────────────────────
 
 def test_logging_out_really_ends_the_session(client_with_expiring_token):
-    """היציאה היזומה היא הדרך היחידה החוצה, אז היא חייבת לעבוד."""
+    """Deliberate sign-out is the only way out, so it must work."""
     client_with_expiring_token.post("/logout")
 
     with client_with_expiring_token.session_transaction() as sess:
@@ -229,35 +243,37 @@ def test_logging_out_really_ends_the_session(client_with_expiring_token):
 
 def test_logging_out_works_even_while_a_refresh_is_failing(
         client_with_expiring_token, monkeypatch):
-    """המלכודת של הקפאת העוגייה, בכיוון ההפוך.
+    """The cookie-freezing trap, in the reverse direction.
 
-    ההקפאה נועדה לא לדרוס טוקן תקין בטוקן מת כשרענון נכשל. אבל היא חלה
-    על התגובה כולה — כולל על התגובה של /logout. מי שלחץ "התנתק" בדיוק
-    כשהרענון נכשל קיבל הודעה שיצא, ראה את עוגיות המכשיר נמחקות, ונשאר
-    מחובר לגמרי: עוגיית ה-session שלו מעולם לא נגעה, והבקשה הבאה
-    החזירה אותו לאפליקציה.
+    The freeze is meant not to overwrite a valid token with a dead token when a
+    refresh fails. But it applies to the whole response, including the /logout
+    response. Whoever tapped "התנתק" exactly when the refresh failed got a message
+    that they signed out, saw the device cookies deleted, and stayed fully signed
+    in: their session cookie was never touched, and the next request brought them
+    back into the app.
 
-    יציאה יזומה היא הדרך היחידה החוצה, אז היא חייבת לנצח כל אופטימיזציה."""
+    Deliberate sign-out is the only way out, so it must beat any optimisation."""
     monkeypatch.setattr(app_module.db, "refresh_session",
                         lambda _t: (None, "temporary failure", False))
 
-    # POST ולא GET: ‎<img src=".../logout">‎ באתר אחר הוציא מבקר
-    # מהחשבון שלו, כי ‎SameSite=Lax‎ שולח עוגייה בניווט GET.
+    # POST and not GET: <img src=".../logout"> on another site signed a visitor
+    # out of their account, because SameSite=Lax sends a cookie on a GET navigation.
     response = client_with_expiring_token.post("/logout")
 
     cleared = [h[1] for h in response.headers
                if h[0] == "Set-Cookie" and h[1].startswith("session=")]
-    assert cleared, "עוגיית ה-session לא נמחקה — המשתמש נשאר מחובר"
+    assert cleared, "the session cookie wasn't deleted: the user stayed signed in"
     assert "1970" in cleared[0]
 
     with client_with_expiring_token.session_transaction() as sess:
         assert not sess.get("user_id")
 
 
-# ─── זיכרון המכשיר: לא חוזרים לדף השיווק ─────────────────────────────────────
+# ─── The device's memory: don't go back to the marketing page ────────────────
 #
-# דף הנחיתה נועד למי שלא מכיר את האפליקציה. מי שכבר התחבר מהמכשיר הזה אמור
-# להגיע לאפליקציה, ואם ה-session נגמר — לטופס ההתחברות, לא לדף שיווק.
+# The landing page is meant for those who don't know the app. Whoever already
+# signed in from this device should reach the app, and if the session ended, the
+# sign-in form, not a marketing page.
 
 @pytest.fixture
 def guest():
@@ -266,7 +282,7 @@ def guest():
 
 
 def test_signing_in_marks_the_device_as_known(guest, monkeypatch):
-    """נקודת הכניסה של כל המנגנון: בלי זה שום דבר אחר לא מופעל אף פעם."""
+    """The entry point of the whole mechanism: without it nothing else ever runs."""
     class _Session:
         access_token, refresh_token, expires_at = "a", "r", 9999999999
 
@@ -279,8 +295,8 @@ def test_signing_in_marks_the_device_as_known(guest, monkeypatch):
     monkeypatch.setattr(app_module.db, "sign_in",        lambda e, p: (_SignIn(), None))
     monkeypatch.setattr(app_module.db, "set_auth_token", lambda t: None)
     monkeypatch.setattr(app_module.db, "log_login_event", lambda: None)
-    # fetch_profile ולא get_profile: מסלול ההתחברות צריך לדעת אם השליפה
-    # *נכשלה*, ולא רק מה היא החזירה — ראו tests/test_profile_read_failure.py
+    # fetch_profile and not get_profile: the sign-in route needs to know whether
+    # the fetch *failed*, not only what it returned; see tests/test_profile_read_failure.py
     monkeypatch.setattr(app_module.db, "fetch_profile",
                         lambda uid: ({"name": "דנה", "avatar_initial": "ד",
                                       "family_id": "11111111-1111-1111-1111-111111111111"}, True))
@@ -292,8 +308,8 @@ def test_signing_in_marks_the_device_as_known(guest, monkeypatch):
     assert any(c.startswith("sf_returning=1") for c in cookies)
     assert any(c.startswith("sf_last_id=dana%40example.com") or
                c.startswith("sf_last_id=dana@example.com") for c in cookies)
-    # המזהה יושב על המכשיר, ולכן HttpOnly — ל-JS אין בו שימוש, ו-XSS
-    # לא אמור לקרוא ממנו כתובת מייל.
+    # The identifier sits on the device, hence HttpOnly: JS has no use for it, and
+    # XSS shouldn't read an email address from it.
     assert all("HttpOnly" in c for c in cookies if c.startswith("sf_"))
 
 
@@ -305,7 +321,8 @@ def test_a_first_time_visitor_gets_the_landing_page(guest):
 
 
 def test_a_known_device_skips_the_landing_page(guest):
-    """הלב של הבקשה: מכשיר שכבר התחבר פעם לא רואה שוב את דף השיווק."""
+    """The heart of the request: a device that already signed in once doesn't see the
+    marketing page again."""
     guest.set_cookie("sf_returning", "1")
 
     response = guest.get("/")
@@ -315,8 +332,8 @@ def test_a_known_device_skips_the_landing_page(guest):
 
 
 def test_the_landing_page_stays_reachable_on_purpose(guest):
-    """כפתור "חזרה" שבטופס ההתחברות מצביע לכאן. בלי המילוט הזה הוא היה
-    מחזיר את המכשיר המוכר ל-/login, כלומר לולאה."""
+    """The "חזרה" button on the sign-in form points here. Without this escape it would
+    send the known device back to /login, that is, a loop."""
     guest.set_cookie("sf_returning", "1")
 
     response = guest.get("/?intro=1")
@@ -326,8 +343,8 @@ def test_the_landing_page_stays_reachable_on_purpose(guest):
 
 
 def test_the_router_is_never_cached(guest):
-    """התשובה בשורש נגזרת מהעוגיות. תשובה שמורה פירושה דף שיווק למשתמש
-    מחובר, או להפך."""
+    """The response at the root derives from the cookies. A cached response means a
+    marketing page for a signed-in user, or the other way round."""
     for path in ("/", "/login"):
         response = guest.get(path)
         assert response.headers.get("Cache-Control") == "no-store", path
@@ -343,11 +360,13 @@ def test_the_login_form_remembers_who_you_are(guest):
 
 
 def test_logging_out_brings_you_back_to_the_landing_page(client_with_expiring_token):
-    """יציאה יזומה מאפסת הכול. היא הדרך היחידה החוצה, ומי שבוחר בה מקבל
-    בדיוק את מה שאורח מקבל: דף הנחיתה, ומשם כפתור התחברות.
+    """Deliberate sign-out resets everything. It is the only way out, and whoever
+    chooses it gets exactly what a guest gets: the landing page, and from there a
+    sign-in button.
 
-    זה גם מה שנותן משמעות לסימון המכשיר — אחרי היציאה הוא נמחק, ולכן
-    מכשיר מסומן בלי session הוא בהכרח מקרה שבו ההתחברות נגמרה מעצמה."""
+    This is also what gives the device mark meaning: after signing out it is
+    deleted, so a marked device with no session is necessarily a case where the
+    sign-in ended by itself."""
     response = client_with_expiring_token.post("/logout")
 
     assert response.headers["Location"].endswith("/")
@@ -355,9 +374,9 @@ def test_logging_out_brings_you_back_to_the_landing_page(client_with_expiring_to
     cookies = [h[1] for h in response.headers if h[0] == "Set-Cookie"]
     for name in ("sf_last_id", "sf_returning"):
         assert any(c.startswith(f"{name}=") and "Expires=Thu, 01 Jan 1970" in c
-                   for c in cookies), f"{name} לא נמחקה ביציאה"
+                   for c in cookies), f"{name} wasn't deleted on sign-out"
 
-    # והמבחן האמיתי: הבקשה הבאה באמת מקבלת את דף הנחיתה
+    # and the real test: the next request really gets the landing page
     landed = client_with_expiring_token.get("/")
     assert landed.status_code == 200
     assert "lp-hero" in landed.get_data(as_text=True)

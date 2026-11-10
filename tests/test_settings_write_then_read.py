@@ -1,16 +1,18 @@
 """
-בדיקות לקריאה שבאה מיד אחרי כתיבה, באותה בקשה.
+Tests for a read that comes right after a write, in the same request.
 
-יש מטמון-לבקשה שמונע שליפה חוזרת של אותם נתונים. update_family_settings
-שולף את ההגדרות הקיימות כדי למזג לתוכן עדכון חלקי — והשליפה הזאת לבדה
-ממלאת את המטמון בערך **שלפני** הכתיבה. המסלול מחזיר אחר כך את ההגדרות
-באותה בקשה, ומקבל מהמטמון את הישנות.
+There is a per-request cache that prevents fetching the same data again.
+update_family_settings fetches the existing settings to merge a partial update into
+them, and that fetch alone fills the cache with the value from **before** the
+write. The route then returns the settings in the same request, and gets the old
+ones from the cache.
 
-הנזק לא נעצר בתצוגה: settings.js שומר את התשובה ומשתמש בה כדי להחליט
-אם להציג את בורר בן המשפחה במודאל העסקה. מי שהדליק "שיוך הוצאות" קיבל
-תשובה שאומרת שזה כבוי, המודאל לא הציג בורר, והשרת — שקורא בבקשה הבאה
-את הערך הטרי — שייך כל עסקה למי שמחובר. שיוך שקט ושגוי של כסף, עד
-הרענון הבא.
+The damage didn't stop at the display: settings.js saves the response and uses it
+to decide whether to show the family-member picker in the transaction modal.
+Whoever turned on "שיוך הוצאות" got a response saying it is off, the modal showed
+no picker, and the server (reading the fresh value on the next request)
+attributed every transaction to whoever is signed in. Silent, wrong attribution
+of money, until the next refresh.
 """
 from pathlib import Path
 
@@ -26,7 +28,7 @@ _FAM = "11111111-1111-1111-1111-111111111111"
 
 
 class _FakeFamilies:
-    """שורת משפחה אחת בזיכרון, שמשקפת כתיבות מיד."""
+    """One family row in memory, reflecting writes immediately."""
 
     def __init__(self):
         self.row = {"id": _FAM, "name": "שניאור",
@@ -37,9 +39,10 @@ class _FakeFamilies:
     def table(self, _n):            return self
 
     def rpc(self, name, params=None):
-        """המיזוג עבר למסד, לתוך משפט אחד עם ‎for update‎ — כי קרא-מזג-כתוב
-        מפייתון אפשר לשני בני משפחה לדרוס זה את זה. הכפיל מחקה את אותה
-        סמנטיקה, אחרת הבדיקה מאמתת את עצמה ולא את הקוד."""
+        """The merge moved to the database, into one statement with for update, because
+        read-merge-write from Python let two family members overwrite each other.
+        The double mimics the same semantics; otherwise the test verifies itself
+        and not the code."""
         assert name == "merge_family_settings", name
         merged = dict(self.row.get("settings") or {})
         whole = set(params.get("p_whole_keys") or [])
@@ -76,28 +79,28 @@ def fake(monkeypatch):
 
 
 def test_reading_settings_after_writing_them_returns_the_new_value(fake):
-    """הלב: אותה בקשה, כתיבה ואז קריאה."""
+    """The heart: the same request, a write and then a read."""
     with app.test_request_context("/"):
         db.update_family_settings(_FAM, {"owner_attribution": {"expense": True}})
 
         after = db.get_family_settings(_FAM)
 
     assert after["owner_attribution"]["expense"] is True, (
-        "הוחזר הערך שלפני השמירה — הדפדפן יאמין לו ויוסיף עסקאות עם שיוך הפוך"
+        "the value from before the save was returned: the browser will believe it and add transactions with reversed attribution"
     )
 
 
 def test_renaming_the_family_is_visible_in_the_same_request(fake):
     with app.test_request_context("/"):
-        db.get_family(_FAM)                       # ממלא את המטמון
+        db.get_family(_FAM)                       # fills the cache
         db.update_family_name(_FAM, "משפחת כהן")
 
         assert db.get_family(_FAM)["name"] == "משפחת כהן"
 
 
 def test_both_caches_are_cleared_not_just_one(fake):
-    """app.py מחזיק עותק נוסף על g.family_settings. פינוי של אחד בלבד
-    משאיר את הערך הישן בדיוק במקום שממנו הוא מוגש לתבניות."""
+    """app.py holds another copy on g.family_settings. Evicting only one leaves the
+    old value exactly where it is served to the templates from."""
     with app.test_request_context("/"):
         g.family_settings = {"owner_attribution": {"expense": False}}
         g._sf_cache = {f"family:{_FAM}": {"settings": {}}}
@@ -109,26 +112,26 @@ def test_both_caches_are_cleared_not_just_one(fake):
 
 
 def test_the_cache_still_does_its_job_when_nothing_was_written(fake):
-    """בקרת-נגד: הפינוי לא אמור לבטל את המטמון עצמו, אחרת כל עמוד
-    חוזר לשלוף את אותה שורה שלוש-ארבע פעמים."""
+    """Control: eviction shouldn't cancel the cache itself; otherwise every page goes
+    back to fetching the same row three or four times."""
     with app.test_request_context("/"):
         db.get_family(_FAM)
         db.get_family(_FAM)
         db.get_family(_FAM)
 
-    assert fake.reads == 1, f"השורה נשלפה {fake.reads} פעמים במקום אחת"
+    assert fake.reads == 1, f"the row was fetched {fake.reads} times instead of once"
 
 
-# ─── המיזוג עבר למסד, ושתי הגרסאות חייבות להסכים ────────────────────────────
+# ─── The merge moved to the database, and both versions must agree ──────────
 #
-# קרא-מזג-כתוב מפייתון אפשר לשני בני משפחה לדרוס זה את זה: אמא קובעת
-# תקציב ב-20:00:00.1, אבא מכבה שיוך ב-20:00:00.3, שניהם קראו את אותו
-# JSON — והכתיבה של אבא נושאת את ‎limits‎ מלפני אמא ומוחקת את התקציב
-# שלה. שניהם קיבלו "נשמר".
+# Read-merge-write from Python let two family members overwrite each other: mum sets
+# a budget at 20:00:00.1, dad turns attribution off at 20:00:00.3, both read the
+# same JSON, and dad's write carries the limits from before mum and deletes her
+# budget. Both got "saved".
 #
-# המיזוג עכשיו במשפט אחד עם ‎for update‎. שתי הסמנטיקות נשארות בקוד
-# (פייתון ל-‎get_family_settings‎, SQL לכתיבה), אז הן יכולות להיפרד
-# בשקט — והבדיקות כאן לא נותנות.
+# The merge is now in one statement with for update. Both semantics remain in the
+# code (Python for get_family_settings, SQL for the write), so they could silently
+# drift apart, and the tests here don't let them.
 
 _MERGE_SQL = (Path(__file__).resolve().parent.parent /
               "backend/supabase/migrations/20260922140000_atomic_settings_merge.sql"
@@ -136,36 +139,37 @@ _MERGE_SQL = (Path(__file__).resolve().parent.parent /
 
 
 def test_the_write_path_no_longer_merges_in_python():
-    """הלב: אם המיזוג חזר לכאן, גם המרוץ חזר."""
+    """The heart: if the merge came back here, the race came back too."""
     src = (Path(__file__).resolve().parent.parent /
            "backend/supabase_config.py").read_text(encoding="utf-8")
     block = src[src.index("def update_family_settings("):]
     block = block[:block.index("\n\ndef ")]
 
-    assert "merge_family_settings" in block, "הכתיבה לא עוברת בפונקציית המסד"
-    assert "_merge_settings(" not in block, "המיזוג חזר לפייתון — ואיתו המרוץ"
+    assert "merge_family_settings" in block, "the write doesn't go through the database function"
+    assert "_merge_settings(" not in block, "the merge went back to Python, and the race with it"
 
 
 def test_the_database_locks_the_row_while_it_merges():
-    """בלי ‎for update‎ הפונקציה היא בדיוק אותו קרא-מזג-כתוב, רק בשפה
-    אחרת: הקורא השני עדיין קורא את הערך שלפני הראשון."""
+    """Without for update the function is exactly the same read-merge-write, just in
+    another language: the second reader still reads the value from before the
+    first."""
     assert "for update" in _MERGE_SQL
 
 
 def test_the_whole_map_keys_travel_with_the_patch():
-    """‎limits‎ חייב להיות מוחלף ולא ממוזג — הסרת תקציב מיוצגת בהיעדרו
-    מהמפה, ומיזוג לא יכול לבטא היעדר. הרשימה נשלחת מפייתון כדי ששני
-    המימושים לא יחזיקו עותק משלהם."""
+    """limits must be replaced and not merged: removing a budget is represented by its
+    absence from the map, and a merge can't express absence. The list is sent from
+    Python so the two implementations don't hold copies of their own."""
     src = (Path(__file__).resolve().parent.parent /
            "backend/supabase_config.py").read_text(encoding="utf-8")
 
     assert "p_whole_keys" in src
     assert "sorted(_WHOLE_MAP_KEYS)" in src, \
-        "רשימת המפתחות מקודדת פעמיים — שתי הגרסאות יתפצלו"
+        "the key list is hard-coded twice: the two versions will drift apart"
 
 
 def test_the_function_checks_membership_itself():
-    """‎security definer‎ עוקף RLS. בלי הבדיקה, כל משתמש מחובר יכול
-    לכתוב הגדרות לכל משפחה בעולם — כולל לאן משויך הכסף."""
+    """security definer bypasses RLS. Without the check, any signed-in user could write
+    settings for any family in the world, including where the money is attributed."""
     assert "not a member of that family" in _MERGE_SQL
     assert "auth.uid()" in _MERGE_SQL

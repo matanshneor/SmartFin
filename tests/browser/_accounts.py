@@ -1,14 +1,15 @@
-"""חשבונות בדיקה זמניים לסקריפטי הדפדפן (מתן, 4.10).
+"""Temporary test accounts for the browser scripts (Matan, 4.10).
 
-כל סקריפט מייבא את המודול הזה בראשו. הייבוא יוצר שני חשבונות חדשים,
-א' וב', כל אחד עם משפחה משלו, ושם את הפרטים שלהם בסביבה תחת השמות
-שהסקריפטים כבר קוראים (‎RLS_TEST_EMAIL_A‎, ‎RLS_TEST_PASSWORD_A‎ וכו').
-בסוף הריצה — גם אחרי חריגה — הם נמחקים עם כל מה שהשאירו. הסקריפטים
-מריצים עזרי ‎.venv‎ בתהליכי-בן, והם יורשים את הסביבה ומקבלים את אותם
-חשבונות.
+Every script imports this module at its top. The import creates two new accounts,
+A and B, each with its own family, and puts their details in the environment under
+the names the scripts already read (RLS_TEST_EMAIL_A, RLS_TEST_PASSWORD_A etc.). At
+the end of the run (even after an exception) they are deleted with everything they
+left. The scripts run .venv helpers in child processes, which inherit the
+environment and get the same accounts.
 
-היצירה והמחיקה עצמן ב-‎tests/_test_accounts.py‎, ורצות ב-‎.venv‎: הסקריפטים
-רצים בפייתון של המערכת (שם מותקן Playwright), ושם אין את ספריית Supabase.
+The creation and deletion themselves are in tests/_test_accounts.py, and run in
+.venv: the scripts run in the system Python (where Playwright is installed), which
+doesn't have the Supabase library.
 """
 import atexit
 import json

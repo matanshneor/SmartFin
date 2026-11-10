@@ -1,15 +1,16 @@
 """
-בדיקות לרענון הרך.
+Tests for the soft refresh.
 
-כל פעולה באפליקציה הסתיימה ב-location.reload(). הוספת עסקה עלתה בערך
-שתי שניות מהקשה עד מסך יציב: השהיה מכוונת של 380ms כדי שהצליל יסתיים,
-סבב לשרת, ניתוח מחדש של 99KB CSS ו-77KB JS, ואנימציית ספירה של שנייה
-על המספר שבדיוק רצית לראות. בדרך נמחקה גם השורה הזמנית שכבר הוצגה,
-וגם מיקום הגלילה.
+Every action in the app ended with location.reload(). Adding a transaction cost
+about two seconds from tap to a stable screen: a deliberate 380ms delay so the
+sound finishes, a round trip to the server, re-parsing 99KB of CSS and 77KB of JS,
+and a one-second count-up animation on the very number you wanted to see. Along the
+way the temporary row already shown was deleted too, and the scroll position.
 
-הסיכון בשינוי כזה הוא לא המהירות אלא מה שנשבר בשקט: עמוד עם מופעי
-Chart.js או עם האזנות ישירות לא שורד החלפת DOM. לכן ההצטרפות מפורשת
-לכל עמוד, ומי שלא הצטרף ממשיך לקבל רענון מלא — ההתנהגות הקיימת.
+The risk in such a change isn't speed but what breaks silently: a page with
+Chart.js instances or direct listeners doesn't survive a DOM swap. So opting in is
+explicit per page, and whoever didn't opt in keeps getting a full refresh: the
+existing behaviour.
 """
 from pathlib import Path
 
@@ -28,18 +29,20 @@ def _read(path):
     return path.read_text(encoding="utf-8")
 
 
-# ─── מי מצטרף ומי לא ─────────────────────────────────────────────────────────
+# ─── Who opts in and who doesn't ─────────────────────────────────────────────
 
 def test_the_dashboard_opts_in():
     assert "{% block soft_reload %} data-soft-reload{% endblock %}" in _read(_TPL / "index.html")
 
 
-# הכלל הישן היה "עמוד עם גרפים לא מצטרף", כי החלפת ה-DOM משאירה מופעי
-# Chart.js תלויים על אלמנטים שכבר לא במסמך. זה נכון — אבל זו תוצאה ולא
-# חוק: עמוד שמצייר מחדש ב-‎sf:refreshed‎ בטוח לגמרי. עמוד החודש עשה בדיוק
-# את זה, והכלל הישן הפך אותו לכישלון.
+# The old rule was "a page with charts doesn't opt in", because swapping the DOM
+# leaves Chart.js instances hanging on elements no longer in the document. That is
+# true, but it is a consequence and not a law: a page that redraws on sf:refreshed is
+# completely safe. The month page did exactly that, and the old rule turned it into
+# a failure.
 #
-# הכלל עכשיו מנוסח על התכונה עצמה: מי שמצטרף חייב לדעת לצייר מחדש.
+# The rule is now phrased on the property itself: whoever opts in must know how to
+# redraw.
 @pytest.mark.parametrize("page,script", [
     ("month.html", "month.js"),
     ("months.html", "months.js"),
@@ -51,45 +54,48 @@ def test_a_page_with_charts_that_opts_in_repaints_them(page, script):
 
     js = _read(_ROOT / "frontend/static/js" / script)
     assert "sf:refreshed" in js, (
-        f"{page} מצטרף לרענון רך אבל {script} לא מצייר מחדש — "
-        f"הגרפים יישארו על canvas מנותקים"
+        f"{page} opts into the soft refresh but {script} doesn't redraw: "
+        f"the charts will stay on detached canvases"
     )
 
 
 def test_a_page_that_opts_in_binds_nothing_directly_to_an_element(page="month.html",
                                                                   script="month.js"):
-    """‎softReload‎ מחליף את ‎main‎ כולו. כל ‎getElementById(...).addEventListener‎
-    שרץ בטעינה מצביע אחר כך על אלמנט מנותק, והפקד נראה חי ומת בלחיצה."""
+    """softReload replaces the whole main. Every getElementById(...).addEventListener
+    run on load then points to a detached element, and the control looks alive and
+    is dead on tap."""
     js = _read(_ROOT / "frontend/static/js" / script)
 
     direct = re.findall(r"document\.getElementById\([^)]+\)\.addEventListener", js)
-    assert not direct, f"{script} נקשר ישירות: {direct}"
+    assert not direct, f"{script} binds directly: {direct}"
 
 
 def test_the_base_template_defaults_to_not_opting_in():
-    """ברירת המחדל היא ההתנהגות הקיימת. עמוד חדש לא נשבר בשקט."""
+    """The default is the existing behaviour. A new page doesn't break silently."""
     base = _read(_TPL / "base.html")
 
-    # הבלוק ריק כברירת מחדל. אחריו יכולים לבוא בלוקים אחרים של ‎main‎
-    # (‎main_attrs‎ — החודש שבו + מתחיל), בלי שזה ישנה את מי מצטרף.
+    # The block is empty by default. Other main blocks may follow it (main_attrs:
+    # the month + starts in), without changing who opts in.
     assert '<main class="main-content"{% block soft_reload %}{% endblock %}' in base
 
 
-# ─── ההתנהגות ─────────────────────────────────────────────────────────────────
+# ─── The behaviour ────────────────────────────────────────────────────────────
 
 def test_the_caller_falls_back_to_a_full_reload_when_not_opted_in():
     js = _read(_JS / "transactions.js")
-    # עד סוף הפונקציה ולא מספר תווים קבוע: ‎finish‎ גדלה כבר פעמיים (הודעת
-    # "עדכן להבא", ושחרור כפתור השמירה) וכל פעם החיתוך פספס את הסוף שלה
+    # to the end of the function and not a fixed character count: finish has grown
+    # twice already (the "עדכן להבא" message, and releasing the save button) and each
+    # time the cut missed its end
     block = js[js.index("function finish()"):]
     block = block[:block.index("const sideEffects")]
 
-    assert "main[data-soft-reload]" in block, "הרענון הרך רץ בלי לבדוק הצטרפות"
-    assert "window.location.reload()" in block, "אין נפילה חזרה לרענון מלא"
+    assert "main[data-soft-reload]" in block, "the soft refresh runs without checking opt-in"
+    assert "window.location.reload()" in block, "no fallback to a full refresh"
 
 
 def test_a_failed_soft_reload_falls_back_rather_than_leaving_a_stale_screen():
-    """במקרה הגרוע ההתנהגות זהה להיום — זה מה שהופך את השינוי לבטוח."""
+    """In the worst case the behaviour is identical to today: that is what makes the
+    change safe."""
     js = _read(_JS / "core.js")
     block = js[js.index("window.softReload ="):]
 
@@ -97,8 +103,8 @@ def test_a_failed_soft_reload_falls_back_rather_than_leaving_a_stale_screen():
 
 
 def test_the_soft_reload_does_not_replay_the_count_up_animation():
-    """ספירה מ-0 אחרי עדכון גורמת למספר לקפוץ אחורה מול העיניים, וה-HTML
-    הטרי ממילא מכיל את הערך הסופי כטקסט."""
+    """Counting from 0 after an update makes the number jump backwards before your
+    eyes, and the fresh HTML already contains the final value as text."""
     js = _read(_JS / "core.js")
     block = js[js.index("window.softReload ="):]
 
@@ -107,8 +113,8 @@ def test_the_soft_reload_does_not_replay_the_count_up_animation():
 
 
 def test_jinja_stays_the_only_renderer():
-    """מושכים את אותו עמוד ולוקחים ממנו HTML מוכן. שכפול לוגיקת תצוגה
-    ב-JS הוא בדיוק מקור הבאגים שהשינוי הזה נמנע ממנו."""
+    """We fetch the same page and take ready HTML from it. Duplicating display logic in
+    JS is exactly the source of bugs this change avoids."""
     js = _read(_JS / "core.js")
     block = js[js.index("window.softReload ="):]
 

@@ -1,4 +1,4 @@
-"""תיקונים קטנים מהיומנים (מתן, 13.10)."""
+"""Small fixes from the logs (Matan, 13.10)."""
 import json
 import re
 
@@ -17,7 +17,7 @@ _ME  = "22222222-2222-2222-2222-222222222222"
 @pytest.mark.parametrize("path", ["/favicon.ico", "/apple-touch-icon.png",
                                   "/apple-touch-icon-precomposed.png"])
 def test_the_icon_is_where_whatsapp_and_the_iphone_look_for_it(path):
-    """בלעדיהם קישור לאפליקציה הופיע בלי הלוגו (‎404‎ ביומנים)."""
+    """Without them a link to the app appeared without the logo (404 in the logs)."""
     res = app.test_client().get(path)
 
     assert res.status_code == 200
@@ -28,7 +28,7 @@ def test_robots_closes_only_the_api_and_the_receipts():
     body = app.test_client().get("/robots.txt").get_data(as_text=True)
 
     assert "Disallow: /api/" in body and "Disallow: /receipts/" in body
-    # דף הנחיתה וקישורי ההזמנה צריכים תצוגה מקדימה בשיתוף
+    # the landing page and invite links need a share preview
     assert "Disallow: /\n" not in body
 
 
@@ -38,7 +38,7 @@ def _page_data(html):
 
 
 def test_the_add_window_lists_come_with_the_page(monkeypatch):
-    """בלי שתי בקשות נוספות בכל עמוד — מה שהעמוד כבר שלף."""
+    """Without two extra requests on every page: what the page already fetched."""
     app.config["TESTING"] = True
     monkeypatch.setattr(db, "set_auth_token", lambda t: None)
     monkeypatch.setattr(db, "materialize_recurring", lambda fid: (0, True))
@@ -56,16 +56,17 @@ def test_the_add_window_lists_come_with_the_page(monkeypatch):
         data = _page_data(c.get("/").get_data(as_text=True))
 
     assert data["lists"]["categories"] == cats
-    # כמו ‎/api/family/members‎: מזהה ושם בלבד — לא מייל
+    # like /api/family/members: id and name only, not email
     assert data["lists"]["members"] == [{"id": _ME, "name": "מתן"}]
 
 
 def test_nothing_is_fetched_just_for_the_lists(monkeypatch):
-    """עמוד שלא שלף קטגוריות — לא שולפים בשבילו; החלון יבקש כרגיל."""
+    """A page that didn't fetch categories: don't fetch for it; the window will ask as
+    usual."""
     with app.test_request_context("/"):
         from flask import session
         session["family_id"] = _FAM
-        monkeypatch.setattr(db, "_fetch_categories", lambda *a: pytest.fail("שליפה"))
+        monkeypatch.setattr(db, "_fetch_categories", lambda *a: pytest.fail("fetch"))
         lists = app_module._client_lists()["client_lists"]()
     assert lists == {}
 
@@ -77,7 +78,7 @@ def test_the_js_takes_them_from_the_page():
     assert "if (Array.isArray(pageLists.members)) membersCache = pageLists.members;" in js
 
 
-# ─── חיבור חם אחרי הפסקה ─────────────────────────────────────────────────────
+# ─── A warm connection after a break ─────────────────────────────────────────
 
 class _Session:
     def __init__(self):
@@ -105,15 +106,16 @@ def warm(monkeypatch):
 def test_a_quiet_worker_pings_and_a_busy_one_does_not(warm, monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "anon-key")
     c = _Client()
-    assert db._warm_ping_once(c) is False, "רק עכשיו הייתה פעילות"
+    assert db._warm_ping_once(c) is False, "there was activity just now"
     warm["t"] += db.WARM_IDLE_SECONDS + 1
     db.request_started()
-    assert db._warm_ping_once(c) is False, "באמצע בקשה — אסור"
+    assert db._warm_ping_once(c) is False, "in the middle of a request: not allowed"
     db.request_finished()
     warm["t"] += db.WARM_IDLE_SECONDS + 1
     assert db._warm_ping_once(c) is True
-    # פונקציה קטנה — לא שורש ה-API (כל תיאור הסכמה). ועם מפתח ה-anon, לא
-    # עם הטוקן שנשאר על הלקוח: הוא פג, וכל נגיעה נדחתה (בדיקת אבטחה 10.11)
+    # a small function, not the API root (the whole schema description). And with
+    # the anon key, not with the token left on the client: it expired, and every
+    # touch was rejected (security check 10.11)
     assert c.postgrest.session.calls == [("rpc/get_my_family_id",
                                           {"Authorization": "Bearer anon-key"})]
 
@@ -130,11 +132,11 @@ def test_every_request_marks_the_worker_busy():
     src = (Path(__file__).resolve().parent.parent / "backend/app.py").read_text(encoding="utf-8")
     first_hook = src.index("@app.before_request")
     assert src[first_hook:first_hook + 80].count("_db_request_started") == 1, \
-        "חייב להיות ה-before_request הראשון — לפני כל שליפה"
+        "must be the first before_request, before any fetch"
     assert "@app.teardown_request\ndef _db_request_finished" in src
 
 
-# ─── המייל בהגדרות — לכל היותר פעם ב-10 דקות ─────────────────────────────────
+# ─── The email in settings: at most once every 10 minutes ────────────────────
 
 def test_the_settings_email_check_is_cached_unless_a_change_is_pending(monkeypatch):
     calls = []
@@ -144,17 +146,18 @@ def test_the_settings_email_check_is_cached_unless_a_change_is_pending(monkeypat
         session["user_email"] = "a@x.com"
         assert app_module._current_email(cached=True) == ("a@x.com", None)
         assert app_module._current_email(cached=True) == ("a@x.com", None)
-        assert len(calls) == 1, "בדיקה שנייה בתוך 10 דקות — מהסשן"
+        assert len(calls) == 1, "a second check within 10 minutes: from the session"
         session["pending_email"] = "b@x.com"
         app_module._current_email(cached=True)
-        assert len(calls) == 2, "מייל ממתין — בודקים כל פעם, כדי שהאישור יופיע מיד"
+        assert len(calls) == 2, "email pending: check every time, so the confirmation appears immediately"
         assert "pending_email" not in session
         app_module._current_email()
-        assert len(calls) == 3, "פעולות שבודקות סיסמה — תמיד טרי"
+        assert len(calls) == 3, "actions that check a password: always fresh"
 
 
 def test_a_gzipped_static_file_has_the_same_weak_etag_every_time():
-    """בדיקת קוד (14.10): מהזיכרון הוא חזר עם ETag "חזק" של הקובץ הלא דחוס."""
+    """Code review (14.10): from memory it came back with a "strong" ETag of the
+    uncompressed file."""
     c = app.test_client()
     first = c.get("/static/css/style.css", headers={"Accept-Encoding": "gzip"})
     second = c.get("/static/css/style.css", headers={"Accept-Encoding": "gzip"})

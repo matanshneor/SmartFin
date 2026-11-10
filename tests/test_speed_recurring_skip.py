@@ -1,8 +1,9 @@
-"""מהירות (מתן, 1.11 — רעיון 5).
+"""Speed (Matan, 1.11: idea 5).
 
-ביומני Railway (שבוע, ~300 טעינות): דף הבית ‎0.06-0.15‎ שניות — חוץ
-מהטעינה הראשונה של היום, ‎0.25-0.9‎, כולה בדיקת העסקאות הקבועות. ורוב
-הימים אין בה כלום. עכשיו נשמר מתי החיוב הקבוע הבא, ועד אז מדלגים.
+In the Railway logs (a week, ~300 loads): the home page 0.06-0.15 seconds, except
+the first load of the day, 0.25-0.9, all of it the recurring transactions check.
+And most days there is nothing in it. Now the next recurring charge date is saved,
+and until then we skip.
 """
 from datetime import date
 
@@ -24,7 +25,7 @@ def _tpl(start, freq="monthly_same", end=None):
             "recurring_end_date": end}
 
 
-# ─── מתי הבא ────────────────────────────────────────────────────────────────
+# ─── When is the next one ───────────────────────────────────────────────────
 
 def test_the_next_charge_is_the_earliest_after_today():
     templates = [_tpl("2026-01-10"), _tpl("2026-01-04"), _tpl("2025-01-01", end="2026-06-01")]
@@ -42,11 +43,11 @@ def test_nothing_due_at_all():
 
 @pytest.mark.parametrize("nxt,can_wait", [
     ({"checked": "2026-11-01", "due": "2026-11-10"}, True),
-    ({"checked": "2026-11-01", "due": "2026-11-03"}, False),     # היום
-    ({"checked": "2026-11-01", "due": "2026-11-02"}, False),     # עבר — לא נעשה
-    ({"checked": "2026-10-20", "due": "2026-12-01"}, False),     # יותר משבוע — בודקים
-    ({"checked": "2026-11-02", "due": None}, True),              # אין כלום צפוי
-    ({"checked": "2026-11-05", "due": "2026-12-01"}, False),     # מהעתיד? לא סומכים
+    ({"checked": "2026-11-01", "due": "2026-11-03"}, False),     # today
+    ({"checked": "2026-11-01", "due": "2026-11-02"}, False),     # past: not done
+    ({"checked": "2026-10-20", "due": "2026-12-01"}, False),     # more than a week: check
+    ({"checked": "2026-11-02", "due": None}, True),              # nothing expected
+    ({"checked": "2026-11-05", "due": "2026-12-01"}, False),     # from the future? don't trust it
     ({"checked": "nope", "due": "2026-12-01"}, False),
     ({}, False), (None, False), ("x", False),
 ])
@@ -54,7 +55,7 @@ def test_when_the_check_can_wait(nxt, can_wait):
     assert db.recurring_can_wait(nxt, TODAY) is can_wait
 
 
-# ─── הבדיקה בתחילת העמוד ────────────────────────────────────────────────────
+# ─── The check at the start of the page ─────────────────────────────────────
 
 def _run_sync(monkeypatch, session_next):
     calls = []
@@ -105,5 +106,5 @@ def test_every_page_refreshes_the_sessions_copy(monkeypatch):
 
 
 def test_the_email_check_is_not_every_ten_minutes():
-    """‎0.2-0.4‎ שניות לכל בדיקה מול שירות ההתחברות, וכל 10 דקות."""
+    """0.2-0.4 seconds per check against the auth service, and every 10 minutes."""
     assert app_module._EMAIL_FRESH_SECONDS >= 6 * 3600

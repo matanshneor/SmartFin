@@ -1,8 +1,9 @@
-"""סבב 1 מרשימת הרעיונות (מתן, 12.10) — 12 ליטושים קטנים.
+"""Round 1 from the ideas list (Matan, 12.10): 12 small polishes.
 
-ברכה לפי השעה · פסיקים בסכום · בלי ".00" · בלי שכפול בעסקה קבועה · "אין
-שינויים" · "חלק מעסקה קבועה" · עין לסיסמה · אישור התנתקות · "שליחה" להזמנה ·
-מיון לפי סכום · "הבא: 1.11" · בלי גרף "לפי בן משפחה" של עמודה אחת.
+Greeting by the hour · commas in the amount · no ".00" · no duplicate on a
+recurring transaction · "אין שינויים" · "חלק מעסקה קבועה" · password eye ·
+sign-out confirmation · "שליחה" for the invite · sort by amount · "הבא: 1.11" ·
+no single-column "לפי בן משפחה" chart.
 """
 import datetime as dt
 import json
@@ -26,7 +27,7 @@ def _read(p):
     return p.read_text(encoding="utf-8")
 
 
-# ─── ברכה לפי השעה ──────────────────────────────────────────────────────
+# ─── Greeting by the hour ───────────────────────────────────────────────
 
 @pytest.mark.parametrize("hour,text", [(5, "בוקר טוב"), (11, "בוקר טוב"), (12, "צהריים טובים"),
                                        (16, "צהריים טובים"), (17, "ערב טוב"), (21, "ערב טוב"),
@@ -41,10 +42,10 @@ def test_the_home_page_greets_by_the_israeli_clock():
     assert 'app.jinja_env.globals["greeting"] = lambda: greeting(clock.now().hour)' in app_src
 
 
-# ─── פסיקים בסכום, בלי ".00" ───────────────────────────────────────────
+# ─── Commas in the amount, no ".00" ────────────────────────────────────
 
 def _format(value, caret):
-    """מריץ את ‎formatAmount‎ האמיתי מ-transactions.js ב-node."""
+    """Runs the real formatAmount from transactions.js in node."""
     src = _read(_JS / "transactions.js")
     fn = src[src.index("    function amountValue() {"):src.index("    function fitAmount() {")]
     script = ("const txAmount={value:%s,selectionStart:%d,setSelectionRange(a){this.sel=a}};\n%s\n"
@@ -57,9 +58,9 @@ def _format(value, caret):
 @pytest.mark.parametrize("typed,caret,shown,value", [
     ("48000", 5, "48,000", 48000),
     ("4800.5", 6, "4,800.5", 4800.5),
-    ("1234567.891", 11, "1,234,567.89", 1234567.89),   # עד שתי ספרות אחרי הנקודה
+    ("1234567.891", 11, "1,234,567.89", 1234567.89),   # up to two digits after the point
     ("0012", 4, "12", 12),
-    ("12.3.4", 6, "12.34", 12.34),                      # נקודה אחת
+    ("12.3.4", 6, "12.34", 12.34),                      # one point
     ("0.5", 3, "0.5", 0.5),
 ])
 def test_the_amount_gets_commas_while_typing(typed, caret, shown, value):
@@ -68,7 +69,7 @@ def test_the_amount_gets_commas_while_typing(typed, caret, shown, value):
 
 
 def test_the_caret_stays_after_the_same_digit():
-    # הסמן אחרי ה-8 ב-"4800" → "4,800": אחרי ה-8, כלומר אחרי "4,8"
+    # the caret after the 8 in "4800" → "4,800": after the 8, that is, after "4,8"
     got, sel, _ = _format("4800", 2)
     assert got == "4,800" and sel == 3
 
@@ -81,11 +82,11 @@ def test_the_field_is_text_with_a_number_keyboard_and_no_cents_placeholder():
     assert 'type="text" id="txAmount"' in base
     tx = _read(_JS / "transactions.js")
     assert "const AMOUNT_PLACEHOLDER_DEFAULT = '0';" in tx
-    assert "const amount = amountValue();" in tx                # השליחה בלי פסיקים
-    assert "formatAmount(false);        // a value written by code" in tx  # עריכה וסריקה
+    assert "const amount = amountValue();" in tx                # sending without commas
+    assert "formatAmount(false);        // a value written by code" in tx  # editing and scanning
 
 
-# ─── עריכה ──────────────────────────────────────────────────────────────
+# ─── Editing ────────────────────────────────────────────────────────────
 
 def test_recurring_transactions_have_no_duplicate_button():
     tx = _read(_JS / "transactions.js")
@@ -95,7 +96,7 @@ def test_recurring_transactions_have_no_duplicate_button():
 def test_save_is_grey_until_something_changes():
     tx = _read(_JS / "transactions.js")
     assert "editSnapshot = formSnapshot();" in tx
-    # מאז 13.10 — אותו כיתוב, רק כבוי/פעיל ("שלא יהיה רשום אין שינויים")
+    # since 13.10: the same caption, just disabled/enabled ("don't write no changes")
     assert "if (editId) { submitLabel.textContent = 'שמירת השינויים'; return; }" in tx
     assert "'אין שינויים'" not in tx
     assert "if (isUnchanged()) return;" in tx
@@ -111,14 +112,14 @@ def test_an_occurrence_links_to_its_recurring_transaction():
     assert "new URLSearchParams(location.search).get('series')" in settings and "row.click();" in settings
 
 
-# ─── סיסמה והתנתקות ─────────────────────────────────────────────────────
+# ─── Password and sign-out ──────────────────────────────────────────────
 
 def test_every_password_page_loads_the_eye():
     for name in ("login.html", "reset_password.html", "settings.html"):
         assert "js/password-eye.js" in _read(_T / name), name
     eye = _read(_JS / "password-eye.js")
     assert "input.type = show ? 'text' : 'password';" in eye
-    assert "autocomplete" not in eye.split("*/", 1)[1]           # לא נוגעים במנהל הסיסמאות
+    assert "autocomplete" not in eye.split("*/", 1)[1]           # don't touch the password manager
 
 
 def test_logging_out_asks_first():
@@ -128,7 +129,7 @@ def test_logging_out_asks_first():
     assert 'method="POST" action="{{ url_for(\'logout\') }}"' in _read(_T / "settings.html")
 
 
-# ─── הזמנה, מיון, החיוב הבא, בן משפחה אחד ──────────────────────────────
+# ─── Invite, sort, next charge, one family member ──────────────────────
 
 def test_the_invite_is_shared_where_possible():
     settings = _read(_JS / "settings.js")
@@ -142,7 +143,7 @@ def test_all_transactions_can_be_sorted_by_amount():
     assert 'data-sort="amount"' in month and 'data-sort="date"' in month
     js = _read(_JS / "month.js")
     assert "Number(b.dataset.amount) - Number(a.dataset.amount)" in js
-    assert "sortAllTx('date');" in js                            # לא נשמר
+    assert "sortAllTx('date');" in js                            # not saved
 
 
 _TODAY = dt.date(2026, 10, 12)
@@ -155,12 +156,12 @@ def _tpl(date, freq, end=None):
 @pytest.mark.parametrize("tpl,expected", [
     (_tpl("2026-09-01", "monthly_1"), dt.date(2026, 11, 1)),
     (_tpl("2026-09-15", "monthly_15"), dt.date(2026, 10, 15)),
-    (_tpl("2026-08-12", "monthly_same"), dt.date(2026, 10, 12)),         # היום
+    (_tpl("2026-08-12", "monthly_same"), dt.date(2026, 10, 12)),         # today
     (_tpl("2026-01-31", "monthly_same"), dt.date(2026, 10, 31)),
     (_tpl("2026-10-05", "weekly"), dt.date(2026, 10, 12)),
     (_tpl("2026-10-01", "biweekly"), dt.date(2026, 10, 15)),
-    (_tpl("2026-11-03", "monthly_same"), dt.date(2026, 11, 3)),          # עוד לא התחילה
-    (_tpl("2026-01-01", "monthly_1", end="2026-10-01"), None),          # הסתיימה
+    (_tpl("2026-11-03", "monthly_same"), dt.date(2026, 11, 3)),          # hasn't started yet
+    (_tpl("2026-01-01", "monthly_1", end="2026-10-01"), None),          # ended
 ])
 def test_the_next_charge(tpl, expected):
     assert db.next_recurring_date(tpl, _TODAY) == expected

@@ -1,8 +1,9 @@
-"""ניסוח אחיד (סבב 4, ה3).
+"""Uniform wording (round 4, E3).
 
-- "1 חברים" → "חבר אחד": ‎count_of‎ בשרת ו-‎sfCount‎ בדפדפן, באותו כלל.
-- פנייה ברבים, כמו רוב האפליקציה: "נסו שוב" ולא "נסה שוב". כשאור קיבלה
-  "נסה שוב" זה צרם — והמחצית מההודעות פנתה כך.
+- "1 חברים" → "חבר אחד": count_of on the server and sfCount in the browser, by the
+  same rule.
+- Plural address, like most of the app: "נסו שוב" and not "נסה שוב". When Or got
+  "נסה שוב" it jarred, and half the messages addressed that way.
 """
 import glob
 import json
@@ -30,7 +31,7 @@ def test_the_rule(n, expected):
 def test_the_browser_counts_exactly_like_the_server():
     node = shutil.which("node")
     if not node:
-        pytest.skip("node לא מותקן")
+        pytest.skip("node isn't installed")
     script = (
         "const g = globalThis; g.window = g;"
         "eval(require('fs').readFileSync(process.argv[1], 'utf8')"
@@ -44,7 +45,7 @@ def test_the_browser_counts_exactly_like_the_server():
 
 
 def _visible_strings():
-    """טקסט שמשתמש רואה: בלי הערות, ובקוד — רק מחרוזות."""
+    """Text a user sees: without comments, and in code, only strings."""
     for f in glob.glob(str(_ROOT / "frontend/templates/*.html")) + \
              glob.glob(str(_ROOT / "frontend/static/js/*.js")) + \
              [str(_ROOT / "backend/app.py"), str(_ROOT / "backend/supabase_config.py")]:
@@ -57,7 +58,7 @@ def _visible_strings():
 
 @pytest.mark.parametrize("masculine", ["נסה שוב", "הזן ידנית", "בדוק גם", "רק אתה", "תמיד תוכל", 'aria-label="בחר '])
 def test_messages_address_the_family_not_one_man(masculine):
-    # מילה שלמה: "לבדוק גם" (שם פועל, ניטרלי) מכיל את "בדוק גם"
+    # a whole word: "לבדוק גם" (an infinitive, neutral) contains "בדוק גם"
     pattern = re.compile(r"(?<![א-ת])" + re.escape(masculine))
     hits = [name for name, line in _visible_strings() if pattern.search(line)]
     assert not hits, hits
@@ -69,7 +70,7 @@ def test_messages_address_the_family_not_one_man(masculine):
     ("project_edit.html", "}} עסקאות"), ("settings.html", "}} ימים"),
 ])
 def test_no_bare_number_before_a_plural(template, phrase):
-    """"{{ n }} חברים" הוא "1 חברים" כש-n=1."""
+    """"{{ n }} חברים" is "1 חברים" when n=1."""
     html = (_ROOT / "frontend/templates" / template).read_text(encoding="utf-8")
     assert phrase not in re.sub(r"\{#.*?#\}", "", html, flags=re.S)
 
@@ -80,7 +81,7 @@ def test_one_name_for_savings_and_for_shared():
     assert not [n for n, l in strings if re.search(r"['\"]משותף['\"]", l)]
 
 
-# ─── חצים ב-RTL: קדימה ←, אחורה → ────────────────────────────────────────────
+# ─── Arrows in RTL: forward ←, back → ────────────────────────────────────────
 
 @pytest.mark.parametrize("page", ["privacy.html", "terms.html"])
 def test_back_points_right(page):
@@ -97,7 +98,8 @@ def test_a_sequence_of_steps_reads_right_to_left():
                                               (True, "→ חזרה לחודש הנוכחי")],
                          ids=["from-the-past", "from-the-future"])
 def test_back_to_this_month_points_the_right_way(is_future, arrow):
-    """מנובמבר, כשספטמבר הוא החודש הנוכחי, החזרה היא אחורה בזמן."""
+    """From November, when September is the current month, returning is backwards in
+    time."""
     from jinja2 import Environment
     src = (_ROOT / "frontend/templates/month.html").read_text(encoding="utf-8")
     line = src[src.index("{% if is_current %}"):]
@@ -116,7 +118,7 @@ def test_the_route_knows_a_future_month():
 
 
 @pytest.mark.parametrize("totals,expected", [
-    ({"קרן": 5000, "גמל": 3000}, {"קרן": 63, "גמל": 37}),          # 62.5 + 37.5 — לא 63 + 38
+    ({"קרן": 5000, "גמל": 3000}, {"קרן": 63, "גמל": 37}),          # 62.5 + 37.5, not 63 + 38
     ({"א": 1, "ב": 1, "ג": 1}, {"א": 34, "ב": 33, "ג": 33}),
     ({"א": 100}, {"א": 100}),
     ({"א": 0, "ב": 50}, {"ב": 100}),
@@ -130,30 +132,30 @@ def test_shares_always_add_up_to_a_hundred(totals, expected):
 
 
 def test_the_app_says_monthly_balance_and_never_checking_account():
-    """מתן (30.9): "מאזן חודשי" במקום "נשאר בעו״ש" — "שבכלל לא יהיה נשאר בעוש
-    באפליקציה". בכל צורת כתיבה, בכל טקסט שמשתמש רואה."""
+    """Matan (30.9): "מאזן חודשי" instead of "נשאר בעו״ש": "so there's no נשאר בעוש in
+    the app at all". In every spelling, in every text a user sees."""
     forms = re.compile(r'עו״ש|עו\\?"ש|עו&quot;ש|(?<![א-ת])עוש(?![א-ת])')
     hits = [name for name, line in _visible_strings() if forms.search(line)]
     assert not hits, hits
     for page in ("index.html", "month.html", "landing.html"):
         html = re.sub(r"\{#.*?#\}", "", (_ROOT / "frontend/templates" / page).read_text(encoding="utf-8"), flags=re.S)
-        # "מאזן החודש" (מתן, 1.10), ולא עוד "מאזן חודשי" — חוץ ממשפט אחד
-        # בחלון "איך מצרפים בן משפחה", שמתן כתב כך במפורש (5.10)
+        # "מאזן החודש" (Matan, 1.10), and no longer "מאזן חודשי", except one sentence
+        # in the "איך מצרפים בן משפחה" window, which Matan wrote that way explicitly (5.10)
         html = html.replace("רואים את אותן עסקאות ואותו מאזן חודשי.", "")
         assert "מאזן החודש" in html and "מאזן חודשי" not in html, page
 
 
 def test_recurring_transactions_have_one_name():
-    """מתן (1.10): "עסקאות קבועות" בכל האפליקציה — לא "עסקה חוזרת" ולא
-    "סדרה". בכל טקסט שמשתמש רואה."""
+    """Matan (1.10): "עסקאות קבועות" across the app: not "עסקה חוזרת" and not "סדרה".
+    In every text a user sees."""
     forms = re.compile(r"עסקה חוזרת|עסקאות חוזרות|העסקה הזאת חוזרת|העסקה חוזרת|סדרה|הסדרה|סדרות")
     hits = [(name, line) for name, line in _visible_strings() if forms.search(line)]
     assert not hits, hits
 
 
 def test_the_project_edit_page_says_what_it_edits():
-    """מתן (1.10): "עריכת פרויקט" ולא "עריכת הגדרות" — שלא אומר של מה,
-    ומתבלבל עם עמוד ההגדרות של האפליקציה."""
+    """Matan (1.10): "עריכת פרויקט" and not "עריכת הגדרות", which doesn't say of what,
+    and gets confused with the app's settings page."""
     html = (_ROOT / "frontend/templates/project_edit.html").read_text(encoding="utf-8")
     assert '<h1 class="hero-title">עריכת פרויקט</h1>' in html
     assert "עריכת הגדרות" not in html
@@ -164,8 +166,8 @@ def test_the_project_edit_page_says_what_it_edits():
     "שרשמת ", "שרצית ", "נרשמת בהצלחה", "שחיפשת ", "מעבירים אותך",
 ])
 def test_verbs_address_the_family_in_plural(singular):
-    """מתן (1.10): פעלים שפונים למשתמש — תמיד ברבים ("שיניתם", "נסו"). "שלך"
-    ו"לך" על דברים אישיים נשארים (אפשרות ב)."""
+    """Matan (1.10): verbs addressing the user: always plural ("שיניתם", "נסו").
+    "שלך" and "לך" on personal things stay (option B)."""
     hits = [(name, line.strip()) for name, line in _visible_strings() if singular in line]
     assert not hits, hits
 
@@ -181,8 +183,8 @@ def test_verbs_address_the_family_in_plural(singular):
     "'מתחבר…'", "'נרשם…'", "'מצטרף…'",
 ])
 def test_buttons_name_the_action(imperative):
-    """מתן (1.10): כפתורים בשם פעולה — "שמירה", "מחיקה", "התחברות" — ולא
-    בציווי זכר. ובטעינה: "מתחברים…", לא "מתחבר…"."""
+    """Matan (1.10): buttons as action nouns ("שמירה", "מחיקה", "התחברות"), not
+    masculine imperative. And while loading: "מתחברים…", not "מתחבר…"."""
     hits = [(name, line.strip()) for name, line in _visible_strings() if imperative in line]
     assert not hits, hits
 
@@ -193,8 +195,8 @@ def test_buttons_name_the_action(imperative):
     "רשם כאן", "נרשם ע״י",
 ])
 def test_messages_about_a_member_have_no_gender(gendered):
-    """מתן (1.10): הודעות על בן משפחה מסוים — בלי זכר ונקבה, כי זו יכולה
-    להיות אור. "מנהל המשפחה" נשאר (אפשרות א)."""
+    """Matan (1.10): messages about a specific family member: no masculine or feminine,
+    because it could be Or. "מנהל המשפחה" stays (option A)."""
     hits = [(name, line.strip()) for name, line in _visible_strings() if gendered in line]
     assert not hits, hits
 
@@ -205,16 +207,17 @@ def test_messages_about_a_member_have_no_gender(gendered):
     "לא הצלחתי", 'סה"כ', "הכול", "שישה תווים",
 ])
 def test_one_name_for_each_thing(other_name):
-    """מתן (1.10): שם אחד לכל דבר — מייל, מקום עבודה, עסקאות, בית, אישי, התראה,
-    בן משפחה/חשבון, מאזן החודש, עסקאות קבועות, "לא הצלחנו", סה״כ, הכל, 6 תווים."""
+    """Matan (1.10): one name for each thing: email, workplace, transactions, household,
+    personal, notification, family member/account, month balance, recurring
+    transactions, "לא הצלחנו", total, everything, 6 characters."""
     word = re.compile(r"(?<![\u0590-\u05FF])" + re.escape(other_name) + r"(?![\u0590-\u05FF])")
     hits = [(name, line.strip()) for name, line in _visible_strings() if word.search(line)]
     assert not hits, hits
 
 
 def test_income_expense_savings_are_called_departments():
-    """מתן (1.10): הכנסות / הוצאות / חיסכון הן "מחלקות", לא "סוגים". מה שנשאר
-    עם "סוג" מדבר על משהו אחר (סוג קובץ, "מכל סוג")."""
+    """Matan (1.10): income / expenses / savings are "מחלקות", not "סוגים". What stays
+    with "סוג" talks about something else (file type, "מכל סוג")."""
     word = re.compile(r"(?<![֐-׿])(ה|ל|מ|ב|ש|ו)?(סוג|סוגי|סוגים|הסוג)(?![֐-׿])")
     allowed = ("סוג הקובץ", "מכל סוג")
     hits = [(name, line.strip()) for name, line in _visible_strings()

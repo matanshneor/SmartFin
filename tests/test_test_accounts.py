@@ -1,6 +1,6 @@
-"""הניקוי של חשבונות הבדיקה הזמניים רץ על מסד הייצור — אז הכללים שלו
-שמורים בבדיקות: הוא נוגע רק בחשבונות שהוא עצמו יצר, ולעולם לא במשפחה
-שיש בה חבר אמיתי (מתן, 4.10)."""
+"""The cleanup of the temporary test accounts runs on the production database, so
+its rules are kept in tests: it touches only accounts it created itself, and never
+a family with a real member (Matan, 4.10)."""
 import pytest
 
 import _test_accounts as t
@@ -16,7 +16,8 @@ def sent(monkeypatch):
 
 
 def test_only_accounts_this_module_marked_are_purged(sent):
-    """לא לפי הדומיין: ההרשמה לא מאמתת מייל, וכל אחד יכול להירשם עם ‎smartfin.test‎."""
+    """Not by the domain: sign-up doesn't verify email, and anyone can sign up with
+    smartfin.test."""
     t.purge(["11111111-1111-1111-1111-111111111111"])
     t.sweep_stale()
 
@@ -47,8 +48,8 @@ def test_a_family_with_a_real_member_is_never_deleted(sent):
 
 
 def test_the_archive_is_cleaned_after_the_families_it_fills():
-    """מחיקת משפחה מארכבת את העסקאות שלה (טריגר) — ניקוי הארכיון לפני כן
-    היה משאיר בדיוק את השורות שהצטברו עד 4.10."""
+    """Deleting a family archives its transactions (a trigger): cleaning the archive
+    before that would leave exactly the rows that piled up until 4.10."""
     sql = t._purge_sql("false")
     assert sql.index("delete from public.families") < sql.index("delete from public.owner_archive")
 

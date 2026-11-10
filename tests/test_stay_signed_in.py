@@ -1,8 +1,9 @@
-"""נשארים מחוברים גם כשתשובה הולכת לאיבוד (מתן, 13.10).
+"""Staying signed in even when a response gets lost (Matan, 13.10).
 
-ביומנים: 11 ניתוקים ביומיים, כולם "Invalid Refresh Token: Already Used". הטוקן
-התחלף בבקשה שהתשובה שלה לא הגיעה לטלפון, והעוגייה נשארה עם הישן. עכשיו
-הטוקן העדכני נשמר גם במסד (‎web_sessions‎), לפי מזהה אקראי שבעוגייה."""
+In the logs: 11 sign-outs in two days, all "Invalid Refresh Token: Already Used".
+The token was rotated in a request whose response didn't reach the phone, and the
+cookie kept the old one. Now the current token is also saved in the database
+(web_sessions), by a random identifier in the cookie."""
 import time
 
 import pytest
@@ -61,7 +62,8 @@ app.add_url_rule("/__test/stay", "test_stay", _noop)
 
 
 def test_a_lost_response_no_longer_signs_out(store, monkeypatch):
-    """הלב: הטוקן בעוגייה כבר נפסל, אבל העדכני במסד — לוקחים אותו."""
+    """The heart: the token in the cookie was already invalidated, but the current
+    one is in the database: take it."""
     rows, _ = store
     rows["sid-1"] = {"access_token": "new-access", "refresh_token": "new-refresh",
                      "expires_at": time.time() + 3000}
@@ -70,7 +72,7 @@ def test_a_lost_response_no_longer_signs_out(store, monkeypatch):
     c = _client()
     c.get("/__test/stay")
     with c.session_transaction() as sess:
-        assert sess.get("user_id"), "ניתוק למרות שהטוקן העדכני במסד"
+        assert sess.get("user_id"), "signed out although the current token is in the database"
         assert sess["refresh_token"] == "new-refresh" and sess["access_token"] == "new-access"
 
 
@@ -82,7 +84,7 @@ def test_recovered_tokens_that_also_expired_are_refreshed(store, monkeypatch):
                         lambda t: (used.append(t) or _Resp("fresh-access", "fresh-refresh"), None, False))
     c = _client()
     c.get("/__test/stay")
-    assert used == ["newer-refresh"], "רוענן עם הטוקן הפסול שבעוגייה"
+    assert used == ["newer-refresh"], "refreshed with the invalidated token from the cookie"
     with c.session_transaction() as sess:
         assert sess["refresh_token"] == "fresh-refresh"
     assert rows["sid-1"]["refresh_token"] == "fresh-refresh"
@@ -99,7 +101,8 @@ def test_every_refresh_is_copied_to_the_store(store, monkeypatch):
 
 
 def test_a_parallel_refresh_by_another_worker_is_picked_up(store, monkeypatch):
-    """הרענון שלנו נדחה כי worker אחר רענן רגע לפנינו — ושמר במסד."""
+    """Our refresh was rejected because another worker refreshed a moment before us,
+    and saved to the database."""
     rows, _ = store
     rows["sid-1"] = {"access_token": "stale", "refresh_token": "old-refresh", "expires_at": 0}
 
@@ -135,9 +138,9 @@ def test_an_old_cookie_without_sid_works_as_before(store, monkeypatch):
 
 
 def test_a_fresh_token_does_not_touch_the_store(store, monkeypatch):
-    """בקשה רגילה (טוקן בתוקף) — בלי פנייה למסד: לא מאטים כל עמוד."""
+    """A normal request (valid token): no trip to the database: don't slow every page."""
     monkeypatch.setattr(app_module.db, "web_session_get",
-                        lambda sid: pytest.fail("פנייה מיותרת למסד בכל בקשה"))
+                        lambda sid: pytest.fail("a redundant trip to the database on every request"))
     _client(expires=time.time() + 3000).get("/__test/stay")
 
 

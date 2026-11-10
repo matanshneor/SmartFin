@@ -1,8 +1,10 @@
-"""שדה טקסט שמקבל משהו אחר עונה "ערך לא תקין", לא "שגיאת שרת".
+"""A text field that receives something else answers "ערך לא תקין", not "server
+error".
 
-הטפסים תמיד שולחים טקסט, אז משתמש רגיל לא מגיע לזה. אבל בקשה ידנית
-עם ‎{"first_name": 123}‎ הפילה את המסלול על ‎.strip()‎ של מספר — 500,
-שנרשם אצלנו כתקלה אמיתית. נמצא בסריקה אוטומטית של כל מסלולי הכתיבה.
+The forms always send text, so a normal user doesn't hit this. But a hand-crafted
+request with {"first_name": 123} crashed the route on .strip() of a number: a 500,
+recorded on our side as a real fault. Found in an automated scan of all the
+writing routes.
 """
 import pytest
 
@@ -80,7 +82,7 @@ def test_a_non_text_value_is_refused_clearly(client, method, url, base, key, bad
 @pytest.mark.parametrize("method,url,base,key", _PARAMS,
                          ids=[f"{u.split('/')[2]}-{k}" for _, u, _, k in _PARAMS])
 def test_text_still_goes_through(client, method, url, base, key):
-    """בקרת-נגד: ערך תקין לא נדחה בגלל הבדיקה החדשה."""
+    """Control: a valid value isn't rejected because of the new check."""
     r = _send(client, method, url, dict(base))
 
     assert not (r.status_code == 422 and r.get_json().get("error") == "ערך לא תקין")
