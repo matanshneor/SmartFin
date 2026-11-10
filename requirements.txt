@@ -8,12 +8,13 @@ openai==2.45.0
 Flask-Limiter==4.1.1
 sentry-sdk[flask]==2.48.0
 redis==8.1.0
-# ייבוא מהאשראי (backend/card_import.py): ‎.xlsx‎ ו-‎.xls‎ הישן שחלק מהחברות
-# עדיין מורידות
+# Card import (backend/card_import.py): .xlsx, and the old .xls some companies
+# still export
 openpyxl==3.1.5
 xlrd==2.0.1
-# דף החיוב החודשי כ-PDF (כאל ועוד): מילים ומיקומן על הדף
+# The monthly statement as a PDF (Cal and others): words and their position on the page
 pdfplumber==0.11.10
-# מסד אזורי הזמן ל-ZoneInfo (backend/clock.py). מפורש ולא בהסתמכות על
-# המכולה: בלעדיו ZoneInfo("Asia/Jerusalem") נכשל בטעינה והאפליקציה לא עולה.
+# The time zone database for ZoneInfo (backend/clock.py). Explicit rather than
+# relying on the container: without it ZoneInfo("Asia/Jerusalem") fails to load and
+# the app doesn't start.
 tzdata==2026.1

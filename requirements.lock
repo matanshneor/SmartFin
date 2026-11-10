@@ -1,17 +1,17 @@
-# נעילת תלויות טרנזיטיביות — נוצר מ-requirements.txt.
+# Lock of transitive dependencies, generated from requirements.txt.
 #
-# requirements.txt מקבע את מה שאנחנו בוחרים במפורש (Flask, supabase,
-# gunicorn…). כל השאר — postgrest, gotrue, storage3, realtime, pydantic,
-# httpcore — נפתר מחדש בכל בנייה, כלומר גרסה חדשה של תלות שאנחנו בכלל
-# לא מכירים נכנסת לפרודקשן בלי שאף אחד יאשר אותה. זה גם מקור לשבירות
-# אקראיות וגם משטח supply-chain.
+# requirements.txt pins what we choose explicitly (Flask, supabase, gunicorn…).
+# Everything else (postgrest, gotrue, storage3, realtime, pydantic, httpcore) is
+# resolved again on every build, meaning a new version of a dependency we don't
+# even know enters production without anyone approving it. That is both a source
+# of random breakage and a supply-chain surface.
 #
-# כדי לרענן אחרי שינוי ב-requirements.txt:
+# To refresh after a change to requirements.txt:
 #   python3 -m venv /tmp/lockenv && /tmp/lockenv/bin/pip install -r requirements.txt
 #   /tmp/lockenv/bin/pip freeze > requirements.lock
 #
-# הפריסה משתמשת ב-requirements.txt (ראו Procfile/Railway); הקובץ הזה הוא
-# התיעוד של מה שנפתר בפועל, ומה ש-pip-audit ב-CI סורק.
+# The deploy uses requirements.txt (see Procfile/Railway); this file is the record
+# of what was actually resolved, and what pip-audit in CI scans.
 annotated-types==0.8.0
 anyio==4.15.1
 blinker==1.9.0

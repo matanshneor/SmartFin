@@ -1,22 +1,23 @@
-# ‎--workers 4‎: סריקת קבלה חוסמת worker לכל משך הקריאה ל-OpenAI, שהיא 2-6
-# שניות. עם שניים, שתי סריקות במקביל משביתות את האתר לכל שאר המשתמשים —
-# לא מאטות, משביתות. ארבעה נותנים מרווח נשימה, ובעלות זיכרון קטנה יותר
-# ממה שנדמה בזכות ‎--preload‎ (ראו למטה).
+# --workers 4: a receipt scan blocks a worker for the whole OpenAI call, which takes
+# 2-6 seconds. With two, two parallel scans take the site down for every other
+# user: not slow it, take it down. Four give breathing room, at a smaller memory
+# cost than it seems thanks to --preload (see below).
 #
-# ⚠️ אסור להוסיף ‎--threads‎, ואסור לעבור ל-gevent או ל-worker אסינכרוני
-# אחר — לא כאופטימיזציה ולא כניסוי. לקוח ה-Supabase הוא סינגלטון ברמת
-# התהליך (‎_client‎ ב-supabase_config), ו-‎set_auth_token‎ משנה את כותרת
-# ההרשאה שלו גלובלית בכל בקשה. עם worker סינכרוני זה בטוח, כי הוא מטפל
-# בבקשה אחת בכל רגע. עם חוטים, הבקשה של משתמש אחד תרוץ עם הטוקן של
-# משתמש אחר — כלומר משפחה אחת רואה את הכספים של אחרת.
+# ⚠️ Do not add --threads, and do not switch to gevent or any other async worker:
+# not as an optimisation and not as an experiment. The Supabase client is a
+# process-level singleton (_client in supabase_config), and set_auth_token changes
+# its authorization header globally on every request. With a sync worker this is
+# safe, because it handles one request at a time. With threads, one user's request
+# would run with another user's token: one family would see another's money.
 #
-# זו לא תיאוריה: הפרויקט הזה כבר חטף את זה פעם, בגרסה קלה יותר, כשקריאות
-# מקבילות על אותו לקוח החזירו "Server disconnected" והציגו ₪0. ההרחבה
-# הבטוחה היא עוד תהליכים, לא עוד חוטים בתוך תהליך. כדי שחוטים ייעשו
-# בטוחים, הלקוח צריך להיות לכל בקשה (flask.g) ולא ברמת המודול.
+# This isn't theory: this project already got hit by it once, in a milder form,
+# when parallel calls on the same client returned "Server disconnected" and showed
+# ₪0. The safe way to scale is more processes, not more threads inside a process.
+# For threads to become safe, the client needs to be per request (flask.g) and not
+# module-level.
 #
-# ‎--preload‎: האפליקציה נטענת פעם אחת לפני ה-fork, והעותקים חולקים את
-# הזיכרון שלה. בלעדיו כל worker טוען הכול מחדש (~60MB לכל אחד).
-# תופעת לוואי מכוונת: שגיאת טעינה מפילה את הפריסה במקום להפיל כל worker
-# בנפרד בלולאה אינסופית.
+# --preload: the app is loaded once before the fork, and the copies share its
+# memory. Without it every worker loads everything again (~60MB each).
+# Deliberate side effect: a load error fails the deploy instead of crashing each
+# worker separately in an endless loop.
 web: gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 4 --preload --timeout 120

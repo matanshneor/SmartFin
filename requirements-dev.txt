@@ -1,6 +1,7 @@
 -r requirements.txt
 pytest>=7.4
-# מדידת כיסוי. הפער שגילה אותה: מסלולי הכסף — הוספה, עריכה, מחיקה
-# ואיפוס — לא הוזכרו בשום בדיקה, ומאות בדיקות רצו ירוקות מעליהם. בלי
-# מספר אי אפשר היה לראות את זה, ובלי רצפה אי אפשר למנוע חזרה.
+# Coverage measurement. The gap that prompted it: the money routes (add, edit,
+# delete and reset) weren't mentioned in any test, and hundreds of tests ran green
+# over them. Without a number it couldn't be seen, and without a floor it couldn't
+# be kept from coming back.
 pytest-cov>=5.0

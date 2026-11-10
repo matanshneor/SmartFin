@@ -18,12 +18,12 @@ build/
 **/supabase/.temp/
 .ruff_cache/
 
-# כלי הניהול המקומי. מחזיק גישה חוצת-משפחות למסד החי, והריפו הזה
-# ציבורי. מוחרג גם כאן, גם ב-admin/.gitignore, וגם ב-hook של pre-commit.
+# The local admin tool. It holds cross-family access to the live database, and this
+# repo is public. Excluded here, in admin/.gitignore, and in the pre-commit hook.
 /admin/
 
-# תוצרי בנייה שנכנסו בטעות. .coverage הוא SQLite עם נתיבים מקומיים
-# מלאים, והריפו ציבורי.
+# Build artefacts that got committed by mistake. .coverage is SQLite with full local
+# paths, and the repo is public.
 .coverage
 .coverage.*
 htmlcov/

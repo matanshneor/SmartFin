@@ -1,16 +1,16 @@
-# בדיקות לפני פריסה.
+# Checks before deploying.
 #
-# הצורך אמיתי ומיידי: דחיפה ל-main מפעילה דיפלוי אוטומטי ב-Railway, כך
-# שקוד שובר עולה לאוויר בלי שום עצירה בדרך. עד היום זה עבד כי אדם אחד
-# נוגע בקוד ומריץ בדיקות ידנית; מרגע שיש משתמשים אמיתיים זו רשת ביטחון
-# שחייבת להיות אוטומטית.
+# The need is real and immediate: a push to main triggers an automatic deploy on
+# Railway, so breaking code goes live with nothing stopping it on the way. Until now
+# this worked because one person touches the code and runs tests by hand; from the
+# moment there are real users this safety net has to be automatic.
 #
-# רצות רק בדיקות היחידה (-m unit). הן לא נוגעות ב-Supabase, ולכן אין
-# צורך בשום סוד ב-GitHub — וזו החלטה ולא ויתור: מפתחות פרודקשן ב-CI הם
-# משטח תקיפה חדש, ובדיקות שמדברות עם המסד האמיתי היו גם משנות אותו.
-# בדיקות האינטגרציה ממשיכות לרוץ מקומית מול הפרויקט המקושר.
+# Only the unit tests run (-m unit). They don't touch Supabase, so no secret at all
+# is needed on GitHub, and that is a decision, not a compromise: production keys in
+# CI are a new attack surface, and tests talking to the real database would also
+# change it. The integration tests keep running locally against the linked project.
 
-name: בדיקות
+name: Tests
 
 on:
   push:
@@ -24,10 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: גרסת פייתון מ-runtime.txt
-        # setup-python קורא את הקובץ אבל לא מסיר את הקידומת "python-" של
-        # פורמט Heroku, ש-Railway משתמש בו. גוזרים אותה כאן כדי שגרסת
-        # ה-CI וגרסת הפרודקשן יישארו מקור אמת אחד.
+      - name: Python version from runtime.txt
+        # setup-python reads the file but doesn't strip the "python-" prefix of the
+        # Heroku format Railway uses. It is cut here so the CI version and the
+        # production version stay one source of truth.
         id: py
         run: echo "version=$(sed 's/^python-//' runtime.txt)" >> "$GITHUB_OUTPUT"
 
@@ -36,20 +36,21 @@ jobs:
           python-version: ${{ steps.py.outputs.version }}
           cache: pip
 
-      - name: התקנת תלויות
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt   # כולל -r requirements.txt
+          pip install -r requirements-dev.txt   # includes -r requirements.txt
 
-      - name: בדיקות יחידה
-        # ערך דמה: האפליקציה מסרבת לעלות בלי SECRET_KEY, וזו הגנה מכוונת.
-        # אין לו שום קשר למפתח האמיתי שב-Railway.
+      - name: Unit tests
+        # A dummy value: the app refuses to start without SECRET_KEY, and that is a
+        # deliberate guard. It has nothing to do with the real key on Railway.
         env:
           SECRET_KEY: ci-only-not-a-real-secret
-        # ‎--cov-fail-under‎ הוא רצפה, לא יעד ולא ציון: מתחת למצב הנוכחי,
-        # רק כדי שכיסוי לא ייעלם בשקט. זה בדיוק מה שקרה למסלולי הכסף —
-        # הוספה, עריכה, מחיקה ואיפוס לא נבדקו כלל בזמן ש-524 בדיקות רצו
-        # ירוקות. העלאת המספר היא החלטה מודעת, לא תופעת לוואי של רפקטור.
+        # --cov-fail-under is a floor, not a target and not a grade: below the
+        # current state, only so coverage doesn't silently vanish. That is exactly
+        # what happened to the money routes: add, edit, delete and reset weren't
+        # tested at all while 524 tests ran green. Raising the number is a
+        # conscious decision, not a side effect of a refactor.
         run: python -m pytest tests/ -m unit -q --cov=backend --cov-report=term --cov-fail-under=55
 
   security:
@@ -57,10 +58,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: גרסת פייתון מ-runtime.txt
-        # setup-python קורא את הקובץ אבל לא מסיר את הקידומת "python-" של
-        # פורמט Heroku, ש-Railway משתמש בו. גוזרים אותה כאן כדי שגרסת
-        # ה-CI וגרסת הפרודקשן יישארו מקור אמת אחד.
+      - name: Python version from runtime.txt
+        # setup-python reads the file but doesn't strip the "python-" prefix of the
+        # Heroku format Railway uses. It is cut here so the CI version and the
+        # production version stay one source of truth.
         id: py
         run: echo "version=$(sed 's/^python-//' runtime.txt)" >> "$GITHUB_OUTPUT"
 
@@ -68,12 +69,12 @@ jobs:
         with:
           python-version: ${{ steps.py.outputs.version }}
 
-      - name: סריקת פרצות ידועות בתלויות
+      - name: Scan dependencies for known vulnerabilities
         run: |
           python -m pip install --upgrade pip pip-audit
           pip-audit -r requirements.txt --progress-spinner off
-          # וגם הנעילה: ‎requirements.txt‎ מקבע רק את מה שנבחר במפורש,
-          # וכל השאר (postgrest, gotrue, pydantic, httpcore…) נפתר מחדש
-          # בכל בנייה. סריקה של הישיר בלבד מפספסת בדיוק את החלק שאף אחד
-          # לא אישר.
+          # And the lock too: requirements.txt pins only what was chosen
+          # explicitly, and everything else (postgrest, gotrue, pydantic,
+          # httpcore…) is resolved again on every build. Scanning only the direct
+          # ones misses exactly the part nobody approved.
           pip-audit -r requirements.lock --progress-spinner off
