@@ -1,8 +1,8 @@
-"""מרווח בין אותיות בעברית (מתן, 7.10 — עיצוב בנוסח אפל, סעיף 6).
+"""Letter spacing in Hebrew (Matan, 7.10, Apple-style design, item 6).
 
-מרווח רחב שייך לאותיות גדולות באנגלית; בעברית הוא מפרק מילים — "ניהול
-תקציב משפחתי" בדף הנחיתה נקרא "נ י ה ו ל". קודי ההזמנה נשארים מרווחים
-בכוונה: קוד קל לקרוא ולהקליד כשהתווים לא נוגעים זה בזה.
+Wide spacing belongs to English capitals; in Hebrew it breaks words apart: "ניהול
+תקציב משפחתי" on the landing page read as "נ י ה ו ל". Invite codes stay spaced
+on purpose: a code is easy to read and type when the characters don't touch.
 """
 import re
 from pathlib import Path

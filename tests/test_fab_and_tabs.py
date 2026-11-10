@@ -1,12 +1,13 @@
-"""ה-+ ליד הסרגל, ולשוניות שלא נכנסות להיסטוריה (מתן, 11.10).
+"""The + next to the bar, and tabs that don't go into history (Matan, 11.10).
 
-ה-+ צף מעל התוכן, ובנקודת גלילה מסוימת ישב בדיוק מתחת ל"לכל החודש" ונראה
-שייך לו. עכשיו הוא עיגול זהב משמאל לסרגל, באותה שורה.
+The + floated over the content, and at a certain scroll point it sat exactly under
+"for the whole month" and looked like it belonged to it. Now it is a gold circle
+to the left of the bar, on the same row.
 
-"כשאני גולל את כל העמוד, הוא מעביר לי בין עמודים": באייפון החלקה מהקצה היא
-"אחורה" של המערכת, וכל לחיצה על הסרגל הוסיפה עמוד להיסטוריה. עכשיו הלשוניות
-מחליפות זו את זו. בדפדפן: אחרי 5 לחיצות על הסרגל ההיסטוריה לא גדלה, ומעבר
-חודש חלק ממשיך לעבוד.
+"When I scroll the whole page, it moves me between pages": on iPhone a swipe from
+the edge is the system's "back", and every tap on the bar added a page to
+history. Now the tabs replace each other. In the browser: after 5 taps on the bar
+the history doesn't grow, and smooth month switching keeps working.
 """
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def test_the_plus_is_a_gold_circle_beside_the_bar():
     fab = _rule(".fab")
     assert "border-radius: 50%;" in fab
     assert "width: var(--fab-size);" in fab
-    assert "(var(--dock-height) - var(--fab-size)) / 2" in fab      # באמצע גובה הסרגל
+    assert "(var(--dock-height) - var(--fab-size)) / 2" in fab      # at the bar's mid-height
     nav = _rule(".bottom-nav")
     assert "left: calc(var(--dock-side) + var(--fab-size) + 14px);" in nav
 
@@ -45,7 +46,7 @@ def test_switching_tabs_does_not_add_to_history():
     block = _CORE[_CORE.index("const TABS = ['/', '/month', '/months', '/projects', '/settings'];"):]
     block = block[:block.index("})();")]
     assert "location.replace(url.href);" in block
-    assert "window.addEventListener('click'" in block          # אחרי month.js
+    assert "window.addEventListener('click'" in block          # after month.js
     assert "if (e.defaultPrevented" in block
 
 

@@ -1,7 +1,8 @@
-"""דף הבית בנסיעה אחת למסד (מתן, 13.10 — "הכי מהירה שאפשר").
+"""The home page in one trip to the database (Matan, 13.10: "as fast as possible").
 
-תשע שליפות ברצף (‎300-400ms‎ בלוגים) הפכו לפונקציה אחת, ‎get_home_page‎,
-כמו ‎get_month_page‎ של עמוד החודש. החישובים נשארו אותן פונקציות.
+Nine queries in sequence (`300-400ms` in the logs) became one function,
+`get_home_page`, like the month page's `get_month_page`. The calculations stayed
+the same functions.
 """
 from datetime import date
 from pathlib import Path
@@ -18,7 +19,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 _SQL = (_ROOT / "backend/supabase/migrations/20261013120000_home_page_fn.sql").read_text(encoding="utf-8")
 _FAM = "11111111-1111-1111-1111-111111111111"
 _ME  = "22222222-2222-2222-2222-222222222222"
-_TODAY = date(2026, 10, 13)   # יום שלישי
+_TODAY = date(2026, 10, 13)   # Tuesday
 
 
 class _FakeRpc:
@@ -71,7 +72,7 @@ def test_one_call_with_the_dates_computed_in_israel_time(real_fetch):
     assert calls == [("get_home_page", {
         "p_family_id": _FAM, "p_year": 2026, "p_month": 10,
         "p_recent_from": "2026-10-01",
-        # ‎* 3‎ כמו ב-‎get_recent_transactions‎ — שורות פרטיות יסוננו
+        # `* 3` as in `get_recent_transactions`: private rows will be filtered out
         "p_recent_limit": 30,
         "p_week_from": "2026-10-04", "p_week_start": "2026-10-11", "p_week_to": "2026-10-17",
     })]
@@ -80,10 +81,10 @@ def test_one_call_with_the_dates_computed_in_israel_time(real_fetch):
 def test_the_figures_are_the_same_functions_as_before(real_fetch):
     home, _ = real_fetch(_payload())
 
-    # סיכום החודש בלי עסקת הפרויקט — כמו ‎get_monthly_summary‎
+    # The month summary without the project transaction, like `get_monthly_summary`
     assert home["summary"] == db.summary_from_rows([r for r in _payload()["rows"] if not r["project_id"]])
     assert home["summary"]["expense"] == 100
-    # כל השורות (כולל פרויקט) נשמרות להתראות התקציב
+    # All rows (including project) are kept for the budget alerts
     assert len(home["rows"]) == 3
     assert home["week"] == db.week_from_rows(_payload()["week_rows"], True, _TODAY)
     assert home["week"]["has_older"] is True
@@ -135,7 +136,8 @@ def _home_payload(**over):
 def test_the_home_page_makes_no_other_trip(home, monkeypatch):
     def separate(*a, **k):
         raise AssertionError("שליפה נפרדת — היה אמור להגיע מ-get_home_page")
-    # ‎_fetch_*‎ ולא ‎get_*‎: אלה עוברות דרך מטמון הבקשה, שהמסלול החדש ממלא
+    # `_fetch_*` and not `get_*`: these go through the request cache, which the
+    # new path fills
     for fn in ("get_family_settings", "get_monthly_summary", "_fetch_categories",
                "_fetch_family_members", "_fetch_family", "family_has_no_transactions",
                "get_recent_transactions", "week_spending", "fetch_month_rows"):
@@ -172,11 +174,13 @@ def test_the_function_guards_the_family_like_its_sister():
 
 
 def test_each_part_mirrors_the_query_it_replaces():
-    # ‎_recent_series_filter‎: ‎is_recurring.not.is.true‎ ולא ‎= false‎ — ‎NULL‎ היא עסקה רגילה
+    # `_recent_series_filter`: `is_recurring.not.is.true` and not `= false`: a
+    # `NULL` is a regular transaction
     assert "(t.is_recurring is not true and t.recurring_parent_id is null)" in _SQL
     assert "or t.date >= p_recent_from" in _SQL
     assert "order by t.created_at desc" in _SQL
-    # "יש שבוע קודם": ‎.eq("is_recurring", False)‎ — כאן ‎NULL‎ לא נספרת
+    # "Is there a previous week": `.eq("is_recurring", False)`: here `NULL`
+    # isn't counted
     assert "and t.is_recurring = false" in _SQL
-    # קטגוריות: אותו סדר כמו ‎_fetch_categories‎
+    # Categories: the same order as `_fetch_categories`
     assert "order by c.sort_order nulls last, c.name" in _SQL

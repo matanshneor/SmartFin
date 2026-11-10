@@ -1,8 +1,9 @@
-"""האפליקציה המותקנת (סבב 4, ה6).
+"""The installed app (round 4, E6).
 
-מי שהתקין את SmartFin למסך הבית לפני שהתחבר ראה בפתיחה הראשונה את דף
-השיווק ולא את ההתחברות: לאפליקציה המותקנת באייפון יש עוגיות משלה, ו-
-‎sf_returning‎ עוד לא היה בהן. הפתיחה מהאייקון מסומנת עכשיו (‎?app=1‎).
+Whoever installed SmartFin to the home screen before signing in saw the marketing
+page on first open and not the sign-in: the app installed on iPhone has its own
+cookies, and `sf_returning` wasn't in them yet. Opening from the icon is now
+marked (`?app=1`).
 """
 import json
 import re
@@ -33,7 +34,7 @@ def test_opening_from_the_home_screen_goes_to_login(guest):
 
 
 def test_a_link_in_the_browser_still_shows_the_landing_page(guest):
-    """בקרת-נגד: דף הנחיתה נשאר למי שמגיע מקישור."""
+    """Control: the landing page stays for whoever arrives from a link."""
     r = guest.get("/")
 
     assert r.status_code == 200 and "/login" not in r.headers.get("Location", "")
@@ -46,8 +47,8 @@ def test_the_add_shortcut_is_also_an_app_launch(guest):
 
 
 def test_the_app_keeps_its_identity_when_the_start_url_changes():
-    """בלי ‎id‎, אנדרואיד גוזר את זהות האפליקציה מ-‎start_url‎ — ושינויו
-    היה הופך את המותקנת ל"אפליקציה אחרת"."""
+    """Without `id`, Android derives the app's identity from `start_url`, and
+    changing it would turn the installed one into "another app"."""
     assert _MANIFEST["id"] == "/"
 
 
@@ -61,7 +62,8 @@ def test_budget_fields_open_the_number_keyboard():
 
 
 def test_a_new_familys_name_field_starts_empty():
-    """"המשפחה שלי" בתוך השדה היה צריך מחיקה לפני כתיבה; עכשיו זו דוגמה אפורה."""
+    """"המשפחה שלי" inside the field had to be deleted before typing; now it is a
+    grey example."""
     from flask import render_template_string
     src = (_ROOT / "frontend/templates/onboarding.html").read_text(encoding="utf-8")
     tag = src[src.index('id="familyName"'):]
@@ -71,18 +73,19 @@ def test_a_new_familys_name_field_starts_empty():
         assert 'value="משפחת כהן"' in render_template_string(tag, family={"name": "משפחת כהן"})
 
 
-# ─── האייקון ────────────────────────────────────────────────────────────────
+# ─── The icon ───────────────────────────────────────────────────────────────
 #
-# לאייקון הקודם היו פינות מעוגלות ומסגרת משלו, עם פינות שקופות. אייפון
-# ואנדרואיד מעגלים בעצמם: עיגול כפול, מסגרת חתוכה, ופינות שקופות שהטלפון
-# צובע. ו-"any maskable" על אותו קובץ חתך באנדרואיד את קצה החץ.
+# The previous icon had rounded corners and a frame of its own, with transparent
+# corners. iPhone and Android round it themselves: a double rounding, a clipped
+# frame, and transparent corners the phone paints. And "any maskable" on the same
+# file cut off the tip of the arrow on Android.
 
 @pytest.mark.parametrize("name", ["icon-180.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"])
 def test_home_screen_icons_have_no_transparent_corners(name):
     data = (_ROOT / "frontend/static/icons" / name).read_bytes()
     assert data[:8] == b"\x89PNG\r\n\x1a\n"
     color_type = data[25]                      # IHDR: 2 = RGB, 6 = RGBA
-    assert color_type == 2, f"{name}: יש ערוץ שקיפות"
+    assert color_type == 2, f"{name}: has an alpha channel"
 
 
 def test_the_maskable_icon_is_its_own_file():
@@ -92,12 +95,13 @@ def test_the_maskable_icon_is_its_own_file():
 
 
 def test_the_maskable_arrow_stays_inside_the_android_safe_zone():
-    """אנדרואיד מבטיח רק עיגול ברדיוס 40% מהמרכז; מה שמחוצה לו עלול להיחתך."""
+    """Android guarantees only a circle with a 40% radius from the centre; what is
+    outside it may be cut off."""
     svg = (_ROOT / "frontend/static/icons/icon-maskable.svg").read_text(encoding="utf-8")
     tx, ty, k = map(float, re.search(r"translate\(([\d.]+) ([\d.]+)\) scale\(([\d.]+)\)", svg).groups())
     stroke = float(re.search(r'stroke-width="([\d.]+)"', svg).group(1))
     points = [tuple(map(float, p)) for p in re.findall(r"(\d+)[ ,](\d+)", " ".join(re.findall(r'd="([^"]+)"', svg)))]
-    # "H158" ו-"V100" נותנים את הפינה (158, 60) — כבר בין הנקודות
+    # "H158" and "V100" give the corner (158, 60), already between the points
     for x, y in points:
         px, py = tx + (x - tx) * k, ty + (y - ty) * k
         reach = ((px - 96) ** 2 + (py - 96) ** 2) ** 0.5 + stroke * k / 2

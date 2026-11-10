@@ -1,35 +1,38 @@
 """
-בדיקות לזרימת ההצטרפות למשפחה.
+Tests for the family-join flow.
 
-זה המסלול שנשבר בשקט מאז שנכתב: join_family_by_code בדק שהמשפחה קיימת
-ב-SELECT רגיל, ומדיניות ה-RLS families_member_read מתירה לקרוא משפחה רק
-למי שכבר חבר בה — כלומר לעולם לא למצטרף. הבדיקה תמיד חזרה ריקה, הפונקציה
-החזירה False, והערך נזרק. בלי כיסוי אוטומטי אין שום דבר שימנע רגרסיה
-שקטה נוספת.
+This is the route that broke silently from the day it was written:
+join_family_by_code checked the family exists with a plain SELECT, and the RLS
+policy families_member_read allows reading a family only to someone already a
+member, i.e. never to the joiner. The check always came back empty, the function
+returned False, and the value was thrown away. Without automatic coverage nothing
+prevents another silent regression.
 
-רצות מול הפרויקט האמיתי (כמו test_rls_isolation) עם שני חשבונות הבדיקה
-הזמניים של הריצה (‎tests/_test_accounts.py‎). כל בדיקה שמזיזה משתמש בין
-משפחות מחזירה אותו למקומו ב-finally, גם אם היא נכשלת.
+Run against the real project (like test_rls_isolation) with the run's two
+temporary test accounts (`tests/_test_accounts.py`). Every test that moves a user
+between families puts them back in finally, even if it fails.
 """
 import uuid
 
 import pytest
 
 from backend import supabase_config as db
-import _test_accounts                     # conftest מוסיף את tests ל-sys.path
+import _test_accounts                     # conftest adds tests to sys.path
 from tests.conftest import category_of
 
 
 def _privileged(sql: str):
-    """מריצה SQL בהרשאות בעלים, דרך ה-CLI המקושר.
+    """Runs SQL with owner privileges, through the linked CLI.
 
-    נדרש להקמת המצב בלבד. מאז מיגרציה 20260916100000 סשן מאומת לא יכול
-    ליצור משפחה או לשנות את השיוך של עצמו — זו בדיוק ההגנה שנוספה, והיא
-    מה שמנעה ממשתמש להעביר את עצמו למשפחה אחרת ולקרוא את הכספים שלה.
-    הבדיקות האלה צריכות בכל זאת להעמיד משפחה זמנית, ולכן הן עושות את זה
-    מחוץ למודל ההרשאות של האפליקציה במקום להחליש אותו.
+    Needed only to set up state. Since migration 20260916100000 an authenticated
+    session can't create a family or change its own membership: that is exactly
+    the protection that was added, and what stopped a user from moving
+    themselves into another family and reading its finances. These tests still
+    need to set up a temporary family, so they do it outside the app's
+    permission model instead of weakening it.
 
-    מה שנבדק — join_family_by_code — רץ כרגיל דרך הלקוח המאומת."""
+    What is tested (join_family_by_code) runs as usual through the
+    authenticated client."""
     return _test_accounts.privileged_sql(sql)
 
 
@@ -39,16 +42,17 @@ def _profile_family(user_id):
 
 
 def _dispose_temp_family(client, user_id, temp_id, home_code):
-    """מוחקת משפחה זמנית ומחזירה את המשתמש הביתה.
+    """Deletes a temporary family and brings the user home.
 
-    אין מדיניות DELETE על families, כך שלקוח לא יכול למחוק משפחה ישירות —
-    ניקוי המשפחה הנטושה בתוך join_family_by_code הוא הדרך היחידה. לכן
-    מעמידים את המשתמש במשפחה, מרוקנים אותה מתנועות, ומצרפים אותו הביתה
-    בקוד: ה-RPC עצמו מוחק אותה בדרך החוצה.
+    There is no DELETE policy on families, so a client can't delete a family
+    directly: the abandoned-family cleanup inside join_family_by_code is the
+    only way. So the user is placed in the family, it is emptied of
+    transactions, and they join back home by code: the RPC itself deletes it on
+    the way out.
 
-    הסדר כאן קריטי: ה-RLS על transactions מתיר מחיקה רק בתוך המשפחה של
-    המשתמש, אז המעבר חייב לקרות לפני המחיקה — אחרת היא נכשלת בשקט
-    והמשפחה שורדת עם תנועה יתומה."""
+    The order here is critical: RLS on transactions allows deleting only within
+    the user's family, so the move must happen before the delete; otherwise it
+    fails silently and the family survives with an orphan transaction."""
     _privileged(f"update public.profiles set family_id='{temp_id}' where id='{user_id}';")
     client.table("transactions").delete().eq("family_id", temp_id).execute()
     db.join_family_by_code(home_code)
@@ -56,18 +60,19 @@ def _dispose_temp_family(client, user_id, temp_id, home_code):
 
 @pytest.fixture
 def family_a_code(family_a):
-    """קוד הזמנה **טרי** של משפחה א'.
+    """A **fresh** invite code for family A.
 
-    הקוד פג אחרי שבוע (מיגרציה 20260922180000), והבדיקות האלה קראו את מה
-    שהיה שמור — אז הן עברו שבוע ונפלו ב-29.9.2026, בלי שום שינוי בקוד. כל
-    ריצה מחליפה את הקוד, כמו שמנהל משפחה אמיתי היה עושה."""
+    The code expires after a week (migration 20260922180000), and these tests
+    read whatever was stored, so they passed for a week and failed on 29.9.2026,
+    with no code change at all. Every run replaces the code, as a real family
+    manager would."""
     db.set_auth_token(family_a["token"])
     code, err = db.rotate_invite_code()
-    assert code, f"החלפת קוד ההזמנה של משפחת הבדיקה נכשלה: {err}"
+    assert code, f"replacing the test family's invite code failed: {err}"
     return code
 
 
-# ─── תצוגה מקדימה ────────────────────────────────────────────────────────────
+# ─── Preview ────────────────────────────────────────────────────────────────
 
 def test_preview_returns_the_family_name(family_a, family_a_code):
     expected = db.get_family(family_a["family_id"]).get("name")
@@ -76,14 +81,14 @@ def test_preview_returns_the_family_name(family_a, family_a_code):
 
 
 @pytest.mark.parametrize("mangle", [
-    lambda c: c.lower(),                        # אותיות קטנות
-    lambda c: f"  {c}  ",                       # רווחים מסביב
-    lambda c: f"{c[:3]}-{c[3:]}",               # מקף באמצע
-    lambda c: f" {c[:3].lower()}-{c[3:]} ",     # הכל ביחד
+    lambda c: c.lower(),                        # lower case
+    lambda c: f"  {c}  ",                       # spaces around
+    lambda c: f"{c[:3]}-{c[3:]}",               # a dash in the middle
+    lambda c: f" {c[:3].lower()}-{c[3:]} ",     # all together
 ])
 def test_preview_normalizes_a_mangled_code(family_a_code, mangle):
-    """הקוד עובר בוואטסאפ ובהקראה בטלפון — רווחים, מקפים ואותיות קטנות
-    הם המצב הרגיל ולא חריג."""
+    """The code travels over WhatsApp and is read out over the phone: spaces,
+    dashes and lower case are the normal state, not an exception."""
     expected = db.family_name_for_code(family_a_code)
 
     assert db.family_name_for_code(mangle(family_a_code)) == expected
@@ -97,7 +102,7 @@ def test_preview_returns_none_for_an_empty_code():
     assert db.family_name_for_code("") is None
 
 
-# ─── דחיית קודים שגויים ──────────────────────────────────────────────────────
+# ─── Rejecting wrong codes ──────────────────────────────────────────────────
 
 def test_join_rejects_an_unknown_code(family_a):
     before = _profile_family(family_a["user_id"])
@@ -105,8 +110,8 @@ def test_join_rejects_an_unknown_code(family_a):
     family_id, err = db.join_family_by_code("ZZZZZZ")
 
     assert family_id is None
-    assert err, "קוד שגוי חייב להחזיר שגיאה — הבליעה השקטה היא כל הבאג"
-    assert _profile_family(family_a["user_id"]) == before, "כישלון לא אמור להזיז אף אחד"
+    assert err, "a wrong code must return an error: the silent swallow is the whole bug"
+    assert _profile_family(family_a["user_id"]) == before, "a failure shouldn't move anyone"
 
 
 def test_join_rejects_an_empty_code(family_a):
@@ -117,8 +122,8 @@ def test_join_rejects_an_empty_code(family_a):
 
 
 def test_join_is_idempotent_for_the_family_you_are_already_in(family_a, family_a_code):
-    """הצטרפות למשפחה שאתה כבר חבר בה לא אמורה לשנות דבר — ובעיקר לא
-    להפעיל את ניקוי המשפחה הנטושה על המשפחה של עצמך."""
+    """Joining a family you are already a member of shouldn't change anything, and
+    above all shouldn't run the abandoned-family cleanup on your own family."""
     family_id, err = db.join_family_by_code(family_a_code)
 
     assert err is None
@@ -126,18 +131,20 @@ def test_join_is_idempotent_for_the_family_you_are_already_in(family_a, family_a
     assert _profile_family(family_a["user_id"]) == family_a["family_id"]
 
 
-# ─── ההצטרפות עצמה + ניקוי המשפחה הנטושה ─────────────────────────────────────
+# ─── The join itself + cleaning up the abandoned family ─────────────────────
 
 def test_join_moves_the_user_and_deletes_the_family_left_behind(family_a, family_a_code):
-    """המסלול המלא, ובתוכו הסעיף שמונע הצטברות זבל.
+    """The full route, and within it the clause that prevents junk piling up.
 
-    בכניסה הראשונה ensure_family פותח לכל משתמש משפחה משלו, כך שמצטרף תמיד
-    נוטש משפחה ריקה. בלי הניקוי כל הצטרפות מוצלחת הייתה משאירה עוד שורת
-    "המשפחה שלי" יתומה — בדיוק מה שהצטבר בטבלה עד היום.
+    On first sign-in ensure_family opens a family for every user, so a joiner
+    always abandons an empty family. Without the cleanup every successful join
+    would leave behind another orphan "המשפחה שלי" row: exactly what piled up in
+    the table until now.
 
-    כדי לבדוק את זה בלי לסכן את משפחת הבדיקה עצמה, מקימים משפחה זמנית,
-    מעבירים אליה את המשתמש ישירות (לא דרך ה-RPC), ואז מצרפים אותו חזרה
-    בקוד — כך שהמשפחה שנוטשת ונמחקת היא הזמנית ולא האמיתית."""
+    To test this without risking the test family itself, a temporary family is
+    set up, the user is moved to it directly (not through the RPC), and then
+    joined back by code, so the family abandoned and deleted is the temporary
+    one and not the real one."""
     client    = db.get_client()
     temp_id   = str(uuid.uuid4())
     temp_code = "TST" + uuid.uuid4().hex[:3].upper()
@@ -147,40 +154,45 @@ def test_join_moves_the_user_and_deletes_the_family_left_behind(family_a, family
                 f"values ('{temp_id}','משפחה זמנית לבדיקה','{temp_code}');")
 
     try:
-        # מעבירים ישירות, כדי שהמעבר-בחזרה יהיה זה שנבדק
+        # Move directly, so the move back is the one being tested
         _privileged(f"update public.profiles set family_id='{temp_id}' "
                     f"where id='{family_a['user_id']}';")
         assert _profile_family(family_a["user_id"]) == temp_id
 
         family_id, err = db.join_family_by_code(family_a_code)
 
-        assert err is None, f"ההצטרפות נכשלה: {err}"
+        assert err is None, f"the join failed: {err}"
         assert family_id == original
         assert _profile_family(family_a["user_id"]) == original
 
-        # המשפחה הזמנית נותרה בלי חברים ובלי תנועות, ולכן אמורה להימחק.
-        # בודקים דרך ה-RPC ולא ב-SELECT: אחרי המעבר אין למשתמש הרשאת קריאה
-        # על המשפחה הזמנית, אבל family_name_for_code הוא security definer.
+        # The temporary family is left with no members and no transactions, so it
+        # should be deleted. Checked through the RPC and not a SELECT: after the
+        # move the user has no read access to the temporary family, but
+        # family_name_for_code is security definer.
         assert db.family_name_for_code(temp_code) is None, \
-            "המשפחה הנטושה לא נמחקה — כל הצטרפות תשאיר מעכשיו שורת זבל"
+            "the abandoned family wasn't deleted: every join will now leave a junk row"
     finally:
-        # משחזרים גם אם נפלנו באמצע, כדי לא להשאיר את חשבון הבדיקה תלוי באוויר.
-        # אם ה-RPC כבר מחק את המשפחה הזמנית — הניקוי הזה פשוט לא ימצא מה לעשות.
+        # Restore even if we failed midway, so as not to leave the test account
+        # hanging. If the RPC already deleted the temporary family, this cleanup
+        # just finds nothing to do.
         if db.family_name_for_code(temp_code) is not None:
             _dispose_temp_family(client, family_a["user_id"], temp_id, family_a_code)
         _privileged(f"update public.profiles set family_id='{original}' "
                     f"where id='{family_a['user_id']}';")
-        # והמשפחה הזמנית עצמה, אם שרדה, יחד עם הארכיון של העסקה שבה. בלי
-        # זה כל ריצה השאירה במסד הייצור משפחה ריקה ושורת ארכיון "join test"
-        # — עד 4.10 הצטברו 8 משפחות ו-252 שורות כאלה.
+        # And the temporary family itself, if it survived, together with the
+        # archive of its transaction. Without this every run left an empty family
+        # and a "join test" archive row in the production database: by 4.10, 8
+        # such families and 252 rows had piled up.
         _test_accounts.purge([], extra_family_ids=[temp_id])
 
 
 def test_join_keeps_a_family_that_still_holds_transactions(family_a, family_a_code):
-    """בקרת-נגד לניקוי: משפחה שיש בה היסטוריה לא נמחקת גם כשהחבר האחרון עוזב.
+    """A control for the cleanup: a family with history isn't deleted even when the
+    last member leaves.
 
-    זה הסעיף שמפריד בין "ניקוי זבל" ל"איבוד נתונים", ולכן חייב כיסוי משלו.
-    שוב דרך משפחה זמנית — הפעם כזו שמחזיקה תנועה אחת."""
+    This is the clause that separates "cleaning junk" from "losing data", so it
+    needs its own coverage. Again through a temporary family, this time one that
+    holds one transaction."""
     client    = db.get_client()
     temp_id   = str(uuid.uuid4())
     temp_code = "TST" + uuid.uuid4().hex[:3].upper()
@@ -205,12 +217,13 @@ def test_join_keeps_a_family_that_still_holds_transactions(family_a, family_a_co
         assert err is None
         assert family_id == original
         assert db.family_name_for_code(temp_code) is not None, \
-            "משפחה עם תנועות נמחקה — זה איבוד נתונים, לא ניקוי"
+            "a family with transactions was deleted: that is data loss, not cleanup"
     finally:
         _dispose_temp_family(client, family_a["user_id"], temp_id, family_a_code)
         _privileged(f"update public.profiles set family_id='{original}' "
                     f"where id='{family_a['user_id']}';")
-        # והמשפחה הזמנית עצמה, אם שרדה, יחד עם הארכיון של העסקה שבה. בלי
-        # זה כל ריצה השאירה במסד הייצור משפחה ריקה ושורת ארכיון "join test"
-        # — עד 4.10 הצטברו 8 משפחות ו-252 שורות כאלה.
+        # And the temporary family itself, if it survived, together with the
+        # archive of its transaction. Without this every run left an empty family
+        # and a "join test" archive row in the production database: by 4.10, 8
+        # such families and 252 rows had piled up.
         _test_accounts.purge([], extra_family_ids=[temp_id])

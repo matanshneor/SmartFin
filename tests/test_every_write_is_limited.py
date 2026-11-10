@@ -1,8 +1,8 @@
-"""כל פעולה שכותבת נתונים מוגבלת בקצב (סקירה של 1.10).
+"""Every action that writes data is rate-limited (review of 1.10).
 
-ה-README הבטיח את זה, ו-13 פעולות לא היו מוגבלות — כל הפרויקטים, סידור
-הקטגוריות, בדיקת הכפילות, סיום האשף. הבדיקה עוברת על כל המסלולים, כך
-שמסלול חדש בלי הגבלה ייתפס מיד.
+The README promised this, and 13 actions weren't limited: all of projects,
+category reordering, the duplicate check, finishing the wizard. The test goes
+over every route, so a new route without a limit is caught immediately.
 """
 import re
 from pathlib import Path

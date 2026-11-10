@@ -1,12 +1,15 @@
-"""מי רשם כל עסקה — ו"החזר להיות אישי" שאומר מראש מה ייעלם ממי.
+"""Who recorded each transaction, and "make personal again" that says upfront
+what will disappear from whom.
 
-החלטת מתן (28.9.2026): פרויקט שחוזר להיות אישי הוא רק של מי שפתח אותו.
-העסקאות שבני משפחה אחרים רשמו בו נשארות, עם סימן "נרשם ע״י אור", והאישור
-אומר לפני: "אור רשם כאן 10 עסקאות".
+Matan's decision (28.9.2026): a project that goes back to being personal belongs
+only to whoever opened it. The transactions other family members recorded in it
+stay, with a "נרשם ע״י אור" mark, and the confirmation says beforehand: "אור
+רשם כאן 10 עסקאות".
 
-עד היום לא היה מקום שיודע מי *רשם* עסקה — רק ‎user_id‎, "של מי הכסף",
-שמתאפס כשפרויקט הופך למשותף. העמודה ‎created_by‎ מתמלאת במסד
-(‎default auth.uid()‎; נבדק בסימולציה על המסד האמיתי).
+Until now nothing knew who *recorded* a transaction: only `user_id`, "whose
+money", which is reset when a project becomes shared. The `created_by` column is
+filled in the database (`default auth.uid()`; checked in a simulation on the real
+database).
 """
 import pytest
 
@@ -41,7 +44,8 @@ def test_the_warning_names_who_entered_what():
 
 
 def test_no_warning_when_nobody_else_entered_anything():
-    """לא ידוע (‎None‎) אינו "מישהו אחר" — עסקאות מלפני השינוי לא נספרות."""
+    """Unknown (`None`) isn't "someone else": transactions from before the change
+    aren't counted."""
     project = {"transactions": [_tx(1, _ME), _tx(2, None)]}
 
     assert app_module._others_contributions(project, _ME, _NAMES) == ""
@@ -55,7 +59,7 @@ def test_the_field_reaches_the_screen():
     assert rows[0]["created_by"] == _OR
 
 
-# ─── הסימן בעמוד הפרויקט ─────────────────────────────────────────────────────
+# ─── The mark on the project page ───────────────────────────────────────────
 
 @pytest.fixture
 def page(monkeypatch):
@@ -88,7 +92,7 @@ def page(monkeypatch):
 
 def _row(html, description):
     i = html.index(description)
-    # השורות הן ‎<div class="cat-tx-row">‎ (לא ‎<li>‎ — VoiceOver, 13.10)
+    # The rows are `<div class="cat-tx-row">` (not `<li>`: VoiceOver, 13.10)
     return html[html.rindex('class="cat-tx-row', 0, i):html.index("</div>", i)]
 
 
@@ -96,10 +100,11 @@ def test_a_personal_project_marks_what_someone_else_entered(page):
     html = page(owner_id=_ME)
 
     assert "נרשמה ע״י אור" in _row(html, "קבלן")
-    assert "נרשמה ע״י" not in _row(html, "צבע"), "מה שרשמתי בעצמי לא צריך סימן"
-    assert "נרשמה ע״י" not in _row(html, "ישנה"), "לא ידוע אינו מישהו אחר"
+    assert "נרשמה ע״י" not in _row(html, "צבע"), "what I recorded myself doesn't need a mark"
+    assert "נרשמה ע״י" not in _row(html, "ישנה"), "unknown isn't someone else"
 
 
 def test_a_shared_project_has_no_marks(page):
-    """בפרויקט משותף כולם רושמים — הסימן נועד לפרויקט שחזר להיות אישי."""
+    """In a shared project everyone records: the mark is meant for a project that
+    went back to being personal."""
     assert "נרשם ע״י" not in page(owner_id=None)

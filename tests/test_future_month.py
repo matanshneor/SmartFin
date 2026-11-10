@@ -1,13 +1,16 @@
-"""חודש עתידי והחודש הנוכחי — מה מופיע בהם.
+"""A future month and the current month: what appears in them.
 
-החודש הנוכחי (מתן, 4.10 — ונשאר כך ב-1.11): עסקה קבועה מופיעה רק מהיום שהיא
-יורדת, כשהמנוע יוצר אותה כעסקה אמיתית.
+The current month (Matan, 4.10, and still so on 1.11): a recurring transaction
+appears only from the day it is charged, when the engine creates it as a real
+transaction.
 
-חודש עתידי (מתן, 1.11): העסקאות הקבועות הצפויות בו מופיעות ונספרות בסיכומים,
-עד שהסדרה נגמרת — "כמו תחזית". מסומנות "צפוי" ולא נפתחות לעריכה.
-(4.10–1.11 גם חודש עתידי לא הציג אותן.)
+A future month (Matan, 1.11): the recurring transactions expected in it appear
+and are counted in the totals, until the series ends, "like a forecast". Marked
+"expected" and not opened for editing. (From 4.10 to 1.11 a future month didn't
+show them either.)
 
-עסקה שהוזנה ידנית בתאריך עתידי היא שורה רגילה: מופיעה, נספרת, נפתחת לעריכה.
+A transaction entered by hand with a future date is an ordinary row: it appears,
+is counted, and opens for editing.
 """
 import datetime
 
@@ -62,9 +65,9 @@ def month_page(monkeypatch):
 
 
 def test_the_current_month_shows_nothing_before_its_date(month_page, monkeypatch):
-    """החודש הנוכחי — כמו קודם: לא שואלים בכלל על מופעים צפויים."""
+    """The current month, as before: no question at all about projected occurrences."""
     monkeypatch.setattr(db, "projected_recurring_rows",
-                        lambda *a, **k: pytest.fail("החודש הנוכחי לא מציג צפויים"))
+                        lambda *a, **k: pytest.fail("the current month doesn't show projected ones"))
     html = month_page([], "/month")
 
     assert "empty-state" in html
@@ -80,7 +83,7 @@ def test_a_future_month_shows_and_counts_what_is_expected(month_page, monkeypatc
 
     assert asked == [(_FAM, _ME, 2026, 11)]
     assert "₪5,500" in html and "צפוי" in html
-    # עוד לא עסקה — אין מה לפתוח
+    # not a transaction yet: nothing to open
     assert 'data-id="projected-rent-2026-11-15"' not in html
 
 
@@ -89,12 +92,12 @@ def test_a_one_time_future_transaction_shows_in_its_month(month_page):
     html = month_page([trip], "/month?year=2026&month=11")
 
     assert "₪1,400" in html and "20.11" in html
-    # עסקה אמיתית — נפתחת לעריכה
+    # a real transaction: opens for editing
     assert 'data-id="trip"' in html
 
 
 
-# ─── החישוב עצמו ────────────────────────────────────────────────────────────
+# ─── The calculation itself ─────────────────────────────────────────────────
 
 class _Templates:
     def __init__(self, rows): self.rows = rows

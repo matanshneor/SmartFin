@@ -1,12 +1,14 @@
-"""מי שהמשפחה שלו השתנתה מאחורי הגב לא נתקע על דף תקלה.
+"""Whoever's family changed behind their back doesn't get stuck on an error page.
 
-הסשן זוכר את המשפחה מרגע ההתחברות. מי שהוסר מהמשפחה — או יצא ממנה
-במכשיר אחר — ממשיך לשלוח את המזהה הישן, והמסד כבר לא עונה עליו: כמעט
-כל מסך הפך ל"לא הצלחנו לטעון את הנתונים. נסו לרענן", ורענון לא עזר.
-עד שהתנתק והתחבר מחדש.
+The session remembers the family from the moment of sign-in. Whoever was removed
+from the family (or left it on another device) keeps sending the old id, and the
+database no longer answers for it: almost every screen became "we couldn't load
+the data. Try refreshing", and refreshing didn't help. Until they signed out and
+in again.
 
-אין בדיקה נוספת בשימוש רגיל. רק כשהשליפה כבר נכשלה, לפני דף התקלה,
-נשאלת שאלה אחת: האם המשתמש עדיין במשפחה שבסשן?
+There is no extra check in normal use. Only when the query has already failed,
+before the error page, one question is asked: is the user still in the family in
+the session?
 """
 import json
 
@@ -31,7 +33,7 @@ def client(monkeypatch):
     limiter.reset()
     app.config["TESTING"] = True
     monkeypatch.setattr(db, "set_auth_token", lambda t: None)
-    # השליפה של המסלול נכשלת — כמו שהיא נכשלת למי שהוסר
+    # The route's query fails, as it fails for whoever was removed
     monkeypatch.setattr(db, "get_family_members", _broken)
     with app.test_client() as c:
         with c.session_transaction() as sess:
@@ -68,7 +70,7 @@ def test_an_api_call_says_the_family_changed_and_fixes_the_session(client, monke
 def test_a_page_goes_home_with_a_notice(client, monkeypatch):
     _profile_in(monkeypatch, _NEW)
     monkeypatch.setattr(db, "materialize_recurring", lambda fid: (0, True))
-    monkeypatch.setattr(db, "fetch_month_page", _broken)    # עמוד החודש של מי שהוסר
+    monkeypatch.setattr(db, "fetch_month_page", _broken)    # the month page of someone who was removed
 
     r = client.get("/month")
 
@@ -79,7 +81,7 @@ def test_a_page_goes_home_with_a_notice(client, monkeypatch):
 
 
 def test_the_same_family_is_an_ordinary_failure(client, monkeypatch):
-    """בקרת-נגד: תקלה אמיתית נשארת תקלה — לא מפנים ולא נוגעים בסשן."""
+    """Control: a real failure stays a failure: no redirect and the session isn't touched."""
     _profile_in(monkeypatch, _OLD)
 
     r = client.get("/api/family/members")
@@ -89,7 +91,7 @@ def test_the_same_family_is_an_ordinary_failure(client, monkeypatch):
 
 
 def test_a_failed_profile_read_changes_nothing(client, monkeypatch):
-    """"לא הצלחתי לבדוק" אינו "המשפחה השתנתה"."""
+    """"Couldn't check" isn't "the family changed"."""
     _profile_in(monkeypatch, None, ok=False)
 
     r = client.get("/api/family/members")
@@ -99,7 +101,7 @@ def test_a_failed_profile_read_changes_nothing(client, monkeypatch):
 
 
 def test_nothing_is_checked_when_nothing_failed(client, monkeypatch):
-    """הבטחה למתן: בשימוש רגיל אין שום שאילתה נוספת."""
+    """A promise to Matan: in normal use there isn't a single extra query."""
     calls = _profile_in(monkeypatch, _NEW)
     monkeypatch.setattr(db, "get_family_members", lambda fid: [])
 
@@ -108,7 +110,7 @@ def test_nothing_is_checked_when_nothing_failed(client, monkeypatch):
 
 
 def test_the_notice_is_shown_once():
-    """ההודעה יושבת בסשן עד שעמוד מציג אותה — ואז נעלמת."""
+    """The message sits in the session until a page shows it, and then disappears."""
     from flask import render_template, session
     with app.test_request_context():
         session["sf_notice"] = "המשפחה שלך השתנתה"

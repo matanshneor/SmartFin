@@ -1,20 +1,22 @@
-"""חמישה תיקוני חזית, שכל אחד מהם היה שקט ובלתי נראה עד שמישהו נתקל בו.
+"""Five frontend fixes, each of which was silent and invisible until someone
+ran into it.
 
-**ג1 — קבלה שנדבקת לעסקה הלא נכונה.** ‎resetScanUI‎ לא ניקתה את
-‎txReceiptPath‎, ורק ‎resetForm‎ (שרצה רק מ-‎openAddModal‎) עשתה זאת.
-סריקה שננטשה השאירה נתיב בשדה, וכל עריכה אחרת שלחה אותו יחד איתה.
+**C1: a receipt that sticks to the wrong transaction.** `resetScanUI` didn't
+clear `txReceiptPath`; only `resetForm` (which runs only from `openAddModal`)
+did. An abandoned scan left a path in the field, and any other edit sent it along.
 
-**ג3 — עמוד ההתחברות מציג שני טפסים.** ‎showTab‎ לא נגעה ב-‎forgotPanel‎,
-אז מעבר בין לשוניות אחרי "שכחתי סיסמה" הציג טופס איפוס מעל טופס אחר.
+**C3: the sign-in page shows two forms.** `showTab` didn't touch `forgotPanel`,
+so switching tabs after "forgot password" showed a reset form above another form.
 
-**ג4 — ‎.zero-toggle‎ מת במקלדת.** מוכרז ‎role="button" tabindex="0"‎
-וטופל ב-‎click‎ בלבד — אלמנט שאינו ‎<button>‎ לא מייצר click מ-Enter.
+**C4: `.zero-toggle` dead on the keyboard.** Declared `role="button"
+tabindex="0"` and handled on `click` only: an element that isn't a `<button>`
+doesn't produce a click from Enter.
 
-**ג5 — הצליל לא ניתן לכיבוי.** דלת המילוט הייתה בקוד; שום דבר לא כתב
-אליה.
+**C5: the sound couldn't be turned off.** The escape hatch was in the code;
+nothing wrote to it.
 
-**ג9 — הפס בדשבורד משקר בחודש הראשון.** ‎income == 0‎ הציג "נוצלו 0%
-מההכנסות" ליד מינוס אדום — בדיוק המסך הראשון של משתמש חדש.
+**C9: the dashboard bar lies in the first month.** `income == 0` showed "used 0%
+of income" next to a red minus: exactly a new user's first screen.
 """
 import re
 from pathlib import Path
@@ -33,29 +35,30 @@ def _read(rel):
 
 
 def _strip_comments(js):
-    """בלי זה, הערה שמסבירה למה לא עושים משהו נספרת כעשייה שלו — בדיוק
-    מה שהחמיץ שלוש מהמוטציות כאן בפעם הראשונה: התיעוד של התיקון הכיל
-    את אותה מילת מפתח שהבדיקה חיפשה בקוד עצמו."""
+    """Without this, a comment explaining why something isn't done counts as doing
+    it: exactly what let three of the mutations here slip through the first time:
+    the fix's documentation contained the same keyword the test searched for in
+    the code itself."""
     js = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
     return re.sub(r"^\s*//.*$", "", js, flags=re.M)
 
 
-# ─── ג1: הקבלה לא נדבקת לעסקה הלא נכונה ──────────────────────────────────────
+# ─── C1: the receipt doesn't stick to the wrong transaction ─────────────────
 
 def test_reset_scan_ui_clears_the_receipt_path():
-    """הלב. אם זה עדיין לא קורה כאן, סריקה שננטשה מדביקה את הקובץ
-    שלה לעסקה הבאה שנפתחת לעריכה."""
+    """The heart. If this still doesn't happen here, an abandoned scan sticks its
+    file onto the next transaction opened for editing."""
     js = _read("frontend/static/js/transactions.js")
     fn = js[js.index("function resetScanUI()"):]
     fn = fn[:fn.index("\n    }")]
 
     assert "txReceiptPath.value = ''" in fn, \
-        "resetScanUI לא מנקה את txReceiptPath — קבלה תידבק לעסקה אחרת"
+        "resetScanUI doesn't clear txReceiptPath: a receipt will stick to another transaction"
 
 
 def test_close_modal_goes_through_reset_scan_ui():
-    """בקרת-נגד: ‎closeModal‎ הוא המסלול שרץ בכל סגירה — כולל ✕ על
-    סריקה — והוא חייב לקרוא לפונקציה שמנקה."""
+    """Control: `closeModal` is the path that runs on every close (including ✕ on a
+    scan), and it must call the function that clears."""
     js = _read("frontend/static/js/transactions.js")
     fn = js[js.index("function closeModal()"):]
     fn = fn[:fn.index("\n    }")]
@@ -63,7 +66,7 @@ def test_close_modal_goes_through_reset_scan_ui():
     assert "resetScanUI()" in fn
 
 
-# ─── ג3: עמוד ההתחברות לא מציג שני טפסים ─────────────────────────────────────
+# ─── C3: the sign-in page doesn't show two forms ────────────────────────────
 
 def test_switching_tabs_hides_the_forgot_password_panel():
     js = _strip_comments(_read("frontend/static/js/login.js"))
@@ -71,26 +74,26 @@ def test_switching_tabs_hides_the_forgot_password_panel():
     fn = fn[:fn.index("\n    }")]
 
     assert re.search(r"forgotPanel.*style\.display\s*=\s*['\"]none['\"]", fn, re.S), \
-        "showTab לא סוגר את מסך שכחתי-סיסמה — שני טפסים יוצגו יחד"
+        "showTab doesn't close the forgot-password screen: two forms will be shown together"
 
 
-# ─── ג4: .zero-toggle מגיב למקלדת ────────────────────────────────────────────
+# ─── C4: .zero-toggle responds to the keyboard ──────────────────────────────
 
 def test_zero_toggle_responds_to_the_keyboard():
-    """‎role="button" tabindex="0"‎ בלי מאזין ל-Enter/Space הוא שקר
-    לקורא מסך: הוא מוכרז ככפתור ולא עושה כלום."""
+    """`role="button" tabindex="0"` with no Enter/Space listener is a lie to the
+    screen reader: it is announced as a button and does nothing."""
     js = _strip_comments(_read("frontend/static/js/month.js"))
     keydown = js[js.index("document.addEventListener('keydown'"):]
     keydown = keydown[:keydown.index("\n});") + 4]
 
     assert re.search(r"closest\(['\"]\.zero-toggle['\"]\)", keydown), \
-        "אין קוד שמאתר .zero-toggle במטפל המקלדת"
+        "no code locates .zero-toggle in the keyboard handler"
     assert re.search(r"zero\.click\(\)", keydown), \
-        "אין טיפול במקלדת ל-.zero-toggle — תחנת Tab שלא עושה כלום"
+        "no keyboard handling for .zero-toggle: a Tab stop that does nothing"
 
 
 def test_zero_toggle_still_marked_as_a_button_in_the_template():
-    """בקרת-נגד: אם הסימון ירד, הבדיקה למעלה תבדוק דבר שלא קיים."""
+    """Control: if the markup is removed, the test above checks something that doesn't exist."""
     for tpl in ("month.html",):
         html = _read(f"frontend/templates/{tpl}")
         assert 'class="zero-toggle"' in html
@@ -98,108 +101,113 @@ def test_zero_toggle_still_marked_as_a_button_in_the_template():
         assert 'role="button"' in block and 'tabindex="0"' in block
 
 
-# ─── ג5: הצליל ניתן לכיבוי ────────────────────────────────────────────────────
-# הצליל עצמו הוסר (מתן, 11.10) — ראו ‎test_dark_mode.test_there_is_no_sound_and_so_no_sound_toggle‎.
+# ─── C5: the sound can be turned off ────────────────────────────────────────
+# The sound itself was removed (Matan, 11.10); see
+# `test_dark_mode.test_there_is_no_sound_and_so_no_sound_toggle`.
 
 
-# ─── ג9: הפס בדשבורד לא משקר בחודש הראשון ────────────────────────────────────
+# ─── C9: the dashboard bar doesn't lie in the first month ───────────────────
 
 def test_the_progress_bar_does_not_render_without_income():
-    """‎used_pct = 0‎ כש-‎income == 0‎ הוא ערך ברירת מחדל, לא עובדה. הפס
-    לא אמור להתקיים כשאין ממה לחשב אחוז."""
+    """`used_pct = 0` when `income == 0` is a default value, not a fact. The bar
+    shouldn't exist when there is nothing to compute a percentage from."""
     html = _read("frontend/templates/index.html")
     bar_block = html[html.index('<div class="hero-bar">') - 200:
                      html.index('<div class="hero-bar">') + 900]
 
     assert "summary.income > 0" in bar_block, \
-        "הפס מוצג גם כש-income הוא 0 — 'נוצלו 0%' ליד מינוס אדום"
+        "the bar is shown even when income is 0: 'used 0%' next to a red minus"
 
 
 def test_a_message_explains_the_missing_bar_instead_of_showing_nothing():
-    """מתן (1.11): "עדיין לא הוזנו הכנסות החודש" מספיק — השורה השנייה,
-    "הוסיפו הכנסה כדי לראות איך התחלק החודש", ירדה."""
+    """Matan (1.11): "no income entered this month yet" is enough; the second line,
+    "add income to see how the month was split", was removed."""
     html = _read("frontend/templates/index.html")
     assert "עדיין לא הוזנו הכנסות החודש" in html
     assert "הוסיפו הכנסה" not in html
 
 
-# ─── ג2: כשל שרת בעסקה הראשונה לא מוחק את מה שהוקלד ──────────────────────────
+# ─── C2: a server failure on the first transaction doesn't wipe what was typed ─
 
 def test_a_server_error_reopens_the_modal_when_it_was_closed_optimistically():
-    """בכשל **רשת** החלון כבר נפתח מחדש; בכשל **שרת** זה פוספס באותה
-    נקודה בדיוק — הענף שמטפל ב-‎data.error‎. השדות לא מתאפסים אף פעם
-    (‎closeModal‎ לא נוגע בהם), אז הבעיה היחידה הייתה שאין דרך לחזור
-    אליהם מלבד ה-FAB, ש-‎openAddModal‎ מנקה."""
+    """On a **network** failure the sheet already reopened; on a **server** failure
+    this was missed at exactly the same point: the branch handling `data.error`.
+    The fields are never reset (`closeModal` doesn't touch them), so the only
+    problem was that there was no way back to them except the FAB, which
+    `openAddModal` clears."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     err_branch = js[js.index("if (data.error) {"):]
     err_branch = err_branch[:err_branch.index("\n            }")]
 
     assert re.search(r"if\s*\(placeholderRow\)\s*\{[^}]*reopenAfterFailure\(\)", err_branch, re.S), \
-        "כשל שרת לא פותח מחדש את המודאל כשהוא נסגר אופטימית"
+        "a server failure doesn't reopen the modal when it was closed optimistically"
 
 
 def test_the_network_failure_path_still_reopens_too():
-    """בקרת-נגד: התיקון הקודם (כשל רשת) לא נדרס. מעוגן מתחילת שרשרת
-    השמירה (‎send(false)‎) כי הקובץ מכיל כמה ‎.catch‎ אחרים שאינם קשורים."""
+    """Control: the previous fix (network failure) wasn't overwritten. Anchored from
+    the start of the save chain (`send(false)`) because the file contains several
+    other unrelated `.catch`es."""
     import re
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     chain = js[js.index("send(false)"):]
-    # העוגן היה "הקריאה הראשונה ל-‎sfNetError‎", וזה הפסיק להיות נכון
-    # כש"עדכן להבא" התחיל להציג כשל רשת משלו. ה-catch החיצוני מזוהה
-    # עכשיו במה שמייחד אותו: הוא מסיר את שורת הביניים ופותח את החלון.
-    # ובתוכו, לפני, ענף לטופס שכבר הוחלף (הוספה רצופה) — אז "מיד אחרי" הפך ל"בתוך"
+    # The anchor used to be "the first call to `sfNetError`", and that stopped
+    # being true when "update from now on" started showing its own network
+    # failure. The outer catch is now identified by what is unique to it: it
+    # removes the in-between row and opens the sheet.
+    # And inside it, before, a branch for a form already replaced (adding in a
+    # row), so "right after" became "inside"
     assert re.search(r"\.catch\(function \(\) \{[\s\S]{0,400}?if \(placeholderRow\) \{\s*"
                      r"placeholderRow\.remove\(\);\s*reopenAfterFailure\(\);", chain)
 
 
-# ─── ג6: אין יותר דיאלוג של הדפדפן ──────────────────────────────────────────
+# ─── C6: no more browser dialogs ────────────────────────────────────────────
 
 def test_no_javascript_file_uses_the_browsers_own_confirm():
-    """האפליקציה בנתה דיאלוג משלה, והייתה קריאה אחת ל-‎confirm‎ המקומי —
-    דווקא על מעבר משפחה, שמנתק אותך מכל העסקאות שלך. ב-PWA מותקן הוא
-    מרונדר עם שם המארח מעליו, משמאל לימין ובלי עיצוב: הרגע שבו
-    האפליקציה נראית הכי פחות כמו עצמה."""
+    """The app built its own dialog, and there was one call to the native `confirm`,
+    on switching family of all things, which cuts you off from all your
+    transactions. In an installed PWA it is rendered with the host name above it,
+    left to right and with no styling: the moment the app looks least like itself."""
     offenders = []
     for f in sorted(_JS.glob("*.js")):
         code = _strip_comments(f.read_text(encoding="utf-8"))
         if re.search(r"(?<![.\w])confirm\s*\(", code):
             offenders.append(f.name)
 
-    assert not offenders, f"דיאלוג דפדפן ב: {offenders}"
+    assert not offenders, f"a browser dialog in: {offenders}"
 
 
 def test_the_family_switch_still_asks_before_it_moves_you():
-    """בקרת-נגד: החלפת הדיאלוג לא הפכה אותה לפעולה בלי אישור."""
+    """Control: replacing the dialog didn't turn it into an action without confirmation."""
     js = _strip_comments(_read("frontend/static/js/settings.js"))
 
     assert "appConfirm" in js
     assert "לעבור למשפחה אחרת?" in js
 
 
-# ─── ג10: פרטים קטנים שכל אחד מהם נראה כמו באג ──────────────────────────────
+# ─── C10: small details, each of which looks like a bug ─────────────────────
 
 @pytest.mark.parametrize("tpl", ["project_detail.html", "project_edit.html"])
 def test_the_back_chevron_points_the_right_way_in_rtl(tpl):
-    """קודקוד ב-x=9 פירושו חץ שמצביע שמאלה, ובעברית שמאלה היא "קדימה" —
-    שני העמודים האלה השתמשו בגליף של "הבא" בשביל "חזרה"."""
+    """A vertex at x=9 means an arrow pointing left, and in Hebrew left is
+    "forward": these two pages used the "next" glyph for "back"."""
     html = _read(f"frontend/templates/{tpl}")
     back = html[:html.index("</a>")]
 
-    assert '"15 18 9 12 15 6"' not in back, "חץ ה'חזרה' מצביע קדימה"
+    assert '"15 18 9 12 15 6"' not in back, "the 'back' arrow points forward"
 
 
 def test_the_profile_rows_do_not_grow_emoji_on_save():
-    """השרת מרנדר ‎{{ m.phone }}‎ נקי; ה-JS הוסיף "📞 " בשמירה. השורה
-    השתנתה בשמירה וחזרה לעצמה ברענון — נראה כמו באג תצוגה דווקא במסך
-    שכל תפקידו להיראות אמין."""
+    """The server renders `{{ m.phone }}` clean; the JS added "📞 " on save. The row
+    changed on save and went back on refresh: it looks like a display bug, on
+    exactly the screen whose whole job is to look trustworthy."""
     js = _strip_comments(_read("frontend/static/js/settings.js"))
 
     assert "'📞 '" not in js and "'💼 '" not in js
 
 
 def test_the_confirm_dialog_announces_what_it_is_asking():
-    """בלי זה קורא מסך הכריז "ביטול, לחצן, דיאלוג" — כולל על "למחוק את
-    החשבון לצמיתות?"."""
+    """Without this a screen reader announced "cancel, button, dialog", including
+    for "permanently delete the account?"."""
     html = _read("frontend/templates/base.html")
     dialog = html[html.index('id="confirmOverlay"') - 200:][:400]
 
@@ -208,32 +216,32 @@ def test_the_confirm_dialog_announces_what_it_is_asking():
 
 
 def test_the_copy_button_keeps_its_own_label():
-    """אחרי העתקה מוצלחת התווית שוחזרה ל-'העתק קוד' בזמן שבתבנית כתוב
-    'העתק הזמנה' — הכפתור שינה את שמו בשקט."""
+    """After a successful copy the label was restored to 'העתק קוד' while the
+    template says 'העתק הזמנה': the button silently renamed itself."""
     js = _read("frontend/static/js/onboarding.js")
     html = _read("frontend/templates/onboarding.html")
 
     label = re.search(r'id="copyInviteBtn"[^>]*>([^<]+)<', html).group(1).strip()
-    assert f"'{label}'" in js, f"ה-JS משחזר תווית אחרת מ-{label!r}"
+    assert f"'{label}'" in js, f"the JS restores a label other than {label!r}"
 
 
 def test_the_signup_tab_does_not_welcome_you_back():
-    """הכותרת קבועה ונשארת גם בלשונית ההרשמה: "ברוך הבא", לשון
-    יחיד-זכר, למי שמעולם לא היה כאן."""
-    # על התוכן המרונדר, לא על צורת התגית: הגרסה הראשונה של הבדיקה חיפשה
-    # ‎<h2>ברוך הבא</h2>‎ בזמן שבמציאות יש שם ‎class‎ — כלומר היא עברה
-    # בלי שהתיקון בכלל הוחל.
+    """The heading is fixed and stays on the signup tab too: "ברוך הבא", masculine
+    singular, for someone who was never here."""
+    # On the rendered content, not the tag's form: the first version of the test
+    # looked for `<h2>ברוך הבא</h2>` while in reality there is a `class` there,
+    # i.e. it passed without the fix being applied at all.
     html = re.sub(r"\{#.*?#\}", "", _read("frontend/templates/login.html"), flags=re.S)
 
-    assert "ברוך הבא" not in html, "לשונית ההרשמה מקבלת בברכה מישהו שחוזר"
+    assert "ברוך הבא" not in html, "the signup tab welcomes someone who is coming back"
     assert "ברוכים הבאים" in html
 
 
 def test_every_delete_chain_handles_a_dropped_connection():
-    """בלי ‎.catch‎ השורה נשארת על המסך בלי שום הודעה, והמשתמש לוחץ ✕
-    שוב ושוב."""
-    # מחיקת קטגוריה (משפחה ופרויקט) עוברת דרך עוזר אחד ב-core.js
-    # (עמוד עריכת הפרויקט רק שואל, ומוחק בשמירה — מתן, 9.10)
+    """Without `.catch` the row stays on screen with no message at all, and the user
+    taps ✕ again and again."""
+    # Deleting a category (family and project) goes through one helper in
+    # core.js (the project edit page only asks, and deletes on save: Matan, 9.10)
     assert "window.sfDeleteCategory(" in _read("frontend/static/js/settings.js")
     assert "window.sfAskCategoryDeletion(" in _read("frontend/static/js/project-edit.js")
     js = _strip_comments(_read("frontend/static/js/core.js"))
@@ -244,8 +252,8 @@ def test_every_delete_chain_handles_a_dropped_connection():
 
 
 def test_local_storage_is_never_touched_unguarded():
-    """‎core.js‎ כבר נפל ככה פעם: ב-Safari עם עוגיות חסומות הקריאה
-    **זורקת**, ובשורה הראשונה של IIFE היא הורגת את כל הקובץ."""
+    """`core.js` already fell over like this once: in Safari with cookies blocked
+    the call **throws**, and in the first line of an IIFE it kills the whole file."""
     offenders = []
     for f in sorted(_JS.glob("*.js")):
         code = _strip_comments(f.read_text(encoding="utf-8"))
@@ -254,12 +262,13 @@ def test_local_storage_is_never_touched_unguarded():
             if "try" not in window:
                 offenders.append(f"{f.name}:{code[:m.start()].count(chr(10)) + 1}")
 
-    assert not offenders, f"גישה לא מוגנת ל-localStorage: {offenders}"
+    assert not offenders, f"unguarded access to localStorage: {offenders}"
 
 
 def test_duplicating_a_transaction_restores_the_scan_button():
-    """כפתור הסריקה מוסתר במצב עריכה, ושכפול מנקה את ‎editId‎ בלי לרענן
-    אותו — השורה המשוכפלת נפתחה בלי אפשרות לצלם קבלה."""
+    """The scan button is hidden in edit mode, and duplicating clears `editId`
+    without refreshing it: the duplicated row opened with no way to photograph a
+    receipt."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     block = js[js.index("duplicateBtn.addEventListener"):]
     block = block[:block.index("\n    });")]
@@ -268,19 +277,19 @@ def test_duplicating_a_transaction_restores_the_scan_button():
 
 
 def test_swipe_structure_is_built_lazily():
-    """בעמוד החודש כל עסקה מופיעה פעמיים-שלוש, אז חודש של 150 עסקאות
-    היה ~350 reparent סינכרוניים בטעינה — ובלי צורך, כי ‎touchstart‎
-    בונה ממילא את מה שנוגעים בו."""
+    """On the month page every transaction appears two or three times, so a month of
+    150 transactions was ~350 synchronous reparents on load, and for no reason,
+    because `touchstart` builds what is touched anyway."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
 
     assert "querySelectorAll(ROW_SELECTOR).forEach" not in js, \
-        "המבנה עדיין נבנה לכל שורה בטעינת העמוד"
+        "the structure is still built for every row on page load"
 
 
 def test_pages_outside_the_app_shell_clear_the_iphone_status_bar():
-    """‎black-translucent‎ מצייר את הדף מתחת לשעון ולאי הדינמי. המסכים
-    הראשיים מפנים לו מקום; התחברות/הרשמה/פרטיות לא פינו, ו"← חזרה"
-    בדף הפרטיות ישב בגובה השעון."""
+    """`black-translucent` paints the page under the clock and the dynamic island.
+    The main screens make room for it; sign-in/signup/privacy didn't, and "←
+    back" on the privacy page sat at the clock's height."""
     css = re.sub(r"/\*.*?\*/", "", _read("frontend/static/css/style.css"), flags=re.S)
     for selector in (".auth-body", ".legal-page"):
         rule = css[css.index(selector + " {"):]
@@ -290,8 +299,9 @@ def test_pages_outside_the_app_shell_clear_the_iphone_status_bar():
 
 
 def test_amount_cards_shrink_instead_of_pushing_the_page_sideways():
-    """‎1fr‎ לא מתכווץ מתחת לתוכן. עם אגורות, שלושת הכרטיסים בבית דחפו את
-    העמוד הצידה ב-390 וחתכו את החסכונות ב-375 (tests/browser/narrow_screens.py)."""
+    """`1fr` doesn't shrink below its content. With agorot, the three cards on home
+    pushed the page sideways at 390 and cut off the savings at 375
+    (tests/browser/narrow_screens.py)."""
     css = re.sub(r"/\*.*?\*/", "", _read("frontend/static/css/style.css"), flags=re.S)
 
     def rule(selector):
@@ -302,13 +312,14 @@ def test_amount_cards_shrink_instead_of_pushing_the_page_sideways():
         assert "minmax(0, 1fr)" in rule(grid), grid
     assert "cqi" in rule(".summary-card .card-amount")
     assert "cqi" in rule(".kpi-chip .kpi-value")
-    # עמוד ההשוואה: טבלה בעמודות קבועות במקום שורה שגלשה (ראו test_the_compare_page_is_one_table)
+    # The comparison page: a table with fixed columns instead of a row that
+    # overflowed (see test_the_compare_page_is_one_table)
     assert "table-layout: fixed" in rule(".months-table")
 
 
 def test_the_onboarding_points_to_a_settings_group_that_exists():
-    """מסך הפתיחה אומר "הגדרות ← המשפחה שלי" — והקבוצה נקראה "המשפחה".
-    מתן בחר לשנות את שם הקבוצה (30.9), כך שההפניה נכונה."""
+    """The welcome screen says "הגדרות ← המשפחה שלי", and the group was called
+    "המשפחה". Matan chose to rename the group (30.9), so the pointer is right."""
     onboarding = _read("frontend/templates/onboarding.html")
     titles = re.findall(r'class="group-title">([^<]+)<', _read("frontend/templates/settings.html"))
 
@@ -317,8 +328,8 @@ def test_the_onboarding_points_to_a_settings_group_that_exists():
 
 
 def test_the_compare_page_compares_and_does_not_sum_everything():
-    """מתן (30.9): "זה עמוד השוואה בין החודשים בלבד, מבלי לסכום". הסכום
-    הכולל גם לא אמר על איזו תקופה הוא."""
+    """Matan (30.9): "this is a page for comparing months only, without summing". The
+    grand total also didn't say which period it was for."""
     html = re.sub(r"\{#.*?#\}", "", _read("frontend/templates/months.html"), flags=re.S)
 
     assert 'סה"כ' not in html and "סה״כ" not in html
@@ -326,7 +337,7 @@ def test_the_compare_page_compares_and_does_not_sum_everything():
 
 
 def test_the_link_next_to_recent_transactions_says_where_it_goes():
-    """האחרונות הן מכל החודשים; הקישור פותח רק את החודש הנוכחי."""
+    """The latest are from all months; the link opens only the current month."""
     html = _read("frontend/templates/index.html")
     recent = html[html.index("<h2>עסקאות אחרונות</h2>"):]
     link = recent[recent.index('class="see-all-link"'):]
@@ -336,9 +347,9 @@ def test_the_link_next_to_recent_transactions_says_where_it_goes():
 
 
 def test_a_successful_save_releases_the_save_button():
-    """אחרי הצלחה הכפתור נשאר "שומר…", וברענון רך העריכה הבאה לא נשלחה
-    (מתן, 30.9: "לפעמים זה לא נותן לי ללחוץ על שמירת שינויים").
-    בדפדפן: tests/browser/edit_twice.py."""
+    """After success the button stayed "saving…", and on a soft refresh the next
+    edit wasn't sent (Matan, 30.9: "sometimes it doesn't let me tap save
+    changes"). In the browser: tests/browser/edit_twice.py."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     finish = js[js.index("function finish()"):]
     finish = finish[:finish.index("closeModal();")]
@@ -350,8 +361,8 @@ def test_a_successful_save_releases_the_save_button():
 
 @pytest.mark.parametrize("kind", ["income", "expense", "savings"])
 def test_each_summary_leads_to_its_breakdown(kind):
-    """מתן (30.9): לחיצה על "הכנסות" בבית או בעמוד החודש → הפירוט שלהן.
-    בדפדפן: tests/browser/cards_to_breakdown.py."""
+    """Matan (30.9): tapping "income" on home or the month page → its breakdown.
+    In the browser: tests/browser/cards_to_breakdown.py."""
     month = _read("frontend/templates/month.html")
     home = _read("frontend/templates/index.html")
 
@@ -361,7 +372,8 @@ def test_each_summary_leads_to_its_breakdown(kind):
 
 
 def test_what_is_left_is_not_a_link():
-    """המאזן החודשי לא שייך לקטגוריה אחת — מתן בחר להשאיר אותו לא לחיץ."""
+    """The monthly balance doesn't belong to one category: Matan chose to leave it
+    not tappable."""
     month = _read("frontend/templates/month.html")
     label = month.index("מאזן החודש</p>")
     opening = month[month.rindex("month-net", 0, label) - 20:label]
@@ -369,9 +381,10 @@ def test_what_is_left_is_not_a_link():
 
 
 def test_the_card_you_jump_to_stays_visible():
-    """‎.anim-rise‎ מתחיל ב-‎opacity: 0‎ ונשאר גלוי רק דרך האנימציה שלו. ההבהוב
-    החליף אותה, והכרטיס שאליו קפצו נעלם (מתן: "כאילו מחוק"). בדפדפן:
-    tests/browser/cards_to_breakdown.py מדפיס את ה-opacity."""
+    """`.anim-rise` starts at `opacity: 0` and stays visible only through its
+    animation. The flash replaced it, and the card jumped to vanished (Matan: "as
+    if it was erased"). In the browser: tests/browser/cards_to_breakdown.py prints
+    the opacity."""
     css = re.sub(r"/\*.*?\*/", "", _read("frontend/static/css/style.css"), flags=re.S)
     rule = css[css.index(".chart-card.flash {"):]
     rule = rule[:rule.index("}")]
@@ -379,7 +392,8 @@ def test_the_card_you_jump_to_stays_visible():
 
 
 def test_the_card_you_jump_to_stops_below_the_iphone_status_bar():
-    """‎scroll-margin-top: 14px‎ עצר את הפירוט מתחת לשעון ולאי הדינמי."""
+    """`scroll-margin-top: 14px` stopped the breakdown under the clock and the
+    dynamic island."""
     css = re.sub(r"/\*.*?\*/", "", _read("frontend/static/css/style.css"), flags=re.S)
     rule = css[css.index("#savings-breakdown {"):]
     rule = rule[:rule.index("}")]
@@ -387,8 +401,8 @@ def test_the_card_you_jump_to_stops_below_the_iphone_status_bar():
 
 
 def test_the_project_field_is_last_in_the_form():
-    """מתן (30.9): רוב העסקאות לא בפרויקט, אז השדה לא יושב אחרי הסכום.
-    בדפדפן: tests/browser/project_field_at_bottom.py."""
+    """Matan (30.9): most transactions aren't in a project, so the field doesn't sit
+    after the amount. In the browser: tests/browser/project_field_at_bottom.py."""
     base = _read("frontend/templates/base.html")
     form = base[base.index('id="txForm"'):base.index('id="submitBtn"')]
     assert form.index('id="projectGroup"') > form.index('id="txRecurring"')
@@ -403,7 +417,7 @@ def test_choosing_a_project_takes_you_to_its_categories():
 
 
 def test_a_project_shows_its_latest_five_and_the_rest_behind_a_button():
-    """מתן (30.9): לא רשימה ענקית בעמוד הפרויקט. בדפדפן:
+    """Matan (30.9): not a huge list on the project page. In the browser:
     tests/browser/project_tx_collapsed.py."""
     html = _read("frontend/templates/project_detail.html")
     assert "{% set first_shown = 5 %}" in html
@@ -414,7 +428,8 @@ def test_a_project_shows_its_latest_five_and_the_rest_behind_a_button():
 
 
 def test_the_show_all_button_works_without_the_chart_library():
-    """הבלוק של הגרפים יוצא מוקדם כשאין Chart.js — הכפתור לא יכול לשבת בתוכו."""
+    """The charts block returns early when there is no Chart.js: the button can't
+    sit inside it."""
     js = _strip_comments(_read("frontend/static/js/project-detail.js"))
     charts_guard = js.index("if (!window.sfCharts.ready) return;")
     handler = js.index("#showAllProjectTx")
@@ -429,12 +444,12 @@ def test_the_show_all_button_works_without_the_chart_library():
     (False, 0, 50, None),
 ], ids=["surplus", "deficit", "even", "expense-only-project"])
 def test_the_project_shows_income_minus_expenses(track_income, income, spent, expected):
-    """מתן (30.9): מאזן הפרויקט בנפרד, הכנסות פחות הוצאות. בדפדפן:
-    tests/browser/project_net.py."""
+    """Matan (30.9): the project's balance separately, income minus expenses. In the
+    browser: tests/browser/project_net.py."""
     from backend.app import app
     html = _read("frontend/templates/project_detail.html")
     start = html.index("{% if project.track_income and project.track_expense %}")
-    end = html.index("</div>\n{% endif %}", start) + len("</div>\n{% endif %}")   # הסוגר של הבלוק, לא של הסימן
+    end = html.index("</div>\n{% endif %}", start) + len("</div>\n{% endif %}")   # the block's closing tag, not the sign's
     project = {"track_income": track_income, "track_expense": True, "income": income, "spent": spent}
     out = app.jinja_env.from_string(html[start:end]).render(project=project)
 
@@ -446,7 +461,8 @@ def test_the_project_shows_income_minus_expenses(track_income, income, spent, ex
 
 
 def test_the_project_value_sits_above_the_squares_with_its_short_name():
-    """מתן (30.9): רק "עלות / שווי הפרויקט", למעלה, ומתחת הוצאות והכנסות שווים."""
+    """Matan (30.9): only "the project's cost / value", at the top, and below it
+    expenses and income, equal."""
     html = _read("frontend/templates/project_detail.html")
     assert "<p class=\"kpi-label\">עלות / שווי הפרויקט</p>" in html
     assert html.index('class="project-net') < html.index('<div class="hero-totals"')
@@ -458,8 +474,9 @@ def test_the_project_value_sits_above_the_squares_with_its_short_name():
     (None, 3100, None, False),
 ], ids=["under", "over", "no-target"])
 def test_the_target_bar_sits_under_the_squares(target, spent, pct, danger):
-    """מתן (1.10, אפשרות ב): הפס של תקציב היעד בחלק העליון, מתחת לריבועים —
-    ולא כרטיס נפרד "התקדמות מול היעד" שחזר על אותם מספרים. בלי יעד — אין פס."""
+    """Matan (1.10, option B): the target budget bar at the top, under the tiles,
+    and not a separate "progress against target" card that repeated the same
+    numbers. No target: no bar."""
     from backend.app import app
     html = _read("frontend/templates/project_detail.html")
     assert "התקדמות מול היעד</h2>" not in html
@@ -487,14 +504,17 @@ def test_the_squares_share_the_row_evenly(chips, columns):
 
 
 def test_the_compare_page_is_one_table():
-    """מתן (30.9) בחר בטבלה: שורה לחודש, עמודה לסוג. בכרטיס לכל חודש המאזן
-    דרס את "חיסכון" ברוחב טלפון. בדפדפן: tests/browser/months_table.py."""
+    """Matan (30.9) chose a table: a row per month, a column per type. With a card
+    per month the balance overwrote "savings" at phone width. In the browser:
+    tests/browser/months_table.py."""
     html = re.sub(r"\{#.*?#\}", "", _read("frontend/templates/months.html"), flags=re.S)
-    # טבלה לכל שנה (בתוך הלולאה על השנים), והשנה מעליה ולא בתוכה
+    # A table per year (inside the loop over the years), with the year above it
+    # and not inside it
     loop = html[html.index("groupby('year')"):]
     assert loop.index('class="year-title"') < loop.index('<table class="months-table">')
     assert "year-row" not in html
-    # השנה הנוכחית פתוחה, שנים קודמות רק ככותרת שנפתחת (מתן, 30.9)
+    # The current year open, previous years only as a heading that opens
+    # (Matan, 30.9)
     assert '<details class="year-block chart-card" {% if year_group.grouper >= today_year %}open{% endif %}>' in html
     assert '<summary class="year-title">' in html
     assert "showMoreMonths" not in html
@@ -504,11 +524,11 @@ def test_the_compare_page_is_one_table():
 
 
 def test_a_receipt_does_not_make_the_row_taller():
-    """מתן (30.9). בדפדפן: tests/browser/receipt_row_height.py."""
+    """Matan (30.9). In the browser: tests/browser/receipt_row_height.py."""
     home = _read("frontend/templates/index.html")
     row = home[home.index('<div class="tx-amount-row">'):]
     row = row[:row.index("</div>")]
-    assert 'class="receipt-badge"' in row, "הסיכה לא באותה שורה עם הסכום"
+    assert 'class="receipt-badge"' in row, "the pin isn't on the same line as the amount"
     css = re.sub(r"/\*.*?\*/", "", _read("frontend/static/css/style.css"), flags=re.S)
     rule = css[css.index(".tx-amount-row .receipt-badge {"):]
     rule = rule[:rule.index("}")]
@@ -516,7 +536,7 @@ def test_a_receipt_does_not_make_the_row_taller():
 
 
 def test_the_compare_chart_reads_right_to_left():
-    """מתן (30.9): הגרף בעמוד ההשוואה הפוך — מימין לשמאל."""
+    """Matan (30.9): the chart on the comparison page reversed: right to left."""
     js = _strip_comments(_read("frontend/static/js/months.js"))
     scales = js[js.index("scales: {"):]
     assert re.search(r"x:\s*\{\s*reverse:\s*true", scales)
@@ -524,8 +544,8 @@ def test_the_compare_chart_reads_right_to_left():
 
 
 def test_within_each_month_income_is_on_the_right_then_expenses_then_savings():
-    """מתן (30.9). ‎Chart.js‎ מסדר את העמודות בכל חודש משמאל לימין, ולכן
-    הרשימה בקוד הפוכה: חיסכון, הוצאות, הכנסות."""
+    """Matan (30.9). `Chart.js` lays out the bars in each month left to right, so
+    the list in the code is reversed: savings, expenses, income."""
     js = _read("frontend/static/js/months.js")
     labels = re.findall(r"label:\s*'([^']+)'", js[js.index("datasets: ["):])[:3]
     assert labels == ["חיסכון", "הוצאות", "הכנסות"]
@@ -533,35 +553,37 @@ def test_within_each_month_income_is_on_the_right_then_expenses_then_savings():
 
 
 def test_the_compare_chart_fills_its_card():
-    """מתן (30.9): הגרף והכיתוב גדולים יותר, והגרף רחב — לא גבוה."""
+    """Matan (30.9): the chart and the text larger, and the chart wide, not tall."""
     css = _read("frontend/static/css/style.css")
-    # רחב ולא גבוה (מתן, 30.9)
+    # wide and not tall (Matan, 30.9)
     assert ".line-chart-wrap.compare-chart-wrap { margin-inline: -10px; }" in css
     assert "compare-chart-wrap { height" not in css
     js = _read("frontend/static/js/months.js")
     assert "font: { size: 13 }" in js and "font: { size: 14 }" in js
-    assert "SHORT_MONTHS[d.month]" in js, "בגופן הגדול השמות המלאים נדבקים זה לזה"
+    assert "SHORT_MONTHS[d.month]" in js, "at the large font size the full names stick together"
 
 
 def test_the_chart_canvas_fills_its_wrap_in_safari_rtl():
-    """מתן (30.9): באייפון הגרף תפס רק כ-2/3 מהרוחב. ב-Safari ב-RTL ה-canvas
-    (300px כברירת מחדל) מקבל ‎margin-left‎ מחושב, ו-Chart.js מחסיר אותו
-    מהרוחב — הגרף נתקע על 300. רוחב מפורש ל-canvas מבטל את זה."""
+    """Matan (30.9): on iPhone the chart took only about 2/3 of the width. In Safari
+    in RTL the canvas (300px by default) gets a computed `margin-left`, and
+    Chart.js subtracts it from the width: the chart was stuck at 300. An explicit
+    width on the canvas cancels this."""
     css = _read("frontend/static/css/style.css")
     rule = re.search(r"\.line-chart-wrap canvas,\s*\.doughnut-wrap canvas\s*\{([^}]*)\}", css)
-    assert rule, "חסר כלל רוחב ל-canvas של הגרפים"
+    assert rule, "a width rule for the charts' canvas is missing"
     assert "width: 100% !important" in rule.group(1)
 
 
 def test_the_savings_legend_says_of_what():
-    """מתן (30.9): "חסכתם 67%" לא אומר ממה — כמו ההוצאות, "מההכנסות"."""
+    """Matan (30.9): "חסכתם 67%" doesn't say of what; like expenses, "of income"."""
     html = _read("frontend/templates/index.html")
     assert "חסכתם {{ saved_pct }}% מההכנסות</span>" in html
 
 
 def test_all_transactions_can_be_filtered_by_type():
-    """מתן (30.9, רעיון 5): הכל / הוצאות / הכנסות / חיסכון מעל החיפוש —
-    רק הסוגים שיש החודש, ויחד עם החיפוש (לא במקומו)."""
+    """Matan (30.9, idea 5): all / expenses / income / savings above the search:
+    only the types present this month, and together with the search (not
+    instead of it)."""
     tpl = _read("frontend/templates/month.html")
     assert 'class="date-chip tx-type-chip active" data-type=""' in tpl
     assert "selectattr(0, 'in', present)" in tpl
@@ -573,7 +595,7 @@ def test_all_transactions_can_be_filtered_by_type():
 
 
 def test_the_category_row_filters_several_categories_together():
-    """מתן (30.9, אפשרות א): "כל ההוצאות" או כמה קטגוריות יחד."""
+    """Matan (30.9, option A): "all expenses" or several categories together."""
     tpl = _read("frontend/templates/month.html")
     assert 'data-cat-key="{{ tx.get(\'cat_key\', \'\') }}"' in tpl
     assert 'class="date-chip tx-cat-chip active" data-cat=""' in tpl
@@ -583,35 +605,37 @@ def test_the_category_row_filters_several_categories_together():
 
 
 def test_the_form_date_chips_ignore_other_chips_on_the_page():
-    """כפתורי הסינון לובשים ‎.date-chip‎. כשהטופס תפס את כולם, לחיצה על
-    "הוצאות" שינתה את התאריך בטופס, וסימנה את כל הכפתורים כפעילים."""
+    """The filter buttons wear `.date-chip`. When the form grabbed all of them,
+    tapping "expenses" changed the date in the form, and marked all the buttons
+    as active."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     assert "querySelectorAll('.date-chip')" not in js
     assert js.count("querySelectorAll('.date-quick-chips .date-chip')") == 2
 
 
 def test_the_plus_on_a_project_page_starts_in_that_project():
-    """מתן (30.9, רעיון 8): הפרויקט כבר בחור, והסוג הוא סוג שהוא עוקב אחריו."""
+    """Matan (30.9, idea 8): the project is already selected, and the type is one
+    it tracks."""
     tpl = _read("frontend/templates/project_detail.html")
     assert '<span id="sfPageProject" data-project-id="{{ project.id }}" hidden></span>' in tpl
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     assert "document.getElementById('sfPageProject')" in js
     assert "setType(type, undefined, undefined, project ? project.id : undefined)" in js
     assert ": project.track_income ? 'income' : 'savings'" in js
-    # החלפת סוג לא מאפסת את הפרויקט
+    # switching type doesn't reset the project
     assert "setType('income', undefined, undefined, txProject.value)" in js
 
 
 def test_tapping_a_month_in_the_compare_chart_opens_it():
-    """מתן (30.9, רעיון 10) — לפי העמודה כולה, לא רק העמודה שנפגעה."""
+    """Matan (30.9, idea 10): by the whole column, not just the bar that was hit."""
     js = _strip_comments(_read("frontend/static/js/months.js"))
     assert "getElementsAtEventForMode(evt, 'index', { intersect: false }, true)" in js
     assert "'/month?year=' + d.year + '&month=' + d.month" in js
 
 
 def test_settings_has_no_projects_box():
-    """מתן (1.10): התיבה "פרויקטים" בהגדרות הייתה כפילות של עמוד הפרויקטים —
-    רשימה, קישור ליצירה, עריכה מקוצרת ו"ניהול מלא". הוסרה, עם הקוד שלה."""
+    """Matan (1.10): the "projects" box in settings duplicated the projects page: a
+    list, a create link, a short edit and "full management". Removed, with its code."""
     settings = _read("frontend/templates/settings.html")
     assert '<span class="group-title">פרויקטים</span>' not in settings
     assert "edit-project-settings-btn" not in settings
@@ -620,7 +644,8 @@ def test_settings_has_no_projects_box():
 
 
 def test_pull_to_refresh_only_in_the_installed_app_and_only_from_the_top():
-    """מתן (30.9, רעיון 14). ב-Safari רגיל זה קיים מעצמו; כפול היה מרענן פעמיים."""
+    """Matan (30.9, idea 14). Regular Safari has it by itself; doubled it would
+    refresh twice."""
     js = _strip_comments(_read("frontend/static/js/pwa.js"))
     part = js[js.index("const TRIGGER = SAFE + 58"):]
     assert "if (!isStandalone || !('ontouchstart' in window)) return;" in js
@@ -632,7 +657,7 @@ def test_pull_to_refresh_only_in_the_installed_app_and_only_from_the_top():
 
 
 def test_the_category_card_draws_the_average_and_this_month_lighter():
-    """מתן (30.9, סבב 6 פריט 1): "לפי קטגוריה" בעמוד ההשוואה."""
+    """Matan (30.9, round 6 item 1): "by category" on the comparison page."""
     js = _strip_comments(_read("frontend/static/js/months.js"))
     assert "c.avg == null ? [] : c.values.map(() => c.avg)" in js
     assert "(isNow && i === months.length - 1) ? BAR_NOW : BAR" in js
@@ -641,10 +666,10 @@ def test_the_category_card_draws_the_average_and_this_month_lighter():
 
 
 def test_the_search_screen_sits_outside_main_and_rows_open_for_editing():
-    """מתן (30.9, סבב 6 פריט 2): מחוץ ל-‎main‎ כדי שרענון רך לא יסגור אותו,
-    ומתחת לחלון העריכה כדי שנגיעה בתוצאה תפתח אותו מעליו."""
-    # המסך עבר ל-‎_search_screen.html‎ (מתן, 12.10 — גם בעמוד החודש); בשני
-    # העמודים הוא נכלל בבלוק הסקריפטים, מחוץ ל-‎main‎
+    """Matan (30.9, round 6 item 2): outside `main` so a soft refresh doesn't close
+    it, and below the edit sheet so tapping a result opens it above."""
+    # The screen moved to `_search_screen.html` (Matan, 12.10: also on the month
+    # page); on both pages it is included in the scripts block, outside `main`
     assert 'id="searchScreen"' in _read("frontend/templates/_search_screen.html")
     for page in ("index.html", "month.html"):
         tpl = _read("frontend/templates/" + page)
@@ -658,8 +683,9 @@ def test_the_search_screen_sits_outside_main_and_rows_open_for_editing():
 
 
 def test_a_finished_project_is_not_offered_but_an_old_transaction_keeps_it():
-    """מתן (30.9, סבב 6 פריט 3). בלי זה, עריכת סכום של עסקה בפרויקט שהסתיים
-    הייתה מוציאה אותה ממנו אל הוצאות הבית — הוא פשוט לא היה ברשימה."""
+    """Matan (30.9, round 6 item 3). Without this, editing the amount of a
+    transaction in a finished project would move it out of it into household
+    expenses: it simply wasn't in the list."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     assert "window.sfFetchList('/api/projects?include_archived=1')" in js
     assert "(p[trackKey] && !p.archived)" in js
@@ -667,7 +693,7 @@ def test_a_finished_project_is_not_offered_but_an_old_transaction_keeps_it():
 
 
 def test_a_finished_project_is_reopened_not_returned_to_the_active():
-    """מתן (30.9): "החזרה לפעילים" לא מצא חן — "פתיחה מחדש"."""
+    """Matan (30.9): "back to active" wasn't liked: "reopen"."""
     for f in ("frontend/templates/project_edit.html", "frontend/templates/project_detail.html",
               "frontend/static/js/core.js"):
         assert "לפעילים" not in _read(f), f
@@ -676,11 +702,12 @@ def test_a_finished_project_is_reopened_not_returned_to_the_active():
 
 
 def test_categories_can_be_dragged_into_order():
-    """מתן (30.9, סבב 6 פריט 5). ההאזנה על document: הזזת השורה ב-DOM
-    שחררה את ‎setPointerCapture‎ והגרירה נעצרה אחרי צעד אחד, בלי לשמור."""
+    """Matan (30.9, round 6 item 5). Listening on document: moving the row in the
+    DOM released `setPointerCapture` and the drag stopped after one step,
+    without saving."""
     tpl = _read("frontend/templates/settings.html")
     assert 'class="cat-drag-handle" aria-hidden="true"' in tpl
-    assert 'class="cat-move-btn cat-move-up"' in tpl        # החצים נשארים
+    assert 'class="cat-move-btn cat-move-up"' in tpl        # the arrows stay
     js = _strip_comments(_read("frontend/static/js/settings.js"))
     part = js[js.index("closest('.cat-drag-handle')"):]
     assert "document.addEventListener('pointermove', move)" in part
@@ -691,19 +718,20 @@ def test_categories_can_be_dragged_into_order():
 
 
 def test_a_new_transaction_is_checked_before_it_is_saved():
-    """מתן (30.9, סבב 6 פריטים 6–7): רק עסקה חדשה — לא עריכה. תקלה ברשת
-    בבדיקה לא עוצרת את השמירה."""
+    """Matan (30.9, round 6 items 6–7): only a new transaction, not an edit. A
+    network failure in the check doesn't stop the save."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     assert "if (!editId && precheckPassed !== precheckKey(payload))" in js
     assert ".catch(function () { return {}; })" in js
     assert "confirmText: 'להוסיף בכל זאת'" in js and "cancelText: 'לתקן'" in js
-    # הבדיקה לפני השמירה עצמה, ולא אחריה
+    # the check before the save itself, not after it
     assert js.index("precheckPassed !== precheckKey(payload)") < js.index("submitLabel.textContent = 'שומר…'")
 
 
 def test_an_edit_can_be_undone_from_the_toast():
-    """מתן (30.9, סבב 6 פריט 10): בחלון העריכה — מאז 5.10 גם בדף הבית.
-    לא אחרי "עדכן להבא" — הביטול היה מחזיר רק חצי מהשינוי."""
+    """Matan (30.9, round 6 item 10): in the edit sheet, since 5.10 on the home page
+    too. Not after "update from now on": the undo would restore only half the
+    change."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     assert "Object.assign({}, spec.body, { if_match: spec.if_match })" in js
     assert "!(followUp && (followUp.series || followUp.error))" in js
@@ -712,7 +740,8 @@ def test_an_edit_can_be_undone_from_the_toast():
 
 
 def test_the_date_chips_are_today_and_yesterday():
-    """"שלשום" נוסף ב-30.9 (סבב 6 פריט 11) והוסר ב-11.10 — מתן: "אפשר להסיר"."""
+    """"The day before" was added on 30.9 (round 6 item 11) and removed on 11.10:
+    Matan: "it can be removed"."""
     tpl = _read("frontend/templates/base.html")
     chips = tpl[tpl.index('class="date-quick-chips"'):]
     chips = chips[:chips.index("</div>")]
@@ -721,8 +750,8 @@ def test_the_date_chips_are_today_and_yesterday():
 
 
 def test_the_month_header_stays_on_top_once_the_balance_scrolls_away():
-    """מתן (30.9, סבב 6 פריט 12). רק כשהמאזן יצא למעלה, והסכום הסופי —
-    לא מספר הביניים של אנימציית הספירה."""
+    """Matan (30.9, round 6 item 12). Only when the balance left upwards, and the
+    final amount, not the count-up's intermediate number."""
     js = _strip_comments(_read("frontend/static/js/month.js"))
     assert "bar.hidden = e.isIntersecting || e.boundingClientRect.top > 0;" in js
     assert "window.sfMoney(valueEl.dataset.countup)" in js
@@ -732,8 +761,9 @@ def test_the_month_header_stays_on_top_once_the_balance_scrolls_away():
 
 
 def test_a_slow_page_change_shows_a_skeleton_and_a_fast_one_does_not():
-    """מתן (30.9, סבב 6 פריט 14): רק אחרי רבע שנייה, רק לעמודים שיש להם צורה,
-    ולא נשאר תקוע כשחוזרים אחורה מהמטמון של הדפדפן."""
+    """Matan (30.9, round 6 item 14): only after a quarter of a second, only for
+    pages that have a shape, and not stuck when going back from the browser's
+    cache."""
     js = _strip_comments(_read("frontend/static/js/skeleton.js"))
     assert "const DELAY = 250;" in js
     for page in ("'/'", "'/month'", "'/months'", "'/projects'", "'/settings'"):
@@ -744,8 +774,9 @@ def test_a_slow_page_change_shows_a_skeleton_and_a_fast_one_does_not():
 
 
 def test_every_page_is_a_pixel_taller_than_the_screen():
-    """מתן (30.9): באפליקציה המותקנת התפריט התחתון "עלה" בעמוד הפרויקטים —
-    העמוד היחיד שהיה קצר מהמסך. ‎lvh‎ (המסך הגדול) ולא ‎dvh‎."""
+    """Matan (30.9): in the installed app the bottom menu "rose" on the projects
+    page, the only page shorter than the screen. `lvh` (the large viewport) and
+    not `dvh`."""
     css = _read("frontend/static/css/style.css")
     body = css[css.index("\nbody {"):]
     body = body[:body.index("}")]
@@ -754,7 +785,7 @@ def test_every_page_is_a_pixel_taller_than_the_screen():
 
 
 def test_tapping_a_month_in_the_category_chart_opens_its_expenses():
-    """מתן (30.9): חלון עם ההוצאות של הקטגוריה באותו חודש."""
+    """Matan (30.9): a sheet with the category's expenses in that month."""
     js = _strip_comments(_read("frontend/static/js/months.js"))
     assert "chart.options.onClick = function (evt)" in js
     assert "const items = (current.items || [])[i] || [];" in js
@@ -763,8 +794,9 @@ def test_tapping_a_month_in_the_category_chart_opens_its_expenses():
 
 
 def test_the_category_chart_title_label_and_month_link():
-    """מתן (1.10): כותרת "הוצאות לפי קטגוריה", בלי תווית שחורה צפה על הגרף,
-    ו"לעמוד החודש" פותח את העמוד מלמעלה ולא חתוך בפירוט."""
+    """Matan (1.10): the heading "expenses by category", no black floating label on
+    the chart, and "to the month page" opens the page from the top and not cut
+    off at the breakdown."""
     tpl = _read("frontend/templates/months.html")
     assert '<h2 class="chart-title">הוצאות לפי קטגוריה</h2>' in tpl
     js = _strip_comments(_read("frontend/static/js/months.js"))
@@ -779,19 +811,21 @@ def test_the_category_chart_title_label_and_month_link():
 
 
 def test_the_month_strip_recenters_after_a_soft_reload():
-    """מתן (1.10): הרענון הרך מחליף את ה-hero ברצועה שעומדת בהתחלה — יולי
-    ואוגוסט על המסך כשהחודש הוא אוקטובר. בדפדפן: tests/browser/month_strip_center.py."""
+    """Matan (1.10): the soft refresh replaces the hero with a strip that sits at
+    the start: July and August on screen when the month is October. In the
+    browser: tests/browser/month_strip_center.py."""
     js = _strip_comments(_read("frontend/static/js/month.js"))
     assert "centerStrip();" in js
     assert "window.addEventListener('sf:refreshed', centerStrip);" in js
     body = js[js.index("function centerStrip()"):js.index("centerStrip();")]
-    assert "document.getElementById('monthStrip')" in body, "הרצועה נשלפת מחדש בכל קריאה, לא נשמרת מהטעינה"
+    assert "document.getElementById('monthStrip')" in body, "the strip is looked up again on every call, not kept from load"
 
 
-# ─── סקירה של 1.10 ───────────────────────────────────────────────────────────
+# ─── Review of 1.10 ─────────────────────────────────────────────────────────
 
 def test_closing_the_form_during_the_check_cancels_the_save():
-    """הטופס נסגר בזמן "בודק…" — העסקה נשמרה בכל זאת, עם קבלה שהסגירה מחקה."""
+    """The form was closed during "checking…": the transaction was saved anyway,
+    with a receipt the close had deleted."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     part = js[js.index("runPrecheck(payload).then(function (ok) {"):]
     part = part[:part.index("requestSubmit();")]
@@ -799,7 +833,8 @@ def test_closing_the_form_during_the_check_cancels_the_save():
 
 
 def test_pull_to_refresh_leaves_open_windows_alone():
-    """בתוך חיפוש/חלון, גרירה למטה היא גלילה של הרשימה — לא רענון של העמוד."""
+    """Inside search/a sheet, a downward drag is scrolling the list, not
+    refreshing the page."""
     js = _strip_comments(_read("frontend/static/js/pwa.js"))
     for sel in (".search-screen:not([hidden])", ".icon-picker:not([hidden])",
                 ".color-sheet:not([hidden])", ".confirm-overlay.open"):
@@ -814,8 +849,9 @@ def test_the_skeleton_rechecks_before_it_shows():
 
 
 def test_jumping_to_a_department_clears_the_sticky_bar():
-    """מתן (2.10): מכרטיס בבית אל המחלקה בעמוד החודש — ראש הכרטיס נחתך מתחת
-    לכותרת הדביקה (44px). המרווח מפנה לה מקום. בדפדפן: tests/browser/home_card_jump.py."""
+    """Matan (2.10): from a card on home to the department on the month page: the
+    top of the card was cut off under the sticky header (44px). The margin makes
+    room for it. In the browser: tests/browser/home_card_jump.py."""
     css = _read("frontend/static/css/style.css")
     rule = css[css.index("#income-breakdown,\n#expense-breakdown,\n#savings-breakdown {"):]
     rule = rule[:rule.index("}")]
@@ -823,51 +859,53 @@ def test_jumping_to_a_department_clears_the_sticky_bar():
     sticky = css[css.index(".month-sticky {"):]
     sticky = sticky[:sticky.index("}")]
     assert "padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 10px;" in sticky, \
-        "גובה הכותרת הדביקה השתנה — לעדכן את 58px"
+        "the sticky header's height changed: update the 58px"
 
 
 def test_only_the_settings_list_edits_a_series_from_now():
-    """מתן (2.10): עריכה מ"עסקאות קבועות" בהגדרות — מהחודש הנוכחי. לחיצה על
-    העסקה של ינואר ברשימת ינואר היא עריכה של ינואר, כמו קודם."""
+    """Matan (2.10): editing from "recurring transactions" in settings, from the
+    current month. Tapping January's transaction in January's list is editing
+    January, as before."""
     js = _strip_comments(_read("frontend/static/js/transactions.js"))
     assert "editingSeries = !!(triggerEl && triggerEl.closest && triggerEl.closest('#recurringList'));" in js
     assert "[mySeries ? 'from_now=1' : '', confirmed ? 'confirm=1' : '']" in js
-    assert js.count("editingSeries = false;") == 3, "הצהרה, הוספה ושכפול מאפסים"
+    assert js.count("editingSeries = false;") == 3, "declaration, add and duplicate reset it"
     app_src = _read("backend/app.py")
     gate = app_src[app_src.index('if (request.args.get("from_now")'):][:200]
     assert 'payload["is_recurring"]' in gate
-    assert 'str(tx_date) == str(current.get("date"))[:10]' in gate, "שינוי תאריך התחלה — עריכה רגילה"
+    assert 'str(tx_date) == str(current.get("date"))[:10]' in gate, "changing the start date: an ordinary edit"
 
 
 def test_the_home_page_has_no_budgets_card():
-    """מתן (3.10): "אני לא רוצה בכלל שיהיה תקציבים החודש — זה מיותר בדף הבית".
-    התקציבים עצמם נשארו בעמוד החודש."""
+    """Matan (3.10): "I don't want budgets this month at all: it's redundant on the
+    home page". The budgets themselves stayed on the month page."""
     import re
     html = re.sub(r"\{#.*?#\}", "", _read("frontend/templates/index.html"), flags=re.S)
     assert "home-budgets" not in html and "תקציבים החודש" not in html
     assert "get_home_budgets" not in _read("backend/app.py")
-    assert 'id="budgetsOpen"' in _read("frontend/templates/month.html"), "קביעת התקציבים בעמוד החודש נשארת"
+    assert 'id="budgetsOpen"' in _read("frontend/templates/month.html"), "setting budgets on the month page stays"
 
 
 def test_a_month_category_links_to_its_history():
-    """מתן (3.10, רעיון 23): מקטגוריה בעמוד החודש — לגרף שלה בעמוד ההשוואה,
-    כשהיא כבר בחורה. רק בהוצאות: הגרף שם הוא של הוצאות. בדפדפן: נבדק."""
+    """Matan (3.10, idea 23): from a category on the month page to its chart on the
+    comparison page, already selected. Expenses only: the chart there is of
+    expenses. In the browser: checked."""
     html = _read("frontend/templates/month.html")
     exp = html[html.index('id="expense-breakdown"'):]
     exp = exp[:exp.index("</section>")]
     assert "url_for('months', cat=item.category_id) }}#cat-trend" in exp
     assert "{% if item.category_id and not item.is_project %}" in exp
     rest = html.replace(exp, "")
-    assert "#cat-trend" not in rest, "בהכנסות ובחיסכון אין גרף כזה"
+    assert "#cat-trend" not in rest, "income and savings have no such chart"
     assert 'id="cat-trend"' in _read("frontend/templates/months.html")
     js = _strip_comments(_read("frontend/static/js/months.js"))
     assert "new URLSearchParams(location.search).get('cat')" in js
-    assert "catTrend.categories.some(x => x.key === wanted) ? wanted : null" in js, "קטגוריה בלי היסטוריה — הראשונה"
+    assert "catTrend.categories.some(x => x.key === wanted) ? wanted : null" in js, "a category with no history: the first one"
 
 
 def test_the_chosen_category_in_the_compare_chart_stands_out():
-    """מתן (3.10): "שהקטגוריה שאני בוחר תהיה קצת יותר מודגשת". רק בגרף הזה —
-    שאר הכפתורים באפליקציה נשארים כמו שהם."""
+    """Matan (3.10): "make the category I pick a bit more highlighted". Only in
+    this chart: the other buttons in the app stay as they are."""
     css = _read("frontend/static/css/style.css")
     rule = css[css.index(".cat-trend-chips .tx-cat-chip.active {"):]
     rule = rule[:rule.index("}")]
@@ -876,7 +914,7 @@ def test_the_chosen_category_in_the_compare_chart_stands_out():
 
 
 def test_the_price_change_line_in_settings():
-    """מתן (3.10, רעיון 40): "₪5,000 ← ₪5,500 מאוקטובר"."""
+    """Matan (3.10, idea 40): "₪5,000 ← ₪5,500 מאוקטובר"."""
     from backend.app import app
     html = _read("frontend/templates/settings.html")
     start = html.index("{% set change = (price_changes or {}).get(tx.id) %}")
@@ -894,32 +932,35 @@ def test_the_price_change_line_in_settings():
 
 
 def test_the_projects_page_says_projects_are_outside_the_month_balance():
-    """מתן (3.10): "שורת הסבר שהעסקאות של הפרויקט לא משפיעות על המאזן החודשי".
-    בראש העמוד — גלויה גם כשאין פרויקטים. במונח של האפליקציה: "מאזן החודש"."""
+    """Matan (3.10): "an explanation line that the project's transactions don't
+    affect the monthly balance". At the top of the page, visible even when there
+    are no projects. In the app's term: "מאזן החודש"."""
     html = _read("frontend/templates/projects.html")
     hero = html[html.index("{% block hero %}"):html.index("{% endblock %}", html.index("{% block hero %}"))]
     assert '<p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש' in hero
 
 
 def test_the_compare_page_has_a_range_for_both_charts():
-    """מתן (3.10, רעיון 24): 3 חודשים / חצי שנה (ברירת מחדל, כמו קודם) / שנה —
-    לשני הגרפים יחד, והממוצע והחודש הכי יקר מחושבים מחדש. בדפדפן: נבדק עם 8
-    חודשים — ממוצע מהחודשים שנגמרו בלבד, בכל טווח."""
+    """Matan (3.10, idea 24): 3 months / half a year (default, as before) / a year,
+    for both charts together, and the average and the most expensive month
+    recomputed. In the browser: checked with 8 months: an average from finished
+    months only, in every range."""
     html = _read("frontend/templates/months.html")
     assert 'data-range="3"' in html and 'data-range="12"' in html
-    assert 'class="date-chip range-chip active" data-range="6"' in html, "ברירת המחדל — חצי שנה"
+    assert 'class="date-chip range-chip active" data-range="6"' in html, "the default: half a year"
     js = _strip_comments(_read("frontend/static/js/months.js"))
     assert "let RANGE = 6;" in js
     assert "last6 = trendData.slice(-RANGE);" in js and "months = allMonths.slice(-RANGE);" in js
-    assert "const c = inRange(" in js, "הסטטיסטיקה לפי הטווח, לא לפי 12 החודשים"
-    assert "(m.year < ty || (m.year === ty && m.month < tm))" in js, "ממוצע — רק מחודשים שנגמרו"
+    assert "const c = inRange(" in js, "the statistics by the range, not by the 12 months"
+    assert "(m.year < ty || (m.year === ty && m.month < tm))" in js, "average: only from finished months"
     assert "trend[-12:]" in _read("backend/app.py")
 
 
 def test_swiping_anywhere_on_the_month_changes_month():
-    """מתן (11.10): החלקה בכל מקום בעמוד מדפדפת חודש — עד אז רק על המאזן,
-    ובשאר העמוד הטלפון החזיר לבית. לא מתוך מה שיש לו החלקה משלו (שורות
-    עסקה, הרצועה), ולא מהקצה (של המערכת). בדפדפן: נבדק."""
+    """Matan (11.10): a swipe anywhere on the page pages a month; until then only on
+    the balance, and on the rest of the page the phone went back home. Not from
+    what has its own swipe (transaction rows, the strip), and not from the edge
+    (the system's). In the browser: checked."""
     js = _strip_comments(_read("frontend/static/js/month.js"))
     part = js[js.index("const SLIDE ="):]
     assert "'.transaction-item, .cat-tx-row, .recurring-row, .month-strip," in part
@@ -931,8 +972,9 @@ def test_swiping_anywhere_on_the_month_changes_month():
 
 
 def test_changing_month_is_a_smooth_swap_not_a_page_load():
-    """מתן (11.10): "שהדפדוף יהיה חלק". המעבר מחליף את התוכן בלי טעינת
-    עמוד (‎softNavigate‎), עם התוכן החדש שנמשך כבר בזמן ההחלקה."""
+    """Matan (11.10): "make the paging smooth". The switch replaces the content
+    without a page load (`softNavigate`), with the new content already fetched
+    during the swipe."""
     js = _strip_comments(_read("frontend/static/js/month.js"))
     part = js[js.index("const SLIDE ="):]
     assert "window.location.href" not in part
@@ -946,9 +988,11 @@ def test_changing_month_is_a_smooth_swap_not_a_page_load():
 
 
 def test_pull_to_refresh_moves_the_page_like_an_iphone():
-    """מתן (13.10): "שייראה טבעי כמו באייפון — המסך יורד כמו קפיץ, עם סימון
-    טעינה". העמוד עצמו זז (לא רק עיגול צף), בהתנגדות של קפיץ; גלגל עם 8 שפיצים
-    שמופיעים עם המשיכה; בזמן הרענון העמוד מחכה למטה, ואז חוזר בקפיצה רכה."""
+    """Matan (13.10): "make it look natural like on iPhone: the screen comes down
+    like a spring, with a loading indicator". The page itself moves (not just a
+    floating circle), with spring resistance; a spinner with 8 spokes that
+    appear with the pull; during the refresh the page waits down, then returns
+    with a soft bounce."""
     js = _strip_comments(_read("frontend/static/js/pwa.js"))
     part = js[js.index("const TRIGGER = SAFE + 58"):js.index("function sfDockOffset") if "function sfDockOffset" in js else None]
     assert "(1 - 1 / (x * 0.55 / RANGE + 1)) * RANGE" in part
@@ -956,24 +1000,26 @@ def test_pull_to_refresh_moves_the_page_like_an_iphone():
     assert "for (let k = 0; k < 8; k++)" in part and "place(HOLD, true)" in part
     css = _read("frontend/static/css/style.css")
     assert "animation: ptr-spin .8s steps(8) infinite" in css
-    # ב-CSS ולא על האלמנטים: הרענון הרך מחליף אותם, והעמוד היה קופץ למעלה
+    # In CSS and not on the elements: the soft refresh replaces them, and the
+    # page would jump up
     assert "body.ptr-active > .page-hero, body.ptr-active > .main-content" in css
 
 
 def test_add_to_home_screen_stays_until_opened_from_the_icon():
-    """מתן (13.10): "משהו שיופיע באופן קבוע — עד שהמשתמש עושה את זה"; ✕ מסתיר
-    עד הכניסה הבאה; מעל התפריט התחתון; בלי "ספארי" — יש גם דפדפנים אחרים."""
+    """Matan (13.10): "something that shows up permanently, until the user does
+    it"; ✕ hides it until the next visit; above the bottom menu; no "Safari":
+    there are other browsers too."""
     js = _strip_comments(_read("frontend/static/js/pwa.js"))
     part = js[js.index("getElementById('installBar')"):js.index("const START = 8;")]
     assert "fetch('/api/app-installed'" in part
     assert "if (bar.hasAttribute('data-installed')) return;" in part
     assert "sessionStorage.setItem('sf_install_hidden', '1')" in part
-    assert "localStorage" not in part                     # לא "לתמיד"
+    assert "localStorage" not in part                     # not "forever"
     assert "ספארי" not in part and "Safari" not in part
-    assert "deferredPrompt.prompt()" in part             # אנדרואיד — התקנה ישירה
+    assert "deferredPrompt.prompt()" in part             # Android: direct install
     base = _read("frontend/templates/base.html")
     assert 'id="installBar"' in base and "app_installed" in base
-    assert base.index('id="installBar"') > base.index("</main>")   # הרענון הרך לא מוחק אותו
+    assert base.index('id="installBar"') > base.index("</main>")   # the soft refresh doesn't delete it
     import backend.app as app_module
     src = _read("backend/app.py")
     assert '{"app_installed": {user["id"]: clock.today().isoformat()}}' in src

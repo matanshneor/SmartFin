@@ -1,8 +1,9 @@
-"""התראות החודש בדף הבית — ורק שם (מתן, 11.10).
+"""The month's alerts on the home page, and only there (Matan, 11.10).
 
-כשיש התראות, הן מופיעות בדף הבית (‎db.month_alerts‎). כשאין, אין שום אזור ריק. לחיצה על התראה
-מובילה ליעד שלה בעמוד החודש: הקטגוריה שחרגה (‎#cat-<id>‎, נפתחת עם
-העסקאות שלה), פירוט ההוצאות, או ראש העמוד — שם המאזן.
+When there are alerts, they appear on the home page (`db.month_alerts`). When
+there aren't, there is no empty area at all. Tapping an alert leads to its target
+on the month page: the category that went over (`#cat-<id>`, opened with its
+transactions), the expense breakdown, or the top of the page, where the balance is.
 """
 from pathlib import Path
 
@@ -29,7 +30,7 @@ def _summary(income, expense, savings=0.0):
             "remaining": round(income - expense - savings, 2)}
 
 
-# ─── היעד של כל התראה ────────────────────────────────────────────────────
+# ─── The target of each alert ───────────────────────────────────────────
 
 def test_a_budget_alert_leads_to_its_category():
     rows = [{"category_id": _FOOD, "name": "סופר", "icon": "🛒", "total": 2350}]
@@ -44,8 +45,9 @@ def test_an_uncategorized_alert_falls_back_to_the_expenses():
 
 
 def test_alerts_are_budget_overruns_only():
-    """מתן (11.10): התראת "גבוהה מהממוצע" והתראות המאזן הוסרו — מי שרוצה
-    התראות קובע תקציב. קטגוריה בלי תקציב לא מתריעה, גם כשהיא גבוהה מאוד."""
+    """Matan (11.10): the "above average" alert and the balance alerts were removed:
+    whoever wants alerts sets a budget. A category without a budget doesn't
+    alert, even when it is very high."""
     rows = [{"category_id": _FOOD, "name": "סופר", "icon": "🛒", "total": 99999}]
     assert db.month_alerts(db.apply_budgets(rows, {})) == []
     assert not hasattr(db, "get_anomalies") and not hasattr(db, "balance_alerts")
@@ -54,7 +56,7 @@ def test_alerts_are_budget_overruns_only():
     assert '"anomaly"' not in src and '"show_workplace"' not in src
 
 
-# ─── דף הבית ─────────────────────────────────────────────────────────────
+# ─── The home page ──────────────────────────────────────────────────────
 
 @pytest.fixture
 def home(monkeypatch):
@@ -83,7 +85,7 @@ def home(monkeypatch):
 
 
 def test_without_budgets_the_month_is_not_even_fetched(monkeypatch):
-    """בלי תקציבים אין שום התראה אפשרית — ושורות החודש לא נשלפות בכלל."""
+    """Without budgets no alert is possible, and the month's rows aren't fetched at all."""
     app.config["TESTING"] = True
     monkeypatch.setattr(db, "set_auth_token", lambda t: None)
     monkeypatch.setattr(db, "materialize_recurring", lambda fid: (0, True))
@@ -94,7 +96,7 @@ def test_without_budgets_the_month_is_not_even_fetched(monkeypatch):
                     ("week_spending", None), ("get_recent_transactions", []),
                     ("get_family_members", [{"id": _ME, "name": "מתן"}])):
         monkeypatch.setattr(db, fn, lambda *a, _v=val, **k: _v)
-    monkeypatch.setattr(db, "fetch_month_rows", lambda *a, **k: pytest.fail("נשלפו שורות בלי תקציבים"))
+    monkeypatch.setattr(db, "fetch_month_rows", lambda *a, **k: pytest.fail("rows were fetched with no budgets"))
     with app.test_client() as c:
         with c.session_transaction() as sess:
             sess["user_id"] = _ME
@@ -131,7 +133,7 @@ def test_a_failure_in_the_alerts_does_not_take_the_home_page_down(home, monkeypa
         assert c.get("/").status_code == 200
 
 
-# ─── עמוד החודש ──────────────────────────────────────────────────────────
+# ─── The month page ─────────────────────────────────────────────────────
 
 def test_the_month_page_has_an_anchor_per_category():
     tpl = _read("frontend/templates/month.html")
@@ -139,8 +141,9 @@ def test_the_month_page_has_an_anchor_per_category():
 
 
 def test_alerts_are_on_the_home_page_only():
-    """מתן (11.10): ההתראות רק בבית. בעמוד החודש חריגה מתקציב כבר כתובה תחת
-    הקטגוריה, ומאזן שלילי באדום בראש העמוד."""
+    """Matan (11.10): alerts only on home. On the month page a budget overage is
+    already written under the category, and a negative balance is red at the top
+    of the page."""
     import inspect
     tpl = _read("frontend/templates/month.html")
     assert "alerts-section" not in tpl and "alert-card" not in tpl

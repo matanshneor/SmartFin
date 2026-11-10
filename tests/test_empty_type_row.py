@@ -1,8 +1,10 @@
-"""סוג בלי עסקאות בעמוד החודש — שורה אחת, לא כרטיס ריק (מתן, 11.10).
+"""A type with no transactions on the month page: one row, not an empty card
+(Matan, 11.10).
 
-"אין הפרשות לחיסכון החודש" ישב בכרטיס שלם בגובה חצי מסך. הריבוע למעלה
-כבר אומר ₪0, אז מה שנשאר לכרטיס לעשות הוא לאשר שזה לא באג — ושורה עושה
-את זה. "+ הוספה" בשורה פותח את חלון ההוספה על הסוג שלה.
+"No savings set aside this month" sat in a whole card half a screen tall. The
+tile above already says ₪0, so all that is left for the card to do is confirm it
+isn't a bug, and a row does that. "+ add" on the row opens the add sheet on its
+type.
 """
 from pathlib import Path
 
@@ -52,7 +54,7 @@ def test_no_savings_is_one_row_with_add():
     row = _row(html, "savings-breakdown")
     assert "💰" in row and "אין חיסכון החודש" in row
     assert 'data-add-type="savings"' in row and "+ הוספה" in row
-    assert "אין הפרשות לחיסכון החודש" not in html     # הכרטיס הריק הישן
+    assert "אין הפרשות לחיסכון החודש" not in html     # the old empty card
 
 
 def test_no_income_is_one_row_with_add():
@@ -71,7 +73,7 @@ def test_a_type_with_data_keeps_its_card():
 
 
 def test_project_only_savings_still_get_the_card():
-    """חיסכון שכולו בפרויקט — הכרטיס מציג את שורת הפרויקט, אז הוא נשאר."""
+    """Savings that are all in a project: the card shows the project row, so it stays."""
     proj = {"name": "טיול", "icon": "✈️", "total": 800, "is_project": True, "project_id": "p"}
     html = _render([_tx("expense")], savings_breakdown=[proj])
     assert '<section class="chart-card" id="savings-breakdown">' in html
@@ -79,8 +81,8 @@ def test_project_only_savings_still_get_the_card():
 
 
 def test_expenses_keep_their_card_even_when_empty():
-    """בכרטיס ההוצאות יושבים "קביעת תקציבים" ורשימת הקטגוריות — לא מחליפים
-    אותו בשורה."""
+    """The expense card holds "set budgets" and the category list: it isn't
+    replaced with a row."""
     html = _render([_tx("income")])
     assert '<section class="chart-card" id="expense-breakdown">' in html
     assert 'data-add-type="expense"' not in html

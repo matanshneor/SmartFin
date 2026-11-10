@@ -1,4 +1,5 @@
-""""הוזנה ע״י אור · אתמול 18:32" בתחתית חלון העריכה (מתן, 3.10 — רעיון 22)."""
+""""הוזנה ע״י אור · אתמול 18:32" at the bottom of the edit sheet (Matan, 3.10,
+idea 22)."""
 import datetime
 
 import pytest
@@ -19,7 +20,7 @@ def _meta(at, by=_OR, parent=None):
 
 
 @pytest.mark.parametrize("meta,expected", [
-    # השעה נשמרת ב-UTC ומוצגת בשעון ישראל (‎+03:00‎ באוקטובר)
+    # The time is stored in UTC and shown in Israel time (`+03:00` in October)
     (_meta("2026-10-03T06:15:00+00:00"), "הוזנה ע״י אור · היום 09:15"),
     (_meta("2026-10-02T15:32:00+00:00"), "הוזנה ע״י אור · אתמול 18:32"),
     (_meta("2026-09-12T08:00:00+00:00"), "הוזנה ע״י אור · 12.9.2026 11:00"),
@@ -33,7 +34,7 @@ def test_the_line_says_who_and_when(meta, expected):
 
 
 def test_after_midnight_israel_time_is_today_not_yesterday():
-    """23:30 UTC של 2.10 הוא 02:30 של 3.10 בישראל — "היום", לא "אתמול"."""
+    """23:30 UTC on 2.10 is 02:30 on 3.10 in Israel: "today", not "yesterday"."""
     assert _entered_text(_meta("2026-10-02T23:30:00+00:00"), _ME, _NAMES, now=_NOW) == \
         "הוזנה ע״י אור · היום 02:30"
 
@@ -59,6 +60,6 @@ def test_the_edit_window_loads_it_and_a_new_form_hides_it():
     root = Path(__file__).resolve().parent.parent
     js = (root / "frontend/static/js/transactions.js").read_text(encoding="utf-8")
     assert "loadEnteredMeta(tx.id);" in js
-    assert "if (mySeq !== formSeq || !d || !d.text) return;" in js, "תשובה מאוחרת לא נכתבת על טופס אחר"
-    assert js.count("if (enteredMeta) enteredMeta.hidden = true;") == 2, "הוספה ושכפול מסתירים"
+    assert "if (mySeq !== formSeq || !d || !d.text) return;" in js, "a late response isn't written onto another form"
+    assert js.count("if (enteredMeta) enteredMeta.hidden = true;") == 2, "add and duplicate hide it"
     assert 'id="txEnteredMeta"' in (root / "frontend/templates/base.html").read_text(encoding="utf-8")

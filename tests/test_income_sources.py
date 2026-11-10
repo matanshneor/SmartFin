@@ -1,7 +1,8 @@
-""""הכנסות — מאיפה הגיעו": משכורת לכל אחד, וכל השאר ביחד (מתן, 30.9 — הצעה ד).
+""""Income: where it came from": a salary per person, and everything else together
+(Matan, 30.9, proposal D).
 
-במקום שורה לכל קטגוריה ("משכורת", "הכנסה נוספת"), שורה לכל משכורת לפי מי
-שרשום עליה, ושורה אחת "הכנסות נוספות" לכל השאר.
+Instead of a row per category ("משכורת", "הכנסה נוספת"), a row per salary by
+whoever it is recorded under, and one "other income" row for everything else.
 """
 import pytest
 
@@ -37,7 +38,8 @@ def test_two_salary_payments_of_the_same_person_are_one_row():
 
 
 def test_a_salary_nobody_is_attached_to_is_just_salary():
-    """שיוך הכנסות כבוי, או הכנסה משותפת: "משכורת" בלי שם — לא "משכורת משותפת"."""
+    """Income attribution off, or shared income: "משכורת" with no name, not
+    "משכורת משותפת"."""
     sources = db.income_sources([_tx(9000, "משכורת")])
 
     assert [(s["kind"], s["who"]) for s in sources] == [("משכורת", "")]
@@ -62,8 +64,9 @@ def _section(sec_id):
 
 
 def test_the_income_card_is_a_doughnut_like_expenses():
-    """מתן (30.9): כותרת "הכנסות" בלבד, גרף עגול כמו ההוצאות, ולכל מקור צבע
-    (בן המשפחה, או אפור) ואחוז. בדפדפן: tests/browser/income_sources.py."""
+    """Matan (30.9): the heading "income" only, a donut like expenses, and a colour
+    for each source (the family member, or grey) and a percentage. In the
+    browser: tests/browser/income_sources.py."""
     section = _section("income-breakdown")
     assert '<h2 class="chart-title">הכנסות</h2>' in section
     assert 'id="incomeChart"' in section and "נכנס החודש" in section
@@ -71,11 +74,11 @@ def test_the_income_card_is_a_doughnut_like_expenses():
 
 
 def test_the_savings_card_is_a_doughnut_with_its_share_of_income():
-    """מתן (30.9): "חיסכון" בלבד, גרף עגול, "X% מההכנסות החודש", ואחוז לכל יעד.
-    בדפדפן: tests/browser/savings_section.py."""
+    """Matan (30.9): "savings" only, a donut, "X% of this month's income", and a
+    percentage for each goal. In the browser: tests/browser/savings_section.py."""
     section = _section("savings-breakdown")
     assert '<h2 class="chart-title">חיסכון</h2>' in section
-    # בלי גרף עגול (מתן, 30.9): "אין כאן עניין של השוואה"
+    # No donut (Matan, 30.9): "there's no comparison involved here"
     assert "<canvas" not in section and "סה״כ חיסכון החודש" in section
     assert "% מההכנסות החודש" in section and "{{ item.share }}%" in section
 

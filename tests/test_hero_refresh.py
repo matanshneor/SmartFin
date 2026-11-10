@@ -1,16 +1,19 @@
 """
-המספר הראשי בדשבורד לא התעדכן, ומשפחה חדשה נשארה עם "בואו נתחיל".
+The main number on the dashboard didn't update, and a new family was left with
+"let's get started".
 
-הרענון הרך החליף ‎main.main-content‎ בלבד, וה-hero הוא **אח** שלו
-ב-base.html ולא בן. כך ש"נשאר בעו״ש החודש" — המספר שכל האפליקציה
-קיימת בשבילו — נשאר תקוע אחרי כל הוספה ועריכה, עד רענון מלא.
+The soft refresh replaced `main.main-content` only, and the hero is its
+**sibling** in base.html, not its child. So "left in the account this month" (the
+number the whole app exists for) stayed stuck after every add and edit, until a
+full reload.
 
-ולמשפחה חדשה זה גרוע במיוחד: ה-hero מציג "לחצו על + כדי להוסיף את
-העסקה הראשונה שלכם **ולראות כאן את היתרה שלכם**", והמשפט הזה נשאר על
-המסך מעל העסקה שהרגע נוספה.
+And for a new family this was especially bad: the hero shows "tap + to add your
+first transaction **and see your balance here**", and that sentence stayed on
+screen above the transaction just added.
 
-ובאותו מסך, באג שני: בדשבורד ריק אין ‎.transactions-list‎ בכלל, אבל
-‎closeModal()‎ רץ בכל מקרה — אז כישלון שמירה נכתב לתוך חלון סגור.
+And on the same screen, a second bug: an empty dashboard has no
+`.transactions-list` at all, but `closeModal()` ran anyway, so a save failure was
+written into a closed sheet.
 """
 import json
 import shutil
@@ -30,10 +33,10 @@ def _read(p):
     return p.read_text(encoding="utf-8")
 
 
-# ─── ה-hero באמת מוחלף ──────────────────────────────────────────────────────
+# ─── The hero is really replaced ────────────────────────────────────────────
 
 def test_the_hero_is_a_sibling_of_main_not_a_child():
-    """זה השורש. אם המבנה ישתנה, ההנחה למטה כבר לא נכונה."""
+    """This is the root. If the structure changes, the assumption below is no longer true."""
     base = _read(_TPL / "base.html")
 
     assert base.index('<header class="page-hero">') < base.index('<main class="main-content"')
@@ -48,10 +51,11 @@ def test_the_soft_reload_replaces_both_regions():
 
 
 def test_a_partial_swap_falls_back_to_a_full_reload():
-    """hero חדש מעל גוף ישן גרוע מרענון מלא. לכן כל האזורים נאספים
-    לפני שנוגעים באחד מהם."""
+    """A new hero over an old body is worse than a full reload. So all areas are
+    collected before touching any of them."""
     core = _read(_JS / "core.js")
-    # ההחלפה עצמה ב-‎sfApplyHtml‎, משותפת לרענון ולמעבר בין חודשים (11.10)
+    # The swap itself is in `sfApplyHtml`, shared by the refresh and switching
+    # months (11.10)
     apply = core[core.index("function sfApplyHtml"):]
     apply = apply[:apply.index("\n}\n")]
     assert "if (pairs.some(p => !p[0] || !p[1])) return 'full';" in apply
@@ -63,17 +67,17 @@ def test_a_partial_swap_falls_back_to_a_full_reload():
 
 
 def test_the_numbers_animate_again_after_a_refresh():
-    """ה-count-up רץ רק ב-DOMContentLoaded, אז אחרי רענון רך המספרים
-    החדשים הופיעו בלי אנימציה — דווקא ברגע שבו מחכים להם."""
+    """The count-up ran only on DOMContentLoaded, so after a soft refresh the new
+    numbers appeared with no animation, exactly when they are waited for."""
     motion = _read(_JS / "motion.js")
 
     assert "window.addEventListener('sf:refreshed'" in motion
     block = motion[motion.index("window.addEventListener('sf:refreshed'"):]
     assert "runCountUps()" in block
-    assert "runStagger()" not in block, "אנימציית כניסה על כל עדכון היא רעש"
+    assert "runStagger()" not in block, "an entrance animation on every update is noise"
 
 
-# ─── התנהגות אמיתית, מורצת ב-node ───────────────────────────────────────────
+# ─── Real behaviour, run in node ────────────────────────────────────────────
 
 _HARNESS = r"""
 const fs = require('fs');
@@ -153,7 +157,7 @@ g.softReload(null, cfg.toast).then(function (how) {
 def _run(fresh_regions, **cfg):
     node = shutil.which("node")
     if not node:
-        pytest.skip("node לא מותקן")
+        pytest.skip("node isn't installed")
     harness = _ROOT / "tests" / "_hero_harness.js"
     harness.write_text(_HARNESS, encoding="utf-8")
     try:
@@ -174,21 +178,22 @@ def test_both_regions_are_actually_swapped():
 
 
 def test_a_missing_region_swaps_nothing_and_reloads():
-    """בקרת-נגד: חצי החלפה משאירה מסך שסותר את עצמו."""
-    res = _run(["main.main-content"])       # אין hero בתשובה מהשרת
+    """Control: a half swap leaves a screen that contradicts itself."""
+    res = _run(["main.main-content"])       # no hero in the server's response
 
-    assert res["replaced"] == [], "הוחלף אזור אחד למרות שהשני חסר"
+    assert res["replaced"] == [], "one area was replaced even though the other was missing"
     assert res["reloaded"] is True
 
 
-# ─── העסקה הראשונה ──────────────────────────────────────────────────────────
+# ─── The first transaction ──────────────────────────────────────────────────
 
 def _inside_braces(text, opener):
-    """התוכן שבין הסוגריים של הבלוק שמתחיל ב-‎opener‎.
+    """The content between the braces of the block starting at `opener`.
 
-    השוואת מיקומים לא מספיקה כאן: שורה שיושבת **אחרי** ‎if (list) {‎
-    אבל **מחוץ** לסוגריים שלו עוברת אותה — וזה בדיוק המצב השבור.
-    אומת בבדיקת מוטציה: הגרסה הקודמת של הבדיקה הזאת לא נפלה עליו."""
+    Comparing positions isn't enough here: a line sitting **after** `if (list) {`
+    but **outside** its braces passes it, and that is exactly the broken state.
+    Verified with a mutation test: the previous version of this test didn't fail
+    on it."""
     i = text.index(opener) + len(opener)
     depth, j = 1, i
     while depth:
@@ -201,66 +206,69 @@ def _inside_braces(text, opener):
 
 
 def test_the_modal_only_closes_when_there_is_a_row_to_show():
-    """בדשבורד ריק אין ‎.transactions-list‎, אז לא נוצרה שורה זמנית —
-    אבל החלון נסגר בכל זאת, וכל הודעת שגיאה נכתבה לתוך חלון סגור."""
+    """An empty dashboard has no `.transactions-list`, so no temporary row was
+    created, but the sheet closed anyway, and every error message was written
+    into a closed sheet."""
     js = _read(_JS / "transactions.js")
     block = js[js.index("let placeholderRow = null;"):]
     block = block[:block.index("const url    = editId")]
 
     guarded = _inside_braces(block, "if (list) {")
 
-    assert "closeModal();" in guarded, "closeModal מחוץ לתנאי"
-    # וגם הכפתור לא משתחרר כל עוד החלון פתוח ומחכה לשרת
+    assert "closeModal();" in guarded, "closeModal outside the condition"
+    # And the button isn't released either while the sheet is open waiting for
+    # the server
     assert "setSubmitBusy(false);" in guarded
-    # ובקרת-נגד לכל הבדיקה: מחוץ לתנאי לא נשארה אף אחת מהן
+    # And a control for the whole test: none of them remained outside the condition
     outside = block.replace(guarded, "")
     assert "closeModal();" not in outside
 
 
 def test_the_empty_dashboard_really_has_no_list():
-    """השורש של ב2 — אם התבנית תתחיל לרנדר רשימה ריקה, התנאי למעלה
-    כבר לא מגן על כלום."""
+    """The root of B2: if the template starts rendering an empty list, the condition
+    above no longer protects anything."""
     index = _read(_TPL / "index.html")
     block = index[index.index("transactions-list") - 400:index.index("transactions-list")]
 
     assert "{% if transactions %}" in block
 
 
-# ─── core.js לא נופל כשאין אחסון ────────────────────────────────────────────
+# ─── core.js doesn't fall over when there is no storage ─────────────────────
 
 def test_storage_access_cannot_take_the_whole_file_down():
-    """‎sessionStorage.getItem‎ רץ בטעינת הקובץ. חריגה שם — גלישה
-    פרטית, אחסון חסום, או סביבה בלי Web Storage — הפילה את **כל**
-    core.js: אין toast, אין דיאלוג אישור, אין רענון רך.
+    """`sessionStorage.getItem` runs when the file loads. An exception there
+    (private browsing, blocked storage, or an environment without Web Storage)
+    took down **all** of core.js: no toast, no confirm dialog, no soft refresh.
 
-    ככה זה התגלה: ב-CI רץ node 22, שאין בו ‎sessionStorage‎ כגלובלי,
-    והבדיקות כאן נפלו על משהו שלא היה קשור אליהן."""
+    That is how it was found: CI runs node 22, which has no `sessionStorage` as a
+    global, and the tests here failed on something unrelated to them."""
     core = _read(_JS / "core.js")
 
-    # ‎localStorage.getItem‎ היה כאן בשביל דגל הצליל, שירד עם הצליל (11.10)
+    # `localStorage.getItem` was here for the sound flag, which went away with
+    # the sound (11.10)
     for call in ("sessionStorage.getItem", "sessionStorage.removeItem"):
         i = core.index(call)
         before = core[max(0, i - 300):i]
-        assert "try {" in before, f"{call} בלי try"
+        assert "try {" in before, f"{call} without try"
 
 
 def test_the_harness_does_not_depend_on_the_node_version():
-    """הארנס עצמו מספק את מה ש-core.js נוגע בו בטעינה, כדי שהבדיקה
-    תיפול על הקוד שהיא בודקת ולא על סביבת ההרצה."""
+    """The harness itself provides what core.js touches on load, so the test fails
+    on the code it tests and not on the runtime environment."""
     src = _HARNESS
 
     assert "g.sessionStorage" in src
     assert "g.localStorage" in src
 
 
-# ─── עמוד החודש: הנתונים של הגרפים, וחודש שהיה ריק ──────────────────────────
+# ─── The month page: the charts' data, and a month that was empty ───────────
 
 _BOTH = ["header.page-hero", "main.main-content"]
 
 
 def test_the_data_behind_the_charts_is_refreshed_too():
-    """‎sf-view-data‎ יושב מחוץ ל-‎main‎. בלי זה העוגה והמקרא צוירו מחדש
-    מהמספרים הישנים, מתחת לכרטיסים שכבר התעדכנו."""
+    """`sf-view-data` sits outside `main`. Without this the pie and the legend were
+    redrawn from the old numbers, under cards that had already updated."""
     res = _run(_BOTH, chartLoaded=True,
                liveData={"sf-view-data": '{"summary": {"expense": 100}}'},
                freshData={"sf-view-data": '{"summary": {"expense": 600}}'})
@@ -270,18 +278,19 @@ def test_the_data_behind_the_charts_is_refreshed_too():
 
 
 def test_charts_without_the_library_reload_fully_and_keep_the_message():
-    """חודש ריק לא טוען את Chart.js; העסקה הראשונה מביאה גרפים — ובלי
-    הספרייה הם נשארו ריבועים ריקים. וההודעה "העסקה נוספה" לא הולכת לאיבוד."""
+    """An empty month doesn't load Chart.js; the first transaction brings charts, and
+    without the library they stayed empty squares. And the "transaction added"
+    message isn't lost."""
     res = _run(_BOTH, chartLoaded=False, freshCanvas=True, toast="העסקה נוספה")
 
     assert res["reloaded"] is True
-    assert res["how"] == "reloaded", "הקורא יציג את ההודעה פעמיים"
+    assert res["how"] == "reloaded", "the caller will show the message twice"
     assert res["storedToast"] == "העסקה נוספה"
-    assert res["replaced"] == [], "הוחלף משהו רגע לפני שהעמוד נטען מחדש"
+    assert res["replaced"] == [], "something was replaced a moment before the page reloads"
 
 
 def test_a_page_that_already_has_the_library_stays_soft():
-    """בקרת-נגד: רק היעדר הספרייה מצדיק טעינה מלאה."""
+    """Control: only the library's absence justifies a full load."""
     res = _run(_BOTH, chartLoaded=True, freshCanvas=True, toast="העסקה נוספה")
 
     assert res["reloaded"] is False

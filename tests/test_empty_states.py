@@ -1,12 +1,12 @@
 """
-בדיקות למסכים ריקים.
+Tests for empty states.
 
-משפחה חדשה נוחתת בעמוד החודש ישר מהדשבורד ורואה חמישה כרטיסי גרף ריקים
-בזה אחר זה, בלי שום הסבר — מסך שנראה שבור. זה קורה פעם אחת לכל משפחה,
-והפעם הזאת היא שקובעת אם הם יישארו.
+A new family lands on the month page straight from the dashboard and sees five
+empty chart cards one after another, with no explanation: a screen that looks
+broken. It happens once per family, and that once decides whether they stay.
 
-כל שאר העמודים כבר מטפלים במצב הזה; עמוד החודש היה היחיד שנשכח. הבדיקה
-האחרונה כאן היא זו שתתפוס את העמוד הבא שיישכח.
+Every other page already handles this state; the month page was the only one
+forgotten. The last test here is the one that will catch the next page forgotten.
 """
 from pathlib import Path
 
@@ -56,41 +56,44 @@ def test_a_month_with_nothing_in_it_explains_itself():
 
 
 def test_it_does_not_render_five_blank_charts():
-    """זה מה שהמשתמש ראה בפועל: חמישה כרטיסים ריקים בזה אחר זה."""
+    """This is what the user actually saw: five empty cards one after another."""
     html = _render_month([])
 
     assert html.count('"chart-card"') == 1
 
 
 def test_an_empty_month_does_not_download_chart_js():
-    """‎70KB דחוסים שאין מה לצייר איתם."""
+    """70KB compressed with nothing to draw."""
     assert "chart.umd" not in _render_month([])
 
 
 def test_a_past_month_offers_the_way_back():
-    """'לא נרשמו עסקאות באוגוסט' בלי דרך חזרה הוא מבוי סתום."""
+    """'No transactions recorded in August' with no way back is a dead end."""
     html = _render_month([], is_current=False)
 
     assert "לחזור לחודש הנוכחי" in html
 
 
 def test_a_month_with_data_is_untouched():
-    """בקרת-נגד: הגרפים והספרייה חייבים לחזור ברגע שיש מה להציג."""
+    """Control: the charts and the library must come back as soon as there is
+    something to show."""
     html = _render_month([_TX])
 
     assert "empty-state" not in html
-    # "הוצאות מול חיסכון" הוסר (30.9). סוג בלי עסקאות — שורה אחת ולא כרטיס
-    # (מתן, 11.10): כאן יש רק הוצאה, אז הכנסות וחיסכון הן שורות.
+    # "Expenses vs savings" was removed (30.9). A type with no transactions: one
+    # row and not a card (Matan, 11.10): here there is only an expense, so income
+    # and savings are rows.
     assert html.count('"chart-card"') == 2
     assert html.count('class="empty-row"') == 2
     assert "chart.umd" in html
 
 
 def test_every_page_that_can_be_empty_says_so():
-    """זו הבדיקה שתתפוס את העמוד הבא שיישכח."""
+    """This is the test that will catch the next page forgotten."""
     for page in ("index.html", "month.html", "months.html",
                  "projects.html", "project_detail.html", "settings.html"):
         html = (_TPL / page).read_text(encoding="utf-8")
-        # בפרויקטים המצב הריק הוא הזמנה להתחיל, עם רעיונות (מתן, 5.10)
+        # On projects the empty state is an invitation to start, with ideas
+        # (Matan, 5.10)
         marker = "project-ideas-title" if page == "projects.html" else "empty-state"
-        assert marker in html, f"{page} ללא מצב ריק"
+        assert marker in html, f"{page} has no empty state"

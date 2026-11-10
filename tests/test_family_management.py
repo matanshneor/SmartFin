@@ -1,14 +1,16 @@
 """
-בדיקות לניהול חברי המשפחה: הסרה, עזיבה והחלפת קוד הזמנה.
+Tests for managing family members: removal, leaving and replacing the invite code.
 
-עד עכשיו מי שהצטרף למשפחה — בטעות, או עם קוד שדלף בקבוצת וואטסאפ —
-נשאר בה לתמיד. אין מסלול להסיר אותו, אין דרך לעזוב, והקוד נוצר פעם אחת
-ואי אפשר לשנותו. כלומר דליפה של שישה תווים היא גישה קבועה לכספי המשפחה,
-למספרי הטלפון ולמקומות העבודה של כל חבריה.
+Until now whoever joined the family (by mistake, or with a code leaked in a
+WhatsApp group) stayed in it forever. There was no route to remove them, no way
+to leave, and the code was created once and couldn't be changed. So a leak of six
+characters meant permanent access to the family's finances, and to every member's
+phone number and workplace.
 
-המודל היה שטוח לגמרי. נוסף תפקיד אחד — מנהל המשפחה — והוא היחיד שרשאי
-להסיר. הכללים נאכפים ב-DB; הבדיקות כאן מוודאות שהשכבה שמעליו לא מרככת
-אותם ושהממשק לא מציע פעולות שייכשלו.
+The model was completely flat. One role was added (the family manager), and it
+is the only one allowed to remove. The rules are enforced in the DB; the tests
+here check that the layer above doesn't soften them and that the UI doesn't offer
+actions that will fail.
 """
 from pathlib import Path
 
@@ -32,11 +34,13 @@ deleted_receipts = []
 def client(monkeypatch):
     app.config["TESTING"] = True
     limiter.reset()
-    # ברירת המחדל כאן היא מנהל: הבדיקות בקובץ הזה עוסקות במה שהפעולות
-    # עושות, לא במי רשאי. הבדיקות על ההרשאה עצמה יושבות בקובץ נפרד.
+    # The default here is manager: the tests in this file are about what the
+    # actions do, not who may. The tests on the permission itself sit in a
+    # separate file.
     monkeypatch.setattr(app_module.db, "is_family_manager", lambda: True)
-    # קבלות: בלי פרויקטים ובלי קבצים כברירת מחדל. מחיקת קבצים לעולם לא
-    # יוצאת לאחסון האמיתי מבדיקה — היא נרשמת כאן, והבדיקות למטה קוראות אותה.
+    # Receipts: no projects and no files by default. Deleting files never goes
+    # out to the real storage from a test: it is recorded here, and the tests
+    # below read it.
     monkeypatch.setattr(app_module.db, "personal_project_ids", lambda fid, uid: [])
     monkeypatch.setattr(app_module.db, "receipt_paths", lambda *a, **k: [])
     deleted_receipts.clear()
@@ -50,10 +54,11 @@ def client(monkeypatch):
     limiter.reset()
 
 
-# ─── הסרת חבר ────────────────────────────────────────────────────────────────
+# ─── Removing a member ──────────────────────────────────────────────────────
 
 def test_removing_a_member_passes_the_transaction_choice_through(client, monkeypatch):
-    """הבחירה על העסקאות היא של המשתמש; אסור שהשרת יכריע אותה בשקט."""
+    """The choice about the transactions is the user's; the server mustn't decide it
+    silently."""
     seen = {}
     monkeypatch.setattr(app_module.db, "remove_family_member",
                         lambda uid, keep_transactions, projects="ask": (seen.update(
@@ -65,7 +70,7 @@ def test_removing_a_member_passes_the_transaction_choice_through(client, monkeyp
 
 
 def test_keeping_transactions_is_the_default_when_nothing_is_said(client, monkeypatch):
-    """בקשה בלי העדפה מפורשת לא אמורה למחוק כסף."""
+    """A request with no explicit preference shouldn't delete money."""
     seen = {}
     monkeypatch.setattr(app_module.db, "remove_family_member",
                         lambda uid, keep_transactions, projects="ask": (seen.update(
@@ -77,7 +82,7 @@ def test_keeping_transactions_is_the_default_when_nothing_is_said(client, monkey
 
 
 def test_a_non_manager_is_refused_with_a_hebrew_reason(client, monkeypatch):
-    """ה-DB מסרב באנגלית; המשתמש צריך לדעת למה."""
+    """The DB refuses in English; the user needs to know why."""
     monkeypatch.setattr(app_module.db, "remove_family_member",
                         lambda uid, keep_transactions, projects="ask":
                             (False, "only the family manager can remove members"))
@@ -88,11 +93,11 @@ def test_a_non_manager_is_refused_with_a_hebrew_reason(client, monkeypatch):
     assert "מנהל המשפחה" in response.get_json()["error"]
 
 
-# ─── עזיבה ───────────────────────────────────────────────────────────────────
+# ─── Leaving ────────────────────────────────────────────────────────────────
 
 def test_leaving_updates_the_session_to_the_new_family(client, monkeypatch):
-    """בלי זה ה-session ממשיך להצביע על המשפחה הישנה, כל שליפה מסוננת
-    לפי משפחה שהמשתמש כבר לא חבר בה, והאפליקציה נראית ריקה."""
+    """Without this the session keeps pointing at the old family, every query is
+    filtered by a family the user is no longer in, and the app looks empty."""
     monkeypatch.setattr(app_module.db, "leave_family",
                         lambda keep_transactions, projects="ask": ("44444444-4444-4444-4444-444444444444", None))
 
@@ -103,7 +108,7 @@ def test_leaving_updates_the_session_to_the_new_family(client, monkeypatch):
 
 
 def test_a_failed_leave_does_not_move_the_session(client, monkeypatch):
-    """בקרת-נגד: אסור שכישלון ישאיר את המשתמש מצביע לשום מקום."""
+    """Control: a failure mustn't leave the user pointing nowhere."""
     monkeypatch.setattr(app_module.db, "leave_family",
                         lambda keep_transactions, projects="ask": (None, "boom"))
 
@@ -113,15 +118,17 @@ def test_a_failed_leave_does_not_move_the_session(client, monkeypatch):
         assert sess["family_id"] == _FAM
 
 
-# ─── פרויקטים אישיים של מי שיוצא ─────────────────────────────────────────────
+# ─── Personal projects of whoever leaves ─────────────────────────────────────
 #
-# עד 28.9.2026 הם נעלמו: רשומים על מי שכבר לא במשפחה — מוסתרים מכולם, והכסף
-# שבהם לא נספר בשום מקום. עכשיו מי שמחליט נשאל: "למחוק" או "להשאיר כמשותפים".
-# ההתנהגות במסד נבדקה בסימולציה על המסד האמיתי בתוך ‎begin … rollback‎.
+# Until 28.9.2026 they vanished: recorded under someone no longer in the family,
+# hidden from everyone, and the money in them counted nowhere. Now whoever decides
+# is asked: "delete" or "keep as shared". The database behaviour was checked in a
+# simulation on the real database inside `begin … rollback`.
 
 @pytest.mark.parametrize("sent", [{}, {"projects": "share"}, {"projects": "ask"}])
 def test_a_removed_members_personal_projects_are_always_deleted(client, monkeypatch, sent):
-    """החלטת מתן: המנהל לא נשאל ולא בוחר — גם בקשה שמבקשת "משותפים"."""
+    """Matan's decision: the manager isn't asked and doesn't choose, even with a
+    request asking for "shared"."""
     seen = {}
     monkeypatch.setattr(app_module.db, "remove_family_member",
                         lambda uid, keep_transactions, projects:
@@ -149,11 +156,12 @@ def test_whoever_leaves_decides_about_their_own_projects(client, monkeypatch, se
 
 
 def test_leaving_with_undecided_projects_asks_and_touches_nothing(client, monkeypatch):
-    """לא עוזבים ולא מוחקים שום קובץ עד שנענתה השאלה — גם ה-session לא זז."""
+    """Nobody leaves and no file is deleted until the question is answered; the
+    session doesn't move either."""
     monkeypatch.setattr(app_module.db, "personal_project_ids", lambda fid, uid: ["p1"])
     monkeypatch.setattr(app_module.db, "receipt_paths", lambda *a, **k: ["fam/r1.jpg"])
     monkeypatch.setattr(app_module.db, "leave_family",
-                        lambda *a, **k: pytest.fail("עזב לפני שנשאל"))
+                        lambda *a, **k: pytest.fail("left before being asked"))
 
     response = client.post("/api/family/leave", json={})
 
@@ -164,13 +172,15 @@ def test_leaving_with_undecided_projects_asks_and_touches_nothing(client, monkey
         assert sess["family_id"] == _FAM
 
 
-# ─── קבלות של מה שנמחק ───────────────────────────────────────────────────────
+# ─── Receipts of what is deleted ────────────────────────────────────────────
 #
-# אין ניקוי לילי (‎purge_orphan_receipts‎ נכשל בכל ריצה והוסר) — Supabase חוסמת מחיקה
-# ישירה מהאחסון. אז מה שנמחק בהסרה או בעזיבה לוקח איתו את הקבצים שלו.
+# There is no nightly cleanup (`purge_orphan_receipts` failed on every run and was
+# removed): Supabase blocks deleting directly from storage. So whatever is deleted
+# on removal or leaving takes its files with it.
 
 def _receipts_by(monkeypatch, mapping):
-    """‎receipt_paths‎ מזויף: מחזיר קבצים לפי מה שהתבקש, כדי לבדוק *מה* נאסף."""
+    """A fake `receipt_paths`: returns files according to what was asked, to check
+    *what* was collected."""
     def fake(fid, project_ids=None, user_id=None):
         out = []
         for pid in project_ids or []:
@@ -179,7 +189,7 @@ def _receipts_by(monkeypatch, mapping):
             out += mapping.get(("own", user_id), [])
         return out
     monkeypatch.setattr(app_module.db, "receipt_paths", fake)
-    # אחרי המחיקה אף עסקה לא מצביעה על הקבצים (ראו ‎_delete_unused_receipts‎)
+    # After the delete no transaction points at the files (see `_delete_unused_receipts`)
     monkeypatch.setattr(app_module.db, "receipts_in_use", lambda fid, paths: set())
 
 
@@ -213,7 +223,8 @@ def test_a_refused_removal_deletes_no_files(client, monkeypatch):
     ({"projects": "share", "keep_transactions": False}, ["proj.jpg", "own.jpg"]),
 ])
 def test_leaving_deletes_the_receipts_first_and_only_of_what_goes(client, monkeypatch, body, expected):
-    """לפני העזיבה: אחריה מי שיצא כבר לא מורשה לגעת בתיקייה של המשפחה."""
+    """Before leaving: afterwards whoever left is no longer allowed to touch the
+    family's folder."""
     order = []
     monkeypatch.setattr(app_module.db, "personal_project_ids", lambda fid, uid: ["p1"])
     _receipts_by(monkeypatch, {"p1": ["proj.jpg"], ("own", _ME): ["own.jpg"]})
@@ -229,13 +240,13 @@ def test_leaving_deletes_the_receipts_first_and_only_of_what_goes(client, monkey
 
 
 def test_other_errors_are_not_mistaken_for_the_question():
-    """בקרת-נגד לפענוח."""
+    """A control for the parsing."""
     assert app_module.db.project_choice_needed("needs_project_choice:3") == 3
     assert app_module.db.project_choice_needed("only the family manager") == 0
     assert app_module.db.project_choice_needed(None) == 0
 
 
-# ─── החלפת קוד ───────────────────────────────────────────────────────────────
+# ─── Replacing the code ─────────────────────────────────────────────────────
 
 def test_rotating_returns_the_new_code_so_the_screen_can_show_it(client, monkeypatch):
     monkeypatch.setattr(app_module.db, "rotate_invite_code", lambda: ("NEW123", None))
@@ -245,34 +256,37 @@ def test_rotating_returns_the_new_code_so_the_screen_can_show_it(client, monkeyp
     assert response.get_json()["invite_code"] == "NEW123"
 
 
-# ─── הממשק ───────────────────────────────────────────────────────────────────
+# ─── The UI ─────────────────────────────────────────────────────────────────
 
 def test_escaping_the_transaction_dialog_keeps_the_money():
-    """המלכודת. appConfirm מחזיר false על Escape, על לחיצה מחוץ לדיאלוג
-    ועל ✕ — אז האפשרות ההרסנית חייבת להיות דווקא כפתור האישור, אחרת כל
-    בריחה מהדיאלוג מוחקת עסקאות. זה בדיוק הבאג שקיים היום במחיקת פרויקט."""
+    """The trap. appConfirm returns false on Escape, on a tap outside the dialog and
+    on ✕, so the destructive option must be the confirm button itself; otherwise
+    every escape from the dialog deletes transactions. That is exactly the bug
+    that exists today in deleting a project."""
     js = (_ROOT / "frontend/static/js/settings.js").read_text(encoding="utf-8")
     block = js[js.index("function askAboutTransactions"):][:900]
 
     assert "confirmText: 'למחוק אותן'" in block, \
-        "האפשרות הבטוחה היא כפתור האישור — בריחה מהדיאלוג תמחק עסקאות"
+        "the safe option is the confirm button: escaping the dialog will delete transactions"
     assert "return wipe ? WIPE : KEEP;" in block
 
 
 def test_the_remove_button_is_only_offered_to_the_manager():
-    """הכלל נאכף ב-DB ממילא; ההסתרה כאן היא כדי לא להציע פעולה שתיכשל."""
+    """The rule is enforced in the DB anyway; hiding it here is so as not to offer
+    an action that will fail."""
     html = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
 
     assert "user.id == family.get('manager_id')" in html
-    assert "manager-badge" in html, "אין סימון של מנהל המשפחה ברשימת החברים"
+    assert "manager-badge" in html, "the family manager isn't marked in the member list"
 
 
 def test_leaving_is_hidden_for_a_family_of_one():
-    """לעזוב משפחה שאתה לבד בה זה רק ליצור משפחה ריקה אחרת."""
+    """Leaving a family you are alone in just creates another empty family."""
     html = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
 
-    # מ-11.10 עזיבה והצטרפות הן שורה אחת: מי שלבד רואה רק "הצטרפות",
-    # ו"פתיחת משפחה חדשה" (העזיבה עצמה) מוצגת רק כשיש עוד מישהו
+    # Since 11.10 leaving and joining are one row: someone alone sees only
+    # "join", and "open a new family" (the leaving itself) is shown only when
+    # there is someone else
     assert "{% set alone = members | length <= 1 %}" in html
     leave = html[html.index("{% if not alone %}"):]
     assert 'id="leaveFamilyBtn"' in leave[:leave.index("{% endif %}")]

@@ -1,14 +1,14 @@
 """
-בדיקות להודעות שמוצגות למשתמש.
+Tests for messages shown to the user.
 
-15 הודעות שגיאה הוחזרו למסך באנגלית — "Missing required fields: amount,
-type, date", "No family linked to account", "type must be expense, income,
-or savings". הן נכתבו כהודעות למפתח, והקוד הציג אותן כמו שהן למשתמש
-שהאפליקציה כולה בעברית.
+15 error messages were returned to the screen in English: "Missing required
+fields: amount, type, date", "No family linked to account", "type must be
+expense, income, or savings". They were written as messages for the developer,
+and the code showed them as is to a user whose whole app is in Hebrew.
 
-השורש הוא ששכבת ה-DB מחזירה שני סוגי מחרוזות באותו מקום: הודעות שנכתבו
-למשתמש, וסימנים פנימיים כמו "Database not configured" או str(e) גולמי
-מ-Supabase. המסלולים הציגו את שתיהן.
+The root is that the DB layer returns two kinds of strings in the same place:
+messages written for the user, and internal markers like "Database not
+configured" or a raw str(e) from Supabase. The routes showed both.
 """
 import ast
 import re
@@ -25,7 +25,7 @@ _HEBREW = re.compile(r"[֐-׿]")
 
 
 def _literal_error_messages():
-    """כל ‎jsonify({"error": "…"})‎ עם מחרוזת קבועה."""
+    """Every `jsonify({"error": "…"})` with a fixed string."""
     tree = ast.parse(_APP.read_text(encoding="utf-8"))
     out = []
     for node in ast.walk(tree):
@@ -45,32 +45,32 @@ def _literal_error_messages():
 def test_no_route_answers_the_user_in_english():
     english = [(l, m) for l, m in _literal_error_messages() if not _HEBREW.search(m)]
 
-    assert not english, f"הודעות באנגלית למשתמש עברי: {english}"
+    assert not english, f"English messages for a Hebrew user: {english}"
 
 
 def test_there_are_actually_messages_to_check():
-    """שומר מפני בדיקה שעוברת כי היא לא מצאה כלום."""
+    """Guards against a test that passes because it found nothing."""
     assert len(_literal_error_messages()) > 20
 
 
-# ─── השער שמונע את הדליפה הבאה ───────────────────────────────────────────────
+# ─── The gate that prevents the next leak ───────────────────────────────────
 
 def test_an_internal_string_never_reaches_the_screen():
-    """‎"Database not configured"‎ הוא סימן ללוג. הוא הופיע 23 פעמים
-    בשכבת ה-DB, ובכמה מסלולים הוחזר למשתמש כמו שהוא."""
+    """`"Database not configured"` is a marker for the log. It appeared 23 times in
+    the DB layer, and on several routes was returned to the user as is."""
     assert app_module._user_message("Database not configured") == "הפעולה נכשלה — נסו שוב"
 
 
 def test_a_raw_supabase_exception_never_reaches_the_screen():
-    """כמה פונקציות מחזירות ‎str(e)‎ — טקסט של ספרייה, לפעמים עם פרטי
-    שאילתה בתוכו."""
+    """Several functions return `str(e)`: a library's text, sometimes with query
+    details in it."""
     msg = app_module._user_message("APIError: {'code': 'PGRST116', 'details': ...}")
 
     assert msg == "הפעולה נכשלה — נסו שוב"
 
 
 def test_a_message_written_for_the_user_passes_through():
-    """בקרת-נגד: השער לא אמור לבלוע הודעות טובות."""
+    """Control: the gate shouldn't swallow good messages."""
     real = "רק הבעלים של הפרויקט יכול להפוך אותו למשותף"
 
     assert app_module._user_message(real) == real
@@ -81,7 +81,7 @@ def test_the_caller_can_choose_its_own_fallback():
 
 
 def test_a_leaked_internal_string_is_logged_so_it_can_be_fixed(caplog):
-    """בליעה שקטה הייתה מחליפה באג אחד באחר."""
+    """A silent swallow would replace one bug with another."""
     import logging
     with caplog.at_level(logging.WARNING):
         app_module._user_message("Database not configured")

@@ -1,4 +1,4 @@
-"""בחירת אייקון מרשת והצעה לפי השם (מתן, 30.9 — סבב 6, פריט 8)."""
+"""Picking an icon from a grid and a suggestion by name (Matan, 30.9, round 6, item 8)."""
 import json
 import subprocess
 from pathlib import Path
@@ -12,7 +12,7 @@ _JS = (_ROOT / "frontend/static/js/icon-picker.js").read_text(encoding="utf-8")
 
 
 def _suggest(names):
-    """מריץ את ‎suggest‎ האמיתית ב-node, עם document מינימלי."""
+    """Runs the real `suggest` in node, with a minimal document."""
     harness = """
     const listeners = {};
     global.window = {};
@@ -35,7 +35,7 @@ def test_an_unknown_name_suggests_nothing():
 
 
 def test_every_icon_fits_the_two_character_fields():
-    """‎maxlength="2"‎ ב-UTF-16: ‎🛡️‎ (שלושה) היה נחתך בשקט ל-‎🛡‎ + חצי תו."""
+    """`maxlength="2"` in UTF-16: `🛡️` (three) was silently cut to `🛡` + half a character."""
     import re
     icons = re.findall(r"'([^'a-zA-Z\\\\ ]{1,4})'", _JS)
     icons = [i for i in icons if any(ord(c) > 0x2000 for c in i)]
