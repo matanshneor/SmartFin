@@ -1,16 +1,17 @@
 """
-הצטרפות למשפחה שעוד לא סיימה את ההגדרה פיצלה אותה לשתיים.
+Joining a family that hadn't finished setup split it in two.
 
-האשף הציג את קוד ההזמנה בשלב 2 — לפני שנוצרו הקטגוריות — ומי שקיבל
-אותו והצטרף מיד נחת בעצמו על האשף, כי "צריך הגדרה" נמדד לפי היעדר
-קטגוריות. בלי שום הודעה, ועל מסך הפתיחה "משפחה חדשה או הצטרפות?".
+The wizard showed the invite code in step 2, before the categories were created,
+and whoever got it and joined right away landed on the wizard themselves, because
+"needs setup" was measured by the absence of categories. With no message at all,
+and on the opening screen "משפחה חדשה או הצטרפות?".
 
-זה נראה בדיוק ככישלון, והמוצא המתבקש הוא הכפתור שמוצע — "פותחים
-משפחה חדשה". שניים במשפחות נפרדות, כל אחד עם קוד משלו, ואף אחד לא
-מבין למה השני לא רואה את העסקאות.
+That looks exactly like a failure, and the obvious way out is the button offered:
+"פותחים משפחה חדשה". Two people in separate families, each with their own code,
+and neither understands why the other doesn't see the transactions.
 
-שני תיקונים: הקוד לא מוצג לפני שיש למה להזמין, ומי שכבר נחת שם מקבל
-הסבר במקום מסך פתיחה.
+Two fixes: the code isn't shown before there is something to invite to, and
+whoever already landed there gets an explanation instead of an opening screen.
 """
 import json
 import re
@@ -46,23 +47,24 @@ def client(monkeypatch):
         yield c
 
 
-# ─── המניעה: אין הזמנה לפני שיש למה להזמין ──────────────────────────────────
+# ─── Prevention: no invite before there is something to invite to ──────────
 
 def test_the_invite_code_is_not_a_step_in_the_middle_any_more():
-    """הקוד הוצג בשלב 2 מתוך 4 — כלומר לפני שהמשפחה בכלל קיימת
-    מבחינת האפליקציה."""
+    """The code was shown in step 2 of 4: that is, before the family even exists as
+    far as the app is concerned."""
     assert 'id="stepInvite"' in _HTML
     assert 'id="step2"' in _HTML and 'id="step4"' not in _HTML
 
 
 def _success_handler(marker):
-    """גוף ה-‎.then(function (…) { … })‎ שאחרי ‎marker‎, לפי איזון סוגריים.
+    """The body of the .then(function (…) { … }) after marker, by brace balancing.
 
-    סימן טקסטואלי לסוף הבלוק (‎"}).catch"‎) נשבר בכל שינוי עיצוב, והבדיקה
-    אז בולעת את שאר הקובץ ומדווחת ירוק על כלום. הספירה לא נשברת."""
+    A textual sign for the end of the block ("}).catch") breaks on every
+    formatting change, and the test then swallows the rest of the file and reports
+    green on nothing. Counting doesn't break."""
     body = _JS[_JS.index(marker):]
     head = re.search(r"\.then\(function \([A-Za-z_$][\w$]*\) \{", body)
-    assert head, f"לא נמצא מטפל הצלחה אחרי {marker}"
+    assert head, f"no success handler found after {marker}"
 
     start = head.end()
     depth = 1
@@ -77,32 +79,32 @@ def _success_handler(marker):
 
 
 def test_the_invite_screen_comes_after_the_wizard_finishes():
-    """הוא מוצג רק בתשובה מוצלחת של ‎/api/onboarding/complete‎."""
+    """It is shown only on a successful response of /api/onboarding/complete."""
     block = _success_handler("onboarding/complete")
 
     assert "stepInvite.style.display = 'block'" in block
-    assert "window.location.href = '/'" not in block, "עדיין מדלג ישר לאפליקציה"
+    assert "window.location.href = '/'" not in block, "still skips straight to the app"
 
 
 def test_a_joiner_goes_straight_into_the_app():
-    """מי שמצטרף למשפחה מוגדרת לא צריך מסך הזמנה — הוא לא הזמין אף אחד,
-    והמשפחה כבר קיימת. הוא נכנס."""
+    """Whoever joins a set-up family doesn't need an invite screen: they invited
+    no one, and the family already exists. They go in."""
     block = _success_handler("family/join")
 
     assert "window.location.href = '/'" in block
-    assert "stepInvite" not in block, "המצטרף מקבל את מסך ההזמנה במקום להיכנס"
+    assert "stepInvite" not in block, "the joiner gets the invite screen instead of going in"
 
 
 def test_the_wizard_is_three_steps_now():
-    """ההזמנה ירדה מהרצף, אז גם הנקודות."""
+    """The invite left the sequence, so the dots did too."""
     assert _HTML.count('class="step-dot') == 3
     assert "dotStep4" not in _HTML and "dotStep4" not in _JS
 
 
-# ─── החילוץ: מי שכבר נחת שם ─────────────────────────────────────────────────
+# ─── The rescue: whoever already landed there ───────────────────────────────
 
 def test_a_joiner_waiting_on_an_unfinished_family_gets_an_explanation(client, monkeypatch):
-    """הלב. עד היום הוא ראה את מסך הפתיחה, ולחץ על "משפחה חדשה"."""
+    """The heart. Until now they saw the opening screen, and tapped "משפחה חדשה"."""
     monkeypatch.setattr(app_module.db, "get_family_members",
                         lambda fid: [{"id": _ME, "name": "מתן"},
                                      {"id": "other", "name": "אור"}])
@@ -111,13 +113,13 @@ def test_a_joiner_waiting_on_an_unfinished_family_gets_an_explanation(client, mo
 
     assert "הצטרפתם בהצלחה" in html
     assert "אור" in html
-    assert 'id="step0"' not in html, "מסך הפתיחה עדיין מוצג"
+    assert 'id="step0"' not in html, "the opening screen is still shown"
 
 
 def test_the_manager_keeps_the_wizard_even_after_someone_joins(client, monkeypatch):
-    """הסכנה בתיקון עצמו: מי שפתח את המשפחה עדיין באמצע האשף כשחבר
-    מצטרף. אם גם הוא יקבל את מסך ההמתנה — שניהם ממתינים זה לזה
-    לנצח, ואף אחד לא יכול לסיים את ההגדרה."""
+    """The danger in the fix itself: whoever opened the family is still in the middle
+    of the wizard when a member joins. If they also get the waiting screen, both
+    wait for each other forever, and nobody can finish the setup."""
     monkeypatch.setattr(app_module.db, "get_family",
                         lambda fid: {"id": _FAM, "name": "שניאור",
                                      "invite_code": "K4F2QX", "manager_id": _ME})
@@ -127,12 +129,13 @@ def test_the_manager_keeps_the_wizard_even_after_someone_joins(client, monkeypat
 
     html = client.get("/onboarding").get_data(as_text=True)
 
-    assert 'id="step0"' in html, "מי שפותח את המשפחה ננעל מחוץ לאשף שלו"
+    assert 'id="step0"' in html, "whoever opens the family is locked out of their own wizard"
     assert "הצטרפתם בהצלחה" not in html
 
 
 def test_the_first_member_still_gets_the_wizard(client, monkeypatch):
-    """בקרת-נגד, והחשובה כאן: מי שפתח את המשפחה חייב לראות את האשף."""
+    """Control, and the important one here: whoever opened the family must see the
+    wizard."""
     monkeypatch.setattr(app_module.db, "get_family_members",
                         lambda fid: [{"id": _ME, "name": "מתן"}])
 
@@ -143,8 +146,9 @@ def test_the_first_member_still_gets_the_wizard(client, monkeypatch):
 
 
 def test_an_unreadable_member_list_falls_back_to_the_wizard(client, monkeypatch):
-    """אם אי אפשר לדעת מי עוד במשפחה, האשף הוא ברירת המחדל הבטוחה:
-    לחסום את מי שבאמת צריך להגדיר גרוע מלהראות מסך מיותר."""
+    """If it's impossible to know who else is in the family, the wizard is the safe
+    default: blocking whoever really needs to set up is worse than showing a
+    needless screen."""
     def _boom(fid):
         raise app_module.db.DataUnavailable("members")
     monkeypatch.setattr(app_module.db, "get_family_members", _boom)
@@ -152,7 +156,7 @@ def test_an_unreadable_member_list_falls_back_to_the_wizard(client, monkeypatch)
     assert 'id="step0"' in client.get("/onboarding").get_data(as_text=True)
 
 
-# ─── הקובץ לא נופל על המסך החדש ─────────────────────────────────────────────
+# ─── The file doesn't crash on the new screen ───────────────────────────────
 
 _HARNESS = r"""
 const fs = require('fs');
@@ -190,10 +194,10 @@ console.log(JSON.stringify({ bound }));
 
 
 def _run(ids):
-    """מריצה את ‎onboarding.js‎ האמיתי מול DOM שמכיל רק את ה-ids שנמסרו."""
+    """Runs the real onboarding.js against a DOM containing only the given ids."""
     node = shutil.which("node")
     if not node:
-        pytest.skip("node לא מותקן")
+        pytest.skip("node isn't installed")
     harness = _ROOT / "tests" / "_onboarding_harness.js"
     harness.write_text(_HARNESS, encoding="utf-8")
     try:
@@ -211,21 +215,22 @@ _WIZARD_IDS = re.findall(r'id="([A-Za-z][\w-]*)"', _HTML)
 
 
 def test_the_script_survives_a_page_that_has_no_wizard_on_it():
-    """הלב של הפריט הזה מבחינת JS. מסך ההמתנה מוגש במקום האשף כולו,
-    ואין בו אף אחד מהאלמנטים. בלי היציאה המוקדמת הקובץ נופל על
-    הראשון שחסר — בדיוק כמו ש-core.js נפל על ‎sessionStorage‎."""
+    """The heart of this item from the JS side. The waiting screen is served instead
+    of the whole wizard, and has none of the elements. Without the early exit the
+    file crashes on the first one missing, exactly like core.js crashed on
+    sessionStorage."""
     out = _run(["stepWaiting"])
 
-    assert out.returncode == 0, f"הקובץ קרס על מסך ההמתנה:\n{out.stderr[:800]}"
-    assert json.loads(out.stdout)["bound"] == [], "נקשרו מאזינים לאלמנטים שלא קיימים"
+    assert out.returncode == 0, f"the file crashed on the waiting screen:\n{out.stderr[:800]}"
+    assert json.loads(out.stdout)["bound"] == [], "listeners were bound to elements that don't exist"
 
 
 def test_the_wizard_itself_still_wires_everything_up():
-    """בקרת-נגד: היציאה המוקדמת לא מכבה את האשף האמיתי."""
+    """Control: the early exit doesn't switch off the real wizard."""
     out = _run(_WIZARD_IDS)
 
-    assert out.returncode == 0, f"הקובץ קרס על האשף:\n{out.stderr[:800]}"
+    assert out.returncode == 0, f"the file crashed on the wizard:\n{out.stderr[:800]}"
     bound = json.loads(out.stdout)["bound"]
     for expected in ("chooseCreateBtn:click", "toStep2Btn:click",
                      "finishOnboardingBtn:click", "finishBtn:click"):
-        assert expected in bound, f"{expected} לא נקשר (נקשרו: {bound})"
+        assert expected in bound, f"{expected} wasn't bound (bound: {bound})"

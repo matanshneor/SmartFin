@@ -1,5 +1,6 @@
-"""הזמנה בקישור (מתן, 3.10 — רעיון 43): ‎/join/<code>‎ פותח הרשמה עם הקוד
-מלא, או — למי שכבר מחובר — את ההגדרות עם הקוד בשורת ההצטרפות."""
+"""An invitation by link (Matan, 3.10, idea 43): `/join/<code>` opens signup with
+the code filled in, or (for someone already signed in) settings with the code in
+the join row."""
 import json
 import subprocess
 from pathlib import Path
@@ -61,7 +62,7 @@ def test_the_copied_message_has_the_link_and_still_the_code():
                          capture_output=True, text=True, check=True)
     msg = json.loads(out.stdout)
     assert "https://smartfin.up.railway.app/join/K4F2QX" in msg
-    assert "\nK4F2QX" in msg, "הקוד נשאר — למי שמעדיף להקליד"
+    assert "\nK4F2QX" in msg, "the code stays: for whoever prefers to type"
 
 
 def test_settings_fills_the_code_and_does_not_join_by_itself():

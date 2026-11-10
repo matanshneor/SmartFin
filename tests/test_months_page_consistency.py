@@ -1,14 +1,16 @@
 """
-בדיקות לעקביות עמוד ההשוואה בין חודשים.
+Tests for the consistency of the month comparison page.
 
-עסקה המשויכת לפרויקט (טיול, שיפוץ) היא הוצאה חד-פעמית שמעוותת את תמונת
-ה"חודש הרגיל", ולכן היא מוחרגת במכוון מכל מאזן חודשי באפליקציה — זו
-החלטה מתועדת במיגרציה 20260804140000.
+A transaction attached to a project (a trip, a renovation) is a one-off expense
+that distorts the picture of a "normal month", so it is deliberately excluded
+from every monthly balance in the app: a decision documented in migration
+20260804140000.
 
-עמוד /months מציג שני דברים על אותם חודשים: גרף עמודות למעלה וטבלת
-ארכיון מתחת. הטבלה תוקנה להחריג פרויקטים; הגרף נשכח. אותו יולי הופיע
-כ-₪31,400 בגרף וכ-₪9,400 בטבלה, במרחק שני סנטימטרים, בלי שום הסבר —
-זה נראה פשוט כמו אפליקציה שמחשבת לא נכון.
+The /months page shows two things about the same months: a bar chart on top and
+an archive table below. The table was fixed to exclude projects; the chart was
+forgotten. The same July appeared as ₪31,400 in the chart and ₪9,400 in the
+table, two centimetres apart, with no explanation: it simply looked like an app
+that calculates wrong.
 """
 import re
 
@@ -20,15 +22,16 @@ pytestmark = pytest.mark.unit
 _PROJECT_FILTER = '.is_("project_id", "null")'
 
 
-# גרף המגמה נשלף בנפרד עד 27.9.2026, ושלוש הבדיקות שישבו כאן בדקו
-# שהשליפה שלו מחריגה פרויקטים כמו הטבלה. הוא נגזר עכשיו מהטבלה עצמה
-# (‎db.monthly_trend(archive)‎), אז הסכמה ביניהם היא מבנית — ונבדקת
-# בהתנהגות ב-tests/test_row_cap.py. מה שנשאר לבדוק כאן הוא המקור היחיד.
+# The trend chart was fetched separately until 27.9.2026, and the three tests
+# that sat here checked that its query excludes projects like the table. It is
+# now derived from the table itself (db.monthly_trend(archive)), so their
+# agreement is structural, and tested by behaviour in tests/test_row_cap.py.
+# What is left to check here is the single source.
 
 
 def test_the_archive_function_also_excludes_them():
-    """הצד השלישי של אותו עמוד יושב ב-SQL ולא בפייתון, ולכן נבדק בנפרד —
-    אחרת 'כולם מסכימים' יכול להיות נכון רק על שתיים מתוך שלוש."""
+    """The third side of the same page sits in SQL and not in Python, so it is tested
+    separately; otherwise "everyone agrees" might be true for only two of three."""
     from pathlib import Path
     sql = (Path(__file__).resolve().parent.parent
            / "backend/supabase/migrations"

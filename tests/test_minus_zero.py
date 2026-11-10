@@ -1,12 +1,13 @@
-""""-₪0" באדום בדף הבית.
+""""-₪0" in red on the home page.
 
-דף הבית חישב את "נשאר בעו״ש" בפונקציה שלא מעגלת (‎get_monthly_summary‎), ועמוד
-החודש — בפונקציה שכן (‎summary_from_rows‎). שברים עשרוניים במחשב לא מדויקים:
-513.92 פחות 44.15 + 332.22 + 54.86 + 82.69 יוצא ‎-1.1e-13‎ ולא 0. התבנית ראתה
-"שלילי", צבעה באדום, והציגה מעוגל: "-₪0".
+The home page computed "left in the account" in a function that doesn't round
+(`get_monthly_summary`), and the month page in one that does
+(`summary_from_rows`). Floating-point fractions aren't exact: 513.92 minus 44.15 +
+332.22 + 54.86 + 82.69 comes out as `-1.1e-13` and not 0. The template saw
+"negative", coloured it red, and showed it rounded: "-₪0".
 
-ובאותה תבנית, גירעון אמיתי של 40 אגורות הוצג "-₪0" באדום: הצבע אומר
-"גירעון", המספר אומר אפס.
+And in the same template, a real deficit of 40 agorot showed "-₪0" in red: the
+colour says "deficit", the number says zero.
 """
 import pytest
 
@@ -68,12 +69,12 @@ def hero(monkeypatch):
 def test_a_deficit_under_half_a_shekel_is_not_shown_as_minus_zero(hero):
     block = hero(1000.00, 1000.40)
 
-    assert "deficit" not in block.split(">")[0], "צבע של גירעון על ₪0"
+    assert "deficit" not in block.split(">")[0], "a deficit colour on ₪0"
     assert "-₪0" not in block
 
 
 def test_a_real_deficit_is_still_red(hero):
-    """בקרת-נגד."""
+    """Control."""
     block = hero(1000.00, 1001.20)
 
     assert "deficit" in block.split(">")[0]
@@ -81,25 +82,26 @@ def test_a_real_deficit_is_still_red(hero):
 
 
 def test_a_month_with_no_income_is_not_shown_as_a_deficit(hero):
-    """כמעט כל משתמש חדש מזין הוצאה לפני משכורת — והמסך הראשון שלו היה
-    ‎-₪120‎ באדום. (עברה לכאן מ-test_ux_polish, שבדקה את קוד המקור.)"""
+    """Almost every new user enters an expense before a salary, and their first
+    screen was `-₪120` in red. (Moved here from test_ux_polish, which checked the
+    source.)"""
     block = hero(0.0, 120.0)
 
     assert "deficit" not in block.split(">")[0]
     assert "-₪" not in block and "₪120" in block
 
 
-# ─── המספר הגדול בשקלים שלמים (מתן, 30.9) ─────────────────────────────────
+# ─── The big number in whole shekels (Matan, 30.9) ─────────────────────────
 
 @pytest.mark.parametrize("income,expense,shown,countup", [
     (34567.89, 33086.52, "₪1,481", 'data-countup="1481"'),    # 1,481.37
     (1000.00, 498.50, "₪502", 'data-countup="502"'),          # 501.50 → 502
-    (1000.00, 1001.60, "-₪2", 'data-countup="2"'),            # גירעון של 1.60
+    (1000.00, 1001.60, "-₪2", 'data-countup="2"'),            # a deficit of 1.60
 ], ids=["rounds-down", "half-rounds-up", "deficit"])
 def test_the_big_balance_has_no_agorot(hero, income, expense, shown, countup):
     block = hero(income, expense)
     number = block[block.index(">") + 1:block.index("</p>")]
 
     assert shown in number.replace(" ", "").replace("\n", ""), number
-    assert "." not in number, "אגורות במספר הגדול"
+    assert "." not in number, "agorot in the big number"
     assert countup in block

@@ -1,11 +1,12 @@
-"""‎get_month_page‎ חייבת להחזיר בדיוק את מה שחמש השליפות החזירו.
+"""`get_month_page` must return exactly what the five queries returned.
 
-זו הבדיקה שמצדיקה את ההחלפה. בלעדיה "זה נראה אותו דבר" הוא כל מה שיש,
-ועמוד החודש הוא מספרים — סטייה שקטה בו היא בדיוק סוג הכשל שהאפליקציה
-הזאת כבר נכוותה ממנו (ראו ‎data_unavailable‎ ב-app.py).
+This is the test that justifies the replacement. Without it "it looks the same" is
+all there is, and the month page is numbers: a silent deviation in it is exactly
+the kind of failure this app has been burned by before (see `data_unavailable` in
+app.py).
 
-רצה מול המסד האמיתי בתור משפחת הבדיקה, כמו ‎test_rls_isolation‎, ומנקה
-אחריה ב-finally גם כשהיא נכשלת.
+Runs against the real database as the test family, like `test_rls_isolation`, and
+cleans up after itself in finally even when it fails.
 """
 import uuid
 
@@ -23,9 +24,9 @@ def _table(name):
 
 @pytest.fixture
 def month_fixture(family_a):
-    """חודש עם כל ארבעת הקישורים שהשליפה הישנה עשתה: קטגוריה, פרופיל,
-    פרויקט וקטגוריית פרויקט — ועסקה בלי אף אחד מהם, כי ‎null‎ מול ‎{}‎
-    הוא בדיוק ההבדל שהתבניות בודקות."""
+    """A month with all four links the old query made: category, profile, project
+    and project category, and a transaction with none of them, because `null`
+    versus `{}` is exactly the difference the templates check."""
     db.set_auth_token(family_a["token"])
     fid = family_a["family_id"]
     marker = f"MP-{uuid.uuid4().hex[:8]}"
@@ -51,19 +52,21 @@ def month_fixture(family_a):
         created["project_categories"].append(pcat["id"])
 
         rows = [
-            # קטגוריה + פרופיל
+            # category + profile
             {"family_id": fid, "amount": 120.5, "type": "expense", "date": f"{YEAR}-{MONTH:02d}-05",
              "description": f"{marker}-with-cat", "category_id": cat["id"],
              "user_id": family_a["user_id"]},
-            # פרויקט + קטגוריית פרויקט
+            # project + project category
             {"family_id": fid, "amount": 300, "type": "expense", "date": f"{YEAR}-{MONTH:02d}-11",
              "description": f"{marker}-project", "project_id": proj["id"],
              "project_category_id": pcat["id"], "user_id": family_a["user_id"]},
-            # בלי קישור מלבד הקטגוריה — עסקת בית בלי קטגוריה נדחית במסד
-            # (‎transactions_category_required‎). שלושת האחרים אמורים לצאת null
+            # No link besides the category: a household transaction with no
+            # category is rejected by the database
+            # (`transactions_category_required`). The other three should come out null
             {"family_id": fid, "amount": 42, "type": "income", "date": f"{YEAR}-{MONTH:02d}-20",
              "description": f"{marker}-bare", "category_id": category_of(fid, "income")},
-            # אותו תאריך כמו הקודמת: כאן מתגלה אי-יציבות בסדר, אם יש
+            # The same date as the previous one: this is where instability in the
+            # order shows up, if there is any
             {"family_id": fid, "amount": 7, "type": "savings", "date": f"{YEAR}-{MONTH:02d}-20",
              "description": f"{marker}-same-day", "category_id": category_of(fid, "savings")},
         ]
@@ -82,7 +85,7 @@ def month_fixture(family_a):
 
 
 def _old_path(fid):
-    """חמש השליפות, בדיוק כפי ש-month_view קרא להן."""
+    """The five queries, exactly as month_view called them."""
     return {
         "settings":   db.get_family_settings(fid),
         "members":    db.get_family_members(fid),
@@ -93,15 +96,16 @@ def _old_path(fid):
 
 
 def test_settings_members_categories_archive_match(month_fixture):
-    """מה שהשוואת הקטגוריות כאן **לא** מכסה, ולמה.
+    """What the category comparison here does **not** cover, and why.
 
-    שני המסלולים שולפים ‎family_id is null or family_id = X‎ — הקטגוריות
-    הגלובליות שנזרעות לכולם. במסד אין אף אחת כזאת (0 מתוך 17, נבדק
-    23.9.2026), אז הענף הזה מת בשני הצדדים והשוואה לא יכולה להבחין בו:
-    מוטציה שמסירה אותו לגמרי מהפונקציה החדשה עוברת את הבדיקה הזאת.
+    Both paths fetch `family_id is null or family_id = X`: the global categories
+    seeded for everyone. The database has none (0 of 17, checked 23.9.2026), so
+    that branch is dead on both sides and a comparison can't tell it apart: a
+    mutation removing it entirely from the new function passes this test.
 
-    זה לא פגם בפונקציה — היא מעתיקה את התנאי הישן נאמנה — אבל מי שיזרע
-    קטגוריות גלובליות בעתיד צריך לדעת שאין כאן רשת."""
+    This isn't a flaw in the function (it copies the old condition faithfully),
+    but whoever seeds global categories in the future needs to know there is no
+    net here."""
     fid = month_fixture["family_id"]
     db.set_auth_token(month_fixture["token"])
 
@@ -115,8 +119,8 @@ def test_settings_members_categories_archive_match(month_fixture):
 
 
 def test_month_rows_match_exactly(month_fixture):
-    """תוכן השורות, כולל המבנה המקונן. ממוין לפי מזהה כדי שהשוואת התוכן
-    לא תיפול על סדר — הסדר עצמו נבדק בנפרד למטה."""
+    """The rows' content, including the nested structure. Sorted by id so the content
+    comparison doesn't fail on order; the order itself is checked separately below."""
     fid = month_fixture["family_id"]
     db.set_auth_token(month_fixture["token"])
 
@@ -129,8 +133,8 @@ def test_month_rows_match_exactly(month_fixture):
 
 
 def test_nested_joins_are_null_not_empty(month_fixture):
-    """העסקה בלי קישורים: ‎None‎ ולא ‎{}‎. התבניות בודקות קיום, ו-‎{}‎
-    שקרי היה מציג קטגוריה ריקה במקום לדלג."""
+    """The transaction with no links: `None` and not `{}`. The templates check
+    existence, and a false `{}` would show an empty category instead of skipping."""
     fid = month_fixture["family_id"]
     db.set_auth_token(month_fixture["token"])
 
@@ -155,16 +159,17 @@ def test_rows_are_ordered_newest_first(month_fixture):
 
 
 def test_other_family_gets_nothing(month_fixture, family_b):
-    """הבדיקה שמצדיקה את ‎SECURITY DEFINER‎: הפונקציה עוקפת RLS, אז ההגנה
-    היחידה היא ‎get_my_family_id()‎ שבתוכה. משפחה ב' שמבקשת את המזהה של
-    משפחה א' חייבת לקבל כשל — לא נתונים, וגם לא "משפחה ריקה"."""
+    """The test that justifies `SECURITY DEFINER`: the function bypasses RLS, so
+    the only protection is the `get_my_family_id()` inside it. Family B asking for
+    family A's id must get a failure: not data, and not "an empty family" either."""
     fid = month_fixture["family_id"]
 
     db.set_auth_token(family_b["token"])
     with pytest.raises(db.DataUnavailable):
         db.fetch_month_page(fid, YEAR, MONTH)
 
-    # בקרת-נגד: בלעדיה הבדיקה עוברת גם אם הקריאה נכשלת תמיד, מכל סיבה
-    # שהיא — ואז היא לא בודקת את ההגנה אלא את זה שה-RPC שבור.
+    # Control: without it the test passes even if the call always fails, for
+    # any reason, and then it isn't testing the protection but that the RPC is
+    # broken.
     own = db.fetch_month_page(family_b["family_id"], YEAR, MONTH)
     assert own["settings"], "family B must still be able to read its own month"

@@ -1,7 +1,7 @@
-""""ספטמבר נסגר" בדף הבית (מתן, 13.10).
+""""September closed" on the home page (Matan, 13.10).
 
-"זה צריך להופיע ביום הראשון של החודש החדש, ואפשר להסיר עם איקס, אבל יום
-למחרת זה נעלם לבד."
+"This should appear on the first day of the new month, and can be dismissed with
+an X, but the day after it disappears by itself."
 """
 from datetime import date
 
@@ -27,7 +27,7 @@ def _row(amount, type_, cat, project=None):
 
 _SEPT = [_row(18400, "income", "sal"), _row(3180, "expense", "food"), _row(900, "expense", "fuel"),
          _row(1500, "savings", None),
-         # פרויקט — לא נספר, כמו בכל סיכום חודשי
+         # project: not counted, as in every monthly summary
          _row(9999, "expense", "food", project="p1")]
 
 
@@ -49,7 +49,7 @@ def recap_for(monkeypatch):
 def test_only_on_the_first_of_the_month(recap_for):
     assert recap_for(date(2026, 10, 2)) is None
     assert recap_for(date(2026, 10, 31)) is None
-    assert recap_for.asked == [], "בשאר הימים אין אפילו שליפה"
+    assert recap_for.asked == [], "on the other days there isn't even a query"
     assert recap_for(date(2026, 10, 1)) is not None
 
 
@@ -59,7 +59,7 @@ def test_the_figures(recap_for):
     assert (r["year"], r["month"]) == (2026, 9)
     assert recap_for.asked == [(2026, 9), (2026, 8)]
     assert (r["income"], r["expense"], r["balance"], r["savings"]) == (18400, 4080, 14320, 1500)
-    # ‎4,080 − 5,320‎ — הוצאתם פחות
+    # 4,080 − 5,320: you spent less
     assert r["diff"] == -1240
     assert r["top"]["name"] == "סופר" and r["top"]["total"] == 3180
 
@@ -107,7 +107,7 @@ _RECAP = {"year": 2026, "month": 9, "income": 18400.0, "expense": 14950.0, "bala
 def test_the_card_on_the_home_page(home):
     html = home(_RECAP)
 
-    """מתן (1.11): הכנסות · הוצאות · חיסכון, ושתי השורות — "זהו"."""
+    """Matan (1.11): income · expenses · savings, and the two rows: "that's it"."""
     import re
     assert "ספטמבר נסגר" in html
     card = html[html.index('class="recap-card"'):]
@@ -115,15 +115,15 @@ def test_the_card_on_the_home_page(home):
     labels = re.findall(r'recap-fig-label">([^<]+)<', card)
     assert labels == ["הכנסות", "הוצאות", "חיסכון"]
     assert "₪18,400" in card and "₪14,950" in card and "₪1,500" in card
-    assert "₪3,450" not in card                                   # בלי "נשאר"
+    assert "₪3,450" not in card                                   # without "נשאר"
     assert "₪1,240 פחות</span> מאוגוסט" in card
     assert "<b>סופר</b> — ₪3,180" in card
-    assert "חסכתם" not in card                                   # כבר בקוביות
-    assert "recap-link" not in card and "/month?" not in card    # בלי קישור
+    assert "חסכתם" not in card                                   # already in the tiles
+    assert "recap-link" not in card and "/month?" not in card    # without a link
 
 
 def test_x_hides_it_on_this_phone(home):
-    """אותו מנגנון כמו ההתראות (‎core.js‎): מפתח לפי החודש שנסגר."""
+    """The same mechanism as the notifications (core.js): a key by the month that closed."""
     html = home(_RECAP)
 
     assert 'class="alert-wrap recap-wrap" data-alert-key="recap|2026-9"' in html
@@ -131,7 +131,7 @@ def test_x_hides_it_on_this_phone(home):
 
 
 def test_a_month_that_ended_in_the_red(home):
-    """בלי "נשאר" אין גירעון להציג — רק המספרים, ו"יותר" באדום."""
+    """Without "נשאר" there is no deficit to show: only the numbers, and "יותר" in red."""
     html = home(dict(_RECAP, balance=-600.0, diff=800.0, savings=0.0))
 
     assert "-₪600" not in html and 'recap-fig bad' not in html

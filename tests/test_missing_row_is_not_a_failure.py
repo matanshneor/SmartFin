@@ -1,10 +1,12 @@
-"""שורה שלא קיימת היא "אין", לא "לא הצלחנו לבדוק".
+"""A row that doesn't exist is "none", not "we couldn't check".
 
-ב-postgrest-py שלנו ‎.maybe_single().execute()‎ מחזיר ‎None‎ כשאין שורה,
-ו-‎.execute().data‎ זרק. ארבע פונקציות הפכו כך עסקה שנמחקה רגע קודם
-לתקלה — הבולטת: מחיקה של עסקה שבן משפחה אחר כבר מחק ענתה "לא הצלחנו
-לבדוק אם זו עסקה קבועה — נסו שוב". (נמצא בבדיקת דפדפן; הכפיל החזיר
-תשובה ריקה "מנומסת" והסתיר את זה, ועכשיו הוא מתנהג כמו האמיתי.)
+In our postgrest-py `.maybe_single().execute()` returns `None` when there is no
+row, and `.execute().data` raised. Four functions turned a transaction deleted a
+moment earlier into a failure that way; the most visible: deleting a transaction
+another family member had already deleted answered "we couldn't check whether
+this is a recurring transaction, try again". (Found in a browser test; the double
+returned a "polite" empty response and hid it, and now it behaves like the real
+one.)
 """
 import pytest
 
@@ -38,5 +40,5 @@ def test_stopping_a_series_whose_template_is_gone(empty):
 
 
 def test_the_fake_behaves_like_postgrest(empty):
-    """בלי זה הבדיקות למעלה היו עוברות גם על הקוד הישן."""
+    """Without this the tests above would pass on the old code too."""
     assert empty.table("transactions").select("id").eq("id", _GONE).maybe_single().execute() is None

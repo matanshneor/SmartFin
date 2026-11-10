@@ -1,8 +1,9 @@
-"""שכבת המגע — מה שמבדיל "אתר בטלפון" מאפליקציה (מתן, 7.10 — סבב מגע).
+"""The touch layer: what separates "a website on a phone" from an app (Matan,
+7.10, touch round).
 
-נבדק בדפדפן (Chromium עם מגע): אפס פקדים עם הבהוב בנגיעה, כולם
-‎manipulation‎, אף כפתור לא ניתן לסימון, והסרגל נעלם כשמקלידים. את
-התחושה עצמה — הבהוב, זום, מקלדת — בודקים בטלפון אמיתי.
+Checked in the browser (Chromium with touch): zero controls with a tap flash, all
+`manipulation`, no button selectable, and the bar disappears while typing. The
+feel itself (flash, zoom, keyboard) is checked on a real phone.
 """
 import re
 from pathlib import Path
@@ -29,11 +30,12 @@ def test_controls_skip_double_tap_zoom_and_text_selection():
     assert "touch-action: manipulation;" in _rule('button, a, [role="button"], label, summary, select')
     sel = _rule('button, [role="button"], summary, .nav-item, a.btn-sm, a.submit-btn')
     assert "user-select: none;" in sel and "-webkit-user-select: none;" in sel
-    assert not re.search(r"(^|\n)body\s*\{[^}]*user-select:\s*none", _CSS), "טקסט רגיל חייב להישאר ניתן להעתקה"
+    assert not re.search(r"(^|\n)body\s*\{[^}]*user-select:\s*none", _CSS), "ordinary text must stay copyable"
 
 
 def test_every_hover_waits_for_a_mouse():
-    """‎:hover‎ בלי עכבר נתקע אחרי נגיעה — הכפתור הראשי בדף הנחיתה נשאר מורם."""
+    """`:hover` without a mouse sticks after a touch: the main button on the landing
+    page stayed raised."""
     ungated = []
     depth, gated = 0, []
     for line in _CSS.splitlines():

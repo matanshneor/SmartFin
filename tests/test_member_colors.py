@@ -1,7 +1,8 @@
-"""בחירת צבע לכל בן משפחה (מתן, 30.9 — סבב 6, פריט 13).
+"""Picking a colour for each family member (Matan, 30.9, round 6, item 13).
 
-מי שלא בחר — הצבע שיש לו היום (לפי סדר ההצטרפות). אין שני אנשים באותו
-צבע. כל אחד בוחר לעצמו; מנהל המשפחה — לכולם.
+Whoever didn't pick keeps the colour they have today (by join order). No two
+people in the same colour. Everyone picks for themselves; the family manager, for
+everyone.
 """
 import pytest
 
@@ -27,7 +28,8 @@ def test_without_choices_nothing_changes():
 
 
 def test_a_choice_wins_and_the_others_step_aside():
-    """אור בחרה את הכחול של מתן — מתן עובר לצבע הפנוי הבא, לא נשארים שניים כחולים."""
+    """Or picked Matan's blue: Matan moves to the next free colour; there aren't two
+    blues left."""
     colors = assign_member_colors(_MEMBERS, {_HER: 0})
     assert colors[_HER] == 0
     assert len(set(colors.values())) == 3
@@ -38,7 +40,7 @@ def test_a_stale_or_broken_choice_is_ignored():
     assert colors == {_ME: 0, _HER: 1, _KID: 2}
 
 
-# ── המסלול ─────────────────────────────────────────────────────────────
+# ── The route ──────────────────────────────────────────────────────────
 
 @pytest.fixture
 def client(monkeypatch):
@@ -72,12 +74,12 @@ def test_i_choose_my_own_color(client):
 
 
 def test_a_taken_color_is_refused(client):
-    res = _pick(client, _ME, 1)                      # הצבע של אור
+    res = _pick(client, _ME, 1)                      # Or's colour
     assert res.status_code == 409 and "תפוס" in res.get_json()["error"]
 
 
 def test_nobody_chooses_for_someone_else_not_even_the_manager(client):
-    """מתן (30.9): כל אחד את הצבע של עצמו בלבד."""
+    """Matan (30.9): everyone only their own colour."""
     assert _pick(client, _KID, 6).status_code == 403
     client.state["manager"] = _ME
     assert _pick(client, _KID, 6).status_code == 403
@@ -93,7 +95,7 @@ def test_someone_outside_the_family_is_refused(client):
 
 
 def test_every_color_has_a_pill_in_both_themes():
-    """‎_OWNER_HEX‎ ו-‎.owner-N‎ חייבים להישאר מסונכרנים."""
+    """`_OWNER_HEX` and `.owner-N` must stay in sync."""
     from pathlib import Path
     css = (Path(__file__).resolve().parent.parent / "frontend/static/css/style.css").read_text(encoding="utf-8")
     for i in range(len(_OWNER_HEX)):
@@ -104,8 +106,9 @@ def test_every_color_has_a_pill_in_both_themes():
 def test_the_settings_page_offers_the_colors():
     from pathlib import Path
     tpl = (Path(__file__).resolve().parent.parent / "frontend/templates/settings.html").read_text(encoding="utf-8")
-    # שורה "הצבע שלי" ב"החשבון שלי" (מתן, 11.10; עד אז כפתור בשורה שלי
-    # ברשימת בני המשפחה), וחלון עם תג השם בכל צבע — לא עיגולים מתחת לשם
+    # A "my colour" row in "my account" (Matan, 11.10; until then a button on my
+    # row in the family member list), and a sheet with the name tag in every
+    # colour, not circles under the name
     assert 'class="member-colors"' not in tpl
     mine = tpl[tpl.index('id="my-details"'):]
     mine = mine[:mine.index("</section>")]
@@ -116,7 +119,8 @@ def test_the_settings_page_offers_the_colors():
 
 
 def test_the_color_window_opens_above_everything():
-    """בתוך קבוצת ההגדרות החלון נכלא מתחת לתפריט התחתון ולכפתור +."""
+    """Inside the settings group the sheet is trapped under the bottom menu and the
+    + button."""
     from pathlib import Path
     js = (Path(__file__).resolve().parent.parent / "frontend/static/js/settings.js").read_text(encoding="utf-8")
     assert "document.body.appendChild(sheet);" in js

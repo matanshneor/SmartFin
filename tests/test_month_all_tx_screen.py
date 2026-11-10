@@ -1,7 +1,7 @@
-""""כל העסקאות" בעמוד החודש (מתן, 5.10).
+""""All transactions" on the month page (Matan, 5.10).
 
-האחרונות מופיעות מיד, והרשימה המלאה — עם החיפוש והסינון — במסך משלה.
-עד אז הכל היה שורת "הצגת הכל" אחת שנפתחה במקום.
+The latest appear right away, and the full list (with search and filter) on its
+own screen. Until then it was all one "show all" row that opened in place.
 """
 from pathlib import Path
 
@@ -40,7 +40,7 @@ def test_the_rest_with_search_and_filters_is_on_its_own_screen():
     assert 'role="dialog"' in section[section.index('id="txScreen"') - 60:section.index('id="txScreen"') + 120]
     assert screen.count('class="cat-tx-row"') == 12
     assert 'id="txSearch"' in screen and 'id="txScreenClose"' in screen
-    # החיפוש רק במסך — לא בתצוגה המקדימה
+    # search only on the screen, not in the preview
     assert section.index('id="txSearch"') > section.index('id="txScreen"')
 
 
@@ -55,13 +55,14 @@ def test_the_search_filters_the_screen_and_survives_an_edit():
     js = (_ROOT / "frontend/static/js/month.js").read_text(encoding="utf-8")
 
     assert "document.querySelectorAll('#txScreen .tx-screen-list .cat-tx-row')" in js
-    # כפתור החזרה של הטלפון סוגר את המסך, ורענון אחרי עריכה פותח אותו שוב
+    # The phone's back button closes the screen, and a refresh after editing
+    # opens it again
     assert "history.pushState({ sfTxScreen: true }, '', '#all-tx')" in js
     assert "window.addEventListener('sf:refreshed'" in js and "restoreTxState();" in js
 
 
 def test_the_search_also_knows_the_category_name():
-    """"סופר" מוצא את "רמי לוי" שבקטגוריה "סופר ומזון" (מתן, 5.10)."""
+    """"סופר" finds "רמי לוי" in the "סופר ומזון" category (Matan, 5.10)."""
     tx = dict(_TX, description="רמי לוי", category_name="סופר ומזון", project_name="שיפוץ")
     html = _render_month([tx] * 6)
     screen = html[html.index('id="txScreen"'):]

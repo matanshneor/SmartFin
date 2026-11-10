@@ -1,13 +1,15 @@
 """
-האפליקציה לא ידעה שאין רשת.
+The app didn't know there was no network.
 
-מישהו בחניון תת-קרקעי הקליד עסקה, לחץ שמור, וקיבל "שגיאת רשת — נסה
-שוב" — אותה הודעה בדיוק שמוצגת כשהשרת נפל וכשיש באג. הוא ניסה שוב,
-קיבל את אותו דבר, ולא היה שום רמז שהבעיה בסביבה שלו ולא אצלנו.
+Someone in an underground car park typed a transaction, tapped save, and got
+"שגיאת רשת — נסה שוב": exactly the same message shown when the server is down and
+when there is a bug. They tried again, got the same thing, and there was no hint
+that the problem was in their surroundings and not on our side.
 
-ובדף הבית זה היה גרוע יותר: שם החלון נסגר אופטימית ברגע הלחיצה, אז
-הכישלון השאיר אותו בלי חלון ובלי מה שהקליד. "נסה שוב" פירושו היה
-להקליד הכול מחדש, בלי רשת, בדיוק כשהוא הכי לא רוצה.
+And on the home page it was worse: there the window closes optimistically the
+moment of the tap, so the failure left them with no window and none of what they
+typed. "Try again" meant typing everything again, with no network, exactly when
+they least want to.
 """
 import json
 import re
@@ -30,32 +32,33 @@ def _read(p):
 
 
 def _strip_comments(js):
-    """בלי זה, הערה שמסבירה למה לא עושים משהו נספרת כעשייה שלו."""
+    """Without this, a comment explaining why something isn't done is counted as
+    doing it."""
     js = re.sub(r"/\*.*?\*/", "", js, flags=re.S)
     return re.sub(r"^\s*//.*$", "", js, flags=re.M)
 
 
-# ─── הודעה אחת, במקום אחד ───────────────────────────────────────────────────
+# ─── One message, in one place ──────────────────────────────────────────────
 
 def test_no_file_still_hard_codes_the_network_error():
-    """37 מקומות הציגו את אותה מחרוזת. כלל שכתוב 37 פעמים לא ישתנה
-    ב-37 מהן."""
+    """37 places showed the same string. A rule written 37 times won't change in 37
+    of them."""
     offenders = []
     for f in _JS.glob("*.js"):
         if f.name == "net.js":
-            continue          # המקור היחיד, וזו כל הנקודה
+            continue          # the single source, and that is the whole point
         for line in _read(f).splitlines():
             if "'שגיאת רשת" in line:
                 offenders.append(f"{f.name}: {line.strip()[:60]}")
-    assert not offenders, f"מחרוזת קשיחה נשארה ב: {offenders}"
+    assert not offenders, f"a hard-coded string remained in: {offenders}"
 
 
 def test_the_message_is_used_everywhere_it_used_to_be():
     uses = sum(_read(f).count("window.sfNetError()") for f in _JS.glob("*.js"))
-    assert uses >= 35, f"רק {uses} מקומות עברו להודעה המשותפת"
+    assert uses >= 35, f"only {uses} places moved to the shared message"
 
 
-# ─── כל עמוד באמת טוען את הקובץ ─────────────────────────────────────────────
+# ─── Every page really loads the file ───────────────────────────────────────
 
 @pytest.mark.parametrize("page,why", [
     ("base.html",           "כל עמודי האפליקציה"),
@@ -64,8 +67,8 @@ def test_the_message_is_used_everywhere_it_used_to_be():
     ("reset_password.html", "עמוד עצמאי"),
 ])
 def test_every_entry_point_loads_it(page, why):
-    """‎sfNetError‎ נקרא בקבצים של כל אחד מהם. עמוד שלא טוען את net.js
-    יקרוס על undefined בדיוק ברגע הכישלון."""
+    """sfNetError is called in each of their files. A page that doesn't load net.js
+    will crash on undefined exactly at the moment of failure."""
     assert "js/net.js" in _read(_TPL / page), f"{page} — {why}"
 
 
@@ -74,7 +77,7 @@ def test_it_loads_before_anything_that_calls_it():
     assert base.index("js/net.js") < base.index("js/transactions.js")
 
 
-# ─── מה קורה בפועל ──────────────────────────────────────────────────────────
+# ─── What actually happens ──────────────────────────────────────────────────
 
 _HARNESS = r"""
 const fs = require('fs');
@@ -126,7 +129,7 @@ console.log(JSON.stringify(steps));
 def _run(start_state):
     node = shutil.which("node")
     if not node:
-        pytest.skip("node לא מותקן")
+        pytest.skip("node isn't installed")
     harness = _ROOT / "tests" / "_net_harness.js"
     harness.write_text(_HARNESS, encoding="utf-8")
     try:
@@ -139,7 +142,7 @@ def _run(start_state):
 
 
 def test_nothing_is_shown_while_the_connection_is_fine():
-    """בקרת-נגד: פס שמופיע סתם מאמן אנשים להתעלם ממנו."""
+    """Control: a bar that shows up for no reason trains people to ignore it."""
     steps = _run("online")
 
     assert steps["start"]["banners"] == 0
@@ -155,7 +158,8 @@ def test_the_banner_appears_when_the_connection_drops():
 
 
 def test_the_banner_goes_away_and_says_so_when_it_comes_back():
-    """פס שנשאר על המסך אחרי שהחיבור חזר גרוע מפס שלא הופיע."""
+    """A bar that stays on screen after the connection returned is worse than a bar
+    that never appeared."""
     steps = _run("online")
 
     assert steps["cameBack"]["visible"] is False
@@ -163,7 +167,8 @@ def test_the_banner_goes_away_and_says_so_when_it_comes_back():
 
 
 def test_someone_who_opens_the_app_already_offline_is_told_immediately():
-    """אין אירוע ‎offline‎ למי שכבר היה מנותק כשפתח — רק מצב."""
+    """There is no offline event for whoever was already disconnected when they
+    opened: only a state."""
     steps = _run("offline")
 
     assert steps["start"]["visible"] is True
@@ -177,36 +182,36 @@ def test_the_error_message_changes_with_the_connection():
 
 
 def test_only_a_definite_offline_counts():
-    """‎navigator.onLine === true‎ אומר רק שיש ממשק רשת פעיל — הוא מחזיר
-    true גם מול ראוטר בלי אינטרנט. להסיק ממנו "הכול בסדר" זה להציג פס
-    שקרי לחצי מהמשתמשים."""
+    """navigator.onLine === true only says there is an active network interface: it
+    returns true even facing a router with no internet. Inferring "all is well"
+    from it means showing a false bar to half the users."""
     code = _strip_comments(_read(_JS / "net.js"))
 
     assert "navigator.onLine === false" in code
     assert "navigator.onLine === true" not in code
 
 
-# ─── מה שהוקלד לא נעלם ──────────────────────────────────────────────────────
+# ─── What was typed doesn't vanish ──────────────────────────────────────────
 
 def test_a_failed_save_on_the_dashboard_brings_the_form_back():
-    """הלב של החלק השני. בדף הבית החלון נסגר לפני שהשרת ענה, אז כישלון
-    רשת השאיר הודעה וטופס ריק."""
+    """The heart of the second part. On the home page the window closed before the
+    server answered, so a network failure left a message and an empty form."""
     js = _read(_JS / "transactions.js")
     catch = js[js.rindex("const url    = editId"):]
     catch = catch[catch.index(".catch(function () {"):][:900]
 
     assert "placeholderRow.remove();" in catch
-    # ‎reopenAfterFailure‎ ולא ‎openModal‎ ישירות: היא גם מחזירה את הקבלה
-    # שהסגירה האופטימית ניקתה. ושהיא אכן פותחת את החלון:
-    assert "reopenAfterFailure();" in catch, "החלון לא מוחזר — מה שהוקלד אבד"
+    # reopenAfterFailure and not openModal directly: it also restores the receipt
+    # that the optimistic close cleared. And that it does open the window:
+    assert "reopenAfterFailure();" in catch, "the window isn't restored: what was typed is lost"
     helper = js[js.index("function reopenAfterFailure()"):][:200]
     assert "openModal();" in helper
     assert "formError.textContent = window.sfNetError();" in catch
 
 
 def test_closing_the_modal_does_not_clear_the_fields():
-    """זה מה שמאפשר להחזיר את החלון עם התוכן. אם ‎closeModal‎ יתחיל
-    לאפס, התיקון למעלה יישבר בשקט."""
+    """This is what makes it possible to restore the window with its content. If
+    closeModal starts resetting, the fix above will silently break."""
     js = _read(_JS / "transactions.js")
     body = js[js.index("function closeModal()"):js.index("function resetForm()")]
 
@@ -214,12 +219,12 @@ def test_closing_the_modal_does_not_clear_the_fields():
     assert "resetForm()" not in body
 
 
-# ─── הפס עצמו ───────────────────────────────────────────────────────────────
+# ─── The bar itself ─────────────────────────────────────────────────────────
 
 def test_the_banner_is_readable():
     m = re.search(r"\.net-banner\s*\{[^}]*background:\s*(#[0-9A-Fa-f]{6})[^}]*"
                   r"color:\s*(#[0-9A-Fa-f]{6})", _CSS)
-    assert m, "לא נמצאו הצבעים של הפס"
+    assert m, "the bar's colours weren't found"
 
     def lum(h):
         def f(c):
@@ -230,12 +235,12 @@ def test_the_banner_is_readable():
 
     a, b = lum(m.group(1)), lum(m.group(2))
     ratio = (max(a, b) + 0.05) / (min(a, b) + 0.05)
-    assert ratio >= 4.5, f"ניגודיות {ratio:.2f}:1 — מתחת לתקן"
+    assert ratio >= 4.5, f"contrast {ratio:.2f}:1, below the standard"
 
 
 def test_the_banner_clears_the_notch():
     block = _CSS[_CSS.index(".net-banner"):][:600]
-    assert "env(safe-area-inset-top" in block, "הפס ייחתך מתחת למגרעת באייפון"
+    assert "env(safe-area-inset-top" in block, "the bar will be cut off under the iPhone notch"
 
 
 def test_a_hidden_banner_is_actually_hidden():

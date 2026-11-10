@@ -1,4 +1,5 @@
-""""הוצאות לפי בן משפחה" לאורך החודשים בעמוד ההשוואה (מתן, 3.10 — רעיון 15)."""
+""""Expenses by family member" over the months on the comparison page (Matan,
+3.10, idea 15)."""
 import pytest
 
 from backend import app as app_module
@@ -70,6 +71,6 @@ def test_the_chart_follows_the_range_and_its_legend_reads_like_its_bars():
     js = (Path(__file__).resolve().parent.parent / "frontend/static/js/months.js").read_text(encoding="utf-8")
     part = js[js.index("const memberSeries = SF_VIEW.members;"):]
     part = part[:part.index("// ── The range buttons ──")]
-    assert "rangeListeners.push(function () {" in part, "הטווח משנה גם את הגרף הזה"
-    assert "memberSeries.slice().reverse()" in part, "הראשון ברשימה — מימין"
-    assert "reverse: true," not in part.split("legend:")[1][:120], "המקרא באותו סדר כמו העמודות"
+    assert "rangeListeners.push(function () {" in part, "the range changes this chart too"
+    assert "memberSeries.slice().reverse()" in part, "the first in the list: on the right"
+    assert "reverse: true," not in part.split("legend:")[1][:120], "the legend in the same order as the bars"

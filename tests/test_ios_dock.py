@@ -1,7 +1,8 @@
-"""התפריט התחתון נשאר למטה באפליקציה המותקנת באייפון (מתן, 1.10).
+"""The bottom menu stays at the bottom in the app installed on iPhone (Matan, 1.10).
 
-באג של iOS: ‎position: fixed‎ נסחף בגלילה ונתקע באמצע המסך. אי אפשר
-לשחזר ב-Chromium — כאן נבדקים החשבון והחיווט; את התוצאה בודקים בטלפון.
+An iOS bug: `position: fixed` drifts while scrolling and gets stuck in the middle
+of the screen. It can't be reproduced in Chromium: the maths and the wiring are
+checked here; the result is checked on the phone.
 """
 import json
 import subprocess
@@ -34,7 +35,8 @@ def _run(standalone, cases):
 
 
 def test_the_menu_moves_to_where_the_visible_screen_ends():
-    # מסך מחושב 812, נראה 874 → 62 למטה; מחושב ארוך מהנראה → למעלה; זהים → כלום
+    # computed screen 812, visible 874 → 62 down; computed longer than visible
+    # → up; equal → nothing
     assert _run(True, [[812, 874, 0], [874, 812, 0], [844, 844, 0], [844, 843, 0]]) == [62, -62, 0, 0]
 
 

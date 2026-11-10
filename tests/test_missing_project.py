@@ -1,9 +1,10 @@
-"""קישור לפרויקט שנמחק מוביל לרשימת הפרויקטים, לא לדף תקלה.
+"""A link to a deleted project leads to the project list, not to an error page.
 
-‎.single()‎ על אפס שורות זורק, והחריגה הפכה ל-‎DataUnavailable‎: "לא
-הצלחנו לטעון את הנתונים, נסו לרענן" — על פרויקט שפשוט לא קיים, ורענון
-לא יעזור לעולם. זה קרה לכל מי שהיה על המסך של פרויקט שבן משפחה מחק,
-או חזר אחורה בדפדפן לפרויקט שמחק בעצמו.
+`.single()` on zero rows raises, and the exception became `DataUnavailable`: "we
+couldn't load the data, try refreshing", on a project that simply doesn't exist,
+and refreshing will never help. It happened to anyone who was on the screen of a
+project a family member deleted, or went back in the browser to a project they
+deleted themselves.
 """
 import pytest
 
@@ -26,7 +27,8 @@ def test_a_project_that_is_gone_is_none_not_a_failure(monkeypatch):
 
 
 def test_a_malformed_id_is_not_sent_to_the_database(monkeypatch):
-    """PostgREST דוחה מזהה שאינו UUID בשגיאה, וזו הייתה הופכת ל-503."""
+    """PostgREST rejects an id that isn't a UUID with an error, and that would turn
+    into a 503."""
     fake = FakeSupabase(projects=[])
     monkeypatch.setattr(db, "get_client", lambda: fake)
 
@@ -35,7 +37,7 @@ def test_a_malformed_id_is_not_sent_to_the_database(monkeypatch):
 
 
 def test_a_real_failure_is_still_a_failure(monkeypatch):
-    """בקרת-נגד: "לא נמצא" אינו "לא הצלחנו לבדוק"."""
+    """Control: "not found" isn't "we couldn't check"."""
     class Down:
         def table(self, _):
             raise ConnectionError("down")

@@ -1,16 +1,18 @@
 """
-תפקיד "מנהל המשפחה" היה תג, לא הרשאה.
+The "family manager" role was a tag, not a permission.
 
-הוא נוסף כדי שמישהו יהיה אחראי, ונאכף על פעולה אחת בלבד — הסרת חבר.
-כל השאר נשאר פתוח לכל מי שהצטרף עם קוד בן שישה תווים, ובראשו
-‎/api/account/reset‎: ה-‎scope‎ שלו הוא "כל המשפחה" כברירת מחדל, אין
-בדיקת מנהל, והאימות היחיד הוא הסיסמה של מי שקורא. כלומר חבר יחיד יכול
-היה למחוק את היסטוריית הכסף של כל המשפחה.
+It was added so someone would be responsible, and enforced on one action only:
+removing a member. Everything else stayed open to anyone who joined with a
+six-character code, above all `/api/account/reset`: its `scope` is "the whole
+family" by default, there is no manager check, and the only verification is the
+caller's password. So a single member could delete the whole family's money
+history.
 
-ופער שני שיתק את התפקיד עצמו: ‎delete_my_account‎ נכתב חודשיים לפני
-שנוסף ‎manager_id‎ ולא עודכן. מנהל שמחק את חשבונו הותיר את השדה ריק,
-ומאז ‎remove_family_member‎ נכשל לתמיד — ‎NULL is distinct from <uuid>‎
-תמיד אמת — ואין בשום מקום קוד שמציב מנהל מחדש.
+And a second gap paralysed the role itself: `delete_my_account` was written two
+months before `manager_id` was added and wasn't updated. A manager who deleted
+their account left the field empty, and from then on `remove_family_member`
+failed forever (`NULL is distinct from <uuid>` is always true), and no code
+anywhere appoints a manager again.
 """
 import pytest
 
@@ -53,13 +55,13 @@ def _reset(client, scope="family"):
     return client.post("/api/account/reset", json={"password": "pw", "scope": scope})
 
 
-# ─── איפוס עסקאות המשפחה ────────────────────────────────────────────────────
+# ─── Resetting the family's transactions ────────────────────────────────────
 
 def test_a_plain_member_cannot_erase_the_family_history(client, monkeypatch):
-    """הלב. עד היום זה עבד."""
+    """The heart. Until now this worked."""
     _manager(monkeypatch, False)
     monkeypatch.setattr(app_module.db, "reset_transactions",
-                        lambda *a, **k: pytest.fail("היסטוריית המשפחה נמחקה בידי חבר רגיל"))
+                        lambda *a, **k: pytest.fail("the family's history was deleted by an ordinary member"))
 
     res = _reset(client)
 
@@ -68,7 +70,7 @@ def test_a_plain_member_cannot_erase_the_family_history(client, monkeypatch):
 
 
 def test_the_manager_still_can(client, monkeypatch):
-    """בקרת-נגד: התכונה עצמה חייבת להמשיך לעבוד."""
+    """Control: the feature itself must keep working."""
     _manager(monkeypatch, True)
     monkeypatch.setattr(app_module.db, "reset_transactions", lambda *a, **k: (12, None))
 
@@ -79,10 +81,11 @@ def test_the_manager_still_can(client, monkeypatch):
 
 
 def test_a_plain_member_can_still_erase_only_their_own(client, monkeypatch):
-    """בקרת-נגד חשובה: זה הכסף של מי שמבקש, ואין סיבה לחסום אותו."""
-    _manager(monkeypatch, lambda: pytest.fail("נבדקה הרשאת מנהל על 'רק שלי'"))
+    """An important control: this is the requester's own money, and there is no
+    reason to block it."""
+    _manager(monkeypatch, lambda: pytest.fail("a manager permission was checked on 'only mine'"))
     monkeypatch.setattr(app_module.db, "is_family_manager",
-                        lambda: pytest.fail("נבדקה הרשאת מנהל על 'רק שלי'"))
+                        lambda: pytest.fail("a manager permission was checked on 'only mine'"))
     seen = {}
     monkeypatch.setattr(app_module.db, "reset_transactions",
                         lambda fam, only_user_id=None: (seen.update(u=only_user_id) or (3, None)))
@@ -91,21 +94,21 @@ def test_a_plain_member_can_still_erase_only_their_own(client, monkeypatch):
     assert seen["u"] == _ME
 
 
-# ─── שתי הפעולות ההרסניות האחרות ────────────────────────────────────────────
+# ─── The two other destructive actions ──────────────────────────────────────
 
 def test_a_plain_member_cannot_delete_a_category(client, monkeypatch):
     _manager(monkeypatch, False)
     monkeypatch.setattr(app_module.db, "get_client",
-                        lambda: pytest.fail("קטגוריה נמחקה בידי חבר רגיל"))
+                        lambda: pytest.fail("a category was deleted by an ordinary member"))
 
     assert client.delete("/api/categories/abc").status_code == 403
 
 
 def test_a_plain_member_cannot_rotate_the_invite_code(client, monkeypatch):
-    """החלפת הקוד פוסלת גם הזמנות שכבר נשלחו."""
+    """Replacing the code also invalidates invitations already sent."""
     _manager(monkeypatch, False)
     monkeypatch.setattr(app_module.db, "rotate_invite_code",
-                        lambda: pytest.fail("הקוד הוחלף בידי חבר רגיל"))
+                        lambda: pytest.fail("the code was replaced by an ordinary member"))
 
     assert client.post("/api/family/invite-code").status_code == 403
 
@@ -119,13 +122,13 @@ def test_the_manager_can_rotate_it(client, monkeypatch):
     assert res.get_json() == {"status": "ok", "invite_code": "ABC123"}
 
 
-# ─── מה שנשאר משותף ─────────────────────────────────────────────────────────
+# ─── What stays shared ──────────────────────────────────────────────────────
 
 def test_budgets_and_settings_stay_shared(client, monkeypatch):
-    """החלטה מפורשת: תקציבים, התראות ושם המשפחה הם החלטות שהמשפחה
-    מקבלת יחד, ולא של המנהל."""
+    """An explicit decision: budgets, alerts and the family name are decisions the
+    family makes together, not the manager's."""
     monkeypatch.setattr(app_module.db, "is_family_manager",
-                        lambda: pytest.fail("נדרשה הרשאת מנהל להגדרות משותפות"))
+                        lambda: pytest.fail("a manager permission was required for shared settings"))
     monkeypatch.setattr(app_module.db, "update_family_settings", lambda *a, **k: True)
     monkeypatch.setattr(app_module.db, "get_family_settings",
                         lambda fid: dict(app_module.db.DEFAULT_FAMILY_SETTINGS))
@@ -137,19 +140,19 @@ def test_budgets_and_settings_stay_shared(client, monkeypatch):
     assert res.status_code == 200
 
 
-# ─── "לא ידוע" אינו "כן" ────────────────────────────────────────────────────
+# ─── "Unknown" isn't "yes" ──────────────────────────────────────────────────
 
 def test_an_unverifiable_permission_is_refused(client, monkeypatch):
     def _boom():
         raise app_module.db.DataUnavailable("is_family_manager")
     monkeypatch.setattr(app_module.db, "is_family_manager", _boom)
     monkeypatch.setattr(app_module.db, "reset_transactions",
-                        lambda *a, **k: pytest.fail("נמחק בלי לדעת מי מבקש"))
+                        lambda *a, **k: pytest.fail("deleted without knowing who is asking"))
 
     assert _reset(client).status_code == 503
 
 
-# ─── הכלל נאכף במסד, לא רק בהסתרת כפתור ─────────────────────────────────────
+# ─── The rule is enforced in the database, not only by hiding a button ──────
 
 def _migration():
     from pathlib import Path
@@ -159,7 +162,7 @@ def _migration():
 
 
 def test_the_check_is_derived_from_the_token_not_a_parameter():
-    """פונקציה שמקבלת מזהה כפרמטר אפשר לשאול על מישהו אחר."""
+    """A function that takes an id as a parameter can be asked about someone else."""
     sql = _migration()
     body = sql[sql.index("create or replace function public.is_family_manager"):]
     body = body[:body.index("$$;")]
@@ -169,8 +172,9 @@ def test_the_check_is_derived_from_the_token_not_a_parameter():
 
 
 def test_the_manager_role_is_handed_over_when_the_account_is_deleted():
-    """אומת ב-rollback מול המסד החי: מנהל מחק את חשבונו, והניהול עבר
-    לחבר שנשאר. בלי זה המשפחה לא יכולה להסיר חבר לעולם."""
+    """Verified in a rollback against the live database: a manager deleted their
+    account, and management passed to a member who stayed. Without this the
+    family can never remove a member."""
     sql = _migration()
     body = sql[sql.index("create or replace function public.delete_my_account"):]
 

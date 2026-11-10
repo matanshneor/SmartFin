@@ -1,18 +1,18 @@
-"""המסלולים שמזיזים כסף — הפעם באמת מורצים.
+"""The routes that move money, this time really run.
 
-הפער שהבדיקות האלה סוגרות: ‎add_transaction‎, ‎update_transaction‎,
-‎delete_transaction‎, ‎reset_transactions‎ ו-‎update_recurring_template‎
-לא הוזכרו בשום בדיקה בסוויטה. מאות בדיקות רצו ירוקות מעל מסלול הכסף
-המרכזי בלי לגעת בו: הכיסוי היחיד היה שורת ה-401 של "לא מחובר".
+The gap these tests close: `add_transaction`, `update_transaction`,
+`delete_transaction`, `reset_transactions` and `update_recurring_template` weren't
+mentioned in any test in the suite. Hundreds of tests ran green over the central
+money route without touching it: the only coverage was the "not signed in" 401 line.
 
-זה אומר ששבירה של ההוספה, של העריכה או של המחיקה הייתה עולה לאוויר
-בלי שאף בדיקה תיפול. רשת הביטחון הייתה פרוסה מתחת להכול חוץ מהחלק
-שמזיז כסף.
+That means breaking add, edit or delete would have gone live with no test
+failing. The safety net was spread under everything except the part that moves
+money.
 
-הבדיקות כאן מריצות את המסלול האמיתי ואת פונקציית הנתונים האמיתית מעל
-כפיל בזיכרון (‎tests/_fake_db.py‎), ובודקות **מה נשמר בפועל** — לא מה
-הוחזר. הסיבה: כמעט כל באג בקבוצה הזאת התבטא בדיוק בפער הזה, תשובה
-שאומרת "נשמר" מעל מסד שלא נגעו בו.
+The tests here run the real route and the real data function over an in-memory
+double (`tests/_fake_db.py`), and check **what was actually saved**, not what was
+returned. The reason: almost every bug in this group showed up exactly in that
+gap: a response saying "saved" over a database nobody touched.
 """
 import pytest
 
@@ -43,8 +43,9 @@ _DEFAULT_CATEGORY = {"expense": _CAT_FOOD, "income": _CAT_SALARY, "savings": _CA
 
 
 def _with_category(body):
-    """אין עסקה בלי קטגוריה (test_category_required). בדיקה שלא עוסקת
-    בקטגוריה מקבלת את זו שמתאימה לסוג, ולא נדחית על דבר שלא בדקה."""
+    """No transaction without a category (test_category_required). A test not about
+    categories gets the one matching the type, and isn't rejected on something it
+    didn't check."""
     body = dict(body)
     if body.get("project_id"):
         body.setdefault("project_category_id", _PROJECT_CAT)
@@ -54,7 +55,7 @@ def _with_category(body):
 
 
 class _Money:
-    """הכפיל, בתוספת קיצורים שקוראים כמו המשפט שהבדיקה בודקת."""
+    """The double, plus shortcuts that read like the sentence the test checks."""
 
     def __init__(self, fake, client):
         self.fake = fake
@@ -66,7 +67,7 @@ class _Money:
 
     def only(self):
         rows = self.transactions
-        assert len(rows) == 1, f"ציפיתי לשורה אחת, יש {len(rows)}: {rows}"
+        assert len(rows) == 1, f"expected one row, there are {len(rows)}: {rows}"
         return rows[0]
 
     def post(self, **body):
@@ -82,10 +83,11 @@ class _Money:
 
 @pytest.fixture
 def money(monkeypatch):
-    """מסלול אמיתי → פונקציית נתונים אמיתית → טבלה בזיכרון."""
-    # השעון קבוע: התאריכים כאן כתובים ביד (ספטמבר 2026), ובשעון האמיתי סדרה
-    # קבועה מ-15.9 "מתמלאת אחורה" יותר ויותר עם הזמן — והבדיקות נשברו לבד
-    # (נמצא בסקירה של 1.10: בנובמבר אחת, בינואר שבע).
+    """A real route → a real data function → an in-memory table."""
+    # The clock is fixed: the dates here are written by hand (September 2026), and
+    # on the real clock a recurring series from 15.9 "backfills" more and more as
+    # time passes, and the tests broke by themselves (found in the review of
+    # 1.10: one in November, seven in January).
     import datetime as _dt
     from backend import clock as _clock
     monkeypatch.setattr(_clock, "today", lambda: _dt.date(2026, 9, 30))
@@ -96,8 +98,9 @@ def money(monkeypatch):
     fake = FakeSupabase(transactions=[])
     monkeypatch.setattr(db, "get_client", lambda: fake)
 
-    # שכנים שאינם הנושא הנבדק. השיוך כבוי כברירת מחדל — כך העסקה
-    # נשמרת כמשפחתית, וכל בדיקה שצריכה שיוך מדליקה אותו במפורש.
+    # Neighbours that aren't the subject under test. Attribution is off by
+    # default, so the transaction is saved as household, and every test that
+    # needs attribution turns it on explicitly.
     monkeypatch.setattr(db, "get_family_settings",
                         lambda fid: {"owner_attribution": {"expense": False, "income": False,
                                                            "savings": False}})
@@ -123,7 +126,7 @@ def money(monkeypatch):
 
 
 def _seed(money, **overrides):
-    """שורה קיימת בטבלה, כמו שהמסד היה מחזיר אותה."""
+    """An existing row in the table, as the database would return it."""
     row = {"id": "tx-1", "family_id": _FAM, "amount": 100.0, "type": "expense",
            "date": "2026-09-10", "description": "קפה", "category_id": _CAT_FOOD,
            "user_id": None, "is_recurring": False}
@@ -132,10 +135,10 @@ def _seed(money, **overrides):
     return row
 
 
-# ═══ הוספה ═══════════════════════════════════════════════════════════════════
+# ═══ Adding ══════════════════════════════════════════════════════════════════
 
 def test_adding_a_transaction_stores_the_amount_that_was_sent(money):
-    """הלב, וזו הבדיקה שלא הייתה: 250.50 נכנסו — 250.50 נשמרו."""
+    """The heart, and this is the test that didn't exist: 250.50 went in, 250.50 was saved."""
     response = money.post(amount="250.50", type="expense", date="2026-09-15",
                           description="מכולת", category_id=_CAT_FOOD)
 
@@ -149,8 +152,8 @@ def test_adding_a_transaction_stores_the_amount_that_was_sent(money):
 
 
 def test_the_transaction_is_stamped_with_the_callers_family(money):
-    """הבידוד עצמו. ‎family_id‎ נלקח מהסשן ולא מגוף הבקשה — אחרת אפשר
-    לרשום עסקה לתוך משפחה אחרת."""
+    """The isolation itself. `family_id` is taken from the session and not the
+    request body; otherwise a transaction could be recorded into another family."""
     money.post(amount="80", type="expense", date="2026-09-15",
                family_id=_OTHER, category_id=_CAT_FOOD)
 
@@ -167,11 +170,12 @@ def test_the_transaction_is_stamped_with_the_callers_family(money):
     ("abc",         "לא מספר בכלל"),
 ])
 def test_a_bad_amount_is_refused_and_nothing_is_written(money, amount, why):
-    """‎422‎ לבד לא מספיק: השאלה היא אם משהו נשמר לפני הסירוב."""
+    """`422` alone isn't enough: the question is whether something was saved before
+    the refusal."""
     response = money.post(amount=amount, type="expense", date="2026-09-15")
 
-    assert response.status_code == 422, f"{why} התקבל"
-    assert money.transactions == [], f"{why} נשמר למרות הסירוב"
+    assert response.status_code == 422, f"{why} was accepted"
+    assert money.transactions == [], f"{why} was saved despite the refusal"
 
 
 @pytest.mark.parametrize("tx_type", ["transfer", "", "EXPENSE", "הוצאה"])
@@ -183,8 +187,9 @@ def test_an_unknown_type_is_refused_and_nothing_is_written(money, tx_type):
 
 
 def test_a_category_from_another_family_is_refused(money):
-    """הקטגוריה מגיעה מהלקוח. בלי בדיקת שייכות אפשר לתלות עסקה על
-    קטגוריה של משפחה אחרת, והפילוח החודשי נשבר בשקט."""
+    """The category comes from the client. Without an ownership check a transaction
+    can be hung on another family's category, and the monthly breakdown silently
+    breaks."""
     response = money.post(amount="50", type="expense", date="2026-09-15",
                           category_id="לא-שלי")
 
@@ -193,7 +198,7 @@ def test_a_category_from_another_family_is_refused(money):
 
 
 def test_a_category_of_the_wrong_type_is_refused(money):
-    """קטגוריית משכורת על הוצאה — הסכום היה נספר בצד הלא נכון."""
+    """A salary category on an expense: the amount would be counted on the wrong side."""
     response = money.post(amount="50", type="expense", date="2026-09-15",
                           category_id=_CAT_SALARY)
 
@@ -202,8 +207,8 @@ def test_a_category_of_the_wrong_type_is_refused(money):
 
 
 def test_an_impossible_date_is_refused_and_nothing_is_written(money):
-    """תאריך הוא מה שהריץ את מנוע העסקאות הקבועות עד התקרה: עסקה
-    קבועה מ-1000 ייצרה 500 שורות אמיתיות בקריאה אחת."""
+    """A date is what drove the recurring engine to its cap: a recurring
+    transaction from the year 1000 created 500 real rows in one call."""
     response = money.post(amount="50", type="expense", date="1000-01-01")
 
     assert response.status_code == 422
@@ -229,7 +234,7 @@ def test_an_expense_is_attributed_to_the_caller_when_attribution_is_on(money, mo
 
 
 def test_an_expense_cannot_be_hung_on_someone_outside_the_family(money, monkeypatch):
-    """זיוף שיוך: ה-uuid הגיע מהלקוח, ו-RLS בודקת רק ‎family_id‎."""
+    """Forged attribution: the uuid came from the client, and RLS checks only `family_id`."""
     monkeypatch.setattr(db, "get_family_settings",
                         lambda fid: {"owner_attribution": {"expense": True}})
 
@@ -241,15 +246,15 @@ def test_an_expense_cannot_be_hung_on_someone_outside_the_family(money, monkeypa
 
 
 def test_attribution_that_is_off_stores_the_transaction_as_shared(money):
-    """מי שכיבה את השיוך לא אמור לקבל אותו בחזרה דרך גוף הבקשה."""
+    """Whoever turned attribution off shouldn't get it back through the request body."""
     money.post(amount="50", type="expense", date="2026-09-15", owner=_SPOUSE)
 
     assert money.only()["user_id"] is None
 
 
 def test_a_new_recurring_transaction_fills_in_its_occurrences(money, monkeypatch):
-    """עסקה קבועה שנוספת רטרואקטיבית חייבת להשלים את מה שחסר מיד,
-    אחרת החודש נראה ריק עד הכניסה הבאה."""
+    """A recurring transaction added retroactively must fill in what is missing
+    right away; otherwise the month looks empty until the next visit."""
     calls = []
     monkeypatch.setattr(db, "materialize_recurring",
                         lambda fid: (calls.append(fid), (0, True))[1])
@@ -262,7 +267,7 @@ def test_a_new_recurring_transaction_fills_in_its_occurrences(money, monkeypatch
 
 
 def test_a_plain_transaction_does_not_run_the_recurring_engine(money, monkeypatch):
-    """בקרת-נגד: המנוע יוצר שורות אמיתיות, ואסור שירוץ סתם."""
+    """Control: the engine creates real rows, and must not run for nothing."""
     calls = []
     monkeypatch.setattr(db, "materialize_recurring",
                         lambda fid: (calls.append(fid), (0, True))[1])
@@ -272,7 +277,7 @@ def test_a_plain_transaction_does_not_run_the_recurring_engine(money, monkeypatc
     assert calls == []
 
 
-# ═══ עריכה ═══════════════════════════════════════════════════════════════════
+# ═══ Editing ═════════════════════════════════════════════════════════════════
 
 def test_editing_a_transaction_changes_what_is_stored(money):
     _seed(money, amount=100.0, description="קפה")
@@ -288,8 +293,8 @@ def test_editing_a_transaction_changes_what_is_stored(money):
 
 
 def test_editing_a_transaction_that_is_gone_says_so(money):
-    """הבאג המקורי: בן משפחה אחר מחק את השורה לפני שנייה, והעורך
-    קיבל ‎200 {"status":"ok"}‎ והאמין שהעריכה נקלטה."""
+    """The original bug: another family member deleted the row a second earlier, and
+    the editor got `200 {"status":"ok"}` and believed the edit went through."""
     response = money.put("tx-נעלם", amount="180", type="expense", date="2026-09-11")
 
     assert response.status_code == 404
@@ -297,18 +302,18 @@ def test_editing_a_transaction_that_is_gone_says_so(money):
 
 
 def test_editing_cannot_reach_into_another_family(money):
-    """אותו מסלול, שורה של משפחה אחרת: חייב להיראות כמו לא-קיים."""
+    """The same route, another family's row: must look like it doesn't exist."""
     _seed(money, id="tx-זר", family_id=_OTHER, amount=100.0)
 
     response = money.put("tx-זר", amount="999", type="expense", date="2026-09-11")
 
     assert response.status_code == 404
-    assert money.only()["amount"] == 100.0, "עסקה של משפחה אחרת נערכה"
+    assert money.only()["amount"] == 100.0, "another family's transaction was edited"
 
 
 def test_an_occurrence_cannot_become_a_second_template(money, monkeypatch):
-    """סימון "עסקה קבועה" על מופע קיים ייצר סדרה מקבילה — שכר דירה
-    פעמיים בחודש, לתמיד, בלי שום דרך לראות למה."""
+    """Marking an existing occurrence "recurring" created a parallel series: rent
+    twice a month, forever, with no way to see why."""
     _seed(money, id="tx-מופע")
     monkeypatch.setattr(db, "is_recurring_instance", lambda tx, fid: True)
 
@@ -317,11 +322,11 @@ def test_an_occurrence_cannot_become_a_second_template(money, monkeypatch):
                          recurring_frequency="monthly_1")
 
     assert response.status_code == 422
-    assert money.only()["is_recurring"] is False, "נוצרה סדרה שנייה"
+    assert money.only()["is_recurring"] is False, "a second series was created"
 
 
 def test_an_unknown_series_state_refuses_rather_than_guesses(money, monkeypatch):
-    """סדרה כפולה היא נזק שאי אפשר לבטל; ניסיון חוזר כן."""
+    """A duplicate series is damage that can't be undone; a retry can."""
     _seed(money, id="tx-מופע")
     def _boom(tx, fid):
         raise db.DataUnavailable("is_recurring_instance")
@@ -345,7 +350,7 @@ def test_a_bad_amount_in_an_edit_leaves_the_old_value_alone(money, amount):
     assert money.only()["amount"] == 100.0
 
 
-# ═══ מחיקה ═══════════════════════════════════════════════════════════════════
+# ═══ Deleting ════════════════════════════════════════════════════════════════
 
 def test_deleting_a_transaction_removes_it(money):
     _seed(money)
@@ -357,7 +362,7 @@ def test_deleting_a_transaction_removes_it(money):
 
 
 def test_deleting_something_that_is_not_there_does_not_say_ok(money):
-    """‎delete_transaction‎ החזירה ‎True‎ גם כששום שורה לא נגעה."""
+    """`delete_transaction` returned `True` even when no row was touched."""
     response = money.delete("tx-נעלם")
 
     assert response.get_json().get("status") != "ok"
@@ -371,12 +376,12 @@ def test_deleting_cannot_reach_into_another_family(money):
     response = money.delete("tx-זר")
 
     assert response.get_json().get("status") != "ok"
-    assert response.status_code == 404, "התשובה לא מאשרת שהעסקה קיימת אצל אחרים"
-    assert len(money.transactions) == 1, "עסקה של משפחה אחרת נמחקה"
+    assert response.status_code == 404, "the response doesn't confirm the transaction exists for others"
+    assert len(money.transactions) == 1, "another family's transaction was deleted"
 
 
 def test_deleting_a_recurring_transaction_asks_before_it_touches_anything(money, monkeypatch):
-    """בלי ‎mode‎ נשאלת השאלה — ולא נמחק כלום בינתיים."""
+    """Without `mode` the question is asked, and nothing is deleted meanwhile."""
     _seed(money, id="tx-קבועה", is_recurring=True)
     monkeypatch.setattr(db, "recurring_occurrence",
                         lambda tx, fid: ({"template_id": "tx-קבועה",
@@ -386,7 +391,7 @@ def test_deleting_a_recurring_transaction_asks_before_it_touches_anything(money,
 
     assert response.status_code == 409
     assert response.get_json() == {"needs_choice": True, "later": 4}
-    assert len(money.transactions) == 1, "נמחק לפני שנשאלה השאלה"
+    assert len(money.transactions) == 1, "deleted before the question was asked"
 
 
 def test_an_unknown_series_state_refuses_to_delete_blindly(money, monkeypatch):
@@ -401,7 +406,7 @@ def test_an_unknown_series_state_refuses_to_delete_blindly(money, monkeypatch):
     assert len(money.transactions) == 1
 
 
-# ═══ איפוס — הפעולה ההרסנית ביותר ════════════════════════════════════════════
+# ═══ Reset: the most destructive action ══════════════════════════════════════
 
 @pytest.fixture
 def reset(money, monkeypatch):
@@ -426,8 +431,8 @@ def test_resetting_the_family_deletes_only_this_family(reset):
 
 
 def test_resetting_mine_leaves_everyone_elses_money_alone(reset):
-    """הטעות כאן היא חד-כיוונית: מי שביקש לאפס את שלו ומחק גם את של
-    בן הזוג לא יכול להחזיר את זה."""
+    """The mistake here is one-way: whoever asked to reset their own and also
+    deleted their partner's can't undo it."""
     _seed(reset, id="שלי", user_id=_ME)
     _seed(reset, id="שלה", user_id=_SPOUSE)
 
@@ -450,7 +455,7 @@ def test_a_wrong_password_deletes_nothing(reset, monkeypatch):
 
 
 def test_only_the_manager_can_wipe_the_whole_family(reset, monkeypatch):
-    """הפעולה ההרסנית ביותר הייתה פתוחה לכל חבר עם הסיסמה של עצמו."""
+    """The most destructive action was open to any member with their own password."""
     _seed(reset, id="a")
     monkeypatch.setattr(db, "is_family_manager", lambda: False)
 
@@ -458,11 +463,11 @@ def test_only_the_manager_can_wipe_the_whole_family(reset, monkeypatch):
                                  json={"password": "pw", "scope": "family"})
 
     assert response.status_code == 403
-    assert len(reset.transactions) == 1, "לא-מנהל מחק את עסקאות המשפחה"
+    assert len(reset.transactions) == 1, "a non-manager deleted the family's transactions"
 
 
 def test_a_member_who_is_not_the_manager_can_still_reset_their_own(reset, monkeypatch):
-    """בקרת-נגד: זה הכסף של מי שמבקש."""
+    """Control: it is the requester's own money."""
     _seed(reset, id="שלי", user_id=_ME)
     monkeypatch.setattr(db, "is_family_manager", lambda: False)
 
@@ -474,7 +479,7 @@ def test_a_member_who_is_not_the_manager_can_still_reset_their_own(reset, monkey
 
 
 def test_resetting_an_empty_family_is_not_a_failure(reset):
-    """אפס שורות היא תוצאה תקינה, לא שגיאה."""
+    """Zero rows is a valid result, not an error."""
     response = reset.client.post("/api/account/reset",
                                  json={"password": "pw", "scope": "family"})
 
@@ -482,16 +487,17 @@ def test_resetting_an_empty_family_is_not_a_failure(reset):
     assert response.get_json()["deleted"] == 0
 
 
-# ═══ עסקה קבועה — "עדכן להבא" ═══════════════════════════════════════════════
+# ═══ Recurring transaction: "update from now on" ════════════════════════════
 #
-# המסלול עדכן את שורת התבנית — שהיא גם העסקה של החודש הראשון — וכך
-# "מהחודש הבא 5,500" כתב מחדש גם את ינואר. עכשיו הוא מפצל את הסדרה ב-SQL
-# (‎split_recurring_series‎); הלוגיקה עצמה נבדקת מול המסד האמיתי ב-
-# ‎tests/test_recurring_split.py‎. כאן: מה שהמסלול מעביר, ומה שהוא לא כותב.
+# The route updated the template row (which is also the first month's
+# transaction), so "5,500 from next month" rewrote January too. Now it splits the
+# series in SQL (`split_recurring_series`); the logic itself is tested against
+# the real database in `tests/test_recurring_split.py`. Here: what the route
+# passes on, and what it doesn't write.
 
 def test_syncing_splits_the_series_and_writes_nothing_itself(money):
-    """הבדיקה שהחליפה את "משנה רק את התבנית" — שבדקה בדיוק את הבאג:
-    היא דרשה שהתבנית, כלומר ינואר, תהפוך ל-7,500."""
+    """The test that replaced "changes only the template", which tested exactly the
+    bug: it required the template, i.e. January, to become 7,500."""
     _seed(money, id="תבנית", amount=7000.0, is_recurring=True)
     _seed(money, id="מופע", amount=7500.0, is_recurring=False, recurring_parent_id="תבנית")
     money.fake.rpc_results["split_recurring_series"] = "מופע"
@@ -502,15 +508,15 @@ def test_syncing_splits_the_series_and_writes_nothing_itself(money):
     assert response.status_code == 200, response.get_json()
     assert money.fake.rpcs == [("split_recurring_series", {
         "p_template_id": "תבנית", "p_instance_id": "מופע", "p_family_id": _FAM})]
-    assert money.fake.written("transactions") == [], "המסלול כתב בעצמו"
+    assert money.fake.written("transactions") == [], "the route wrote by itself"
     rows = {r["id"]: r["amount"] for r in money.transactions}
     assert rows == {"תבנית": 7000.0, "מופע": 7500.0}
 
 
 @pytest.mark.parametrize("body", [{}, {"instance_id": ""}, {"instance_id": 5}, {"amount": "7500"}])
 def test_syncing_without_the_edited_month_is_refused(money, body):
-    """בלי המופע אין איפה לפצל. לשונית ישנה שעוד שולחת רק ‎amount‎ מקבלת
-    הודעה ברורה ולא כתיבה."""
+    """Without the occurrence there is nowhere to split. An old tab still sending
+    only `amount` gets a clear message, not a write."""
     _seed(money, id="תבנית", amount=7000.0, is_recurring=True)
 
     response = money.client.put("/api/recurring/תבנית/sync", json=body)
@@ -520,7 +526,8 @@ def test_syncing_without_the_edited_month_is_refused(money, body):
 
 
 def test_nothing_to_split_is_a_404(money):
-    """‎null‎ מהפונקציה: לא נמצא, לא שייך לתבנית, משפחה אחרת, או סדרה שנגמרה."""
+    """`null` from the function: not found, not of the template, another family,
+    or a series that ended."""
     money.fake.rpc_results["split_recurring_series"] = None
 
     response = money.client.put("/api/recurring/זרה/sync", json={"instance_id": "מופע"})
@@ -529,7 +536,8 @@ def test_nothing_to_split_is_a_404(money):
 
 
 def test_a_failed_split_says_so(money):
-    """כאן זה נבלע עד היום: הדפדפן בלע את הכשל, והמשתמש שמע "עודכן"."""
+    """Here this was swallowed until now: the browser swallowed the failure, and the
+    user heard "updated"."""
     money.fake.rpc_results["split_recurring_series"] = RuntimeError("db down")
 
     response = money.client.put("/api/recurring/תבנית/sync", json={"instance_id": "מופע"})
@@ -538,11 +546,12 @@ def test_a_failed_split_says_so(money):
     assert "נכשל" in response.get_json()["error"]
 
 
-# ═══ מונה הסריקות — המסלול היחיד שעולה כסף אמיתי ═════════════════════════════
+# ═══ The scan counter: the only route that costs real money ═════════════════
 #
-# ‎record_receipt_scan‎ הופיע פעם אחת בכל הסוויטה, כ-stub בלי שום assert.
-# מחיקת השורה שקוראת לו ביטלה את שתי התקרות — זו של המשפחה וזו הגלובלית
-# — והשאירה את הסוויטה ירוקה. זה הקובץ שנכתב כדי לשמור על ההוצאה.
+# `record_receipt_scan` appeared once in the whole suite, as a stub with no
+# assert. Deleting the line that calls it cancelled both caps (the family's and
+# the global one) and left the suite green. This file was written to guard the
+# spending.
 
 _SCAN = {"amount": 42.0, "merchant": "מכולת", "date": "2026-09-15",
          "category_name": "מכולת"}
@@ -567,18 +576,19 @@ def _image(scan):
 
 
 def test_a_successful_scan_is_counted(scan):
-    """הלב: בלי הרישום הזה המכסה לא קיימת, וההוצאה על ה-API פתוחה."""
+    """The heart: without this record the quota doesn't exist, and the API spending
+    is wide open."""
     response = _image(scan)
 
     assert response.status_code == 200, response.get_json()
     counted = scan.fake.rows("receipt_scans")
-    assert len(counted) == 1, "הסריקה לא נספרה — המכסה אינה קיימת בפועל"
+    assert len(counted) == 1, "the scan wasn't counted: the quota doesn't actually exist"
     assert counted[0]["family_id"] == _FAM
     assert counted[0]["user_id"] == _ME
 
 
 def test_a_failed_scan_is_not_counted(scan, monkeypatch):
-    """בקרת-נגד: אסור לחייב את המשפחה במכסה על סריקה שלא החזירה כלום."""
+    """Control: the family mustn't be charged quota for a scan that returned nothing."""
     monkeypatch.setattr(db, "scan_receipt", lambda b, t, cats: (None, "לא הצלחנו לקרוא"))
 
     _image(scan)
@@ -587,7 +597,8 @@ def test_a_failed_scan_is_not_counted(scan, monkeypatch):
 
 
 def test_a_scan_that_could_not_be_stored_is_still_counted(scan, monkeypatch):
-    """הקריאה ל-OpenAI כבר נעשתה ושולמה. כישלון העלאה לא מחזיר את הכסף."""
+    """The call to OpenAI was already made and paid for. An upload failure doesn't
+    give the money back."""
     monkeypatch.setattr(db, "upload_receipt", lambda tok, fid, b, t: (None, "storage"))
 
     assert _image(scan).status_code == 200
@@ -603,12 +614,12 @@ def test_the_family_ceiling_blocks_the_scan_before_it_costs_anything(scan, monke
     response = _image(scan)
 
     assert response.status_code == 429
-    assert called == [], "הסריקה רצה ושולמה למרות שהמכסה נוצלה"
+    assert called == [], "the scan ran and was paid for even though the quota was used up"
     assert scan.fake.rows("receipt_scans") == []
 
 
 def test_the_global_ceiling_blocks_everyone(scan, monkeypatch):
-    """התקרה הגלובלית היא ההגנה על חשבון ה-OpenAI עצמו."""
+    """The global cap is the protection on the OpenAI account itself."""
     called = []
     monkeypatch.setattr(db, "receipt_scans_globally_this_month",
                         lambda: db.RECEIPT_GLOBAL_MONTHLY_LIMIT)
@@ -622,7 +633,8 @@ def test_the_global_ceiling_blocks_everyone(scan, monkeypatch):
 
 
 def test_a_ceiling_that_cannot_be_read_refuses_rather_than_allows(scan, monkeypatch):
-    """אישור כשהבדיקה נכשלה מבטל בפועל את ההגבלה — זו הוצאה אמיתית."""
+    """Allowing when the check failed effectively cancels the limit: that is a real
+    expense."""
     called = []
     def _boom(fid):
         raise db.DataUnavailable("receipt_scans_this_month")
@@ -653,16 +665,16 @@ def test_a_file_that_is_not_an_image_never_reaches_the_scanner(scan, monkeypatch
     assert scan.fake.rows("receipt_scans") == []
 
 
-# ═══ מחיקת חשבון ═════════════════════════════════════════════════════════════
+# ═══ Deleting an account ═════════════════════════════════════════════════════
 
 def test_deleting_the_account_requires_the_right_password(money, monkeypatch):
-    """הפעולה שאי אפשר לבטל. סיסמה שגויה חייבת לעצור לפני ה-RPC."""
+    """The action that can't be undone. A wrong password must stop before the RPC."""
     monkeypatch.setattr(db, "sign_in", lambda e, p: (None, "invalid"))
 
     response = money.client.delete("/api/account", json={"password": "לא נכון"})
 
     assert response.status_code == 403
-    assert money.fake.rpcs == [], "החשבון נמחק עם סיסמה שגויה"
+    assert money.fake.rpcs == [], "the account was deleted with a wrong password"
 
 
 def test_deleting_the_account_without_a_password_stops_first(money):
@@ -684,16 +696,17 @@ def test_deleting_the_account_calls_the_archiving_function_and_ends_the_session(
     assert response.status_code == 200
     assert [name for name, _ in money.fake.rpcs] == ["delete_my_account"]
     with money.client.session_transaction() as sess:
-        assert "user_id" not in sess, "הסשן שרד את מחיקת החשבון"
+        assert "user_id" not in sess, "the session survived the account deletion"
 
 
-# ═══ תדירות, יעד תקציב, ומילוי אחורה ═════════════════════════════════════════
+# ═══ Frequency, target budget, and backfill ══════════════════════════════════
 
 @pytest.mark.parametrize("freq", [None, "", "daily", "yearly", "MONTHLY_1"])
 def test_a_recurring_transaction_needs_a_frequency_the_engine_knows(money, freq):
-    """‎NULL‎ עבר את ה-CHECK של המסד, אז ‎{"is_recurring": true}‎ בלי
-    תדירות יצר תבנית חיה שהמנוע מפרש כ-‎monthly_1‎ ומייצר ממנה שורות
-    ב-1 לחודש — בזמן שהבורר בממשק מציג ריק."""
+    """`NULL` passed the database's CHECK, so `{"is_recurring": true}` with no
+    frequency created a live template the engine reads as `monthly_1` and
+    produces rows from on the 1st of the month, while the picker in the UI shows
+    empty."""
     body = {"amount": "50", "type": "expense", "date": "2026-09-15",
             "is_recurring": True}
     if freq is not None:
@@ -701,12 +714,12 @@ def test_a_recurring_transaction_needs_a_frequency_the_engine_knows(money, freq)
 
     response = money.client.post("/api/transactions", json=_with_category(body))
 
-    assert response.status_code == 422, f"{freq!r} התקבל"
+    assert response.status_code == 422, f"{freq!r} was accepted"
     assert money.transactions == []
 
 
 def test_a_known_frequency_is_accepted(money):
-    """בקרת-נגד."""
+    """Control."""
     response = money.post(amount="7000", type="expense", date="2026-09-15",
                           is_recurring=True, recurring_frequency="biweekly")
 
@@ -715,20 +728,20 @@ def test_a_known_frequency_is_accepted(money):
 
 
 def test_a_series_that_would_backfill_months_asks_first(money):
-    """טעות הקלדה בשנה — ‎2016‎ במקום ‎2026‎ — ייצרה ‎~120‎ עסקאות אמיתיות
-    בבקשה אחת, בלי אישור ובלי מספר בתשובה."""
+    """A typo in the year (`2016` instead of `2026`) created `~120` real transactions
+    in one request, with no confirmation and no number in the response."""
     response = money.post(amount="6000", type="expense", date="2016-03-01",
                           is_recurring=True, recurring_frequency="monthly_1")
 
     assert response.status_code == 409
     body = response.get_json()
     assert body["needs_confirm"] is True
-    assert body["will_create"] > 50, "המספר לא נאמר, או שהוא לא נכון"
-    assert money.transactions == [], "נשמר לפני שנשאלה השאלה"
+    assert body["will_create"] > 50, "the number wasn't said, or it is wrong"
+    assert money.transactions == [], "saved before the question was asked"
 
 
 def test_confirming_lets_it_through(money):
-    """מילוי אחורה מכוון הוא שימוש לגיטימי; רק צריך לומר אותו בקול."""
+    """A deliberate backfill is legitimate use; it just has to be said out loud."""
     response = money.client.post("/api/transactions?confirm=1", json=_with_category({
         "amount": "6000", "type": "expense", "date": "2016-03-01",
         "is_recurring": True, "recurring_frequency": "monthly_1"}))
@@ -737,8 +750,8 @@ def test_confirming_lets_it_through(money):
 
 
 def test_a_short_backfill_is_not_interrupted(money):
-    """"שכחתי להזין את החודשיים האחרונים" הוא שימוש רגיל, ולא מגיע לו
-    דיאלוג."""
+    """"I forgot to enter the last two months" is ordinary use, and doesn't deserve
+    a dialog."""
     response = money.post(amount="6000", type="expense", date="2026-08-01",
                           is_recurring=True, recurring_frequency="monthly_1")
 
@@ -747,16 +760,16 @@ def test_a_short_backfill_is_not_interrupted(money):
 
 @pytest.mark.parametrize("target", ["-5000", "0", "inf", "999999999", "nan"])
 def test_a_bad_project_budget_is_refused(money, target):
-    """‎float()‎ חשוף קיבל יעד שלילי והציג ‎-₪5,000‎ כיעד; ‎1e12‎ הציף את
-    ‎numeric(10,2)‎ וחזר כ-500 סתום."""
+    """A bare `float()` accepted a negative target and showed `-₪5,000` as the
+    target; `1e12` overflowed `numeric(10,2)` and came back as an opaque 500."""
     response = money.client.post("/api/projects",
                                  json={"name": "שיפוץ", "budget_target": target})
 
-    assert response.status_code == 422, f"{target} התקבל"
+    assert response.status_code == 422, f"{target} was accepted"
 
 
 def test_a_project_without_a_budget_is_fine(money, monkeypatch):
-    """יעד ריק הוא ערך תקין — לא כל פרויקט צריך אחד."""
+    """An empty target is a valid value: not every project needs one."""
     monkeypatch.setattr(db, "add_project",
                         lambda *a, **k: ({"id": "p1", "name": "שיפוץ"}, None))
 
@@ -765,11 +778,12 @@ def test_a_project_without_a_budget_is_fine(money, monkeypatch):
     assert response.status_code in (200, 201), response.get_json()
 
 
-# ═══ עריכת סדרה ותיקה — האזהרה סופרת רק מה שבאמת ייווצר ═══════════════════
+# ═══ Editing an old series: the warning counts only what will really be created ═
 #
-# "הסדרה תיצור 6 עסקאות אחורה" קפץ על כל עריכה של תבנית ותיקה — גם על
-# תיקון שגיאת כתיב בתיאור — כי נספרו כל המופעים מאז תחילת הסדרה, כולל אלה
-# שכבר קיימים. מספר מפחיד ושקרי, שגדל עם גיל הסדרה.
+# "The series will create 6 transactions back" popped up on every edit of an old
+# template (even fixing a typo in the description), because every occurrence
+# since the start of the series was counted, including those that already exist.
+# A frightening and false number, growing with the series' age.
 
 @pytest.fixture
 def mid_september(monkeypatch):
@@ -779,7 +793,8 @@ def mid_september(monkeypatch):
 
 
 def _salary_series(money, start="2026-03-05"):
-    """משכורת ב-5 לחודש ממרץ; מאפריל עד ספטמבר המופעים כבר נוצרו."""
+    """A salary on the 5th of the month from March; from April to September the
+    occurrences were already created."""
     _seed(money, id="tpl", type="income", amount=14000.0, date=start,
           description="משכורת", is_recurring=True, recurring_frequency="monthly_same",
           recurring_skips=None)
@@ -805,7 +820,8 @@ def test_fixing_a_typo_in_an_old_series_does_not_warn(money, mid_september):
 
 
 def test_moving_payday_within_the_month_does_not_warn(money, mid_september):
-    """מה-5 ל-10: כל חודש כבר קיבל את המשכורת שלו, ולא ייווצר כלום."""
+    """From the 5th to the 10th: every month already got its salary, and nothing
+    will be created."""
     _salary_series(money)
 
     response = _edit_template(money, date="2026-03-10")
@@ -814,8 +830,8 @@ def test_moving_payday_within_the_month_does_not_warn(money, mid_september):
 
 
 def test_moving_the_start_a_year_back_warns_with_the_real_number(money, mid_september):
-    """מ-3.2025: אפריל 2025 עד ספטמבר 2026 הם 18 חודשים, שישה מהם כבר
-    קיימים. ייווצרו 12 — וזה המספר שצריך להיאמר, לא 18."""
+    """From 3.2025: April 2025 to September 2026 is 18 months, six of which already
+    exist. 12 will be created, and that is the number to say, not 18."""
     _salary_series(money)
 
     response = _edit_template(money, date="2025-03-05")
@@ -825,7 +841,7 @@ def test_moving_the_start_a_year_back_warns_with_the_real_number(money, mid_sept
 
 
 def test_a_failed_read_does_not_skip_the_question(money, mid_september, monkeypatch):
-    """לא ידוע כמה ייווצרו → לא שומרים בשקט."""
+    """Unknown how many will be created → don't save silently."""
     _salary_series(money)
     def broken(*a):
         raise db.DataUnavailable("down")
@@ -836,13 +852,15 @@ def test_a_failed_read_does_not_skip_the_question(money, mid_september, monkeypa
     assert response.status_code == 503
 
 
-# ═══ עריכה לא משנה את מה שלא נגעו בו ═══════════════════════════════════════
+# ═══ An edit doesn't change what wasn't touched ═════════════════════════════
 #
-# בדיקות הבעלים והפרויקט נועדו לבחירה **חדשה**, ודחו גם ערך שלא השתנה.
-# הטופס "פתר" את זה בכך שהחליף בשקט: עסקה של מי שעבר למשפחה אחרת הפכה
-# ל"משותפת", ועסקה בפרויקט שהפסיק לעקוב אחרי הסוג יצאה ממנו אל הבית.
+# The owner and project checks were meant for a **new** choice, and also rejected
+# a value that hadn't changed. The form "solved" that by silently replacing it: a
+# transaction of someone who moved to another family became "shared", and a
+# transaction in a project that stopped tracking the type left it for the
+# household.
 
-_GONE = "44444444-4444-4444-4444-444444444444"      # עבר למשפחה אחרת
+_GONE = "44444444-4444-4444-4444-444444444444"      # moved to another family
 
 
 def test_editing_keeps_an_owner_who_is_no_longer_in_the_family(money, monkeypatch):
@@ -858,7 +876,8 @@ def test_editing_keeps_an_owner_who_is_no_longer_in_the_family(money, monkeypatc
 
 
 def test_but_hanging_a_transaction_on_an_outsider_is_still_refused(money, monkeypatch):
-    """בקרת-נגד: "לא השתנה" אינו פרצה — בעלים חדש מבחוץ עדיין נדחה."""
+    """Control: "didn't change" isn't a loophole: a new owner from outside is still
+    rejected."""
     monkeypatch.setattr(db, "get_family_settings",
                         lambda fid: {"owner_attribution": {"expense": True}})
     _seed(money, id="tx-1", user_id=_ME)
@@ -885,7 +904,7 @@ def test_editing_keeps_a_project_that_stopped_tracking_the_type(money, monkeypat
 
 
 def test_but_adding_to_such_a_project_is_still_refused(money, monkeypatch):
-    """בקרת-נגד: "עוקב אחרי סוג" עדיין קובע מה אפשר להוסיף."""
+    """Control: "tracks type" still decides what can be added."""
     monkeypatch.setattr(db, "get_project_for_transaction", _project(track_income=False))
     _seed(money, id="tx-1", type="income", project_id=None)
 

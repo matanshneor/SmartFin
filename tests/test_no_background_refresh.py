@@ -1,9 +1,11 @@
-"""ניתוק אחרי הפסקה (מתן, 13.10 — "למה הוא שוב מכניס אותי למסך ההתחברות?").
+"""Signed out after a break (Matan, 13.10: "why does it put me back on the sign-in
+screen?").
 
-ביומנים: "Invalid Refresh Token: Already Used" שלוש פעמים ביום, כל פעם אחרי
-הפסקה של יותר משעה. הסיבה: ברירת המחדל של ספריית Supabase מתזמנת טיימר ברקע
-שמחדש את הסשן של מי שהתחבר אחרון על הלקוח המשותף — וכך "צורכת" את ה-refresh
-token שבעוגייה של המשתמש, בלי שאיש יודע.
+In the logs: "Invalid Refresh Token: Already Used" three times a day, each time
+after a break of more than an hour. The cause: the Supabase library's default
+schedules a background timer that refreshes the session of whoever signed in last
+on the shared client, and so "consumes" the refresh token in the user's cookie,
+without anyone knowing.
 """
 import time
 
@@ -24,15 +26,16 @@ def _session():
 
 @pytest.fixture
 def real_client(monkeypatch):
-    """לקוח אמיתי של הספרייה (בלי רשת — רק בנייה), דרך ‎get_client‎ שלנו."""
+    """A real client of the library (no network: construction only), through our
+    get_client."""
     import backend.supabase_config as mod
     from supabase import create_client
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
     monkeypatch.setenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.x")
     monkeypatch.setenv("SF_NO_WARM_PINGS", "1")
     monkeypatch.setattr(mod, "_client", None)
-    # ‎conftest‎ חוסם את ‎get_client‎ בבדיקות יחידה — בונים כמו שהוא בונה, ובודקים
-    # שהקוד שלו באמת מבקש את אותן אפשרויות
+    # conftest blocks get_client in unit tests: build the way it builds, and check
+    # that its code really asks for the same options
     client = _build(mod)
     yield mod, client
     if client.auth._refresh_token_timer:
@@ -59,7 +62,7 @@ def test_no_timer_renews_someone_elses_session(real_client):
 
     client.auth._save_session(_session())
 
-    assert client.auth._refresh_token_timer is None, "טיימר ברקע יצרוך את ה-refresh token"
+    assert client.auth._refresh_token_timer is None, "a background timer would consume the refresh token"
 
 
 def test_every_auth_call_leaves_nothing_behind(real_client):

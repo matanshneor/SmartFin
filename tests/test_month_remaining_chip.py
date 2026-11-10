@@ -1,8 +1,10 @@
-""""מאזן חודשי" (לשעבר "נשאר בעו״ש") בעמוד החודש — בלי אדום כשעוד אין הכנסות, ובלי "-₪0".
+""""מאזן חודשי" (formerly "נשאר בעו״ש") on the month page: no red while there is
+no income yet, and no "-₪0".
 
-דף הבית כבר ידע: חודש בלי הכנסה אינו גירעון, כי עוד אין ממה להחסיר.
-עמוד החודש, באותו מצב בדיוק, הציג "₪-800" באדום. ובלי JS (או לפני שאנימציית
-הספירה רצה) המינוס עמד אחרי ה-₪.
+The home page already knew: a month with no income isn't a deficit, because there
+is nothing to subtract from yet. The month page, in exactly the same state, showed
+"₪-800" in red. And without JS (or before the count-up animation ran) the minus
+stood after the ₪.
 """
 import re
 
@@ -14,7 +16,8 @@ pytestmark = pytest.mark.unit
 
 
 def _chip(html):
-    """המלבן של המאזן, מהתגית הפותחת (עליה יושב סימון הגירעון) ועד הסכום."""
+    """The balance's box, from the opening tag (where the deficit marker sits) to the
+    amount."""
     i = html.rindex('<div class="month-net', 0, html.index("מאזן החודש"))
     return html[i:html.index("</p>", html.index("month-net-value", i)) + 4]
 
@@ -27,12 +30,12 @@ def _expense(amount, kind="expense"):
 def test_spending_before_any_income_is_not_a_deficit(month_page):
     chip = _chip(month_page([_expense(800)]))
 
-    assert "deficit" not in chip, "גירעון אדום לפני שנכנסה הכנסה"
+    assert "deficit" not in chip, "red deficit before any income came in"
     assert "-" not in re.sub(r"<[^>]+>", "", chip).replace("מאזן החודש", "")
 
 
 def test_a_real_deficit_is_red_with_the_minus_before_the_shekel(month_page):
-    """בקרת-נגד, ובאותה נגיעה: ‎-₪300‎ ולא ‎₪-300‎."""
+    """Control, and in the same touch: -₪300 and not ₪-300."""
     chip = _chip(month_page([_expense(500, "income"), _expense(800)]))
 
     assert "deficit" in chip

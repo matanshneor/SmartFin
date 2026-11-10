@@ -1,13 +1,13 @@
 """
-הקישור שנשלח בוואטסאפ, וההזמנה שמועתקת איתו.
+The link sent on WhatsApp, and the invitation copied with it.
 
-זה מה שקורה בפועל כשמתן יפיץ את האפליקציה. קישור בלי תגיות שיתוף
-מוצג כשורת טקסט חשופה — בלי שם, בלי תיאור ובלי תמונה — וזה נראה חשוד
-בדיוק ברגע שמבקשים מאנשים למסור נתוני כסף.
+This is what really happens when Matan spreads the app. A link without share
+tags shows as a bare line of text (no name, no description and no image), and that
+looks suspicious exactly at the moment people are asked to hand over money data.
 
-ושיתוף ההזמנה העתיק שישה תווים ותו לא. מי שקיבל "K4F2QX" קיבל שישה
-תווים בלי קישור ובלי הסבר, בזמן שדף הנחיתה מוכר את זה כ"מזמינים את
-בני הבית עם קוד בן שישה תווים".
+And sharing the invitation copied six characters and nothing else. Whoever got
+"K4F2QX" got six characters with no link and no explanation, while the landing
+page sells it as "invite your household with a six-character code".
 """
 import json
 import shutil
@@ -28,21 +28,21 @@ def _read(name):
     return (_TPL / name).read_text(encoding="utf-8")
 
 
-# ─── תצוגה מקדימה בשיתוף ────────────────────────────────────────────────────
+# ─── A preview when shared ──────────────────────────────────────────────────
 
 @pytest.mark.parametrize("page", _PUBLIC)
 def test_every_public_page_previews_properly(page):
     html = _read(page)
 
     for tag in ("og:title", "og:description", "og:image", "og:url", "og:type"):
-        assert f'property="{tag}"' in html, f"{page} חסר {tag}"
+        assert f'property="{tag}"' in html, f"{page} is missing {tag}"
     assert 'name="twitter:card"' in html
 
 
 @pytest.mark.parametrize("page", _PUBLIC)
 def test_the_preview_image_is_absolute(page):
-    """כתובת יחסית לא נפתרת אצל מי שמציג את התצוגה המקדימה — הוא
-    שולף את העמוד משרת אחר לגמרי."""
+    """A relative URL isn't resolved by whoever shows the preview: they fetch the
+    page from a completely different server."""
     html = _read(page)
     block = html[html.index('property="og:image"'):]
     block = block[:block.index(">") + 1]
@@ -52,29 +52,29 @@ def test_the_preview_image_is_absolute(page):
 
 @pytest.mark.parametrize("page", _PUBLIC)
 def test_each_page_says_what_it_is(page):
-    """כותרת אחת לכל האתר הופכת כל קישור לזהה, וזה בדיוק מה שהתגיות
-    נועדו למנוע."""
+    """One title for the whole site makes every link identical, and that is exactly
+    what the tags are meant to prevent."""
     html = _read(page)
     block = html[html.index("{% set og_title"):]
     title = block[:block.index("%}")]
 
     assert "SmartFin" in title
-    assert len(title) > 30, "כותרת גנרית מדי"
+    assert len(title) > 30, "too generic a title"
 
 
 def test_the_image_exists_and_is_the_right_shape():
-    """1200×630 הוא מה ש-WhatsApp ופייסבוק מצפים לו; יחס אחר נחתך."""
+    """1200×630 is what WhatsApp and Facebook expect; another ratio gets cropped."""
     png = _ROOT / "frontend/static/icons/og-image.png"
 
-    assert png.exists(), "אין תמונת תצוגה"
+    assert png.exists(), "no preview image"
     data = png.read_bytes()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", "לא PNG"
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
     width  = int.from_bytes(data[16:20], "big")
     height = int.from_bytes(data[20:24], "big")
-    assert (width, height) == (1200, 630), f"המידות הן {width}×{height}"
+    assert (width, height) == (1200, 630), f"the size is {width}×{height}"
 
 
-# ─── ההזמנה שמועתקת ─────────────────────────────────────────────────────────
+# ─── The invitation that is copied ──────────────────────────────────────────
 
 _HARNESS = r"""
 const fs = require('fs'), g = globalThis;
@@ -91,7 +91,7 @@ console.log(JSON.stringify({
 def _messages():
     node = shutil.which("node")
     if not node:
-        pytest.skip("node לא מותקן")
+        pytest.skip("node isn't installed")
     h = _ROOT / "tests" / "_invite_harness.js"
     h.write_text(_HARNESS, encoding="utf-8")
     try:
@@ -104,11 +104,11 @@ def _messages():
 
 
 def test_the_invite_carries_a_link_not_just_six_characters():
-    """הלב. בלי הקישור, המקבל לא יודע לאן ללכת עם הקוד."""
+    """The heart. Without the link, the recipient doesn't know where to go with the code."""
     msg = _messages()["named"]
 
     assert "K4F2QX" in msg
-    # מאז 3.10 (רעיון 43) — קישור שמצרף בלחיצה, עם הקוד בתוכו
+    # Since 3.10 (idea 43): a link that joins on tap, with the code inside it
     assert "https://smartfin.up.railway.app/join/K4F2QX" in msg
 
 
@@ -120,8 +120,8 @@ def test_the_invite_says_who_is_inviting():
 
 
 def test_a_family_without_a_name_still_reads_properly():
-    """בקרת-נגד: שם המשפחה אופציונלי, והודעה עם חור באמצע גרועה
-    מהודעה גנרית."""
+    """Control: the family name is optional, and a message with a hole in the middle
+    is worse than a generic message."""
     msg = _messages()["unnamed"]
 
     assert '""' not in msg
@@ -130,7 +130,7 @@ def test_a_family_without_a_name_still_reads_properly():
 
 
 def test_the_code_sits_on_its_own_line():
-    """כדי שאפשר יהיה לסמן אותו בלחיצה ארוכה בלי לגרור נקודה."""
+    """So it can be selected with a long press without dragging a period along."""
     msg = _messages()["named"]
 
-    assert "K4F2QX" in msg.split("\n"), "הקוד בשורה משלו"
+    assert "K4F2QX" in msg.split("\n"), "the code on its own line"

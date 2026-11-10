@@ -1,11 +1,15 @@
-"""בהגדרות של כל בן משפחה תמיד יש קוד הזמנה תקף — בלי ללחוץ "קוד חדש".
+"""Every family member's settings always have a valid invite code, without
+tapping "new code".
 
-בקשת מתן (29.9.2026). הקוד תקף שבוע, והקוד של המשפחה פג בשקט באותו
-בוקר: מי שנכנס להגדרות כדי לשלוח קוד מצא "הקוד פג. הפיקו חדש".
+Matan's request (29.9.2026). A code is valid for a week, and the family's code
+expired silently that morning: whoever came into settings to send a code found
+"the code expired. Generate a new one".
 
-קוד חדש נוצר רק כשהקודם **כבר פג** — כך אף הזמנה ששלחת ועדיין בתוקף לא
-מתבטלת. גם אצל מי שאינו מנהל (בקשת מתן): החידוש עובר בפונקציה שלא
-יכולה לבטל קוד תקף, אז הרשאת המנהל להחליף קוד — "קוד חדש" — לא נחלשת.
+A new code is created only when the previous one **has already expired**, so no
+invitation you sent that is still valid gets cancelled. Also for someone who
+isn't the manager (Matan's request): the renewal goes through a function that
+can't cancel a valid code, so the manager's permission to replace a code ("new
+code") isn't weakened.
 """
 from datetime import timedelta
 
@@ -43,7 +47,7 @@ def settings_page(monkeypatch):
     monkeypatch.setattr(app_module.db, "get_family", lambda fid: dict(state["family"]))
     monkeypatch.setattr(app_module.db, "renew_expired_invite_code", rotate)
     monkeypatch.setattr(app_module.db, "rotate_invite_code",
-                        lambda: pytest.fail("החלפה של המנהל, לא חידוש של קוד שפג"))
+                        lambda: pytest.fail("the manager's replacement, not renewing an expired code"))
     monkeypatch.setattr(app_module.db, "get_family_members",
                         lambda fid: [{"id": _ME, "name": "מתן", "full_name": "מתן"}])
     for fn, val in (("get_categories", []), ("get_recurring_transactions", []),
@@ -74,7 +78,7 @@ def test_the_manager_gets_a_fresh_code_instead_of_an_expired_one(settings_page):
 
 
 def test_a_code_that_is_still_valid_is_left_alone(settings_page):
-    """אחרת כל כניסה להגדרות הייתה מבטלת הזמנה ששלחת אתמול."""
+    """Otherwise every visit to settings would cancel an invitation you sent yesterday."""
     state, open_as = settings_page
 
     html = open_as(manager=_ME, expires_in_days=3)
@@ -93,7 +97,7 @@ def test_a_member_who_is_not_the_manager_gets_a_fresh_code_too(settings_page):
 
 
 def test_a_member_cannot_replace_a_code_that_is_still_valid(settings_page):
-    """זו ההרשאה של המנהל ("קוד חדש"), והיא לא עוברת דרך החידוש."""
+    """This is the manager's permission ("new code"), and it doesn't go through the renewal."""
     state, open_as = settings_page
 
     open_as(manager=_OTHER, expires_in_days=3)

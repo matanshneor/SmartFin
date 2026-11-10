@@ -1,9 +1,11 @@
-"""אגורות מוצגות כשיש אגורות — בשרת ובדפדפן, באותו כלל בדיוק.
+"""Agorot are shown when there are agorot, on the server and in the browser, by
+exactly the same rule.
 
-עד 30.9.2026 כל תבנית עיגלה לשקל, והקלט קיבל אגורות: קפה ב-12.50 הוצג
-₪13, ושלוש קניות של 10.40 הוצגו ₪10 כל אחת ו-₪31 ביחד. מתן בחר: אגורות
-כשיש. הכלל חי בשני מקומות — ‎format_money‎ (תבניות, התראות) ו-‎sfMoney‎
-(אנימציות, מקרא, גרפים) — והבדיקה כאן היא מה שמונע מהם להיפרד.
+Until 30.9.2026 every template rounded to whole shekels, while input accepted
+agorot: a 12.50 coffee showed as ₪13, and three 10.40 purchases showed as ₪10
+each and ₪31 together. Matan chose: agorot when present. The rule lives in two
+places (`format_money` for templates and alerts, `sfMoney` for animations,
+legends and charts), and the test here is what stops them drifting apart.
 """
 import json
 import shutil
@@ -34,7 +36,7 @@ def test_the_rule(value, expected):
 def test_the_browser_says_exactly_what_the_server_says():
     node = shutil.which("node")
     if not node:
-        pytest.skip("node לא מותקן")
+        pytest.skip("node isn't installed")
     script = (
         "const g = globalThis; g.window = g;"
         "eval(require('fs').readFileSync(process.argv[1], 'utf8')"
@@ -51,7 +53,8 @@ def test_the_browser_says_exactly_what_the_server_says():
 
 
 def test_the_month_page_shows_agorot_and_totals_add_up(month_page):
-    """שלוש קניות של 10.40: כל אחת ₪10.40, והקטגוריה ₪31.20 — לא 10/10/10 ו-31."""
+    """Three purchases of 10.40: each ₪10.40, and the category ₪31.20, not
+    10/10/10 and 31."""
     rows = [{**_row(f"קנייה{n}", project=False), "id": f"k{n}", "amount": 10.40} for n in range(3)]
 
     html = month_page(rows)

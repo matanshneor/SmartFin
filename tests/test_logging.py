@@ -1,13 +1,13 @@
 """
-בדיקות ללוגים.
+Tests for logging.
 
-הקוד השתמש ב-print בלבד — 61 קריאות, 44 מהן בתוך except. הפלט הלך לבאפר
-הלוגים של Railway, שנמחק, ואף אחד לא קרא אותו. חשוב מכך: **Sentry לא ראה
-אותו**. חובר ניטור שגיאות, ואז נותב סביבו מצב הכשל הנפוץ ביותר באפליקציה
-— שאילתה שנכשלת ונבלעת.
+The code used print only: 61 calls, 44 of them inside except. The output went to
+Railway's log buffer, which gets wiped, and nobody read it. More importantly,
+**Sentry didn't see it**. Error monitoring was hooked up, and then the app's most
+common failure mode was routed around it: a query that fails and is swallowed.
 
-עם logging, השילוב של Sentry עם מודול הלוגים תופס כל רשומת ERROR ומעלה
-והופך אותה לאירוע. אותה שורת קוד, אבל עכשיו רואים אותה.
+With logging, Sentry's logging integration catches every record at ERROR and
+above and turns it into an event. Same line of code, but now it is visible.
 """
 import ast
 import logging
@@ -24,7 +24,7 @@ def _sources():
     return [f for f in _BACKEND.glob("*.py") if f.name not in ("__init__.py", "logs.py")]
 
 
-# ─── שום כשל לא נכתב יותר למקום שאף אחד לא קורא ─────────────────────────────
+# ─── No failure is written anymore to a place nobody reads ──────────────────
 
 def test_nothing_in_the_backend_prints_any_more():
     offenders = []
@@ -35,23 +35,23 @@ def test_nothing_in_the_backend_prints_any_more():
                     and node.func.id == "print"):
                 offenders.append(f"{f.name}:{node.lineno}")
 
-    assert not offenders, f"print נשאר ב: {offenders} — Sentry לא יראה את זה"
+    assert not offenders, f"print remains in: {offenders}: Sentry won't see it"
 
 
 def test_every_swallowed_exception_is_logged_with_its_traceback():
-    """‎logger.exception‎ ולא ‎logger.error‎: הוא מצרף את ה-traceback, שהוא
-    בדיוק מה שחסר כדי לדעת למה השאילתה נכשלה."""
+    """`logger.exception` and not `logger.error`: it attaches the traceback, which is
+    exactly what is missing to know why the query failed."""
     db = ast.parse((_BACKEND / "supabase_config.py").read_text(encoding="utf-8"))
 
     calls = [n for n in ast.walk(db)
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
              and n.func.attr == "exception"]
-    assert len(calls) >= 40, f"רק {len(calls)} — נראה שרוב הבליעות לא תועדו"
+    assert len(calls) >= 40, f"only {len(calls)}: it seems most swallows weren't logged"
 
 
 def test_no_exception_log_sits_outside_an_except_block():
-    """‎logger.exception‎ מחוץ ל-except מדפיס "NoneType: None" במקום
-    traceback — כלומר רשומה חסרת ערך בדיוק כשצריך אותה."""
+    """`logger.exception` outside except prints "NoneType: None" instead of a
+    traceback, i.e. a worthless record exactly when it is needed."""
     for f in _sources():
         tree = ast.parse(f.read_text(encoding="utf-8"))
         bad = []
@@ -69,10 +69,10 @@ def test_no_exception_log_sits_outside_an_except_block():
                 self.generic_visit(node)
 
         V().visit(tree)
-        assert not bad, f"{f.name}: logger.exception מחוץ ל-except בשורות {bad}"
+        assert not bad, f"{f.name}: logger.exception outside except on lines {bad}"
 
 
-# ─── שהלוג באמת יוצא ─────────────────────────────────────────────────────────
+# ─── That the log really goes out ───────────────────────────────────────────
 
 def test_a_failure_produces_a_record_with_the_traceback(caplog):
     from backend import supabase_config as db
@@ -83,15 +83,15 @@ def test_a_failure_produces_a_record_with_the_traceback(caplog):
         except Exception:
             db.logger.exception("get_monthly_summary")
 
-    assert caplog.records, "לא נוצרה רשומה"
+    assert caplog.records, "no record was created"
     record = caplog.records[0]
-    assert record.levelno == logging.ERROR, "רמה נמוכה מ-ERROR לא הופכת לאירוע ב-Sentry"
-    assert record.exc_info is not None, "אין traceback ברשומה"
+    assert record.levelno == logging.ERROR, "a level below ERROR doesn't become an event in Sentry"
+    assert record.exc_info is not None, "no traceback in the record"
 
 
 def test_the_logger_is_configured_towards_stderr():
-    """שם Railway אוסף. ‎force=True‎ כי gunicorn כבר נגע בהגדרות לפנינו,
-    ובלעדיו ההגדרה נבלעת בשקט."""
+    """That is where Railway collects. `force=True` because gunicorn already touched
+    the config before us, and without it the setup is silently ignored."""
     src = (_BACKEND / "logs.py").read_text(encoding="utf-8")
 
     assert "stream=sys.stderr" in src
@@ -99,20 +99,21 @@ def test_the_logger_is_configured_towards_stderr():
 
 
 def test_noisy_libraries_are_quietened():
-    """httpx מדווח כל בקשה ברמת INFO. בלי זה הלוג מוצף ואף אחד לא קורא
-    אותו — כלומר חזרנו למצב שהתחלנו ממנו."""
+    """httpx reports every request at INFO. Without this the log is flooded and
+    nobody reads it, i.e. we are back where we started."""
     src = (_BACKEND / "logs.py").read_text(encoding="utf-8")
 
     assert "httpx" in src and "logging.WARNING" in src
 
 
-# ─── כשל שקט שמחזיר ערך שקרי ────────────────────────────────────────────────
+# ─── A silent failure that returns a false value ────────────────────────────
 
-# שתי בליעות שמותר להן להיות שקטות, ולמה:
-#   _invalidate_family_cache — ‎except ImportError‎ סביב ייבוא של flask.
-#     אין הקשר בקשה, אין מה לפנות. זו זרימת בקרה, לא כשל.
-#   category_budget — ‎except (TypeError, ValueError)‎ על המרת ערך מתוך
-#     ההגדרות. "אין תקציב לקטגוריה" היא תשובה נכונה לערך פגום, לא תקלה.
+# Two swallows allowed to be silent, and why:
+#   _invalidate_family_cache: `except ImportError` around importing flask. No
+#     request context, nothing to clear. This is control flow, not a failure.
+#   category_budget: `except (TypeError, ValueError)` on converting a value from
+#     the settings. "No budget for the category" is the right answer to a corrupt
+#     value, not a failure.
 _MAY_STAY_SILENT = {"_invalidate_family_cache", "category_budget"}
 
 
@@ -126,12 +127,13 @@ def _enclosing_function(tree, node):
 
 
 def test_no_failure_returns_a_falsy_answer_without_leaving_a_trace():
-    """זו התבנית המסוכנת ביותר בקובץ הזה, וכבר עלתה ביוקר.
+    """This is the most dangerous pattern in this file, and it has already cost
+    dearly.
 
-    פונקציה שנכשלת ומחזירה ‎None‎/‎False‎ נראית לקורא בדיוק כמו "אין
-    נתון". גם כשהכיוון בטוח — לסרב, לא לאשר — המשתמש רואה משהו מבלבל
-    ("הפרויקט לא נמצא", "אין קבלה"), ולמפתח אין שום דרך לחקור את זה
-    אחר כך: הרשומה פשוט לא קיימת.
+    A function that fails and returns `None`/`False` looks to the caller exactly
+    like "no data". Even when the direction is safe (refuse, not allow), the user
+    sees something confusing ("project not found", "no receipt"), and the
+    developer has no way to investigate it later: the record simply doesn't exist.
     """
     tree = ast.parse((_BACKEND / "supabase_config.py").read_text(encoding="utf-8"))
     falsy = {None, False, 0, "", ()}
@@ -153,5 +155,5 @@ def test_no_failure_returns_a_falsy_answer_without_leaving_a_trace():
                     offenders.append(f"{name} (שורה {handler.lineno})")
 
     assert not offenders, (
-        "בליעה שמחזירה ערך שקרי בלי לוג: " + ", ".join(sorted(set(offenders)))
+        "a swallow returning a false value with no log: " + ", ".join(sorted(set(offenders)))
     )

@@ -1,13 +1,14 @@
 """
-דף הנחיתה הבטיח שני דברים שהמוצר לא מקיים.
+The landing page promised two things the product doesn't deliver.
 
-**חודש מקודד.** "ספטמבר 2026" נכתב קשיח במוקאפ. נכון ליום שנכתב,
-ושגוי מ-1 באוקטובר — ותאריך ישן בדף שיווק קורא כמו פרויקט נטוש.
+**A hard-coded month.** "ספטמבר 2026" was written fixed in the mockup. Right on
+the day it was written, and wrong from October 1st, and an old date on a
+marketing page reads like an abandoned project.
 
-**התראה ברגישות שלא קיימת.** הדוגמה המרכזית הציגה "18% מעל הממוצע",
-בעוד שההתראה האמיתית קופצת רק מ-50% מעל ממוצע שלושת החודשים **וגם**
-₪300 מעליו. כלומר הדגמנו תכונה שלא תעבוד — ומי שנרשם בגללה היה מחכה
-להתראה שלא תגיע.
+**An alert at a sensitivity that doesn't exist.** The main example showed "18%
+above average", while the real alert fires only from 50% above the three-month
+average **and** ₪300 above it. I.e. we demonstrated a feature that won't work, and
+whoever signed up because of it would wait for an alert that never comes.
 """
 import re
 from pathlib import Path
@@ -30,7 +31,7 @@ def anon():
         yield c
 
 
-# ─── החודש ──────────────────────────────────────────────────────────────────
+# ─── The month ──────────────────────────────────────────────────────────────
 
 def test_the_month_is_not_hard_coded():
     assert "ספטמבר 2026" not in _HTML
@@ -38,21 +39,23 @@ def test_the_month_is_not_hard_coded():
 
 
 def test_the_landing_page_shows_the_current_month(anon):
-    """נגזר מאותו שעון ישראל של כל שאר האפליקציה."""
+    """Derived from the same Israel clock as the rest of the app."""
     html = anon.get("/?intro=1").get_data(as_text=True)
     now = clock.now()
 
     assert _month_label(now.year, now.month) in html
 
 
-# ─── ההתראה ─────────────────────────────────────────────────────────────────
+# ─── The alert ──────────────────────────────────────────────────────────────
 #
-# מאז 11.10 התראה על קטגוריה היא רק חריגה מתקציב (התראת "מעל הממוצע" הוסרה
-# מהמוצר). המוקאפ חייב להראות התראה שהמוצר באמת יורה — עם המספרים שלו.
+# Since 11.10 an alert about a category is only a budget overage (the "above
+# average" alert was removed from the product). The mockup must show an alert the
+# product really fires, with its numbers.
 
 def _demo_numbers():
-    """המספרים שבהתראה במוקאפ: ההוצאה, התקציב והחריגה. (עד 12.10 היה במוקאפ
-    גם פס "מזון" עם אותו סכום; הוא הוחלף בכרטיס "השבוע", כמו בדף הבית.)"""
+    """The numbers in the mockup's alert: the expense, the budget and the overage.
+    (Until 12.10 the mockup also had a "מזון" bar with the same amount; it was
+    replaced with the "this week" card, as on the home page.)"""
     m = re.search(r"₪([\d,]+) מתוך תקציב של ₪([\d,]+) — חריגה של ₪([\d,]+)", _HTML)
     spend, budget, excess = (int(g.replace(",", "")) for g in m.groups())
     return spend, spend, budget, excess
@@ -64,7 +67,8 @@ def test_the_example_would_actually_fire():
 
 
 def test_the_alert_text_is_the_products_own_wording():
-    """אותו ניסוח כמו ‎db.budget_alerts‎ — לא ניסוח שיווקי שהמוצר לא מראה."""
+    """The same wording as `db.budget_alerts`, not marketing wording the product
+    doesn't show."""
     spend, _, budget, _ = _demo_numbers()
     row = {"category_id": "c", "name": "מזון", "icon": "🛒", "total": spend}
     text = db.budget_alerts(db.apply_budgets([row], {"limits": {"c": {"amount": budget}}}))[0]["text"]
