@@ -115,7 +115,7 @@ def test_a_network_failure_is_reported_and_not_raised(monkeypatch):
     import httpx
     monkeypatch.setenv("SUPABASE_URL", "https://example.invalid")
     monkeypatch.setenv("SUPABASE_KEY", "k")
-    monkeypatch.setattr(httpx, "get",
+    monkeypatch.setattr(httpx, "post",
                         lambda *a, **k: (_ for _ in ()).throw(httpx.ConnectTimeout("x")))
 
     assert _db.ping() == (False, "ConnectTimeout")
@@ -126,7 +126,7 @@ def test_an_error_status_is_not_mistaken_for_health(monkeypatch):
     import httpx
     monkeypatch.setenv("SUPABASE_URL", "https://example.invalid")
     monkeypatch.setenv("SUPABASE_KEY", "k")
-    monkeypatch.setattr(httpx, "get",
-                        lambda *a, **k: httpx.Response(503, request=httpx.Request("GET", "https://x")))
+    monkeypatch.setattr(httpx, "post",
+                        lambda *a, **k: httpx.Response(503, request=httpx.Request("POST", "https://x")))
 
     assert _db.ping() == (False, "http 503")

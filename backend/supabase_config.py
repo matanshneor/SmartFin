@@ -192,10 +192,14 @@ def ping(timeout: float = 2.0) -> tuple:
     מהבקשה הקודמת ונכשלת ברגע שהוא פג. כישלון כזה נראה בדיוק כמו "המסד
     נפל", והוא לא. בקשה נפרדת עם מפתח ה-anon בודקת את מה שנשאל.
 
-    השאילתה היא על טבלה אמיתית ולא על שורש ה-API, כדי שתשובה תקינה
-    תעיד שגם Postgres עצמו ענה ולא רק ששער ה-API חי. RLS מחזירה רשימה
-    ריקה למפתח האנונימי — וזה בסדר גמור: מה שנבדק הוא שהתשובה הגיעה,
-    לא מה היה בה.
+    הבדיקה היא ‎get_my_family_id‎ ולא שורש ה-API, כדי שתשובה תקינה תעיד
+    שגם Postgres עצמו ענה (הפונקציה קוראת את ‎profiles‎) ולא רק ששער
+    ה-API חי. למפתח האנונימי היא מחזירה null — וזה בסדר גמור: מה שנבדק
+    הוא שהתשובה הגיעה, לא מה היה בה.
+
+    עד 10.11.2026 זו הייתה קריאה של ‎families‎. מאז ל-anon אין שום הרשאה
+    על אף טבלה (בדיקת האבטחה — ‎tighten_table_grants‎), אז הבדיקה עוברת
+    דרך פונקציה, ב-POST — הדרך הרגילה לקרוא לפונקציה ב-PostgREST.
     """
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -203,9 +207,9 @@ def ping(timeout: float = 2.0) -> tuple:
         return False, "not configured"
     try:
         import httpx
-        r = httpx.get(
-            f"{url.rstrip('/')}/rest/v1/families",
-            params={"select": "id", "limit": "1"},
+        r = httpx.post(
+            f"{url.rstrip('/')}/rest/v1/rpc/get_my_family_id",
+            json={},
             headers={"apikey": key, "Authorization": f"Bearer {key}"},
             timeout=timeout,
         )

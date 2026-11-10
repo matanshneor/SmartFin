@@ -30,7 +30,7 @@ SmartFin/
 │   ├── wording.py              # Hebrew counts, percentages that sum to 100, day labels, month names
 │   ├── logs.py                 # logging setup
 │   ├── supabase_config.py      # data layer: queries, auth, analytics, recurring engine
-│   └── supabase/migrations/    # source of truth for the database schema (68 migrations)
+│   └── supabase/migrations/    # source of truth for the database schema (70 migrations)
 ├── frontend/
 │   ├── templates/              # base, index, month, months, settings, projects,
 │   │                           # project_detail, project_edit, login, onboarding,
