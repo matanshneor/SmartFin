@@ -1,12 +1,15 @@
-"""מיילי עדכון לבעל האתר (מתן, 5.10): משפחה חדשה נרשמה, מישהו הצטרף למשפחה.
+"""Update emails to the site owner (Matan, 5.10): a new family signed up, someone
+joined a family.
 
-נשלחים דרך Resend. בלי ‎RESEND_API_KEY‎ ו-‎OWNER_NOTIFY_EMAIL‎ בסביבה — לא
-נשלח כלום, בשקט: מקומית ובבדיקות אין מפתח, וזה המצב הרצוי.
+Sent through Resend. Without `RESEND_API_KEY` and `OWNER_NOTIFY_EMAIL` in the
+environment nothing is sent, silently: locally and in tests there is no key,
+and that is the desired state.
 
-השליחה רצה ב-thread נפרד, כדי שההרשמה לא תחכה ל-Resend — וכדי שתקלה שם
-(מפתח שגוי, השירות למטה) לא תיראה למשתמש. ה-thread לא נוגע במסד: כל מה
-שהמייל צריך נשלף בבקשה עצמה ומועבר אליו כטקסט. הלקוח המשותף של Supabase
-לא בטוח לשימוש מכמה threads (ראו ‎_run_queries‎ ב-app.py).
+Sending runs on a separate thread, so signup doesn't wait for Resend, and so
+a failure there (bad key, service down) is never visible to the user. The
+thread never touches the database: everything the email needs is fetched in
+the request itself and passed in as text. The shared Supabase client is not
+safe to use from several threads (see `_run_queries` in app.py).
 """
 import html
 import logging
@@ -18,18 +21,19 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _RESEND_URL = "https://api.resend.com/emails"
-# בלי דומיין מאומת, Resend שולח מ-‎onboarding@resend.dev‎ — ורק אל המייל
-# שאיתו נפתח החשבון ב-Resend. למייל לבעל האתר זה בדיוק מספיק.
+# Without a verified domain, Resend sends from `onboarding@resend.dev`, and only
+# to the email the Resend account was opened with. For mail to the site owner
+# that is exactly enough.
 _DEFAULT_FROM = "SmartFin <onboarding@resend.dev>"
 
 
 def notify_owner(subject: str, lines: list) -> bool:
-    """שולחת לבעל האתר. מחזירה האם יצא לדרך (לא האם הגיע)."""
+    """Sends to the site owner. Returns whether it was dispatched (not whether it arrived)."""
     key = os.environ.get("RESEND_API_KEY", "").strip()
     to = os.environ.get("OWNER_NOTIFY_EMAIL", "").strip()
     if not key or not to:
         return False
-    # שורה ריקה = רווח בין חלקים (פרטי המשפחה / מי זה)
+    # Empty line = gap between sections (family details / who it is)
     body_html = "".join(f"<p style=\"margin:0 0 6px\">{html.escape(line)}</p>" if line
                         else "<div style=\"height:10px\"></div>" for line in lines)
     payload = {

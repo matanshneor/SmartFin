@@ -1,18 +1,20 @@
-"""שעון האפליקציה — תמיד בשעון ישראל.
+"""The app's clock: always Israel time.
 
-השרת רץ ב-Railway בשעון UTC והמשתמשים בישראל, כך ש-datetime.now() בשרת
-מפגר שעתיים (חורף) או שלוש (קיץ) אחרי מה שהמשתמש רואה בטלפון שלו.
+The server runs on Railway in UTC while the users are in Israel, so
+datetime.now() on the server lags two hours (winter) or three (summer)
+behind what the user sees on their phone.
 
-זה לא ניואנס. הדפדפן חותם עסקה חדשה בשעון המקומי (transactions.js), בזמן
-שהשרת מחליט לפי השעון שלו איזה חודש להציג. ב-00:30 ב-1 בספטמבר השרת עדיין
-באוגוסט: המשתמש מוסיף קנייה של ₪500, היא נחתמת כספטמבר, והדשבורד שמוצג
-לו הוא של אוגוסט — כך שהיא פשוט לא שם. היא "מופיעה משום מקום" שלוש שעות
-אחר כך. זה קורה בכל מעבר חודש, וכל לילה בין חצות לשלוש התאריך של "היום"
-מפגר ביום.
+This is not a nuance. The browser stamps a new transaction in local time
+(transactions.js) while the server decides by its own clock which month to
+show. At 00:30 on September 1st the server is still in August: the user adds
+a ₪500 purchase, it is stamped as September, and the dashboard they see is
+August's, so it simply isn't there. It "appears out of nowhere" three hours
+later. This happens at every month change, and every night between midnight
+and three, "today" lags by a day.
 
-הערך הזה נגזר מ-ZoneInfo ולא מהיסט קבוע כי מעברי שעון הקיץ בישראל (שישי
-האחרון של מרץ, ראשון האחרון של אוקטובר) לא תואמים לאירופה או לארה"ב, ואי
-אפשר לקודד אותם ידנית בלי לשגות פעמיים בשנה.
+The value comes from ZoneInfo rather than a fixed offset because Israel's
+daylight-saving changes (last Friday of March, last Sunday of October) don't
+match Europe or the US, and hard-coding them would be wrong twice a year.
 """
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -21,27 +23,27 @@ ISRAEL = ZoneInfo("Asia/Jerusalem")
 
 
 def now() -> datetime:
-    """הזמן הנוכחי בשעון ישראל, כ-datetime ללא אזור זמן.
+    """The current time in Israel, as a naive datetime.
 
-    ללא אזור (naive) במכוון: כל הקוד הקיים משווה ומעצב datetime נטולי
-    אזור, וערבוב של naive ו-aware מרים TypeError. מה שחשוב כאן הוא
-    שהשעה, היום והחודש יהיו מה שהמשתמש רואה בשעון שלו.
+    Naive on purpose: all existing code compares and formats naive
+    datetimes, and mixing naive with aware raises TypeError. What matters
+    here is that the hour, day and month match the user's own clock.
     """
     return datetime.now(ISRAEL).replace(tzinfo=None)
 
 
 def now_utc() -> datetime:
-    """הזמן הנוכחי כ-datetime **עם** אזור זמן, ב-UTC.
+    """The current time as an **aware** datetime, in UTC.
 
-    ‎now()‎ מחזירה נטול-אזור בכוונה, כי כל התצוגה באפליקציה עובדת כך.
-    אבל עמודות ‎timestamptz‎ מהמסד חוזרות עם היסט, והשוואה בין נטול-אזור
-    למודע-אזור מרימה ‎TypeError‎. אז לכל השוואה מול המסד — זו הפונקציה,
-    ולא ‎now()‎ עם תיקון ידני.
+    `now()` is naive on purpose, because all display code works that way.
+    But `timestamptz` columns come back from the database with an offset,
+    and comparing naive with aware raises `TypeError`. So any comparison
+    against the database uses this function, not `now()` with a manual fix.
     """
     from datetime import timezone
     return datetime.now(timezone.utc)
 
 
 def today():
-    """התאריך של היום בשעון ישראל."""
+    """Today's date in Israel time."""
     return now().date()

@@ -17,26 +17,31 @@ logger = logs.get("smartfin.db")
 
 
 class DataUnavailable(Exception):
-    """השאילתה נכשלה — נזרקת במקום להחזיר ערך ריק שנראה כמו תשובה.
+    """The query failed: raised instead of returning an empty value that looks
+    like an answer.
 
-    זו הייתה התבנית המסוכנת ביותר בקוד הזה. פונקציה שנכשלה החזירה 0,
-    רשימה ריקה או ‎False‎, והקורא לא יכול היה להבדיל בין "אין נתונים"
-    לבין "לא הצלחתי לבדוק". התוצאה היא תשובה בטוחה ושגויה על המסך:
+    This was the most dangerous pattern in this code. A function that failed
+    returned 0, an empty list or `False`, and the caller couldn't tell "no
+    data" from "couldn't check". The result is a confident, wrong answer on
+    screen:
 
-      · הסיכום החודשי נכשל  ← הדשבורד מציג ₪0 לכל התקציב. בלי סימן,
-        בלי הודעה. המשתמש מסתכל על תקציב מאופס ומאמין לו. זו התקרית
-        מאוגוסט 2026 — הסיבה הספציפית טופלה אז, ההתנהגות לא.
-      · שליפת הקטגוריות נכשלת ← הדשבורד מסיק "משפחה חדשה" ושולח אותה
-        לאשף ההרשמה; שם הבדיקה "כבר סיימת?" נכשלת גם היא ומחזירה
-        "לא", והמשפחה נתקעת בין שני מסכים.
-      · ספירת העסקאות נכשלת ← אישור נטישת המשפחה מדולג בשקט.
-      · הגדרות המשפחה נכשלות ← ברירות המחדל של שיוך חוזרות, והעסקה
-        נרשמת על שם של בן משפחה אחר.
-      · מכסת הסריקות נכשלת ← ההגבלה על חשבון ה-OpenAI מפסיקה לעבוד.
+      · The monthly summary fails  → the dashboard shows ₪0 for the whole
+        budget. No sign, no message. The user looks at a zeroed budget and
+        believes it. That is the August 2026 incident; the specific cause was
+        fixed then, the behaviour wasn't.
+      · Fetching the categories fails → the dashboard concludes "new family"
+        and sends it to the signup wizard; there the "already done?" check
+        fails too and returns "no", and the family is stuck between two screens.
+      · Counting transactions fails → the leave-family confirmation is
+        silently skipped.
+      · Family settings fail → the attribution defaults come back, and the
+        transaction is recorded under another family member.
+      · The scan quota fails → the limit on the OpenAI account stops working.
 
-    באג רגיל נראה על המסך. זה לא — ולכן אף אחד לא מדווח עליו.
-    כישלון גלוי, שאפשר לנסות שוב אחריו, עדיף על מספר שקרי. וכבונוס:
-    חריגה שלא נתפסת מגיעה ל-Sentry, בעוד ש-print נבלע בלוגים של Railway.
+    An ordinary bug shows on screen. This one doesn't, and so nobody reports
+    it. A visible failure, which can be retried, is better than a false
+    number. And as a bonus: an uncaught exception reaches Sentry, while print
+    is swallowed in Railway's logs.
     """
 
 load_dotenv()
@@ -59,15 +64,17 @@ def get_client():
     try:
         from supabase import create_client
         from supabase.lib.client_options import ClientOptions
-        # בלי חידוש אוטומטי ובלי לשמור את הסשן בזיכרון (מתן, 13.10 — "למה הוא
-        # שוב מכניס אותי למסך ההתחברות?"). ברירת המחדל של הספרייה: אחרי כל
-        # התחברות/רענון על הלקוח המשותף, טיימר ברקע מחדש את הטוקן של **מי שהתחבר
-        # אחרון** עשר שניות לפני שהוא פג — ושוב, ושוב, כל עוד ה-worker חי. כל
-        # חידוש כזה "צורך" את ה-refresh token שבעוגייה של המשתמש, וכשהוא חוזר
-        # אחרי שעה: "Invalid Refresh Token: Already Used" → מסך ההתחברות.
-        # הטוקנים החדשים נשארו בזיכרון השרת בלבד, ו-‎web_sessions‎ לא ידע עליהם.
-        # הרענון שלנו נעשה רק ב-‎inject_auth‎. ‎ClientOptions(...)‎ ישירות ולא
-        # ‎.replace‎ — שם ‎False or True‎ מחזיר ‎True‎.
+        # No auto-refresh and no in-memory session (Matan, 13.10: "why does it
+        # keep sending me to the login screen?"). The library default: after every
+        # sign-in/refresh on the shared client, a background timer refreshes the
+        # token of **whoever signed in last** ten seconds before it expires, again
+        # and again, for as long as the worker lives. Each such refresh "uses up"
+        # the refresh token in the user's cookie, and when they come back an hour
+        # later: "Invalid Refresh Token: Already Used" → the login screen.
+        # The new tokens stayed in server memory only, and `web_sessions` never
+        # knew about them. Our refresh happens only in `inject_auth`.
+        # `ClientOptions(...)` directly and not `.replace`: there, `False or True`
+        # returns `True`.
         _client = create_client(url, key, options=ClientOptions(
             auto_refresh_token=False, persist_session=False))
         _client.auth._auto_refresh_token = False
@@ -83,16 +90,19 @@ KEEPALIVE_SECONDS = 60.0
 
 
 def _keep_connection_warm(client):
-    """חיבור אחד פתוח למסד, ולא חיבור חדש אחרי כל הפסקה (מתן, 13.10).
+    """One open connection to the database, not a new one after every pause
+    (Matan, 13.10).
 
-    בלוגים השליפה הראשונה בבקשה לקחה לא פעם ‎400-570ms‎ במקום ‎30-60‎ — זמן
-    פתיחת חיבור מאובטח חדש. שתי סיבות, שתיהן בספרייה:
-    1. ‎httpx‎ סוגר חיבור שלא היה בשימוש 5 שניות. משתמש שקורא את המסך
-       ועובר לעמוד הבא — כבר אחרי 5 שניות.
-    2. כל התחברות ורענון טוקן (‎refresh_session‎ — בערך פעם בשעה לכל משתמש)
-       על הלקוח המשותף מפעילים אירוע ‎TOKEN_REFRESHED‎, והלקוח זורק את
-       ה-PostgREST שלו — וחיבור חדש בשליפה הבאה. הכותרת שלו ממילא נקבעת
-       מחדש בכל בקשה (‎set_auth_token‎), אז אין מה לאבד בשמירה עליו."""
+    In the logs the first query of a request often took `400-570ms` instead
+    of `30-60`: the time to open a new secure connection. Two causes, both in
+    the library:
+    1. `httpx` closes a connection idle for 5 seconds. A user reading the
+       screen and moving to the next page is already past 5 seconds.
+    2. Every sign-in and token refresh (`refresh_session`, roughly once an
+       hour per user) on the shared client fires a `TOKEN_REFRESHED` event,
+       and the client throws away its PostgREST, so the next query opens a
+       new connection. Its header is reset on every request anyway
+       (`set_auth_token`), so there is nothing to lose by keeping it."""
     try:
         import httpx
         pg = client.postgrest
@@ -112,28 +122,30 @@ def _keep_connection_warm(client):
                     client._postgrest = kept
             sub.callback = keep
     except Exception:
-        # שיפור מהירות בלבד — בלעדיו הכול עובד כמו קודם
+        # Speed only; without it everything works as before
         logger.exception("_keep_connection_warm")
 
 
-# ─── חיבור חם גם אחרי הפסקה (מתן, 13.10) ─────────────────────────────────────
+# ─── A warm connection even after a pause (Matan, 13.10) ────────────────────
 #
-# אחרי ‎_keep_connection_warm‎ דף הבית נטען ב-‎70-130ms‎ — כשהאפליקציה בשימוש.
-# הפתיחה הראשונה אחרי הפסקה של יותר מדקה עדיין לקחה ‎530-710ms‎: החיבור נסגר
-# (‎KEEPALIVE_SECONDS‎) ונפתח מחדש בשליפה הראשונה. אז כל worker שולח בעצמו
-# פנייה קלה כשהוא שקט ‎WARM_IDLE_SECONDS‎, והחיבור לא מספיק להיסגר.
+# After `_keep_connection_warm` the home page loads in `70-130ms` while the app
+# is in use. The first open after a pause of more than a minute still took
+# `530-710ms`: the connection had closed (`KEEPALIVE_SECONDS`) and was reopened
+# on the first query. So each worker sends a light request of its own once it
+# has been idle `WARM_IDLE_SECONDS`, and the connection never gets to close.
 #
-# הלקוח משותף, ופנייה במקביל לבקשה כבר גרמה פעם ל-"Server disconnected"
-# (ראו ‎_run_queries‎ ב-app.py). לכן מנעול: הפנייה רצה רק כשאין בקשה, ובקשה
-# שמגיעה בדיוק אז מחכה לה (עשרות מילישניות) — הן אף פעם לא רצות יחד.
+# The client is shared, and a request running in parallel with another one
+# once caused "Server disconnected" (see `_run_queries` in app.py). Hence a
+# lock: the ping runs only when there is no request, and a request arriving
+# right then waits for it (tens of milliseconds); they never run together.
 WARM_IDLE_SECONDS = 40.0
 _warm_lock = threading.Lock()
 _warm_state = {"busy": False, "last": 0.0, "started": False}
 
 
 def request_started():
-    """מ-‎before_request‎: מכאן אין פניות חימום עד ‎request_finished‎."""
-    got = _warm_lock.acquire(timeout=3)      # פנייה באמצע — מחכים לה, לא יותר מ-3 שניות
+    """From `before_request`: no warm-up pings from here until `request_finished`."""
+    got = _warm_lock.acquire(timeout=3)      # A ping in flight: wait for it, no more than 3 seconds
     try:
         _warm_state["busy"] = True
         _warm_state["last"] = time.monotonic()
@@ -148,22 +160,23 @@ def request_finished():
 
 
 def _warm_ping_once(client) -> bool:
-    """פנייה אחת אם ה-worker שקט מספיק זמן. ‎True‎ אם נשלחה."""
+    """One ping if the worker has been idle long enough. `True` if it was sent."""
     if _warm_state["busy"] or time.monotonic() - _warm_state["last"] < WARM_IDLE_SECONDS:
         return False
     with _warm_lock:
         if _warm_state["busy"]:
             return False
         try:
-            # המטרה היא החיבור, לא הנתונים — אבל עם מפתח ה-anon ולא עם הטוקן
-            # שנשאר על הלקוח מהבקשה האחרונה. הטוקן הזה פג אחרי שעה, וכל נגיעה
-            # נדחתה ב-401: כ-3,800 ביום, שהסתירו ביומנים כל דחייה אמיתית
-            # (מתן, 10.11.2026 — בדיקת אבטחה, נקודה 4). אותה פונקציה כמו ‎ping‎:
-            # ל-anon אין הרשאה על אף טבלה, והיא מגיעה עד Postgres בלי.
+            # The goal is the connection, not the data, but with the anon key
+            # and not the token left on the client by the last request. That
+            # token expires after an hour, and every ping was rejected with 401:
+            # ~3,800 a day, hiding every real rejection in the logs (Matan,
+            # 10.11.2026, security review, item 4). Same function as `ping`:
+            # anon has no grant on any table, and this reaches Postgres without one.
             key = os.environ.get("SUPABASE_KEY", "")
             client.postgrest.session.post("rpc/get_my_family_id", json={},
                                          headers={"Authorization": f"Bearer {key}"},
-                                         # קצר מה-3 שניות שבקשה מחכה למנעול — כך הן לעולם לא חופפות
+                                         # Shorter than the 3 seconds a request waits for the lock, so they never overlap
                                          timeout=2)
         except Exception:
             pass
@@ -172,8 +185,9 @@ def _warm_ping_once(client) -> bool:
 
 
 def _start_warm_pings(client):
-    """חוט רקע אחד לכל worker. נקרא מ-‎get_client‎ — כלומר אחרי ה-fork של
-    gunicorn (עם ‎--preload‎ חוט שנפתח לפני ה-fork לא קיים ב-workers)."""
+    """One background thread per worker. Called from `get_client`, i.e. after
+    gunicorn's fork (with `--preload`, a thread started before the fork doesn't
+    exist in the workers)."""
     if _warm_state["started"] or os.environ.get("SF_NO_WARM_PINGS"):
         return
     _warm_state["started"] = True
@@ -188,23 +202,27 @@ def _start_warm_pings(client):
 
 
 def ping(timeout: float = 2.0) -> tuple:
-    """בדיקת חיים למסד: נסיעה אחת הלוך-חזור עד Postgres וחזרה.
-    מחזירה ‎(ok, detail)‎.
+    """A liveness check for the database: one round trip to Postgres and back.
+    Returns `(ok, detail)`.
 
-    לא עוברת דרך הלקוח המשותף, בכוונה. הלקוח הוא סינגלטון ברמת התהליך
-    שכותרת ההרשאה שלו מוחלפת בכל בקשה (ראו set_auth_token), ובדיקת
-    הבריאות היא בקשה לא מאומתת — שאילתה דרכו הייתה רצה עם הטוקן ששרד
-    מהבקשה הקודמת ונכשלת ברגע שהוא פג. כישלון כזה נראה בדיוק כמו "המסד
-    נפל", והוא לא. בקשה נפרדת עם מפתח ה-anon בודקת את מה שנשאל.
+    Doesn't go through the shared client, on purpose. The client is a
+    process-level singleton whose auth header is replaced on every request
+    (see set_auth_token), and the health check is an unauthenticated request:
+    a query through it would run with the token left over from the previous
+    request and fail the moment it expired. Such a failure looks exactly like
+    "the database is down", and it isn't. A separate request with the anon
+    key checks what is being asked.
 
-    הבדיקה היא ‎get_my_family_id‎ ולא שורש ה-API, כדי שתשובה תקינה תעיד
-    שגם Postgres עצמו ענה (הפונקציה קוראת את ‎profiles‎) ולא רק ששער
-    ה-API חי. למפתח האנונימי היא מחזירה null — וזה בסדר גמור: מה שנבדק
-    הוא שהתשובה הגיעה, לא מה היה בה.
+    The check is `get_my_family_id` rather than the API root, so a good answer
+    proves Postgres itself responded (the function reads `profiles`), not just
+    that the API gateway is up. For the anon key it returns null, and that is
+    perfectly fine: what is checked is that the answer arrived, not what was
+    in it.
 
-    עד 10.11.2026 זו הייתה קריאה של ‎families‎. מאז ל-anon אין שום הרשאה
-    על אף טבלה (בדיקת האבטחה — ‎tighten_table_grants‎), אז הבדיקה עוברת
-    דרך פונקציה, ב-POST — הדרך הרגילה לקרוא לפונקציה ב-PostgREST.
+    Until 10.11.2026 this was a read of `families`. Since then anon has no
+    grant on any table (security review, `tighten_table_grants`), so the check
+    goes through a function, via POST, the usual way to call a function in
+    PostgREST.
     """
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
@@ -219,8 +237,8 @@ def ping(timeout: float = 2.0) -> tuple:
             timeout=timeout,
         )
     except Exception as e:
-        # בלי logger.exception: בזמן נפילה אמיתית זה נקרא כל דקה, וזה
-        # היה מציף את Sentry באלף עותקים של אותה תקלה אחת.
+        # No logger.exception: during a real outage this is called every
+        # minute, and it would flood Sentry with a thousand copies of one failure.
         return False, type(e).__name__
     if r.status_code == 200:
         return True, "ok"
@@ -229,22 +247,23 @@ def ping(timeout: float = 2.0) -> tuple:
 
 def set_auth_token(access_token: str):
     """Inject the user's JWT so RLS policies resolve auth.uid() correctly."""
-    # ‎_client‎ ולא ‎get_client()‎: איפוס לא אמור **ליצור** לקוח. בקשה
-    # אנונימית בתהליך שעוד לא דיבר עם המסד לא נושאת שום טוקן ממילא,
-    # ויצירת לקוח בשבילה היא חיבור מיותר — ובבדיקות, פנייה אמיתית
-    # ל-Supabase מתוך בדיקת יחידה.
+    # `_client` and not `get_client()`: a reset must not **create** a client.
+    # An anonymous request in a process that hasn't talked to the database
+    # carries no token anyway, and creating a client for it is a wasted
+    # connection (and, in tests, a real call to Supabase from a unit test).
     client = _client if not access_token else get_client()
     if not client:
         return
     if not access_token:
-        # **חייב** לאפס, לא לצאת בשקט. הלקוח הוא סינגלטון ברמת התהליך,
-        # ו-‎inject_auth‎ יוצאת מוקדם כשאין סשן — כך שבקשה אנונימית נוחתת
-        # על worker שעדיין נושא את ה-JWT של המשתמש הקודם.
+        # **Must** reset, not return silently. The client is a process-level
+        # singleton, and `inject_auth` returns early when there is no session,
+        # so an anonymous request lands on a worker still carrying the previous
+        # user's JWT.
         #
-        # היום זה לא נגיש: אף מסלול אנונימי לא פונה ל-PostgREST (‎ping‎
-        # עוקף את הסינגלטון בכוונה, והתחברות/איפוס משתמשים ב-httpx ישיר).
-        # אבל זו מלכודת שמחכה למסלול הציבורי הבא — ואותו סוג בדיוק של
-        # דליפה בין משפחות שה-Procfile מזהיר מפניה בהקשר של חוטים.
+        # Not reachable today: no anonymous route calls PostgREST (`ping`
+        # bypasses the singleton on purpose, and sign-in/reset use httpx
+        # directly). But it is a trap waiting for the next public route, and
+        # exactly the kind of cross-family leak the Procfile warns about for threads.
         try:
             client.postgrest.auth(os.environ.get("SUPABASE_KEY", ""))
         except Exception:
@@ -258,9 +277,10 @@ def set_auth_token(access_token: str):
 
 
 def _request_cache(key: str, loader):
-    """מטמון-לבקשה על flask.g: נתונים יציבים בתוך בקשה אחת (קטגוריות, חברי
-    משפחה, משפחה) נשלפים פעם אחת במקום 3-4 פעמים. מחוץ ל-Flask context
-    (בדיקות/סקריפטים) — פשוט קורא ל-loader ישירות, בלי מטמון."""
+    """A per-request cache on flask.g: data that is stable within one request
+    (categories, family members, family) is fetched once instead of 3-4 times.
+    Outside a Flask context (tests/scripts) it just calls the loader directly,
+    with no cache."""
     try:
         from flask import g, has_app_context
         if not has_app_context():
@@ -276,21 +296,25 @@ def _request_cache(key: str, loader):
 
 
 def _invalidate_family_cache(family_id: str):
-    """מפנה את המטמון-לבקשה אחרי כתיבה לשורת המשפחה.
+    """Clears the per-request cache after a write to the family row.
 
-    בלי זה, קריאה שנעשית באותה בקשה *אחרי* הכתיבה מקבלת את הערך שנשלף
-    לפניה. update_family_settings שולף את ההגדרות הקיימות כדי למזג לתוכן,
-    וזה לבדו ממלא את המטמון בערך הישן — כך שהתשובה שחוזרת לדפדפן היא
-    ההגדרות שלפני השינוי.
+    Without this, a read made in the same request *after* the write gets the
+    value fetched before it. update_family_settings fetches the existing
+    settings to merge into them, and that alone fills the cache with the old
+    value, so the response sent back to the browser is the settings from
+    before the change.
 
-    הנזק לא נעצר בתצוגה: settings.js שומר את התשובה הזאת ומשתמש בה כדי
-    להחליט אם להציג את בורר בן המשפחה במודאל העסקה. משתמש שהדליק "שיוך
-    הוצאות" קיבל תשובה שאומרת שהוא כבוי, המודאל לא הציג בורר, והשרת —
-    שקורא בבקשה הבאה את הערך הטרי — שייך כל עסקה למי שמחובר. שיוך שקט
-    ושגוי של כסף, עד הרענון הבא.
+    The damage didn't stop at display: settings.js stores that response and
+    uses it to decide whether to show the family-member picker in the
+    transaction modal. A user who turned on "expense attribution" got a
+    response saying it was off, the modal showed no picker, and the server,
+    reading the fresh value on the next request, attributed every
+    transaction to whoever was signed in. Silent, wrong attribution of money,
+    until the next refresh.
 
-    שני מטמונים נפרדים מחזיקים את הערך: זה שכאן, ו-g.family_settings
-    ש-app.py מחזיק. שניהם נוקו כאן, אחרת הפינוי חלקי ולא מועיל."""
+    Two separate caches hold the value: this one, and g.family_settings,
+    which app.py keeps. Both are cleared here; otherwise the eviction is
+    partial and useless."""
     try:
         from flask import g, has_app_context
         if not has_app_context():
@@ -306,20 +330,21 @@ def _invalidate_family_cache(family_id: str):
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 
 def get_email_by_phone(normalized_phone: str):
-    """מוצא את המייל המשויך למספר טלפון מנורמל (ספרות בלבד), עוד לפני
-    שהמשתמש מחובר — דרך פונקציית ה-DB email_for_phone (SECURITY DEFINER,
-    זמינה ל-anon). מחזיר None אם לא נמצא.
+    """Finds the email for a normalised phone number (digits only) before the
+    user is signed in, through the DB function email_for_phone (SECURITY
+    DEFINER, available to anon). Returns None if not found.
 
-    הפונקציה במסד מחזירה מייל רק עם ‎LOGIN_LOOKUP_SECRET‎ (מתן, 10.11.2026):
-    בלעדיו, כל מי שמחזיק את מפתח ה-anon היה יכול לאסוף את המיילים של
-    המשתמשים לפי טלפון. בלי הסוד אין טעם לשאול — והתחברות בטלפון לא תעבוד,
-    אז זה נרשם כשגיאה ולא נבלע."""
+    The database function returns an email only with `LOGIN_LOOKUP_SECRET`
+    (Matan, 10.11.2026): without it, anyone holding the anon key could collect
+    users' emails by phone number. Without the secret there is no point
+    asking, and phone sign-in won't work, so this is logged as an error rather
+    than swallowed."""
     client = get_client()
     if not client or not normalized_phone:
         return None
     secret = os.environ.get("LOGIN_LOOKUP_SECRET", "")
     if not secret:
-        logger.error("get_email_by_phone: LOGIN_LOOKUP_SECRET חסר — התחברות בטלפון לא תעבוד")
+        logger.error("get_email_by_phone: LOGIN_LOOKUP_SECRET is missing; phone sign-in will not work")
         return None
     try:
         result = client.rpc("email_for_phone",
@@ -331,8 +356,9 @@ def get_email_by_phone(normalized_phone: str):
 
 
 def _forget_auth_session(client):
-    """מוחק מהלקוח המשותף את הסשן שהפעולה האחרונה השאירה עליו, ומבטל טיימר.
-    הטוקנים חוזרים לקורא ונשמרים בעוגייה וב-‎web_sessions‎ — לא כאן."""
+    """Removes from the shared client the session the last action left on it,
+    and cancels its timer. The tokens go back to the caller and are kept in
+    the cookie and in `web_sessions`, not here."""
     try:
         client.auth._remove_session()
     except Exception:
@@ -354,8 +380,8 @@ def sign_in(email: str, password: str):
 
 
 def log_login_event(event: str = "login"):
-    """מתעד כניסה לאתר בטבלה הפנימית login_events (לבעל האתר בלבד).
-    לא-חוסם — כישלון בתיעוד לא מפריע להתחברות עצמה."""
+    """Records a sign-in in the internal login_events table (site owner only).
+    Non-blocking: a failure to record doesn't interfere with the sign-in itself."""
     client = get_client()
     if not client:
         return
@@ -366,9 +392,10 @@ def log_login_event(event: str = "login"):
 
 
 def reset_transactions(family_id: str, only_user_id: str = None):
-    """איפוס עסקאות: מוחק את כל עסקאות המשפחה (כולל תבניות קבועות), או —
-    אם only_user_id סופק — רק את העסקאות המשויכות לאותו משתמש. כל שורה
-    שנמחקת מארוכבת אוטומטית ב-owner_archive דרך הטריגר. Returns (deleted, err)."""
+    """Transaction reset: deletes all of the family's transactions (including
+    recurring templates), or, if only_user_id is given, only the transactions
+    attributed to that user. Every deleted row is archived automatically in
+    owner_archive by the trigger. Returns (deleted, err)."""
     client = get_client()
     if not client:
         return False, "Database not configured"
@@ -376,8 +403,9 @@ def reset_transactions(family_id: str, only_user_id: str = None):
         query = client.table("transactions").delete().eq("family_id", family_id)
         if only_user_id:
             query = query.eq("user_id", only_user_id)
-        # מספר השורות שנמחקו בפועל, ולא ‎True‎ קבוע: זו הפעולה ההרסנית
-        # ביותר באפליקציה, והמשתמש צריך לראות כמה באמת נמחק.
+        # The number of rows actually deleted, not a constant `True`: this is the
+        # most destructive action in the app, and the user needs to see how many
+        # were really deleted.
         return len(query.execute().data or []), None
     except Exception as e:
         logger.exception("reset_transactions")
@@ -385,8 +413,8 @@ def reset_transactions(family_id: str, only_user_id: str = None):
 
 
 def delete_my_account():
-    """מחיקת החשבון של המשתמש המחובר לצמיתות (דרך פונקציית DB עם ארכוב פנימי).
-    Returns (ok, error_message)."""
+    """Permanently deletes the signed-in user's account (through a DB function
+    with internal archiving). Returns (ok, error_message)."""
     client = get_client()
     if not client:
         return False, "Database not configured"
@@ -417,11 +445,13 @@ def sign_up(email: str, password: str, name: str, phone: str = None):
 
 
 def refresh_session(refresh_token: str):
-    """מחליפה refresh token בטוקן גישה טרי. מחזירה (response, error, fatal).
+    """Exchanges a refresh token for a fresh access token. Returns (response,
+    error, fatal).
 
-    ה-fatal הוא העיקר כאן: הוא מבדיל בין "השרת לא היה זמין לרגע" לבין
-    "הטוקן נדחה". בלי ההבחנה הזאת כל בליפ רשת היה מנתק את המשתמש, וזה
-    הורס את ההבטחה שנשארים מחוברים עד יציאה יזומה."""
+    `fatal` is the point here: it tells "the server was briefly unavailable"
+    apart from "the token was rejected". Without that distinction every network
+    blip would sign the user out, which breaks the promise that you stay
+    signed in until you sign out yourself."""
     client = get_client()
     if not client:
         return None, "Database not configured", False
@@ -430,26 +460,33 @@ def refresh_session(refresh_token: str):
         _forget_auth_session(client)
         return response, None, False
     except AuthRetryableError as e:
-        # תקלה זמנית (רשת, timeout) — שומרים על ההתחברות ומנסים שוב בבקשה הבאה
+        # A transient failure (network, timeout): keep the session and retry on
+        # the next request
         return None, str(e), False
     except AuthApiError as e:
-        # 5xx הוא תקלה אצלם, לא טוקן פסול. רק דחייה אמיתית מצדיקה ניתוק.
+        # 5xx is a failure on their side, not a bad token. Only a real rejection
+        # justifies signing out.
         transient = (e.status or 0) >= 500
         return None, str(e), not transient
     except Exception as e:
-        # לא מזוהה — מניחים זמני. ניתוק שגוי גרוע יותר מבקשה אחת מנוונת.
+        # Unrecognised: assume transient. A wrong sign-out is worse than one
+        # degraded request.
         return None, str(e), False
 
 
-# ─── עותק הטוקנים במסד (‎web_sessions‎, מתן 13.10) ─────────────────────────────
+# ─── A copy of the tokens in the database (`web_sessions`, Matan 13.10) ─────
 #
-# ה-refresh token מתחלף בכל רענון. כשהתשובה עם הטוקן החדש לא מגיעה לטלפון
-# (האפליקציה ירדה לרקע באמצע), העוגייה נשארת עם טוקן פסול — וזה היה ניתוק.
-# עכשיו הטוקן העדכני נשמר גם כאן, לפי ‎sha256‎ של מזהה הסשן שבעוגייה.
+# The refresh token rotates on every refresh. When the response carrying the new
+# token never reaches the phone (the app went to the background mid-request),
+# the cookie is left with a dead token, and that used to mean a sign-out. Now the
+# latest token is also stored here, keyed by the `sha256` of the session id in
+# the cookie.
 #
-# הקריאות נעשות בלי טוקן משתמש (‎anon‎): ברגע הזה טוקן הגישה של המשתמש
-# בדרך כלל כבר פג, ו-PostgREST דוחה טוקן פג עוד לפני הפונקציה.
-# כל כשל כאן נבלע עם רישום — זו רשת ביטחון, לא תנאי לכניסה.
+# The calls are made without a user token (`anon`): at this point the user's
+# access token has usually expired, and PostgREST rejects an expired token
+# before even reaching the function.
+# Every failure here is swallowed with a log entry: this is a safety net, not a
+# condition for getting in.
 
 def _sid_hash(sid: str) -> str:
     return hashlib.sha256(sid.encode("utf-8")).hexdigest()
@@ -474,7 +511,7 @@ def web_session_open(sid, user_id, access_token, refresh_token, expires_at):
 
 
 def web_session_get(sid):
-    """הטוקנים העדכניים של הסשן, או ‎None‎ (אין שורה, או תקלה)."""
+    """The session's latest tokens, or `None` (no row, or a failure)."""
     try:
         result = _anon_rpc("web_session_get", {"p_sid_hash": _sid_hash(sid)})
     except Exception:
@@ -505,35 +542,40 @@ def web_session_close(sid):
 
 # ─── Profile ──────────────────────────────────────────────────────────────────
 
-# ‎PostgREST מחזיר את הקוד הזה כשהשאילתה הצליחה אבל לא החזירה שורות.
-# זו תשובה תקפה, לא תקלה — וההבחנה הזאת היא לב העניין ב-fetch_profile.
+# PostgREST returns this code when the query succeeded but returned no rows.
+# That is a valid answer, not a failure, and the distinction is the whole
+# point of fetch_profile.
 _NO_ROWS = "PGRST116"
 
 
 def fetch_profile(user_id: str):
-    """מחזירה ‎(profile, ok)‎. ‎ok=False‎ פירושו **שהשליפה נכשלה** — לא שאין פרופיל.
+    """Returns `(profile, ok)`. `ok=False` means **the query failed**, not that
+    there is no profile.
 
-    ההפרדה הזאת נראית פדנטית והיא לא. עד עכשיו כל חריגה חזרה כ-None, וזה
-    לא הבדיל בין "למשתמש אין פרופיל" לבין "השרת לא ענה לשתי שניות".
-    ensure_family הסיק מ-None שאין למשתמש משפחה, יצר לו אחת חדשה, ודרס את
-    השיוך הקיים — כך שתקלת רשת חולפת בזמן התחברות ניתקה אותו לצמיתות מכל
-    ההיסטוריה שלו, בלי שום מסלול חזרה מהממשק, בזמן שבן הזוג שלו נשאר
-    במשפחה הישנה. משם והלאה השניים מזינים לשני תקציבים נפרדים בלי לדעת."""
+    The distinction looks pedantic and isn't. Until now every exception came
+    back as None, which didn't tell "the user has no profile" from "the server
+    didn't answer for two seconds". ensure_family concluded from None that the
+    user had no family, created a new one, and overwrote the existing
+    membership, so a passing network failure during sign-in cut them off for
+    good from their whole history, with no way back from the UI, while their
+    partner stayed in the old family. From then on the two record into two
+    separate budgets without knowing."""
     client = get_client()
     if not client:
         return None, False
     try:
-        # שם הקשר מצוין במפורש. מאז שנוסף families.manager_id יש שני קשרים
-        # בין הטבלאות — profiles.family_id→families ו-families.manager_id→profiles
-        # — ו-PostgREST מסרב לנחש למי התכוונו (PGRST201). בלי זה השליפה
-        # נכשלת, ומכיוון שהיא רצה בהתחברות, אף אחד לא מצליח להיכנס.
+        # The relationship name is spelled out. Since families.manager_id was
+        # added there are two relationships between the tables
+        # (profiles.family_id→families and families.manager_id→profiles), and
+        # PostgREST refuses to guess which one is meant (PGRST201). Without this
+        # the query fails, and since it runs at sign-in, nobody can get in.
         result = client.table("profiles") \
             .select("*, families!profiles_family_id_fkey(name)") \
             .eq("id", user_id).single().execute()
         return result.data, True
     except APIError as e:
         if (e.json() or {}).get("code") == _NO_ROWS:
-            return None, True          # אין פרופיל — תשובה, לא כישלון
+            return None, True          # No profile: an answer, not a failure
         logger.exception("fetch_profile(%s)", user_id)
         return None, False
     except Exception:
@@ -541,17 +583,17 @@ def fetch_profile(user_id: str):
         return None, False
 
 
-# ‎max_rows‎ של PostgREST (config.toml, ובלוח הבקרה בייצור): כל תשובה נחתכת
-# באלף שורות — בלי שגיאה ובלי סימן שמשהו חסר.
+# PostgREST's `max_rows` (config.toml, and the dashboard in production): every
+# response is cut at a thousand rows, with no error and no sign anything is missing.
 _PAGE_SIZE = 1000
 
 
 def _fetch_all(make_query) -> list:
-    """כל השורות, בעמודים של ‎_PAGE_SIZE‎, עד עמוד קצר.
+    """All rows, in pages of `_PAGE_SIZE`, until a short page.
 
-    ‎make_query‎ בונה את השאילתה מחדש לכל עמוד (בונה-השאילתות של
-    PostgREST הוא בר-שינוי), והיא **חייבת** למיין לפי עמודה ייחודית —
-    בלי סדר קבוע, עמודים יכולים לחפוף או לדלג על שורות."""
+    `make_query` builds the query afresh for every page (PostgREST's query
+    builder is mutable), and it **must** order by a unique column: without a
+    fixed order, pages can overlap or skip rows."""
     rows, start = [], 0
     while True:
         page = make_query().range(start, start + _PAGE_SIZE - 1).execute().data or []
@@ -562,29 +604,32 @@ def _fetch_all(make_query) -> list:
 
 
 def export_account_data(family_id: str, user_id: str) -> dict:
-    """כל מה שהאפליקציה מחזיקה על המשתמש ועל המשפחה שלו, במבנה אחד.
+    """Everything the app holds about the user and their family, in one structure.
 
-    ‎/month.csv‎ היה הייצוא היחיד — חודש בודד, מעמוד החודש, בלי פרופיל,
-    בלי פרויקטים ובלי קטגוריות. כלומר סעיף 20 (ניידות) לא סופק בפועל:
-    אי אפשר היה לקחת את הנתונים ולעזוב בלי לייצא חודש-חודש ביד.
+    `/month.csv` was the only export: a single month, from the month page, with
+    no profile, no projects and no categories. So section 20 (portability)
+    wasn't actually provided: there was no way to take the data and leave
+    without exporting month by month by hand.
 
-    פרויקט אישי של בן משפחה אחר לא נכלל, בדיוק כמו בכל שאר האפליקציה:
-    ייצוא אינו עוקף פרטיות בתוך המשפחה.
+    Another family member's personal project is not included, just like
+    everywhere else in the app: an export doesn't bypass privacy within the
+    family.
     """
     client = get_client()
     if not client or not family_id:
         raise DataUnavailable("export_account_data: no client")
 
     try:
-        # בעמודים: עם 55 עסקאות בחודש, אלף הן שנה וחצי — ומשם הקובץ "המלא"
-        # הכיל רק את האלף החדשות, וייראה שלם.
+        # In pages: at 55 transactions a month, a thousand is a year and a half,
+        # and past that the "full" file held only the newest thousand and looked
+        # complete.
         transactions = _fetch_all(lambda: client.table("transactions")
                                   .select("*, categories(name), projects(name)")
                                   .eq("family_id", family_id)
                                   .order("date", desc=True)
                                   .order("id"))
 
-        # פרויקטים אישיים של אחרים מוסתרים גם כאן
+        # Other people's personal projects are hidden here too
         visible_projects = {p["id"] for p in get_projects(family_id, user_id)}
         transactions = [
             t for t in transactions
@@ -608,8 +653,9 @@ def export_account_data(family_id: str, user_id: str) -> dict:
 
 
 def get_profile(user_id: str):
-    """הצורה הנוחה, לקוראים שעבורם "אין" ו"נכשל" שקולים (הצגת שם, אווטאר).
-    מי שמקבל החלטה על סמך היעדר פרופיל חייב להשתמש ב-fetch_profile."""
+    """The convenient form, for callers to whom "none" and "failed" are equivalent
+    (showing a name, an avatar). Anyone deciding on the absence of a profile
+    must use fetch_profile."""
     profile, _ = fetch_profile(user_id)
     return profile
 
@@ -633,7 +679,7 @@ def update_profile(user_id: str, name: str, phone: str = None, workplace: str = 
 
 
 def update_phone(user_id: str, phone: str):
-    """מחליף רק את הטלפון (מתן, 1.10 — "חשבון" בהגדרות). מחזיר (ok, error)."""
+    """Changes only the phone (Matan, 1.10: "account" in settings). Returns (ok, error)."""
     client = get_client()
     if not client:
         return False, "Database not configured"
@@ -648,8 +694,9 @@ def update_phone(user_id: str, phone: str):
 
 
 def _auth_user_request(method: str, access_token: str, **kwargs):
-    """פנייה ל-‎/auth/v1/user‎ עם הטוקן של המשתמש עצמו — כמו ‎update_password‎,
-    ולא דרך הלקוח המשותף, שה"סשן הנוכחי" שלו אינו בטוח בין משתמשים."""
+    """A call to `/auth/v1/user` with the user's own token, like `update_password`,
+    and not through the shared client, whose "current session" isn't safe
+    across users."""
     import httpx
 
     url = os.environ.get("SUPABASE_URL")
@@ -664,11 +711,13 @@ def _auth_user_request(method: str, access_token: str, **kwargs):
 
 
 def get_auth_email(access_token: str):
-    """המייל הנוכחי, ומייל שממתין לאישור אם יש: ‎(email, new_email)‎.
+    """The current email, and an email pending confirmation if any: `(email, new_email)`.
 
-    המייל בסשן נשמר בהתחברות ולא מתעדכן לבד — אחרי שאישרו מייל חדש הוא
-    נשאר הישן, והגדרות הציגו אותו ו"סיסמה נוכחית" נבדקה מולו ונכשלה.
-    ‎(None, None)‎ כשאי אפשר לדעת; הקורא נופל למייל שבסשן."""
+    The email in the session is stored at sign-in and doesn't update by itself:
+    after a new email was confirmed it stayed the old one, settings showed it,
+    and "current password" was checked against it and failed.
+    `(None, None)` when it can't be known; the caller falls back to the
+    session's email."""
     import httpx
     try:
         r = _auth_user_request("get", access_token)
@@ -682,9 +731,10 @@ def get_auth_email(access_token: str):
 
 
 def request_email_change(access_token: str, new_email: str, redirect_to: str):
-    """מבקש להחליף את המייל. Supabase שולח קישור אישור לכתובת החדשה (ואם
-    "שינוי מייל מאובטח" פעיל — גם לנוכחית), והמייל מתחלף רק אחרי האישור.
-    עד אז ההתחברות ממשיכה עם הישן. מחזיר (ok, error)."""
+    """Requests an email change. Supabase sends a confirmation link to the new
+    address (and, if "secure email change" is on, to the current one too), and
+    the email changes only after confirmation. Until then sign-in continues
+    with the old one. Returns (ok, error)."""
     import httpx
     try:
         r = _auth_user_request("put", access_token, params={"redirect_to": redirect_to},
@@ -709,13 +759,15 @@ def request_email_change(access_token: str, new_email: str, redirect_to: str):
 
 def update_workplace_history(user_id: str, family_id: str, new_workplace: str,
                              old_workplace: str, apply_to_all: bool):
-    """מיישם שינוי מקום עבודה על עסקאות משכורת (הכנסה) קיימות של המשתמש —
-    כדי ששינוי עתידי לא ישנה בשקט את מה שכבר מוצג על היסטוריה.
+    """Applies a workplace change to the user's existing salary (income)
+    transactions, so a future change doesn't silently rewrite what is already
+    shown on history.
 
-    apply_to_all=True: כל עסקאות המשכורת (עבר ועתיד) מקבלות את הערך החדש.
-    apply_to_all=False: רק עסקאות מהחודש הנוכחי ואילך (לפי תאריך העסקה) מקבלות
-    את הערך החדש; ישנות יותר שעוד אין להן תיעוד קפוא (workplace is null)
-    מוקפאות לערך הישן, כדי שימשיכו להציג את מה שהציגו עד עכשיו."""
+    apply_to_all=True: every salary transaction (past and future) gets the new value.
+    apply_to_all=False: only transactions from the current month on (by
+    transaction date) get the new value; older ones with no frozen value yet
+    (workplace is null) are frozen to the old value, so they keep showing what
+    they showed until now."""
     client = get_client()
     if not client:
         return
@@ -776,14 +828,15 @@ def update_password(access_token: str, new_password: str):
         if response.status_code >= 400:
             return False, response.json().get("msg", "עדכון הסיסמה נכשל")
 
-        # מנתקים כל מכשיר **אחר**. בלי זה שינוי סיסמה לא עשה שום דבר
-        # למי שכבר מחובר: הסשן של Flask חי 90 יום ומתחדש בכל בקשה,
-        # וטוקן הרענון של Supabase ממשיך להחליף את עצמו — כלומר טלפון
-        # גנוב, עוגייה שדלפה או מכשיר שנשאר אצל מישהו נשארים מחוברים,
-        # ולמשתמש אין שום פעולה שמנתקת אותם.
+        # Sign out every **other** device. Without this a password change did
+        # nothing to anyone already signed in: the Flask session lives 90 days
+        # and renews on every request, and Supabase's refresh token keeps
+        # rotating itself, so a stolen phone, a leaked cookie or a device left
+        # with someone stays signed in, and the user has no action that signs
+        # them out.
         #
-        # ‎scope=others‎ ולא ‎global‎: מי ששינה את הסיסמה לא אמור למצוא
-        # את עצמו מנותק מהמכשיר שממנו עשה זאת.
+        # `scope=others` and not `global`: whoever changed the password should
+        # not find themselves signed out of the device they did it from.
         try:
             httpx.post(
                 f"{url}/auth/v1/logout",
@@ -792,8 +845,8 @@ def update_password(access_token: str, new_password: str):
                 timeout=10,
             )
         except Exception:
-            # הסיסמה כבר הוחלפה — זה החלק שחייב להצליח. ניתוק שנכשל
-            # נרשם ולא מבטל אותו.
+            # The password has already been changed; that is the part that must
+            # succeed. A failed sign-out is logged and doesn't undo it.
             logger.exception("update_password: revoke other sessions")
 
         return True, None
@@ -802,7 +855,7 @@ def update_password(access_token: str, new_password: str):
 
 
 def send_reset_email(email: str, redirect_to: str):
-    """שולח מייל איפוס סיסמה עם קישור שחוזר לעמוד reset-password שלנו."""
+    """Sends a password-reset email with a link back to our reset-password page."""
     import httpx
 
     url = os.environ.get("SUPABASE_URL")
@@ -825,18 +878,19 @@ def send_reset_email(email: str, redirect_to: str):
 
 
 def ensure_family(user_id: str, family_name: str = "המשפחה שלי"):
-    """יוצרת משפחה ומשייכת אליה את המשתמש, אם אין לו כבר אחת.
+    """Creates a family and attaches the user to it, if they don't have one yet.
 
-    היצירה נעשית דרך ה-RPC ‎create_own_family‎ ולא בכתיבה ישירה, כי כתיבה
-    ישירה ל-‎profiles.family_id‎ חסומה עכשיו ברמת ההרשאות: היא הייתה הדרך
-    שבה משתמש מאומת יכול היה להעביר את עצמו למשפחה אחרת ולקרוא את כל
-    הכספים שלה (ראו מיגרציה 20260916100000). הפונקציה נגזרת מ-auth.uid()
-    ומסרבת להחליף משפחה קיימת, כך שהיא פותרת את הבעיה שלשמה היא קיימת
-    בלי לפתוח אותה מחדש.
+    Creation goes through the `create_own_family` RPC and not a direct write,
+    because a direct write to `profiles.family_id` is now blocked at the grant
+    level: it was the way an authenticated user could move themselves into
+    another family and read all its finances (see migration 20260916100000).
+    The function derives from auth.uid() and refuses to replace an existing
+    family, so it solves the problem it exists for without reopening it.
 
-    היא גם פותרת את בעיית הביצה והתרנגולת שהייתה כאן: מדיניות הקריאה על
-    families מתירה לקרוא משפחה רק אחרי שהפרופיל כבר מצביע עליה, ולכן
-    היצירה והשיוך חייבים לקרות יחד — וכאן הם באמת אטומיים.
+    It also solves the chicken-and-egg problem that was here: the read policy
+    on families allows reading a family only after the profile already points
+    at it, so creation and attachment must happen together, and here they
+    really are atomic.
     """
     client = get_client()
     if not client:
@@ -844,9 +898,10 @@ def ensure_family(user_id: str, family_name: str = "המשפחה שלי"):
 
     profile, ok = fetch_profile(user_id)
     if not ok:
-        # השליפה נכשלה. אסור להסיק מזה שאין משפחה: יצירת משפחה כאן דורסת
-        # את השיוך הקיים ומנתקת את המשתמש מכל ההיסטוריה שלו לצמיתות.
-        # כישלון גלוי, שממנו אפשר להתאושש בניסיון הבא, עדיף בהרבה.
+        # The query failed. Never conclude from that there is no family:
+        # creating a family here overwrites the existing membership and cuts the
+        # user off from their whole history for good. A visible failure, which
+        # the next attempt can recover from, is far better.
         logger.error("ensure_family(%s): profile read failed — refusing to create a family", user_id)
         return None
     if profile and profile.get("family_id"):
@@ -860,26 +915,27 @@ def ensure_family(user_id: str, family_name: str = "המשפחה שלי"):
         return None
 
 
-# ─── Family settings (העדפות משפחה) ──────────────────────────────────────────
+# ─── Family settings ────────────────────────────────────────────────────────
 
-# ברירות המחדל = ההתנהגות ההיסטורית של האתר. משפחה עם settings ריק מקבלת
-# בדיוק את מה שהיה עד היום; רק מה שהמשפחה שינתה נשמר ב-DB.
+# The defaults = the site's historical behaviour. A family with empty settings
+# gets exactly what it always had; only what the family changed is stored in
+# the DB.
 DEFAULT_FAMILY_SETTINGS = {
     "owner_attribution": {"expense": True, "income": True, "savings": False},
-    # תקציב יעד לקטגוריה: ‎{"<category_id>": {"amount": 2000, "alert": true}}‎
-    # קטגוריה שאינה כאן פשוט אין לה תקציב, וזו ברירת המחדל — אף אחת לא
-    # מקבלת תקציב בלי שהמשפחה קבעה אותו.
+    # A target budget per category: `{"<category_id>": {"amount": 2000, "alert": true}}`
+    # A category not listed here simply has no budget, and that is the default:
+    # no category gets a budget unless the family set one.
     #
-    # שתי החלטות נפרדות בכוונה: יש משפחות שרוצות לראות "₪1,800 מתוך
-    # ₪2,000" בלי שהאפליקציה תנדנד להן על זה.
+    # Two separate decisions on purpose: some families want to see "₪1,800 of
+    # ₪2,000" without the app nagging them about it.
     "limits": {},
 }
 
 
 def category_budget(settings: dict, category_id: str) -> dict:
-    """התקציב של קטגוריה, או None אם אין לה.
+    """A category's budget, or None if it has none.
 
-    מחזיר ‎{"amount": float, "alert": bool}‎."""
+    Returns `{"amount": float, "alert": bool}`."""
     entry = ((settings or {}).get("limits") or {}).get(str(category_id))
     if not isinstance(entry, dict):
         return None
@@ -893,9 +949,9 @@ def category_budget(settings: dict, category_id: str) -> dict:
 
 
 def category_month_spent(family_id: str, category_id: str, year: int, month: int) -> float:
-    """כמה יצא החודש על קטגוריה — הוצאות הבית בלבד (בלי פרויקטים), כמו
-    הפס של התקציב בעמוד החודש. בשביל "עברתם את התקציב" בהוספה (רעיון 17).
-    זורקת DataUnavailable."""
+    """How much went to a category this month: household expenses only (no
+    projects), like the budget bar on the month page. For "you went over the
+    budget" when adding (idea 17). Raises DataUnavailable."""
     import calendar
     client = get_client()
     if not client:
@@ -912,14 +968,16 @@ def category_month_spent(family_id: str, category_id: str, year: int, month: int
 
 
 def apply_budgets(breakdown: list, settings: dict) -> list:
-    """מוסיף לכל שורת פילוח את מצב התקציב שלה, אם יש.
+    """Adds each breakdown row's budget status, if it has one.
 
-    ‎budget‎ = הסכום, ‎budget_pct‎ = כמה נוצל (יכול לעבור 100),
-    ‎budget_left‎ = כמה נשאר (שלילי בחריגה), ‎budget_over‎ = האם חרג.
+    `budget` = the amount, `budget_pct` = how much was used (can exceed 100),
+    `budget_left` = how much is left (negative when over), `budget_over` =
+    whether it went over.
 
-    הפס הקיים מודד כמה הקטגוריה מתוך סך ההוצאות החודש — כלומר "מכולת
-    היא 35% מההוצאות", לא "נשאר ₪200". עם תקציב הוא מודד מול ההחלטה
-    של המשפחה, וזה מה שבאמת שואלים."""
+    The existing bar measures the category's share of the month's total
+    expenses, i.e. "groceries are 35% of expenses", not "₪200 left". With a
+    budget it measures against the family's decision, and that is what people
+    actually ask."""
     out = []
     for row in breakdown:
         budget = category_budget(settings, row.get("category_id"))
@@ -931,27 +989,28 @@ def apply_budgets(breakdown: list, settings: dict) -> list:
             row["budget_pct"]   = min(round(spent / budget["amount"] * 100), 100)
             row["budget_left"]  = round(budget["amount"] - spent, 2)
             row["budget_over"]  = spent > budget["amount"]
-            # החריגה עצמה, כדי שהתצוגה לא תחשב שוב
+            # The overage itself, so the view doesn't compute it again
             row["budget_excess"] = round(max(spent - budget["amount"], 0), 2)
         out.append(row)
     return out
 
 
-# מפתחות שהערך שלהם הוא **מפה שלמה**, ולכן מוחלפים ולא מתמזגים.
+# Keys whose value is a **whole map**, and so are replaced rather than merged.
 #
-# ‎limits‎ ממופה לפי מזהה קטגוריה, וכשמסירים תקציב הוא פשוט נעדר מהמפה
-# החדשה. מיזוג ב-‎.update()‎ יכול רק להוסיף או לדרוס מפתחות — לעולם לא
-# למחוק — אז ההסרה לא נשמרה מעולם: המסך הראה תקציב כבוי, והשרת המשיך
-# להחזיק אותו. שאר המפתחות המקוננים (owner_attribution) הם
-# רשומות עם שדות קבועים ונכון להמשיך למזג אותן.
-# ‎member_colors‎ (סבב 6, פריט 13) — המפה המלאה נשלחת תמיד, ומי שעזב יוצא ממנה
+# `limits` is keyed by category id, and when a budget is removed it is simply
+# absent from the new map. A `.update()` merge can only add or overwrite keys,
+# never delete them, so the removal was never saved: the screen showed the
+# budget off while the server kept it. The other nested keys
+# (owner_attribution) are records with fixed fields and are right to keep merging.
+# `member_colors` (round 6, item 13): the full map is always sent, and whoever
+# left drops out of it
 _WHOLE_MAP_KEYS = frozenset({"limits", "member_colors"})
 
 
 def _merge_settings(base: dict, patch: dict) -> dict:
-    """מיזוג ברמה אחת של עומק — מפתחות מקוננים (owner_attribution)
-    מתמזגים במקום להימחק כשמעדכנים רק חלק מהם. ראו ‎_WHOLE_MAP_KEYS‎
-    לחריגים שמוחלפים במלואם."""
+    """A one-level-deep merge: nested keys (owner_attribution) merge instead of
+    being dropped when only some of them are updated. See `_WHOLE_MAP_KEYS`
+    for the exceptions that are replaced whole."""
     out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in base.items()}
     for k, v in (patch or {}).items():
         if k in _WHOLE_MAP_KEYS:
@@ -964,21 +1023,23 @@ def _merge_settings(base: dict, patch: dict) -> dict:
 
 
 def get_family_settings(family_id: str) -> dict:
-    """ההגדרות האפקטיביות של משפחה: ברירות מחדל + מה שנשמר ב-DB."""
+    """A family's effective settings: defaults + what is stored in the DB."""
     stored = (get_family(family_id) or {}).get("settings") or {}
     return _merge_settings(DEFAULT_FAMILY_SETTINGS, stored)
 
 
 def update_family_settings(family_id: str, patch: dict) -> bool:
-    """ממזג עדכון חלקי לתוך ההגדרות השמורות של המשפחה.
+    """Merges a partial update into the family's stored settings.
 
-    המיזוג נעשה **במסד**, במשפט אחד עם ‎for update‎, ולא כאן. קודם זה היה
-    קרא-מזג-כתוב בלי שום נעילה: ארבעה workers, שורה אחת, ושני בני משפחה
-    ששמרו הגדרות באותה שנייה דרסו זה את זה. מי שקבע תקציב וקיבל "נשמר"
-    ראה אותו נעלם ברענון הבא, ובלי שום סימן שמשהו קרה.
+    The merge happens **in the database**, in one statement with `for update`,
+    not here. It used to be read-merge-write with no lock at all: four workers,
+    one row, and two family members saving settings in the same second
+    overwrote each other. Whoever set a budget and got "saved" saw it vanish on
+    the next refresh, with no sign that anything happened.
 
-    הסמנטיקה זהה ל-‎_merge_settings‎ (עומק אחד + ‎_WHOLE_MAP_KEYS‎), והיא
-    נשלחת לפונקציה כדי ששני המימושים לא יוכלו להיפרד בשקט."""
+    The semantics are identical to `_merge_settings` (one level +
+    `_WHOLE_MAP_KEYS`), and they are passed to the function so the two
+    implementations can't silently drift apart."""
     client = get_client()
     if not client or not family_id:
         return False
@@ -995,44 +1056,47 @@ def update_family_settings(family_id: str, patch: dict) -> bool:
         return False
 
 
-# ─── Receipt scanning (צילום קבלה) ────────────────────────────────────────────
+# ─── Receipt scanning ───────────────────────────────────────────────────────
 
 RECEIPT_MONTHLY_LIMIT = 100
 
-# תקרה על **סך** הסריקות של כל המשפחות יחד.
+# A cap on the **total** scans of all families together.
 #
-# המכסה שלמעלה היא לכל משפחה, וההרשמה פתוחה — כל חשבון חדש מקבל משפחה,
-# ואיתה מכסה טרייה. כלומר לא הייתה שום תקרה על הסכום הכולל, והמסלול הזה
-# הוא היחיד באפליקציה שעולה כסף אמיתי.
+# The quota above is per family, and signup is open: every new account gets a
+# family, and with it a fresh quota. So there was no cap at all on the total,
+# and this route is the only one in the app that costs real money.
 #
-# יש גם תקרת חיוב בלוח הבקרה של OpenAI (הוגדרה 20.9.2026), והיא רשת
-# הביטחון האחרונה. התקרה כאן קיימת כי היא נכשלת אחרת: בעברית, עם הצעה
-# להזין ידנית, במקום שהמפתח ייחסם ותתקבל שגיאת API סתומה שנראית כמו באג.
+# There is also a billing cap in the OpenAI dashboard (set 20.9.2026), and it is
+# the last safety net. The cap here exists because it fails differently: in
+# Hebrew, offering manual entry, instead of the key being blocked and an opaque
+# API error that looks like a bug.
 #
-# המספר: משפחה פעילה מאוד צורכת ~50 בחודש, אז 2,000 הן כ-40 משפחות
-# בשימוש כבד — הרבה מעל כל שימוש אמיתי בהיקף הנוכחי, ועדיין בלם.
+# The number: a very active family uses ~50 a month, so 2,000 is about 40
+# heavily-using families: far above any real use at the current scale, and
+# still a brake.
 RECEIPT_GLOBAL_MONTHLY_LIMIT = int(os.environ.get("RECEIPT_GLOBAL_MONTHLY_LIMIT", "2000"))
 
 _RECEIPT_MEDIA_TYPES = ("image/jpeg", "image/png", "image/webp")
 
 
 def _month_start() -> str:
-    """תחילת החודש בשעון ישראל. משותף לשתי הספירות, כדי ששתיהן
-    יתאפסו באותו רגע — השרת עצמו רץ ב-UTC.
+    """The start of the month in Israel time. Shared by both counts, so both
+    reset at the same moment; the server itself runs in UTC.
 
-    עם אזור הזמן במפורש: ‎"2026-10-01"‎ לבד פורש במסד (UTC) כחצות UTC,
-    שהיא 03:00 בישראל בקיץ — וסריקה ב-01:30 ב-1 לחודש נספרה לחודש הקודם."""
+    With the time zone explicit: `"2026-10-01"` alone was read by the database
+    (UTC) as UTC midnight, which is 03:00 in Israel in summer, so a scan at
+    01:30 on the 1st was counted in the previous month."""
     from datetime import datetime
     today = clock.today()
     return datetime(today.year, today.month, 1, tzinfo=clock.ISRAEL).isoformat()
 
 
 def receipt_scans_globally_this_month() -> int:
-    """כמה סריקות בוצעו החודש בכל המשפחות יחד.
+    """How many scans were made this month across all families together.
 
-    דרך RPC ולא דרך שאילתה: RLS על ‎receipt_scans‎ מגבילה כל משתמש
-    למשפחה שלו, אז ספירה רגילה הייתה מחזירה את שלו בלבד — כלומר תקרה
-    שלעולם לא נחצית. הפונקציה מחזירה מספר אחד ותו לא."""
+    Through an RPC and not a query: RLS on `receipt_scans` limits every user to
+    their own family, so a plain count would return only theirs, i.e. a cap
+    that is never crossed. The function returns one number and nothing else."""
     client = get_client()
     if not client:
         raise DataUnavailable("receipt_scans_globally_this_month: no client")
@@ -1040,12 +1104,14 @@ def receipt_scans_globally_this_month() -> int:
         return client.rpc("receipt_scans_global_since",
                           {"p_since": _month_start()}).execute().data or 0
     except Exception as e:
-        # כמו בספירה לכל משפחה: 0 פירושו "אין ניצול", כלומר ביטול ההגבלה
+        # As with the per-family count: 0 means "nothing used", i.e. the limit
+        # is off
         raise DataUnavailable("receipt_scans_globally_this_month") from e
 
 
 def receipt_scans_this_month(family_id: str) -> int:
-    """כמה סריקות מוצלחות בוצעו החודש — סריקות שנכשלו לא נרשמות ולא נספרות."""
+    """How many successful scans were made this month; failed scans are neither
+    recorded nor counted."""
     client = get_client()
     if not client or not family_id:
         return 0
@@ -1054,12 +1120,12 @@ def receipt_scans_this_month(family_id: str) -> int:
             .eq("family_id", family_id).gte("created_at", _month_start()).execute()
         return result.count or 0
     except Exception as e:
-        # 0 פירושו "לא נוצלה מכסה" — כלומר ההגבלה על ההוצאה מפסיקה לעבוד
+        # 0 means "no quota used", i.e. the spending limit stops working
         raise DataUnavailable("receipt_scans_this_month") from e
 
 
 def record_receipt_scan(family_id: str, user_id: str):
-    """רושם סריקה מוצלחת לצורך מכסת RECEIPT_MONTHLY_LIMIT."""
+    """Records a successful scan for the RECEIPT_MONTHLY_LIMIT quota."""
     client = get_client()
     if not client:
         return
@@ -1072,9 +1138,9 @@ def record_receipt_scan(family_id: str, user_id: str):
 
 
 def upload_receipt(access_token: str, family_id: str, image_bytes: bytes, content_type: str):
-    """מעלה תמונת קבלה לתיקיית המשפחה ב-bucket הפרטי 'receipts'.
-    נעשה עם ה-JWT של המשתמש (לא מפתח השירות) כדי ש-RLS יאמת לפי המשפחה שלו.
-    Returns (storage_path, error)."""
+    """Uploads a receipt image to the family's folder in the private 'receipts'
+    bucket. Done with the user's JWT (not the service key) so RLS checks it
+    against their family. Returns (storage_path, error)."""
     import httpx, uuid as _uuid
 
     url = os.environ.get("SUPABASE_URL")
@@ -1103,7 +1169,7 @@ def upload_receipt(access_token: str, family_id: str, image_bytes: bytes, conten
 
 
 def get_receipt_signed_url(access_token: str, path: str):
-    """קישור זמני (5 דקות) לצפייה בתמונת קבלה. Returns (url, error)."""
+    """A temporary (5 minute) link for viewing a receipt image. Returns (url, error)."""
     import httpx
 
     url = os.environ.get("SUPABASE_URL")
@@ -1130,17 +1196,18 @@ def get_receipt_signed_url(access_token: str, path: str):
 
 
 def delete_receipt(access_token: str, path: str):
-    """מוחקת קובץ קבלה מהאחסון (למשל כשמוחקים את העסקה המצורפת)."""
+    """Deletes a receipt file from storage (e.g. when the attached transaction is deleted)."""
     delete_receipts(access_token, [path])
 
 
 def delete_receipts(access_token: str, paths) -> None:
-    """מוחקת כמה קבצי קבלה בבקשה אחת, בשם המשתמש (מדיניות האחסון: רק מי
-    שבמשפחה של התיקייה).
+    """Deletes several receipt files in one request, as the user (storage policy:
+    only members of the folder's family).
 
-    אין ניקוי לילי שיאסוף אחריה: ‎purge_orphan_receipts‎ נכשלה בכל ריצה
-    (Supabase חוסמת מחיקה ישירה מטבלאות האחסון) והוסרה ב-20260929150000.
-    אז מחיקה של עסקאות חייבת לקחת איתה את הקבצים שלה כאן, ברגע המחיקה."""
+    There is no nightly cleanup to sweep up after it: `purge_orphan_receipts`
+    failed on every run (Supabase blocks direct deletes from the storage
+    tables) and was removed in 20260929150000. So deleting transactions must
+    take their files with it here, at the moment of deletion."""
     import httpx
 
     url = os.environ.get("SUPABASE_URL")
@@ -1166,8 +1233,9 @@ def delete_receipts(access_token: str, paths) -> None:
 
 
 def receipt_paths(family_id: str, project_ids=None, user_id: str = None) -> list:
-    """נתיבי הקבלות של עסקאות שעומדות להימחק: בפרויקטים האלה, ו/או של
-    המשתמש הזה. נאסף **לפני** המחיקה — אחריה אין שורה שמצביעה על הקובץ."""
+    """The receipt paths of transactions about to be deleted: in these projects,
+    and/or of this user. Collected **before** the delete; afterwards no row
+    points at the file."""
     client = get_client()
     if not client or not (project_ids or user_id):
         return []
@@ -1183,13 +1251,15 @@ def receipt_paths(family_id: str, project_ids=None, user_id: str = None) -> list
                               .not_.is_("receipt_path", "null").order("id"))
         return sorted({r["receipt_path"] for r in out if r.get("receipt_path")})
     except Exception:
-        # בלי הנתיבים אין מה למחוק — אבל המחיקה עצמה לא נעצרת בגלל קבצים
+        # Without the paths there is nothing to delete, but the deletion itself
+        # isn't stopped over files
         logger.exception("receipt_paths")
         return []
 
 
 def personal_project_ids(family_id: str, owner_id: str) -> list:
-    """הפרויקטים האישיים של בן משפחה — כדי לדעת מה יימחק כשהוא יוצא."""
+    """A family member's personal projects, to know what will be deleted when
+    they leave."""
     client = get_client()
     if not client:
         raise DataUnavailable("personal_project_ids: no client")
@@ -1201,8 +1271,9 @@ def personal_project_ids(family_id: str, owner_id: str) -> list:
 
 
 def receipts_in_use(family_id: str, paths) -> set:
-    """אילו מהקבצים האלה עסקה כלשהי עדיין מצביעה עליהם. נקרא **אחרי**
-    מחיקת עסקאות: מה שחוזר כאן — לא מוחקים. חריגה, לא "אף אחד"."""
+    """Which of these files some transaction still points at. Called **after**
+    deleting transactions: whatever comes back here is not deleted. Raises,
+    rather than returning "none"."""
     paths = sorted({p for p in (paths or []) if p})
     if not paths:
         return set()
@@ -1218,8 +1289,8 @@ def receipts_in_use(family_id: str, paths) -> set:
 
 
 def receipt_in_use(path: str, family_id: str) -> bool:
-    """האם עסקה כלשהי מצביעה על הקובץ. חריגה — לא "לא": מחיקה של קובץ
-    שבשימוש משאירה עסקה עם קבלה שבורה."""
+    """Whether any transaction points at the file. Raises rather than saying
+    "no": deleting a file in use leaves a transaction with a broken receipt."""
     client = get_client()
     if not client:
         raise DataUnavailable("receipt_in_use: no client")
@@ -1232,12 +1303,14 @@ def receipt_in_use(path: str, family_id: str) -> bool:
 
 
 def transaction_links(tx_id: str, family_id: str):
-    """השיוכים של עסקה קיימת — בעלים ופרויקט — או ‎None‎ אם אינה קיימת.
+    """An existing transaction's links (owner and project), or `None` if it
+    doesn't exist.
 
-    בשביל העריכה: בדיקות השרת על בעלים ועל פרויקט נועדו לבחירה **חדשה**,
-    ודחו גם ערך שלא השתנה — עסקה של מי שעזב, או בפרויקט שהפסיק לעקוב אחרי
-    הסוג. הטופס "פתר" את זה בכך שהחליף את הערך בשקט."""
-    # גם הערכים עצמם — ל"בטל" אחרי עריכה (‎if_match‎ ב-app.py)
+    For editing: the server checks on owner and project were meant for a
+    **new** choice, and also rejected a value that hadn't changed (a
+    transaction of someone who left, or in a project that stopped tracking the
+    type). The form "solved" that by silently replacing the value."""
+    # The values themselves too, for "undo" after an edit (`if_match` in app.py)
     row = _tx_row(tx_id, family_id)
     if not row:
         return None
@@ -1246,8 +1319,9 @@ def transaction_links(tx_id: str, family_id: str):
 
 
 def transaction_meta(tx_id: str, family_id: str):
-    """מי הזין ומתי — לשורה בתחתית חלון העריכה (מתן, 3.10 — רעיון 22).
-    ‎None‎ אם העסקה לא נמצאה. זורקת DataUnavailable."""
+    """Who entered it and when, for the line at the bottom of the edit window
+    (Matan, 3.10, idea 22). `None` if the transaction wasn't found. Raises
+    DataUnavailable."""
     row = _tx_row(tx_id, family_id)
     if not row:
         return None
@@ -1263,16 +1337,18 @@ def get_transaction_receipt_path(transaction_id: str, family_id: str):
             .eq("id", transaction_id).eq("family_id", family_id).single().execute()
         return (result.data or {}).get("receipt_path")
     except Exception:
-        # None פירושו "אין קבלה", וכישלון שליפה נראה בדיוק כמו עסקה בלי
-        # קבלה. הכיוון בטוח (לא נמחק כלום, לא מוצג כלום), אבל בלי הרישום
-        # הזה אין שום זכר לכך שהייתה תקלה.
+        # None means "no receipt", and a failed fetch looks exactly like a
+        # transaction without a receipt. The direction is safe (nothing deleted,
+        # nothing shown), but without this log entry there is no trace that
+        # anything went wrong.
         logger.exception("get_transaction_receipt_path")
         return None
 
 
 def scan_receipt(image_bytes: bytes, content_type: str, category_names: list):
-    """שולח תמונת קבלה ל-OpenAI (מודל ראייה) ומחלץ סכום, בית עסק, תאריך וקטגוריה
-    מוצעת מתוך קטגוריות ההוצאות של המשפחה בלבד. Returns (data_dict, error)."""
+    """Sends a receipt image to OpenAI (a vision model) and extracts amount,
+    business, date and a suggested category, from the family's expense
+    categories only. Returns (data_dict, error)."""
     import base64
     import json
 
@@ -1288,7 +1364,7 @@ def scan_receipt(image_bytes: bytes, content_type: str, category_names: list):
     media_type = content_type if content_type in _RECEIPT_MEDIA_TYPES else "image/jpeg"
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
-    category_prop = {"type": "string", "description": "השאר ריק אם אין התאמה ברורה."}
+    category_prop = {"type": "string", "description": "Leave empty if there is no clear match."}
     if category_names:
         category_prop["enum"] = category_names
 
@@ -1296,21 +1372,21 @@ def scan_receipt(image_bytes: bytes, content_type: str, category_names: list):
         "type": "function",
         "function": {
             "name": "extract_receipt",
-            "description": "מחלץ מתמונת קבלה ישראלית את הסכום, שם בית העסק, התאריך והקטגוריה המתאימה.",
+            "description": "Extracts the amount, business name, date and matching category from a photo of an Israeli receipt.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "amount": {
                         "type": "number",
-                        "description": "הסכום הכולל ששולם, מספר בלבד. אם התמונה אינה קבלה קריאה, החזר 0.",
+                        "description": "The total amount paid, a number only. If the image is not a readable receipt, return 0.",
                     },
                     "merchant": {
                         "type": "string",
-                        "description": "שם בית העסק כפי שמופיע בקבלה.",
+                        "description": "The business name as it appears on the receipt.",
                     },
                     "date": {
                         "type": "string",
-                        "description": "תאריך העסקה בפורמט YYYY-MM-DD. השאר ריק אם לא ברור.",
+                        "description": "The transaction date in YYYY-MM-DD format. Leave empty if unclear.",
                     },
                     "category_name": category_prop,
                 },
@@ -1329,7 +1405,7 @@ def scan_receipt(image_bytes: bytes, content_type: str, category_names: list):
             messages=[{
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "זו תמונה של קבלה ישראלית. חלץ ממנה את הנתונים באמצעות הכלי."},
+                    {"type": "text", "text": "This is a photo of an Israeli receipt. Extract its data using the tool."},
                     {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}},
                 ],
             }],
@@ -1366,8 +1442,9 @@ def get_monthly_summary(family_id: str, year: int, month: int) -> dict:
     if not client:
         return _empty_summary()
     try:
-        # עסקאות המשויכות לפרויקט לא נכללות במאזן החודשי — פרויקט הוא הוצאה/
-        # הכנסה חד-פעמית/הונית שמעוותת את תמונת ה"חודש הרגיל" (מוצגות בנפרד).
+        # Transactions attached to a project are excluded from the monthly balance:
+        # a project is a one-off/capital expense or income that distorts the
+        # picture of a "normal month" (shown separately).
         result = client.table("transactions") \
             .select("type, amount") \
             .eq("family_id", family_id) \
@@ -1376,11 +1453,12 @@ def get_monthly_summary(family_id: str, year: int, month: int) -> dict:
             .lt("date", _next_month(year, month)) \
             .execute()
 
-        # אותו חישוב בדיוק כמו עמוד החודש. כאן הוא היה עותק בלי עיגול, ושברים
-        # עשרוניים הפכו אפס ל-‎-1.1e-13‎ — ודף הבית הציג "-₪0" באדום.
+        # Exactly the same calculation as the month page. Here it was a copy
+        # without rounding, and floating-point fractions turned zero into
+        # `-1.1e-13`, so the home page showed "-₪0" in red.
         return summary_from_rows(result.data)
     except Exception as e:
-        # לא מחזירים אפסים: דשבורד של ₪0 נראה כמו תקציב ריק ולא כמו תקלה
+        # Never return zeros: a ₪0 dashboard looks like an empty budget, not a failure
         raise DataUnavailable("get_monthly_summary") from e
 
 
@@ -1388,21 +1466,25 @@ _WEEK_LABELS = ("א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳")
 
 
 def week_spending(family_id: str, today=None, offset: int = 0) -> dict:
-    """כרטיס "השבוע" בדף הבית (מתן, 30.9): הוצאות מראשון עד שבת, יום-יום.
+    """The "this week" card on the home page (Matan, 30.9): expenses Sunday to
+    Saturday, day by day.
 
-    הוצאות הבית בלבד — בלי פרויקטים, ובלי לספור עסקאות קבועות (תבנית או
-    מופע): שכר דירה של ₪5,500 ביום אחד היה מגמד את כל השאר, והשבוע אמור
-    להראות את ההוצאות השוטפות. הקבועות כן מופיעות בפירוט היום שלהן, מסומנות,
-    ובשורה נפרדת מתחת לסך (‎recurring_total‎) — מתן, 11.10.
+    Household expenses only: no projects, and recurring transactions
+    (template or occurrence) aren't counted: ₪5,500 of rent on one day dwarfed
+    everything else, and the week is meant to show running expenses. Recurring
+    ones do appear in their day's breakdown, marked, and on a separate line
+    under the total (`recurring_total`), Matan, 11.10.
 
-    ‎last_week‎ — סך השבוע הקודם, שלם; ‎None‎ כשלא היו בו הוצאות. בשבוע
-    הנוכחי הוא מוצג כעובדה ("שבוע שעבר: ₪X") ובלי ‎diff‎: ההשוואה הקודמת,
-    ראשון–רביעי מול ראשון–רביעי, הייתה נכונה אבל לא מובנת — ביום ראשון בבוקר
-    היא הראתה "₪519 פחות משבוע שעבר" אחרי שבוע יקר (מתן, 11.10). בשבוע
-    שהסתיים ‎diff‎ הוא שבוע שלם מול שבוע שלם.
+    `last_week`: the previous week's total, whole; `None` when it had no
+    expenses. In the current week it is shown as a fact ("last week: ₪X") with
+    no `diff`: the previous comparison, Sunday–Wednesday against
+    Sunday–Wednesday, was correct but not understandable; on Sunday morning it
+    showed "₪519 less than last week" after an expensive week (Matan, 11.10).
+    For a finished week, `diff` is a whole week against a whole week.
 
-    עסקה שהוזנה מראש ליום שעוד לא הגיע מופיעה ביום שלה ונספרת בסך השבוע
-    (מתן, 4.10) — כמו שהיא נספרת בחודש שלה."""
+    A transaction entered ahead of time for a day that hasn't come yet appears
+    on its day and counts in the week's total (Matan, 4.10), just as it counts
+    in its month."""
     today = today or clock.today()
     prev_start, start, end = week_bounds(today, offset)
     empty = {"days": [], "total": 0.0, "recurring_total": 0.0, "last_week": None, "diff": None,
@@ -1419,7 +1501,8 @@ def week_spending(family_id: str, today=None, offset: int = 0) -> dict:
             .lte("date", end.isoformat()).execute().data or []
     except Exception as e:
         raise DataUnavailable("week_spending") from e
-    # האם יש לאן לדפדף אחורה: הוצאה שוטפת כלשהי לפני תחילת השבוע הזה
+    # Whether there is anywhere to page back to: any running expense before the
+    # start of this week
     try:
         older = client.table("transactions").select("date") \
             .eq("family_id", family_id).eq("type", "expense").is_("project_id", "null") \
@@ -1431,23 +1514,24 @@ def week_spending(family_id: str, today=None, offset: int = 0) -> dict:
 
 
 def week_bounds(today, offset: int = 0):
-    """‎(ראשון של השבוע הקודם, ראשון של השבוע המוצג, שבת שלו)‎.
+    """`(Sunday of the previous week, Sunday of the shown week, its Saturday)`.
 
-    ‎offset‎ — כמה שבועות אחורה (מתן, 2.10: דפדוף לשבועות קודמים). שבוע
-    שעבר מוצג שלם, ומושווה לשבוע השלם שלפניו."""
+    `offset`: how many weeks back (Matan, 2.10: paging to earlier weeks). A
+    past week is shown whole, and compared with the whole week before it."""
     from datetime import timedelta
     start = today - timedelta(days=(today.weekday() + 1) % 7) - timedelta(days=7 * offset)
     return start - timedelta(days=7), start, start + timedelta(days=6)
 
 
 def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
-    """כרטיס "השבוע" מתוך שורות שכבר נשלפו — מ-‎week_spending‎, או מ-‎get_home_page‎
-    שמביאה אותן יחד עם כל שאר דף הבית."""
+    """The "this week" card from rows already fetched, from `week_spending` or
+    from `get_home_page`, which brings them along with the rest of the home page."""
     from datetime import timedelta
     prev_start, start, _ = week_bounds(today, offset)
     rows = [r for r in rows if not r.get("project_id")]
-    # עסקה קבועה (תבנית או מופע) מוצגת ביום שלה, מסומנת, ולא נספרת בעמודות,
-    # בסך ובהשוואה (מתן, 11.10) — כשהיא נעלמה לגמרי זה נראה כמו תקלה
+    # A recurring transaction (template or occurrence) is shown on its day,
+    # marked, and not counted in the bars, the total or the comparison (Matan,
+    # 11.10); when it disappeared entirely it looked like a bug
     fixed = [r for r in rows if r.get("is_recurring") or r.get("recurring_parent_id")]
     rows = [r for r in rows if not r.get("is_recurring") and not r.get("recurring_parent_id")]
 
@@ -1473,8 +1557,8 @@ def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
     recurring_total = round(sum(t["amount"] for d in days for t in d["recurring"]), 2)
     prev = [r for r in rows if prev_start.isoformat() <= str(r["date"])[:10] < start.isoformat()]
     last = round(sum(float(r["amount"]) for r in prev), 2) if prev else None
-    # היום שהפירוט שלו פתוח: היום עצמו בשבוע הנוכחי; בשבוע שעבר — היום האחרון
-    # שהיו בו הוצאות (ואם לא היו — שבת)
+    # The day whose breakdown is open: today itself in the current week; in
+    # past weeks, the last day with expenses (and if there were none, Saturday)
     shown = [i for i, d in enumerate(days) if d["today"]] or \
             [i for i, d in enumerate(days) if d["total"]][-1:] or [6]
     for i, d in enumerate(days):
@@ -1486,9 +1570,10 @@ def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
 
 
 def _filter_hidden_personal_projects(rows: list, viewer_user_id: str) -> list:
-    """מסנן שורות עסקה ששייכות לפרויקט אישי של בן משפחה אחר — פרטיות:
-    רק בעל הפרויקט האישי רואה את העסקאות הבודדות שבו. לסיכומים החודשיים
-    זה ממילא לא נוגע: הם מחריגים כל עסקת פרויקט (ראה _household_rows)."""
+    """Filters out transaction rows belonging to another family member's personal
+    project, for privacy: only the personal project's owner sees its individual
+    transactions. Monthly summaries aren't affected anyway: they exclude every
+    project transaction (see _household_rows)."""
     if not viewer_user_id:
         return rows
     return [
@@ -1499,10 +1584,11 @@ def _filter_hidden_personal_projects(rows: list, viewer_user_id: str) -> list:
 
 
 def recent_descriptions(family_id: str, viewer_user_id: str, today=None, limit: int = 300) -> list:
-    """התיאורים שכבר נכתבו — להשלמה בשדה "תיאור קצר" (מתן, 3.10 — רעיון 41).
-    של כל המשפחה, מ-6 החודשים האחרונים, מהשכיח לנדיר. בלי פרויקט אישי של
-    בן משפחה אחר — אותו כלל כמו בכל רשימה (‎_filter_hidden_personal_projects‎).
-    זורקת DataUnavailable."""
+    """Descriptions already written, for autocomplete in the "short description"
+    field (Matan, 3.10, idea 41). The whole family's, from the last 6 months,
+    most common first. Without another family member's personal project, the
+    same rule as every list (`_filter_hidden_personal_projects`). Raises
+    DataUnavailable."""
     from datetime import timedelta
     from collections import Counter
     today = today or clock.today()
@@ -1531,14 +1617,16 @@ def recent_descriptions(family_id: str, viewer_user_id: str, today=None, limit: 
 
 def search_transactions(family_id: str, viewer_user_id: str, q: str,
                         settings: dict = None, limit: int = 100) -> dict:
-    """חיפוש בכל החודשים (מתן, 30.9 — סבב 6, פריט 2).
+    """Search across all months (Matan, 30.9, round 6, item 2).
 
-    מחפש בתיאור, בשם הקטגוריה, במקום העבודה ובשם הפרויקט. מספר ("690") מוצא
-    גם עסקאות בסכום הזה בדיוק. ההתאמה ב-Python ולא ב-PostgREST: שם הקטגוריה
-    והפרויקט יושבים בטבלאות אחרות, ו-‎or‎ על עמודות של טבלה מקושרת לא נתמך.
-    בהיקף של משפחה (אלפי שורות) זו שליפה אחת קלה.
+    Searches the description, category name, workplace and project name. A
+    number ("690") also finds transactions of exactly that amount. Matching is
+    done in Python and not PostgREST: the category and project names live in
+    other tables, and `or` on a linked table's columns isn't supported. At a
+    family's scale (thousands of rows) this is one light query.
 
-    ‎count‎ ו-‎totals‎ — של כל מה שנמצא; ‎results‎ — עד ‎limit‎, מהחדש לישן."""
+    `count` and `totals` cover everything found; `results` up to `limit`,
+    newest first."""
     empty = {"results": [], "count": 0, "truncated": False,
              "totals": {"expense": 0.0, "income": 0.0, "savings": 0.0}}
     needle = " ".join((q or "").split()).lower()
@@ -1582,17 +1670,19 @@ def search_transactions(family_id: str, viewer_user_id: str, q: str,
 
 
 def precheck_transaction(family_id: str, viewer_user_id: str, body: dict, today=None) -> dict:
-    """מה לשאול לפני שמירה של עסקה חדשה (מתן, 30.9 — סבב 6, פריטים 6–7).
+    """What to ask before saving a new transaction (Matan, 30.9, round 6, items 6–7).
 
-    ‎duplicate‎ — עסקה זהה בכל: סוג, קטגוריה, סכום, תאריך (אותו יום בדיוק),
-    הערה, פרויקט ומשויך. שינוי בשדה אחד מספיק כדי לא להתריע.
-    הכי נפוץ: שני בני הזוג מזינים את אותה קנייה. ‎by‎ — רק כשמישהו אחר הזין.
+    `duplicate`: a transaction identical in everything: type, category, amount,
+    date (exactly the same day), note, project and assignee. A change in one
+    field is enough not to warn. Most common: both partners enter the same
+    purchase. `by`: only when someone else entered it.
 
-    ‎unusual‎ — הסכום פי 5 ומעלה מהגדול בקטגוריה בחצי השנה האחרונה, כשיש
-    לפחות 5 קודמות להשוות אליהן. לא בהכנסות: בונוס גדול הוא לא טעות.
+    `unusual`: the amount is 5 times or more the largest in the category over
+    the last half year, when there are at least 5 earlier ones to compare
+    with. Not for income: a large bonus isn't a mistake.
 
-    שתיהן שאלות ולא חסימות, ולכן כל תקלה כאן מחזירה "אין מה לשאול" — עדיף
-    לשמור בלי אזהרה מאשר לא לשמור בכלל."""
+    Both are questions, not blocks, so any failure here returns "nothing to
+    ask": better to save without a warning than not to save at all."""
     from datetime import date, datetime, timedelta
     none = {"duplicate": None, "unusual": None}
     today = today or clock.today()
@@ -1667,16 +1757,19 @@ _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$")
 
 
 def personal_project_owner(tx_id: str, family_id: str):
-    """בעל הפרויקט האישי שהעסקה יושבת בו, או ‎None‎ (משפחתית, פרויקט
-    משותף, או שהעסקה לא קיימת — אז המסלול עצמו יחזיר 404).
+    """The owner of the personal project the transaction sits in, or `None`
+    (household, a shared project, or the transaction doesn't exist, in which
+    case the route itself returns 404).
 
-    הבסיס של ‎tx_visible_required‎ ב-app.py. RLS לא עוזרת כאן: היא
-    מפרידה בין משפחות, ופרויקט אישי הוא פרטיות *בתוך* משפחה."""
-    # מזהה שאינו UUID לא יתאים לאף שורה, והמסלול יחזיר עליו 404 בעצמו.
-    # בלי הבדיקה, PostgREST דוחה אותו בשגיאה — והיא הייתה הופכת ל-503.
+    The basis of `tx_visible_required` in app.py. RLS doesn't help here: it
+    separates families, and a personal project is privacy *within* a family."""
+    # An id that isn't a UUID won't match any row, and the route returns 404 for
+    # it itself. Without this check PostgREST rejects it with an error, which
+    # would turn into a 503.
     if not _UUID_RE.match(str(tx_id)):
         return None
-    # כשל כאן חייב לעצור, לא לעבור: "לא הצלחתי לבדוק" אינו "מותר" — ‎_tx_row‎ זורקת
+    # A failure here must stop, not pass: "couldn't check" is not "allowed"
+    # (`_tx_row` raises)
     row = _tx_row(tx_id, family_id)
     if not row:
         return None
@@ -1689,12 +1782,13 @@ _TX_ROW_FIELDS = ("user_id, project_id, amount, type, date, description, categor
 
 
 def _tx_row(tx_id: str, family_id: str):
-    """שורת העסקה, פעם אחת לבקשה (מתן, 13.10 — מהירות העריכה).
+    """The transaction row, once per request (Matan, 13.10, editing speed).
 
-    הבדיקה "פרויקט אישי של מישהו אחר?" (‎tx_visible_required‎), "מה הערכים
-    עכשיו" (‎transaction_links‎) ו"מי הזין ומתי" (‎transaction_meta‎) קראו את
-    אותה שורה כל אחת בנפרד — שלוש נסיעות למסד לפני שהחלון נפתח או שהשמירה
-    התחילה. נקרא רק לפני כתיבה, כך שהמטמון לא מתיישן בתוך הבקשה."""
+    The check "someone else's personal project?" (`tx_visible_required`),
+    "what are the values now" (`transaction_links`) and "who entered it and
+    when" (`transaction_meta`) each read the same row separately: three trips
+    to the database before the window opened or the save started. Called only
+    before a write, so the cache doesn't go stale within the request."""
     def load():
         client = get_client()
         if not client:
@@ -1712,17 +1806,21 @@ def get_recent_transactions(family_id: str, limit: int = 5, settings: dict = Non
                             viewer_user_id: str = None) -> list:
     """Returns the most recent transactions with category and user info.
 
-    עסקאות המשויכות לפרויקט מוחרגות — הן שייכות לפרויקט בלבד, ומופיעות בעמוד
-    הפרויקט ובקטע "פרויקטים החודש". עקבי עם שאר נתוני החודש, שכולם מסננים
-    אותן (סיכום, פילוח קטגוריות, חלוקה בין בני משפחה, השוואת חודשים)."""
+    Transactions attached to a project are excluded: they belong to the project
+    only, and appear on the project page and in the "projects this month"
+    section. Consistent with the rest of the month's data, all of which filter
+    them (summary, category breakdown, split between family members, month
+    comparison)."""
     client = get_client()
     if not client:
         return []
     try:
-        # מרווח ביטחון: אם יסוננו שורות פרטיות, עדיין נרצה להגיע ל-limit שורות גלויות
+        # Safety margin: if private rows are filtered out, we still want to reach
+        # `limit` visible rows
         fetch_limit = limit * 3 if viewer_user_id else limit
-        # ממוין לפי סדר ההוספה (created_at) ולא לפי תאריך העסקה — כך עסקה שהוזנה
-        # לאחרונה מופיעה ראשונה גם אם תוארכה לתאריך ישן (בקשת מתן)
+        # Sorted by insertion order (created_at), not by transaction date, so a
+        # transaction entered most recently appears first even if it is dated in
+        # the past (Matan's request)
         result = client.table("transactions") \
             .select("*, categories(name, icon), project_categories(name, icon), profiles(name, workplace), projects(owner_id, name, icon)") \
             .eq("family_id", family_id) \
@@ -1739,29 +1837,33 @@ def get_recent_transactions(family_id: str, limit: int = 5, settings: dict = Non
 
 def recent_from_rows(rows: list, limit: int, settings: dict = None,
                      viewer_user_id: str = None) -> list:
-    """"עסקאות אחרונות" מתוך שורות שכבר נשלפו (גם מ-‎get_home_page‎)."""
+    """"Recent transactions" from rows already fetched (also from `get_home_page`)."""
     rows = _filter_hidden_personal_projects(rows or [], viewer_user_id)[:limit]
     return _format_transactions(rows, settings)
 
 
 def _recent_series_filter(today=None) -> str:
-    """"עסקאות אחרונות" בלי עסקאות קבועות של חודשים שכבר עברו (מתן, 5.10).
+    """"Recent transactions" without recurring transactions from months already
+    past (Matan, 5.10).
 
-    עסקה קבועה שנוספת עם תאריך התחלה בעבר (שכר דירה "מיולי") מייצרת מיד את
-    העותקים של כל החודשים שעברו — וכולם נוצרו הרגע, אז כולם קפצו לראש
-    הרשימה ודחקו את מה שבאמת הוזן עכשיו. מה שנשאר: כל עסקה רגילה, וכל עסקה
-    מסדרה קבועה מתחילת החודש הנוכחי. בשאילתה ולא אחריה — אחרת סדרה של שנה
-    הייתה תופסת את כל השורות שנשלפו.
+    A recurring transaction added with a start date in the past (rent "from
+    July") immediately creates the copies for every past month, and all of them
+    were just created, so they all jumped to the top of the list and pushed out
+    what was really entered just now. What remains: every regular transaction,
+    and every transaction from a recurring series from the start of the current
+    month. In the query and not after it; otherwise a year-long series would
+    take up every fetched row.
 
-    ‎not.is.true‎ ולא ‎eq.false‎: העמודה מאפשרת ‎NULL‎, ושורה כזו היא עסקה רגילה."""
+    `not.is.true` and not `eq.false`: the column allows `NULL`, and such a row
+    is a regular transaction."""
     month_start = (today or clock.today()).replace(day=1).isoformat()
     return f"and(is_recurring.not.is.true,recurring_parent_id.is.null),date.gte.{month_start}"
 
 
 def get_month_transactions(family_id: str, year: int, month: int, settings: dict = None,
                            viewer_user_id: str = None) -> list:
-    """Returns all transactions for a given month (לא כולל עסקאות בפרויקט
-    אישי של בן משפחה אחר — פרטיות)."""
+    """Returns all transactions for a given month (excluding transactions in
+    another family member's personal project, for privacy)."""
     client = get_client()
     if not client:
         return []
@@ -1793,9 +1895,10 @@ def add_transaction(data: dict):
 
 
 def add_transactions(rows: list):
-    """הוספה של כמה עסקאות בבקשה אחת (ייבוא מהאשראי). הכול או כלום —
-    PostgREST מכניס מערך בטרנזקציה אחת, כך שייבוא שנכשל באמצע לא משאיר
-    חצי חודש במסד. מחזיר ‎(count, error)‎."""
+    """Inserts several transactions in one request (card import). All or
+    nothing: PostgREST inserts an array in one transaction, so an import that
+    fails halfway doesn't leave half a month in the database. Returns
+    `(count, error)`."""
     client = get_client()
     if not client:
         return 0, "Database not configured"
@@ -1810,9 +1913,10 @@ def add_transactions(rows: list):
 
 
 def import_existing_expenses(family_id: str, viewer_user_id: str, start: str, end: str) -> list:
-    """הוצאות המשפחה בטווח — מולן נבדקות כפילויות בייבוא מהאשראי. כולל
-    פרויקטים (קנייה בטיול יורדת מאותו כרטיס), בלי פרויקט אישי של בן משפחה
-    אחר: התיאור שלה מוצג ב"ייתכן שכבר הוזן", וזו דליפה."""
+    """The family's expenses in the range, against which card-import duplicates
+    are checked. Includes projects (a purchase on a trip is charged to the same
+    card), without another family member's personal project: its description
+    would be shown under "maybe already entered", and that is a leak."""
     client = get_client()
     if not client:
         raise DataUnavailable("import_existing_expenses: no client")
@@ -1827,9 +1931,10 @@ def import_existing_expenses(family_id: str, viewer_user_id: str, start: str, en
 
 
 def import_category_history(family_id: str, since: str, limit: int = 3000) -> list:
-    """הוצאות הבית האחרונות עם תיאור וקטגוריה, מהחדשה לישנה — ה"זיכרון"
-    של בית עסק → קטגוריה (‎card_import.learned_categories‎). ריק בכישלון:
-    בלי היסטוריה הייבוא עדיין עובד, רק מנחש פחות."""
+    """The latest household expenses with a description and category, newest
+    first: the "memory" of business → category
+    (`card_import.learned_categories`). Empty on failure: without history the
+    import still works, it just guesses less."""
     client = get_client()
     if not client:
         return []
@@ -1845,7 +1950,7 @@ def import_category_history(family_id: str, since: str, limit: int = 3000) -> li
         return []
 
 
-# ─── התראות לטלפון (מתן, 31.10) — ראו ‎backend/push.py‎ ─────────────────────
+# ─── Phone notifications (Matan, 31.10); see `backend/push.py` ──────────────
 
 def push_subscribe(endpoint: str, p256dh: str, auth: str) -> bool:
     client = get_client()
@@ -1861,7 +1966,8 @@ def push_subscribe(endpoint: str, p256dh: str, auth: str) -> bool:
 
 
 def push_unsubscribe(endpoint: str) -> None:
-    """רק המכשיר של המחובר (RLS) — כתובת של מישהו אחר פשוט לא נמצאת."""
+    """Only the signed-in user's device (RLS); someone else's endpoint simply
+    isn't found."""
     client = get_client()
     if not client or not endpoint:
         return
@@ -1872,8 +1978,9 @@ def push_unsubscribe(endpoint: str) -> None:
 
 
 def push_family_targets(kind: str = None, period: str = None) -> list:
-    """המכשירים של שאר בני המשפחה של המחובר. עם ‎kind/period‎ — רק בפעם
-    הראשונה לתקופה (המסד רושם). ריק בכל כישלון: התראה היא תוספת."""
+    """The devices of the signed-in user's other family members. With
+    `kind/period`: only the first time for the period (the database records
+    it). Empty on any failure: a notification is an extra."""
     client = get_client()
     if not client:
         return []
@@ -1906,12 +2013,13 @@ def push_forget(secret: str, endpoints: list) -> None:
 
 
 def get_recurring_transactions(family_id: str, viewer_user_id: str, settings: dict = None) -> list:
-    """כל התבניות הקבועות שהצופה רשאי לראות.
+    """All the recurring templates the viewer may see.
 
-    זה היה הקורא היחיד בלי ‎_filter_hidden_personal_projects‎: תשלום קבוע
-    בפרויקט אישי הופיע לכל המשפחה בהגדרות ובעמוד החודש — תיאור, סכום
-    ומזהה, ומהמזהה אפשר היה לערוך ולמחוק. ‎viewer_user_id‎ חובה בכוונה,
-    כי המסנן פתוח כשהוא חסר."""
+    This was the only caller without `_filter_hidden_personal_projects`: a
+    recurring payment in a personal project appeared to the whole family in
+    settings and on the month page (description, amount and id, and from the id
+    it could be edited and deleted). `viewer_user_id` is required on purpose,
+    because the filter is open when it is missing."""
     client = get_client()
     if not client:
         return []
@@ -1931,11 +2039,12 @@ def get_recurring_transactions(family_id: str, viewer_user_id: str, settings: di
 
 
 def is_active_template(row: dict, today=None) -> bool:
-    """תבנית שתאריך הסיום שלה עבר כבר לא קבועה.
+    """A template whose end date has passed is no longer recurring.
 
-    כלל אחד לשני המסכים שמציגים "עסקאות קבועות". עד היום רק עמוד החודש
-    סינן, וההגדרות הציגו גם סדרות שנגמרו — תחת הכותרת "N עסקאות חוזרות
-    פעילות". אחרי "עדכן להבא" זה היה מציג את שכר הדירה פעמיים."""
+    One rule for both screens that show "recurring transactions". Until now
+    only the month page filtered, and settings also showed series that had
+    ended, under the heading "N active recurring transactions". After "update
+    from now on" it showed the rent twice."""
     end = row.get("recurring_end_date")
     return not (end and str(end) < (today or clock.today()).isoformat())
 
@@ -1945,24 +2054,28 @@ _MAX_RECURRING_TEMPLATES = 200
 
 
 def materialize_recurring(family_id: str) -> int:
-    """משלים מופעים חסרים של עסקאות קבועות עד היום (כולל רטרואקטיבית).
+    """Fills in missing occurrences of recurring transactions up to today
+    (retroactively too).
 
-    כל עסקה שסומנה כקבועה משמשת "תבנית": המופע הראשון הוא העסקה עצמה,
-    ומכאן נוצרים מופעים רגילים (is_recurring=False) לפי התדירות, עד היום
-    או עד תאריך הסיום. הפונקציה אידמפוטנטית — מופע שכבר קיים לא ייווצר שוב.
-    מחזירה ‎(created, ok)‎. ‎ok=False‎ פירושו שהריצה נכשלה — וזה חשוב, כי
-    הקורא מסמן "סונכרן להיום" ולא ינסו שוב עד מחר. כשל שנראה כהצלחה
-    משאיר חודש בלי משכורת ובלי הוראות קבע עד למחרת."""
+    Every transaction marked recurring serves as a "template": the first
+    occurrence is the transaction itself, and from it regular occurrences
+    (is_recurring=False) are created by frequency, up to today or the end date.
+    The function is idempotent: an occurrence that already exists won't be
+    created again. Returns `(created, ok)`. `ok=False` means the run failed,
+    and that matters, because the caller marks "synced to today" and won't
+    retry until tomorrow. A failure that looks like success leaves a month
+    without salary or standing orders until the next day."""
     from datetime import date
 
     client = get_client()
     if not client or not family_id:
         return 0, False
     try:
-        # ‎limit‎ על התבניות. התקרה של 500 מופעים היא **לכל תבנית**, ואף
-        # אחד לא הגביל כמה תבניות יש: 1,000 תבניות × 500 מופעים הוא
-        # ‎insert‎ אחד של חצי מיליון שורות בתוך worker אחד, ואז OOM או
-        # worker תקוע מתוך ארבעה. משפחה אמיתית מחזיקה עשרות.
+        # `limit` on the templates. The cap of 500 occurrences is **per
+        # template**, and nobody limited how many templates there are: 1,000
+        # templates × 500 occurrences is a single `insert` of half a million rows
+        # inside one worker, then OOM or one of four workers stuck. A real family
+        # has tens.
         templates = client.table("transactions").select("*") \
             .eq("family_id", family_id).eq("is_recurring", True) \
             .limit(_MAX_RECURRING_TEMPLATES).execute().data
@@ -1970,24 +2083,25 @@ def materialize_recurring(family_id: str) -> int:
             _remember_next_due(family_id, [], clock.today())
             return 0, True
 
-        # בעמודים: הרשימה היא של כל המשפחה. מעבר לאלף המנוע הפסיק לראות
-        # חלק מהמופעים ויצר אותם שוב.
+        # In pages: the list covers the whole family. Past a thousand the
+        # engine stopped seeing some of the occurrences and created them again.
         existing = _fetch_all(lambda: client.table("transactions")
                               .select("recurring_parent_id, date")
                               .eq("family_id", family_id)
                               .not_.is_("recurring_parent_id", "null")
                               .order("id"))
-        # תאריכי המופעים הקיימים לכל תבנית. לא סט של צמדי (תבנית, תאריך):
-        # ההשוואה היא לפי תקופה ולא לפי תאריך מדויק, אחרת שינוי תאריך
-        # בתבנית מייצר סדרה חדשה שכולה "חסרה" ומכפיל חודשים אחורה.
+        # The dates of the existing occurrences per template. Not a set of
+        # (template, date) pairs: the comparison is by period and not by exact
+        # date, otherwise changing a template's date produces a new series that
+        # is entirely "missing" and duplicates months back.
         have: dict = {}
         for r in existing:
             have.setdefault(r["recurring_parent_id"], set()).add(
                 date.fromisoformat(str(r["date"])))
 
-        # מטמון קטגוריות-משכורת ומקום-עבודה נוכחי לכל בעלים — נמנע שליפה
-        # חוזרת לכל מופע, ומאפשר להקפיא workplace על מופעי משכורת קבועה
-        # בדיוק כמו בהוספה ידנית (add_transaction)
+        # A cache of salary categories and current workplace per owner: avoids
+        # refetching for every occurrence, and lets the workplace be frozen on
+        # recurring-salary occurrences exactly as on manual entry (add_transaction)
         salary_cat_ids = {
             c["id"] for c in get_categories(family_id)
             if c.get("type") == "income" and "משכורת" in c.get("name", "")
@@ -2006,24 +2120,28 @@ def materialize_recurring(family_id: str) -> int:
             is_salary = t.get("type") == "income" and t.get("category_id") in salary_cat_ids
             freq = t.get("recurring_frequency") or "monthly_1"
             seen = have.setdefault(t["id"], set())
-            # שורת התבנית עצמה היא המופע הראשון (ראו התיעוד למעלה), אבל
-            # אין לה recurring_parent_id ולכן היא לא נשלפה עם המופעים.
-            # בלי זה תבנית שנפתחה ב-5 בינואר ועברה ל"ה-15 לחודש" מקבלת
-            # מופע שני בינואר, לצד השורה המקורית.
+            # The template row itself is the first occurrence (see the docs
+            # above), but it has no recurring_parent_id so it wasn't fetched with
+            # the occurrences. Without this a template opened on January 5th and
+            # moved to "the 15th of the month" gets a second January occurrence
+            # next to the original row.
             seen.add(date.fromisoformat(str(t["date"])))
-            # מופעים שהמשתמש מחק במכוון. בלעדיהם המנוע רואה חור ומשלים
-            # אותו — כלומר מחיקה של מופע בודד מתבטלת מעצמה למחרת, ומי
-            # שביטל מנוי לחודש אחד רואה אותו חוזר בלי הסבר.
+            # Occurrences the user deleted on purpose. Without them the engine
+            # sees a gap and fills it, so deleting a single occurrence undoes
+            # itself the next day, and whoever cancelled a subscription for one
+            # month sees it come back with no explanation.
             for skipped in (t.get("recurring_skips") or []):
                 seen.add(date.fromisoformat(str(skipped)))
             for d in _recurring_occurrences(t, today):
                 if _already_materialized(freq, d, seen):
                     continue
-                # המופע שנוצר עכשיו תופס את התקופה שלו, כדי ששני מופעים
-                # מאותה תבנית באותה תקופה לא ייווצרו באותה ריצה
+                # The occurrence just created takes its period, so two occurrences
+                # of the same template in the same period aren't created in the
+                # same run
                 seen.add(d)
-                # תשלומים: התבנית היא הראשון (עם העיגול); כל השאר — התשלום
-                # הרגיל, ומספר התשלום לפי מרחק החודשים מהראשון
+                # Installments: the template is the first one (with the rounding);
+                # all the rest are the regular installment, numbered by the months
+                # since the first
                 inst = {}
                 if t.get("installments") and t.get("installment_total"):
                     plan = installment_plan(t["installment_total"], int(t["installments"]), str(t["date"]))
@@ -2038,19 +2156,22 @@ def materialize_recurring(family_id: str) -> int:
                     "date":                d.isoformat(),
                     "description":         t.get("description") or "",
                     "category_id":         t.get("category_id"),
-                    # בלי אלה, מהחודש השני כל תשלום בתוך פרויקט נחת בהוצאות
-                    # הבית כ"ללא קטגוריה" — לעסקת פרויקט אין קטגוריה משפחתית
+                    # Without these, from the second month every installment
+                    # inside a project landed in household expenses as
+                    # "uncategorised" (a project transaction has no family category)
                     "project_id":          t.get("project_id"),
                     "project_category_id": t.get("project_category_id"),
-                    # מי שרשם את הסדרה — לא מי שבמקרה פתח את האפליקציה היום
-                    # (בלי השדה, ברירת המחדל במסד היא ‎auth.uid()‎ של הריצה)
+                    # Whoever recorded the series, not whoever happened to open
+                    # the app today (without the field, the database default is
+                    # the run's `auth.uid()`)
                     "created_by":          t.get("created_by"),
                     "user_id":             t.get("user_id"),
                     "family_id":           family_id,
                     "is_recurring":        False,
                     "recurring_parent_id": t["id"],
-                    # נשמר גם על המופע (לא רק על התבנית) כדי שהתצוגה תוכל
-                    # לציין "עסקה קבועה — כל X" בלי לשלוף את התבנית בנפרד
+                    # Stored on the occurrence too (not just the template) so the
+                    # view can say "recurring, every X" without fetching the
+                    # template separately
                     "recurring_frequency": t.get("recurring_frequency"),
                     "workplace":           _owner_workplace(t.get("user_id")) if is_salary else None,
                     **inst,
@@ -2062,16 +2183,18 @@ def materialize_recurring(family_id: str) -> int:
                 client.table("transactions").insert(new_rows, returning="minimal").execute()
                 created = len(new_rows)
             except Exception as e:
-                # כשל ייחודיות פירושו שבקשה מקבילה כבר יצרה **חלק** מהמופעים.
+                # A uniqueness failure means a parallel request already created
+                # **some** of the occurrences.
                 #
-                # ‎insert‎ בודד הוא משפט אחד, אז שורה אחת מתנגשת מגלגלת אחורה
-                # את כולן. ההנחה שהסיבה היחידה היא אצווה זהה לגמרי נכונה רק
-                # בחפיפה מלאה: אם בקשה אחרת הספיקה ליצור את המשכורת ולא את
-                # שכר הדירה, שתיהן נזרקות — ו-‎_sync_recurring‎ מסמן "סונכרן
-                # להיום", כך שאף אחד לא ינסו שוב עד מחר. חודש שלם בלי שכר
-                # דירה, בלי שום סימן.
+                # A single `insert` is one statement, so one conflicting row rolls
+                # back all of them. Assuming the only cause is an identical batch
+                # is right only on full overlap: if another request managed to
+                # create the salary but not the rent, both are dropped, and
+                # `_sync_recurring` marks "synced to today", so nobody retries
+                # until tomorrow. A whole month without rent, with no sign at all.
                 #
-                # אז חוזרים שורה-שורה: מה שכבר קיים מדולג, והשאר נכנס.
+                # So fall back row by row: whatever exists is skipped, the rest
+                # goes in.
                 if "uq_tx_recurring_occurrence" not in str(e) and "23505" not in str(e):
                     raise
                 for row in new_rows:
@@ -2080,26 +2203,29 @@ def materialize_recurring(family_id: str) -> int:
                         created += 1
                     except Exception as one:
                         if "uq_tx_recurring_occurrence" in str(one) or "23505" in str(one):
-                            continue    # מישהו אחר כבר יצר בדיוק את זה
+                            continue    # Someone else already created exactly this
                         raise
         _remember_next_due(family_id, templates, today)
-        # ‎created‎ ולא ‎len(new_rows)‎: אחרי נפילה חלקית המספרים שונים,
-        # והקורא משתמש בזה כדי להחליט אם משהו באמת נוצר.
+        # `created` and not `len(new_rows)`: after a partial failure the numbers
+        # differ, and the caller uses this to decide whether anything was
+        # really created.
         return created, True
     except Exception:
         logger.exception("materialize_recurring")
         return 0, False
 
 
-# מהירות (מתן, 1.11 — רעיון 5): בדיקת הקבועות בטעינה הראשונה של היום לקחה
-# ‎0.25-0.9‎ שניות בדף הבית, ורוב הימים אין בה כלום — שכר דירה ומשכורת
-# הם פעם בחודש. אחרי כל ריצה נשמר מתי החיוב הקבוע הבא, ועד אז מדלגים.
-# כל שינוי בתבנית (הוספה, עריכה, פיצול, ייבוא) מריץ את המנוע ומחשב מחדש.
+# Speed (Matan, 1.11, idea 5): the recurring check on the day's first load took
+# `0.25-0.9` seconds on the home page, and most days there is nothing to do;
+# rent and salary are once a month. After every run the date of the next
+# recurring charge is stored, and until then the check is skipped. Every
+# template change (add, edit, split, import) runs the engine and recomputes.
 RECURRING_RECHECK_DAYS = 7
 
 
 def next_due_date(templates: list, today):
-    """החיוב הקבוע הבא אחרי היום, בכל התבניות. ‎None‎ — אין אף אחד צפוי."""
+    """The next recurring charge after today, across all templates. `None`: nothing
+    is expected."""
     from datetime import timedelta
     tomorrow = today + timedelta(days=1)
     dates = [d for d in (next_recurring_date(t, tomorrow) for t in templates) if d]
@@ -2119,13 +2245,14 @@ def _iso_date(value):
     try:
         return date.fromisoformat(str(value)[:10])
     except ValueError:
-        logger.warning("recurring_next: תאריך לא תקין %r — בודקים כרגיל", value)
+        logger.warning("recurring_next: invalid date %r; checking as usual", value)
         return None
 
 
 def recurring_can_wait(nxt: dict, today) -> bool:
-    """האם אפשר לדלג על בדיקת הקבועות היום. ‎nxt‎ — ‎settings.recurring_next‎:
-    נבדק לפני פחות משבוע, ושום חיוב קבוע לא צפוי עד היום (כולל)."""
+    """Whether today's recurring check can be skipped. `nxt` is
+    `settings.recurring_next`: checked less than a week ago, and no recurring
+    charge is expected up to and including today."""
     nxt = nxt if isinstance(nxt, dict) else {}
     checked = _iso_date(nxt.get("checked"))
     if checked is None or not 0 <= (today - checked).days < RECURRING_RECHECK_DAYS:
@@ -2137,13 +2264,15 @@ def recurring_can_wait(nxt: dict, today) -> bool:
 
 
 def projected_recurring_rows(family_id: str, viewer_user_id: str, year: int, month: int) -> list:
-    """חודש עתידי (מתן, 1.11): המופעים שהעסקאות הקבועות ייצרו בו — אותם
-    תאריכים ואותם סכומים שהמנוע ייצור ביום עצמו (‎_recurring_occurrences‎,
-    תשלומים, מופעים שבוטלו), עד שהסדרה נגמרת. נספרים בסיכומי החודש, ומסומנים
-    ‎projected‎ — הם עוד לא עסקה, אז אין מה לערוך.
+    """A future month (Matan, 1.11): the occurrences recurring transactions will
+    create in it, with the same dates and amounts the engine will create on the
+    day itself (`_recurring_occurrences`, installments, cancelled occurrences),
+    until the series ends. Counted in the month's totals and marked
+    `projected`: they aren't a transaction yet, so there is nothing to edit.
 
-    (4.10–1.11 חודש עתידי לא הציג אותם בכלל; מתן החליט להחזיר, וכחלק מהסכום.)
-    ריק בכישלון — חודש עתידי בלי תחזית עדיף על עמוד שלא נטען."""
+    (From 4.10 to 1.11 a future month didn't show them at all; Matan decided to
+    bring them back, and as part of the total.) Empty on failure: a future
+    month without a forecast beats a page that doesn't load."""
     import calendar
     from datetime import date
 
@@ -2182,29 +2311,33 @@ def projected_recurring_rows(family_id: str, viewer_user_id: str, year: int, mon
 
 
 def _occurrence_period(freq: str, d):
-    """מפתח התקופה של מופע. שני מופעים של אותה תבנית באותה תקופה הם אותה
-    עסקה — גם אם התאריך שלהם שונה.
+    """An occurrence's period key. Two occurrences of the same template in the
+    same period are the same transaction, even if their dates differ.
 
-    בלי ההבחנה הזאת הדדופ השווה תאריכים מדויקים, ולכן שינוי תאריך בתבנית
-    (למשל משכורת שעוברת מה-5 ל-10 לחודש) ייצר סדרת תאריכים חדשה שאף אחד
-    ממנה לא היה מוכר — וכל החודשים אחורה נוצרו מחדש. משכורת של ₪14,000
-    הוכפלה על שמונה חודשים בבת אחת, בכל מסך באפליקציה.
+    Without this distinction the dedup compared exact dates, so changing a
+    template's date (e.g. a salary moving from the 5th to the 10th of the
+    month) produced a new series of dates none of which was recognised, and
+    every month back was created again. A ₪14,000 salary was doubled across
+    eight months at once, on every screen in the app.
 
-    לתדירות חודשית התקופה היא החודש הקלנדרי. לשבועית ודו-שבועית אין
-    "תקופה" טבעית, אז נחשב מרחק של עד חצי צעד כאותו מופע שרק זז."""
+    For a monthly frequency the period is the calendar month. Weekly and
+    biweekly have no natural "period", so a distance of up to half a step
+    counts as the same occurrence, just moved."""
     if freq in ("weekly", "biweekly"):
-        return None                      # מטופל במרחק, ראו _already_materialized
+        return None                      # handled by distance, see _already_materialized
     return (d.year, d.month)
 
 
 def existing_occurrence_dates(tx_id: str, family_id: str):
-    """התאריכים שהסדרה כבר "תפסה": המופעים שנוצרו והדילוגים. ‎None‎ אם
-    העסקה עוד אינה תבנית קבועה — אז שום מופע שלה לא קיים.
+    """The dates the series has already "taken": the occurrences created and the
+    skips. `None` if the transaction isn't a recurring template yet, in which
+    case none of its occurrences exist.
 
-    בשביל אזהרת המילוי-אחורה בעריכה: היא ספרה את כל המופעים מאז תחילת
-    הסדרה, כולל אלה שכבר קיימים, ותיקון תיאור של משכורת ממרץ קיבל
-    "הסדרה תיצור 6 עסקאות אחורה". המנוע מדלג על תקופה שכבר תפוסה
-    (‎_already_materialized‎), אז גם הספירה חייבת."""
+    For the backfill warning when editing: it counted every occurrence since
+    the start of the series, including those that already exist, so fixing the
+    description of a salary from March got "the series will create 6
+    transactions back". The engine skips a period that is already taken
+    (`_already_materialized`), so the count must too."""
     from datetime import date
     client = get_client()
     if not client:
@@ -2224,7 +2357,7 @@ def existing_occurrence_dates(tx_id: str, family_id: str):
 
 
 def _already_materialized(freq: str, d, existing_dates) -> bool:
-    """האם המופע הזה כבר קיים — לא לפי תאריך מדויק אלא לפי תקופה."""
+    """Whether this occurrence already exists, not by exact date but by period."""
     if freq in ("weekly", "biweekly"):
         tolerance = 3 if freq == "weekly" else 7
         return any(abs((d - e).days) <= tolerance for e in existing_dates)
@@ -2233,7 +2366,8 @@ def _already_materialized(freq: str, d, existing_dates) -> bool:
 
 
 def _recurring_occurrences(template: dict, until) -> list:
-    """תאריכי המופעים של תבנית קבועה — אחרי תאריך המקור, עד 'until' (כולל)."""
+    """The occurrence dates of a recurring template: after the source date, up to
+    and including 'until'."""
     import calendar
     from datetime import date, timedelta
 
@@ -2244,13 +2378,14 @@ def _recurring_occurrences(template: dict, until) -> list:
 
     out = []
     if freq in ("monthly_1", "monthly_15", "monthly_same"):
-        # monthly_same חוזר כל חודש ביום־בחודש של תאריך המקור (למשל ה-23);
-        # monthly_1/15 קבועים ל-1 או ל-15
+        # monthly_same repeats every month on the day-of-month of the source
+        # date (e.g. the 23rd); monthly_1/15 are fixed to the 1st or the 15th
         target_day = {"monthly_1": 1, "monthly_15": 15}.get(freq, start.day)
-        # מתחילים מחודש ההתחלה עצמו — מופע באותו חודש אחרי תאריך ההתחלה נחשב
+        # Start from the start month itself: an occurrence in the same month
+        # after the start date counts
         y, m = start.year, start.month
         while len(out) < 500:
-            # קיצוץ ליום האחרון של החודש (למשל יום 31 בפברואר → 28/29)
+            # Clamp to the last day of the month (e.g. February 31st → 28/29)
             day = min(target_day, calendar.monthrange(y, m)[1])
             d = date(y, m, day)
             if d > until or (end and d > end):
@@ -2270,7 +2405,8 @@ def _recurring_occurrences(template: dict, until) -> list:
 
 
 def _add_months(d, n: int):
-    """אותו יום בחודש, ‎n‎ חודשים קדימה — מקוצץ לסוף חודש קצר (31 → 28/30)."""
+    """The same day of the month, `n` months ahead, clamped to the end of a short
+    month (31 → 28/30)."""
     import calendar
     from datetime import date
     y, m = divmod(d.month - 1 + n, 12)
@@ -2279,9 +2415,11 @@ def _add_months(d, n: int):
 
 
 def installment_plan(total: float, count: int, start):
-    """חלוקה לתשלומים (מתן, 12.10): תשלום רגיל באגורות שלמות, והשארית בתשלום
-    הראשון — כמו בחברות האשראי. ₪1,000 / 3 → 333.34, 333.33, 333.33.
-    ‎start‎ — תאריך התשלום הראשון (‎date‎ או מחרוזת). ‎None‎ — סכום קטן מדי."""
+    """Splitting into installments (Matan, 12.10): a regular installment in whole
+    agorot, and the remainder in the first one, as card companies do.
+    ₪1,000 / 3 → 333.34, 333.33, 333.33.
+    `start` is the first installment's date (`date` or string). `None`: the
+    amount is too small."""
     from datetime import date
     if isinstance(start, str):
         start = date.fromisoformat(start[:10])
@@ -2296,15 +2434,16 @@ def installment_plan(total: float, count: int, start):
 
 
 def installment_label(row: dict) -> str:
-    """"תשלום 3 מתוך 12" — לשורה בסדרת תשלומים, אחרת ריק."""
+    """"תשלום 3 מתוך 12" for a row in an installment series, otherwise empty."""
     n, k = row.get("installments"), row.get("installment_no")
     return f"תשלום {k} מתוך {n}" if n and k else ""
 
 
 def next_recurring_date(template: dict, today=None):
-    """החיוב הבא של עסקה קבועה — היום או אחריו (מתן, 12.10: "הבא: 1.11" ברשימת
-    הקבועות בהגדרות). התבנית עצמה היא המופע הראשון, אז תבנית שתאריכה עוד לא
-    הגיע — היא הבאה. הסתיימה (‎recurring_end_date‎ עבר) — ‎None‎."""
+    """The next charge of a recurring transaction, today or later (Matan, 12.10:
+    "הבא: 1.11" in the recurring list in settings). The template itself is the
+    first occurrence, so a template whose date hasn't come yet is the next
+    one. Ended (`recurring_end_date` passed): `None`."""
     from datetime import date, timedelta
     today = today or clock.today()
     try:
@@ -2337,14 +2476,17 @@ def update_transaction(transaction_id: str, family_id: str, data: dict):
 
 
 def split_recurring_series(template_id: str, instance_id: str, family_id: str):
-    """"עדכן להבא": מפצלת את הסדרה במופע שנערך. מחזירה (new_template_id, error).
+    """"Update from now on": splits the series at the edited occurrence.
+    Returns (new_template_id, error).
 
-    עד היום זה עדכן את שורת התבנית — אבל התבנית היא גם העסקה של החודש
-    הראשון, אז "מהחודש הבא 5,500" הפך גם את ינואר ל-5,500. הפיצול עצמו,
-    ולמה הוא נראה כך, מתועד במיגרציה ‎20260927120000_split_recurring_series‎.
+    Until now this updated the template row, but the template is also the
+    first month's transaction, so "5,500 from next month" turned January into
+    5,500 too. The split itself, and why it looks this way, is documented in
+    migration `20260927120000_split_recurring_series`.
 
-    ‎(None, None)‎ = אין מה לפצל (המופע לא נמצא, לא של התבנית הזאת או של
-    משפחה אחרת, או שהסדרה כבר נגמרה לפניו). המסלול מחזיר על זה 404."""
+    `(None, None)` = nothing to split (the occurrence wasn't found, isn't of
+    this template or is another family's, or the series already ended before
+    it). The route returns 404 for that."""
     client = get_client()
     if not client:
         return None, "Database not configured"
@@ -2361,16 +2503,19 @@ def split_recurring_series(template_id: str, instance_id: str, family_id: str):
 
 
 def recurring_price_changes(family_id: str, templates: list) -> dict:
-    """"₪5,000 ← ₪5,500 מאוקטובר" ליד עסקה קבועה בהגדרות (מתן, 3.10 — רעיון 40).
+    """"₪5,000 ← ₪5,500 מאוקטובר" next to a recurring transaction in settings
+    (Matan, 3.10, idea 40).
 
-    שינוי סכום "מהחודש הנוכחי" מפצל את הסדרה (‎split_recurring_series‎): הישנה
-    נגמרת יום לפני שהחדשה מתחילה. אין ביניהן קישור במסד, אז מזהים אותה לפי
-    זה: אותה מחלקה, נגמרה בדיוק יום לפני תחילת החדשה, ואותה קטגוריה או אותו
-    תיאור (בעריכה אפשר לשנות אחד מהם). הסכום הישן — של המופע האחרון שלה,
-    כי חודש בודד יכול היה להיערך. רק כשהסכום באמת שונה.
+    Changing an amount "from the current month" splits the series
+    (`split_recurring_series`): the old one ends a day before the new one
+    starts. There is no link between them in the database, so it is
+    identified like this: same department, ended exactly a day before the new
+    one starts, and the same category or the same description (editing can
+    change one of them). The old amount is that of its last occurrence, since
+    a single month could have been edited. Only when the amount really differs.
 
-    מחזירה ‎{template_id: {"old": סכום, "since": "YYYY-MM-DD"}}‎. קישוט: תקלה
-    מחזירה מילון ריק."""
+    Returns `{template_id: {"old": amount, "since": "YYYY-MM-DD"}}`.
+    Decoration: a failure returns an empty dict."""
     client = get_client()
     if not client or not templates:
         return {}
@@ -2388,14 +2533,15 @@ def recurring_price_changes(family_id: str, templates: list) -> dict:
         logger.exception("recurring_price_changes")
         return {}
     last_amount = {}
-    for r in last:                                   # מהחדש לישן — הראשון לכל תבנית הוא המופע האחרון שלה
+    for r in last:                                   # newest first: the first per template is its last occurrence
         last_amount.setdefault(r["recurring_parent_id"], float(r["amount"]))
     return price_changes_from(templates, ended, last_amount)
 
 
 def price_changes_from(templates: list, ended: list, last_amount: dict) -> dict:
-    """החלק של ‎recurring_price_changes‎ שאחרי השליפה — גם עבור ‎get_settings_page‎.
-    ‎last_amount‎: ‎{מזהה תבנית שהסתיימה: סכום המופע האחרון שלה}‎."""
+    """The part of `recurring_price_changes` after the query, also used by
+    `get_settings_page`. `last_amount`: `{ended template id: amount of its last
+    occurrence}`."""
     from datetime import date, timedelta
     last_amount = {str(k): float(v) for k, v in (last_amount or {}).items()}
     out = {}
@@ -2416,19 +2562,23 @@ def price_changes_from(templates: list, ended: list, last_amount: dict) -> dict:
 
 
 def series_pivot(template_id: str, family_id: str, today=None):
-    """עריכת עסקה קבועה מ"עסקאות קבועות" בהגדרות חלה מהחודש הנוכחי (מתן, 2.10).
-    מחזירה מאיפה השינוי מתחיל:
+    """Editing a recurring transaction from "recurring transactions" in settings
+    applies from the current month (Matan, 2.10). Returns where the change
+    starts:
 
-    ‎("template", None)‎ — הסדרה התחילה בחודש הנוכחי או אחריו: אין עבר
-        להגן עליו, עורכים את התבנית כרגיל.
-    ‎("instance", (id, date))‎ — המופע האחרון שכבר נוצר בחודש הנוכחי.
-    ‎("future", date)‎ — המופע של החודש עוד לא נוצר (משכורת ב-10, היום ה-2):
-        התאריך הבא שלו.
-    ‎("none", None)‎ — אין יותר מופעים (הסדרה נגמרה, או שהתבנית לא נמצאה).
+    `("template", None)`: the series started in the current month or later:
+        no past to protect, edit the template as usual.
+    `("instance", (id, date))`: the last occurrence already created in the
+        current month.
+    `("future", date)`: this month's occurrence hasn't been created yet
+        (salary on the 10th, today is the 2nd): its next date.
+    `("none", None)`: no more occurrences (the series ended, or the template
+        wasn't found).
 
-    התבנית היא גם העסקה של החודש הראשון, ולכן עריכה שלה כתבה מחדש את
-    ינואר. זה אותו באג ש"עדכון להבא" תיקן (‎split_recurring_series‎), רק
-    מהדלת השנייה. זורקת DataUnavailable."""
+    The template is also the first month's transaction, so editing it
+    rewrote January. It is the same bug "update from now on" fixed
+    (`split_recurring_series`), just through the other door. Raises
+    DataUnavailable."""
     from datetime import date, timedelta
     client = get_client()
     if not client:
@@ -2457,10 +2607,11 @@ def series_pivot(template_id: str, family_id: str, today=None):
 
 
 def create_occurrence(template_id: str, family_id: str, on_date: str):
-    """יוצרת מופע של תבנית בתאריך נתון — כמו שהמנוע היה יוצר אותו (אותם
-    שדות כמו ב-‎materialize_recurring‎). בשביל עריכה "מעכשיו" כשהמופע של
-    החודש עוד לא נוצר: הוא נוצר עכשיו, ואז הסדרה מתפצלת בו. כשיגיע התאריך
-    המנוע יראה שהתקופה תפוסה ולא יכפיל. מחזירה (id, error)."""
+    """Creates an occurrence of a template on a given date, as the engine would
+    (the same fields as in `materialize_recurring`). For a "from now on" edit
+    when this month's occurrence hasn't been created yet: it is created now,
+    and the series splits at it. When the date arrives the engine sees the
+    period is taken and doesn't duplicate. Returns (id, error)."""
     client = get_client()
     if not client:
         return None, "Database not configured"
@@ -2492,19 +2643,21 @@ def create_occurrence(template_id: str, family_id: str, on_date: str):
 
 
 def project_choice_needed(err) -> int:
-    """כמה פרויקטים אישיים מחכים להחלטה, לפי השגיאה של הסרה/עזיבה; 0 אם
-    זו שגיאה אחרת. המסד הוא היחיד שיכול לספור אותם — הם אישיים, ולכן
-    מוסתרים מהמנהל שמסיר (מיגרציה ‎20260928120000‎)."""
+    """How many personal projects await a decision, from the removal/leave error;
+    0 for any other error. Only the database can count them: they are
+    personal, and so hidden from the manager doing the removal (migration
+    `20260928120000`)."""
     m = re.search(r"needs_project_choice:(\d+)", err or "")
     return int(m.group(1)) if m else 0
 
 
 def remove_family_member(user_id: str, keep_transactions: bool = True, projects: str = "ask"):
-    """מסירה בן משפחה. מנהל המשפחה בלבד. מחזירה (ok, error).
+    """Removes a family member. Family manager only. Returns (ok, error).
 
-    הכללים נאכפים ב-DB ולא כאן: הפונקציה נגזרת מ-auth.uid(), בודקת שהקורא
-    הוא המנהל ושהיעד אכן במשפחה שלו, ומסרבת להסיר את המנהל עצמו — אחרת שני
-    חברים היו יכולים להסיר זה את זה עד שלא נשאר אף אחד."""
+    The rules are enforced in the DB, not here: the function derives from
+    auth.uid(), checks that the caller is the manager and that the target is
+    really in their family, and refuses to remove the manager themselves;
+    otherwise two members could remove each other until nobody was left."""
     client = get_client()
     if not client:
         return False, "Database not configured"
@@ -2519,12 +2672,13 @@ def remove_family_member(user_id: str, keep_transactions: bool = True, projects:
 
 
 def leave_family(keep_transactions: bool = True, projects: str = "ask"):
-    """עוזבת את המשפחה הנוכחית ופותחת משפחה חדשה וריקה.
-    מחזירה (new_family_id, error).
+    """Leaves the current family and opens a new, empty one.
+    Returns (new_family_id, error).
 
-    ‎projects‎ (גם ב-‎remove_family_member‎): מה עושים עם הפרויקטים האישיים
-    של מי שיוצא — ‎share‎ / ‎delete‎ / ‎ask‎. ב-‎ask‎, כשיש כאלה, השגיאה היא
-    ‎needs_project_choice:N‎ (ראו ‎project_choice_needed‎) והמסך שואל."""
+    `projects` (also in `remove_family_member`): what to do with the leaving
+    member's personal projects: `share` / `delete` / `ask`. With `ask`, when
+    there are any, the error is `needs_project_choice:N` (see
+    `project_choice_needed`) and the screen asks."""
     client = get_client()
     if not client:
         return None, "Database not configured"
@@ -2539,14 +2693,16 @@ def leave_family(keep_transactions: bool = True, projects: str = "ask"):
 
 
 def is_family_manager() -> bool:
-    """האם המשתמש המחובר הוא מנהל המשפחה שלו.
+    """Whether the signed-in user is their family's manager.
 
-    דרך RPC ולא דרך קריאה ל-families: הפונקציה נגזרת מ-‎auth.uid()‎ ולא
-    מפרמטר, כך שאי אפשר לשאול אותה על מישהו אחר. היא מחזירה בוליאני
-    בלבד — מזהה המנהל לא נחשף למי שלא אמור לראותו.
+    Through an RPC and not a read of families: the function derives from
+    `auth.uid()` rather than a parameter, so it can't be asked about someone
+    else. It returns a boolean only: the manager's id isn't exposed to anyone
+    who shouldn't see it.
 
-    זורקת ‎DataUnavailable‎ בכישלון: "לא ידוע" חייב להיקרא כ"לא מנהל"
-    אצל הקורא, והכיוון הזה חייב להיות מפורש ולא תוצאה של ‎False‎ שקט."""
+    Raises `DataUnavailable` on failure: "unknown" must be read as "not a
+    manager" by the caller, and that direction must be explicit rather than
+    the result of a silent `False`."""
     client = get_client()
     if not client:
         raise DataUnavailable("is_family_manager: no client")
@@ -2557,9 +2713,9 @@ def is_family_manager() -> bool:
 
 
 def renew_expired_invite_code():
-    """מחדשת את קוד ההזמנה **רק אם הוא חסר או פג**, ומחזירה את הקוד שבתוקף.
-    כל בן משפחה רשאי — היא לא יכולה לבטל קוד תקף (מיגרציה 20260929120000).
-    מחזירה (code, error)."""
+    """Renews the invite code **only if it is missing or expired**, and returns the
+    valid code. Any family member may; it can't cancel a valid code (migration
+    20260929120000). Returns (code, error)."""
     client = get_client()
     if not client:
         return None, "Database not configured"
@@ -2573,8 +2729,9 @@ def renew_expired_invite_code():
 
 
 def rotate_invite_code():
-    """מחליפה את קוד ההזמנה גם כשהוא בתוקף — כלומר מבטלת הזמנות שנשלחו.
-    מנהל המשפחה בלבד (נאכף במסד). מחזירה (new_code, error)."""
+    """Replaces the invite code even when it is valid, i.e. cancels invitations
+    already sent. Family manager only (enforced in the database). Returns
+    (new_code, error)."""
     client = get_client()
     if not client:
         return None, "Database not configured"
@@ -2588,7 +2745,7 @@ def rotate_invite_code():
 
 
 def get_my_family_id():
-    """מזהה המשפחה של המשתמש המחובר, לפי ה-DB ולא לפי ה-session."""
+    """The signed-in user's family id, per the DB and not the session."""
     client = get_client()
     if not client:
         return None
@@ -2600,20 +2757,21 @@ def get_my_family_id():
 
 
 def stop_recurring(transaction_id: str, family_id: str):
-    """עוצרת סדרה קבועה בלי למחוק כסף. מחזירה (ok, error).
+    """Stops a recurring series without deleting money. Returns (ok, error).
 
-    "הסר את העסקה הקבועה" בהגדרות מבטיח למשתמש: "מופעים חדשים יפסיקו
-    להיווצר. מופעים שכבר נוצרו יישארו." בפועל זה הריץ מחיקה מלאה של
-    שורת התבנית — ושורת התבנית היא עסקה אמיתית לכל דבר, המופע הראשון
-    בסדרה, שנספרת בסיכום החודשי. כלומר שכר הדירה של החודש הראשון נעלם
-    מההיסטוריה בשקט, בניגוד גמור למה שנכתב בדיאלוג.
+    "Remove the recurring transaction" in settings promises the user: "new
+    occurrences will stop being created. Occurrences already created will
+    stay." In practice it ran a full delete of the template row, and the
+    template row is a real transaction in every respect, the first occurrence
+    of the series, counted in the monthly summary. So the first month's rent
+    silently vanished from history, the exact opposite of what the dialog said.
 
-    ובנוסף, המחיקה ניתקה את כל המופעים מהתבנית (‎on delete set null‎),
-    כך שמנגנון הדדופ הפסיק לראות אותם — ומי שיצר את אותה עסקה קבועה
-    מחדש קיבל את כל החודשים בשנית.
+    On top of that, the delete detached every occurrence from the template
+    (`on delete set null`), so the dedup stopped seeing them, and whoever
+    created the same recurring transaction again got every month a second time.
 
-    כיבוי הדגל פותר את שניהם: השורה נשארת כעסקה רגילה, הקישור שורד,
-    ולא נוצרים מופעים חדשים."""
+    Turning the flag off solves both: the row stays as a regular transaction,
+    the link survives, and no new occurrences are created."""
     client = get_client()
     if not client:
         return False, "Database not configured"
@@ -2632,27 +2790,31 @@ def stop_recurring(transaction_id: str, family_id: str):
 
 
 def _maybe_one(query):
-    """שורה אחת או ‎None‎.
+    """One row or `None`.
 
-    ב-postgrest-py שלנו (0.16) ‎.maybe_single().execute()‎ מחזיר ‎None‎ —
-    לא תשובה עם ‎.data = None‎ — כשאין שורה. ‎.execute().data‎ זרק אז
-    ‎AttributeError‎, והוא הפך ל-‎DataUnavailable‎: מחיקה של עסקה שבן משפחה
-    אחר מחק רגע קודם ענתה "לא הצלחנו לבדוק אם זו עסקה קבועה — נסו שוב",
-    ושום ניסיון נוסף לא עזר."""
+    In our postgrest-py (0.16), `.maybe_single().execute()` returns `None` (not
+    a response with `.data = None`) when there is no row. `.execute().data`
+    then raised `AttributeError`, which became `DataUnavailable`: deleting a
+    transaction another family member had just deleted answered "couldn't
+    check whether this is a recurring transaction, try again", and no retry
+    helped."""
     result = query.maybe_single().execute()
     return result.data if result is not None else None
 
 
 def recurring_occurrence(transaction_id: str, family_id: str):
-    """מה העסקה הזאת בתוך סדרה קבועה. מחזירה ‎(info, ok)‎ או זורקת.
+    """What this transaction is within a recurring series. Returns `(info, ok)`
+    or raises.
 
-    ‎info‎ הוא ‎None‎ לעסקה רגילה, או ‎{"template_id", "date", "later"}‎ —
-    מזהה התבנית, תאריך המופע הזה, וכמה מופעים יש ממנו והלאה (כולל).
+    `info` is `None` for a regular transaction, or `{"template_id", "date",
+    "later"}`: the template id, this occurrence's date, and how many
+    occurrences there are from it on (inclusive).
 
-    אין כאן הבחנה בין "תבנית" ל"מופע", וזו ההחלטה: ההבחנה הזאת היא
-    פנימית לגמרי — שורת התבנית היא עסקה רגילה לכל דבר שבמקרה גם
-    מגדירה את הסדרה. למשתמש שמוחק את שכר הדירה של מרץ לא אמור להיות
-    אכפת אם מרץ הוא במקרה החודש שבו הסדרה נפתחה."""
+    There is no distinction here between "template" and "occurrence", and that
+    is the decision: the distinction is entirely internal; the template row is
+    a regular transaction in every respect that also happens to define the
+    series. A user deleting March's rent shouldn't have to care whether March
+    happens to be the month the series was opened."""
     client = get_client()
     if not client:
         raise DataUnavailable("recurring_occurrence: no client")
@@ -2666,8 +2828,8 @@ def recurring_occurrence(transaction_id: str, family_id: str):
         if not template_id:
             return None, True
 
-        # כמה מופעים מהתאריך הזה והלאה — כולל שורת התבנית עצמה, שהיא
-        # המופע הראשון ולא נושאת recurring_parent_id
+        # How many occurrences from this date on, including the template row
+        # itself, which is the first occurrence and has no recurring_parent_id
         later = client.table("transactions").select("id", count="exact") \
             .eq("family_id", family_id) \
             .eq("recurring_parent_id", template_id) \
@@ -2682,11 +2844,13 @@ def recurring_occurrence(transaction_id: str, family_id: str):
 
 
 def is_recurring_instance(transaction_id: str, family_id: str) -> bool:
-    """האם העסקה היא מופע שנוצר מסדרה קבועה (ולא תבנית בפני עצמה).
+    """Whether the transaction is an occurrence created from a recurring series
+    (and not a template in its own right).
 
-    משמש רק לחסימה אחת: סימון "עסקה קבועה" על מופע קיים היה מייצר
-    תבנית שנייה שרצה במקביל לראשונה, לתמיד. במחיקה, לעומת זאת, אין
-    שום הבחנה בין תבנית למופע — ראו ‎recurring_occurrence‎."""
+    Used for one block only: marking an existing occurrence "recurring" would
+    create a second template running alongside the first, forever. Deletion,
+    by contrast, makes no distinction between template and occurrence; see
+    `recurring_occurrence`."""
     client = get_client()
     if not client:
         raise DataUnavailable("is_recurring_instance: no client")
@@ -2700,22 +2864,24 @@ def is_recurring_instance(transaction_id: str, family_id: str) -> bool:
 
 def delete_one_occurrence(transaction_id: str, template_id: str,
                           occurrence_date: str, family_id: str):
-    """מוחקת מופע בודד מסדרה קבועה. מחזירה ‎(ok, error)‎.
+    """Deletes a single occurrence from a recurring series. Returns `(ok, error)`.
 
-    הכול קורה בפונקציית מסד אחת, ולא בשלוש קריאות מכאן, משתי סיבות:
+    It all happens in one database function, not three calls from here, for
+    two reasons:
 
-    **הסדרה שרדה בקושי.** כשהשורה הנמחקת היא התבנית עצמה,
-    ‎recurring_parent_id‎ (שהוא ‎on delete set null‎) ייתם בבת אחת את כל
-    המופעים שנוצרו ממנה. הפונקציה מעבירה את תפקיד התבנית למופע הבא
-    במקום להרוג את הסדרה.
+    **The series barely survived.** When the deleted row is the template
+    itself, `recurring_parent_id` (which is `on delete set null`) orphaned all
+    the occurrences created from it at once. The function hands the template
+    role to the next occurrence instead of killing the series.
 
-    **‎recurring_skips‎ היה read-modify-write.** שני בני משפחה שמחקו שני
-    מופעים באותה שנייה איבדו דילוג אחד, והעסקה חזרה למחרת — בדיוק הבאג
-    שהעמודה נוספה כדי למנוע. במסד זה עדכון אטומי אחד.
+    **`recurring_skips` was read-modify-write.** Two family members deleting
+    two occurrences in the same second lost one skip, and the transaction came
+    back the next day: exactly the bug the column was added to prevent. In the
+    database it is one atomic update.
 
-    ‎template_id‎ ו-‎occurrence_date‎ נשארים בחתימה לטובת הקוראים, אבל
-    הפונקציה נגזרת מהשורה עצמה — ולכן אין דרך שהיא תפעל על שורה אחת
-    ותרשום דילוג על אחרת.
+    `template_id` and `occurrence_date` stay in the signature for the callers'
+    sake, but the function derives from the row itself, so there is no way it
+    acts on one row and records a skip for another.
     """
     client = get_client()
     if not client:
@@ -2732,8 +2898,9 @@ def delete_one_occurrence(transaction_id: str, template_id: str,
         return False, str(e)
 
 def skip_recurring_date(template_id: str, family_id: str, on_date: str, skip: bool = True):
-    """דילוג על מופע עתידי בסדרה (או ביטול הדילוג). מחזירה ‎(ok, error)‎.
-    הכול ב-‎skip_recurring_date‎ במסד — עדכון אטומי אחד (מתן, 1.11)."""
+    """Skips a future occurrence in a series (or undoes the skip). Returns
+    `(ok, error)`. All in `skip_recurring_date` in the database: one atomic
+    update (Matan, 1.11)."""
     client = get_client()
     if not client:
         return False, "Database not configured"
@@ -2748,12 +2915,13 @@ def skip_recurring_date(template_id: str, family_id: str, on_date: str, skip: bo
         return False, str(e)
 
 def delete_occurrences_from(template_id: str, occurrence_date: str, family_id: str):
-    """מוחקת את המופע הזה וכל המאוחרים ממנו, ועוצרת את הסדרה שם.
-    מחזירה (deleted, error).
+    """Deletes this occurrence and every later one, and stops the series there.
+    Returns (deleted, error).
 
-    ‎recurring_end_date‎ נקבע ליום שלפני, ולא מכבים את הדגל: כך ההיסטוריה
-    שלפני התאריך נשארת סדרה מזוהה — עם הקישורים שלה ועם ההגנה מפני
-    כפילות — במקום להפוך לאוסף שורות יתומות."""
+    `recurring_end_date` is set to the day before, and the flag isn't turned
+    off: that way the history before the date stays a recognised series, with
+    its links and its duplicate protection, instead of becoming a collection
+    of orphan rows."""
     from datetime import date, timedelta
 
     client = get_client()
@@ -2772,7 +2940,7 @@ def delete_occurrences_from(template_id: str, occurrence_date: str, family_id: s
             return len(removed), None
 
         if str(template["date"]) >= occurrence_date:
-            # הסדרה נמחקת מתחילתה — אין מה להשאיר
+            # The series is deleted from its start; nothing to keep
             removed += client.table("transactions").delete() \
                 .eq("id", template_id).eq("family_id", family_id) \
                 .execute().data or []
@@ -2787,18 +2955,19 @@ def delete_occurrences_from(template_id: str, occurrence_date: str, family_id: s
 
 
 def delete_transaction(transaction_id: str, family_id: str):
-    """מחזירה ‎(ok, err)‎: ‎(True, None)‎, או ‎(False, "not found")‎ כשהעסקה כבר
-    לא קיימת — בן משפחה אחר מחק אותה רגע קודם — או ‎(False, "error")‎.
-    ההבחנה קובעת מה המשתמש רואה: "כבר נמחקה" והשורה יורדת מהמסך, מול
-    "המחיקה נכשלה" והשורה נשארת."""
+    """Returns `(ok, err)`: `(True, None)`, or `(False, "not found")` when the
+    transaction no longer exists (another family member deleted it a moment
+    earlier), or `(False, "error")`. The distinction decides what the user sees:
+    "already deleted" and the row leaves the screen, versus "delete failed" and
+    the row stays."""
     client = get_client()
     if not client:
         return False, "error"
     try:
-        # ‎.data‎ מחזיר את השורות שנמחקו בפועל (‎returning=representation‎
-        # הוא ברירת המחדל). בלי הבדיקה הזאת הפונקציה החזירה ‎True‎ גם
-        # כששום שורה לא נגעה — עסקה שבן משפחה אחר מחק לפני שנייה, או
-        # מזהה של משפחה אחרת — והמשתמש קיבל "נמחק".
+        # `.data` returns the rows actually deleted (`returning=representation`
+        # is the default). Without this check the function returned `True` even
+        # when no row was touched (a transaction another family member deleted
+        # a second earlier, or another family's id), and the user got "deleted".
         result = client.table("transactions") \
             .delete() \
             .eq("id", transaction_id) \
@@ -2806,8 +2975,8 @@ def delete_transaction(transaction_id: str, family_id: str):
             .execute()
         return (True, None) if result.data else (False, "not found")
     except Exception:
-        # המשתמש כן רואה "מחיקה נכשלה", אז זה לא כשל שקט — אבל בלי
-        # הרישום אי אפשר לענות על "למה".
+        # The user does see "delete failed", so it isn't a silent failure, but
+        # without the log entry there is no answering "why".
         logger.exception("delete_transaction")
         return False, "error"
 
@@ -2829,9 +2998,10 @@ def family_needs_onboarding(family_id: str) -> bool:
 
 
 def family_has_no_transactions(family_id: str) -> bool:
-    """True אם המשפחה מעולם לא הוסיפה עסקה — משמש להצגת הודעת פתיחה ידידותית
-    בדשבורד במקום קיר של ₪0, ולא נבדק לפי החודש הנוכחי (משפחה ותיקה שעוד
-    לא הזינה כלום החודש לא אמורה להיחשב 'חדשה')."""
+    """True if the family never added a transaction. Used to show a friendly
+    welcome on the dashboard instead of a wall of ₪0, and not checked against
+    the current month (an established family that hasn't entered anything this
+    month shouldn't count as 'new')."""
     client = get_client()
     if not client or not family_id:
         return False
@@ -2849,21 +3019,23 @@ _MAX_CATEGORIES_PER_FAMILY = 200
 def bulk_add_categories(family_id: str, categories: list, start: dict = None) -> tuple:
     """Inserts multiple categories at once for a family's onboarding.
     `categories` is a list of {name, icon, type} dicts. Returns (count, error).
-    sort_order נקבע לפי הסדר ברשימת הקלט (בתוך כל סוג בנפרד) — כך שהסדר
-    ההתחלתי תואם למה שהוגדר ב-_DEFAULT_CATEGORIES."""
+    sort_order follows the order of the input list (within each type
+    separately), so the initial order matches what _DEFAULT_CATEGORIES defines."""
     client = get_client()
     if not client:
         return 0, "Database not configured"
-    # תקרה. הרשימה הגיעה מגוף הבקשה בלי שום גבול, ועם תקרת 8MB זה
-    # ~100,000 שורות ב-‎insert‎ אחד — ובנוסף ‎_validated_category‎ סורק את
-    # הרשימה הזאת ליניארית בכל כתיבת עסקה, אז כל עסקה עתידית משלמת עליה.
+    # A cap. The list came from the request body with no limit at all, and with
+    # the 8MB cap that is ~100,000 rows in one `insert`; on top of that
+    # `_validated_category` scans this list linearly on every transaction write,
+    # so every future transaction pays for it.
     #
-    # ‎_DEFAULT_CATEGORIES‎ הוא כמה עשרות; 200 הוא הרבה מעל כל אשף אמיתי.
+    # `_DEFAULT_CATEGORIES` is a few dozen; 200 is far above any real wizard.
     if len(categories or []) > _MAX_CATEGORIES_PER_FAMILY:
         return 0, "יותר מדי קטגוריות בבת אחת"
 
-    # ‎start‎: הסדר האחרון שכבר תפוס לכל מחלקה — כשמוסיפים למשפחה קיימת
-    # (שחזור ברירת המחדל), החדשות נכנסות בסוף הרשימה ולא מתנגשות בראשונות
+    # `start`: the last order already taken per department: when adding to an
+    # existing family (restoring the defaults), the new ones go at the end of
+    # the list and don't collide with the first ones
     counters = {"income": 0, "expense": 0, "savings": 0}
     counters.update({k: v for k, v in (start or {}).items() if k in counters})
     rows = []
@@ -2896,13 +3068,14 @@ def _fetch_categories(family_id: str = None) -> list:
             query = query.is_("family_id", "null")
         return query.order("sort_order", nullsfirst=False).order("name").execute().data
     except Exception as e:
-        # רשימה ריקה נקראת בדשבורד כ"משפחה חדשה" ומפנה לאשף ההרשמה
+        # An empty list is read by the dashboard as a "new family" and redirects
+        # to the signup wizard
         raise DataUnavailable("categories") from e
 
 
 def get_categories(family_id: str = None) -> list:
-    """ממוטב-לבקשה: נקרא 3-4 פעמים בעמודים כבדים (פירוט לפי קטגוריה ×3),
-    אז השליפה נשמרת ב-flask.g לאורך הבקשה."""
+    """Cached per request: called 3-4 times on heavy pages (breakdown by category
+    ×3), so the result is kept on flask.g for the length of the request."""
     return _request_cache(f"categories:{family_id}", lambda: _fetch_categories(family_id))
 
 
@@ -2917,9 +3090,10 @@ def update_category(cat_id: str, family_id: str, name: str, icon: str):
             .eq("id", cat_id) \
             .eq("family_id", family_id) \
             .execute()
-        # ‎.data‎ מחזיר את השורות שנגעו בפועל. בלי הבדיקה הזאת "נשמר"
-        # נאמר גם כששום שורה לא התאימה — למשל כשבן משפחה אחר מחק את
-        # הפריט שנייה קודם, או כשהמזהה שייך למשפחה אחרת.
+        # `.data` returns the rows actually touched. Without this check "saved"
+        # was reported even when no row matched: for example when another family
+        # member deleted the item a second earlier, or when the id belongs to
+        # another family.
         return bool(result.data)
     except Exception:
         logger.exception("update_category")
@@ -2944,7 +3118,7 @@ def add_custom_category(family_id: str, name: str, icon: str, type_: str):
 
 
 def reorder_categories(family_id: str, type_: str, ordered_ids: list) -> bool:
-    """מעדכן את sort_order של קטגוריות מסוג נתון לפי הסדר שהתקבל."""
+    """Updates sort_order of categories of a given type to the order received."""
     client = get_client()
     if not client:
         return False
@@ -2958,12 +3132,13 @@ def reorder_categories(family_id: str, type_: str, ordered_ids: list) -> bool:
         return False
 
 
-# ─── Projects (תקציבי פרויקטים — משותפים או אישיים לבן משפחה אחד) ─────────────
+# ─── Projects (project budgets: shared, or personal to one family member) ───
 
 def project_last_activity(family_id: str) -> dict:
-    """פרויקט ← תאריך העסקה האחרונה בו (מתן, 12.10: הפרויקט שבאמצע — למעלה).
-    שאילתה אחת, מהחדש לישן; הראשון לכל פרויקט הוא האחרון. תקלה — ריק (הסדר
-    חוזר לסדר היצירה, לא נופלים בגלל סדר)."""
+    """Project → the date of its latest transaction (Matan, 12.10: the project in
+    progress goes on top). One query, newest first; the first per project is
+    the latest. On failure, empty (the order falls back to creation order;
+    nothing breaks over ordering)."""
     client = get_client()
     if not client or not family_id:
         return {}
@@ -2981,12 +3156,14 @@ def project_last_activity(family_id: str) -> dict:
 
 
 def get_projects(family_id: str, viewer_user_id: str, archived=False) -> list:
-    """פרויקטים גלויים לצופה הנוכחי: כל הפרויקטים המשותפים + הפרויקטים
-    האישיים ששייכים לו עצמו. פרויקט אישי של בן משפחה אחר לא נכלל כאן בכלל —
-    זו הפרטיות המבוקשת (לא רק מוסתר בתצוגה, אלא לא נשלף כלל).
+    """Projects visible to the current viewer: all shared projects + the personal
+    projects that belong to them. Another family member's personal project
+    isn't included here at all: that is the requested privacy (not just hidden
+    in the view, but never fetched).
 
-    ‎archived‎: ‎False‎ — הפעילים (ברירת המחדל, כל רשימה רגילה); ‎True‎ —
-    "פרויקטים שהסתיימו"; ‎None‎ — כולם, מסומנים (טופס העסקה, לעסקה ישנה)."""
+    `archived`: `False` for the active ones (the default, every ordinary list);
+    `True` for "finished projects"; `None` for all, marked (the transaction
+    form, for an old transaction)."""
     client = get_client()
     if not client or not family_id:
         return []
@@ -3002,13 +3179,14 @@ def get_projects(family_id: str, viewer_user_id: str, archived=False) -> list:
 
 
 def projects_from_rows(projects: list, totals: dict, viewer_user_id: str) -> list:
-    """רשימת הפרויקטים מתוך שורות וסכומים שכבר נשלפו — גם עבור ‎get_projects_page‎.
-    פרויקט אישי של בן משפחה אחר לא נכלל (הפרטיות היא בתוך המשפחה)."""
+    """The project list from rows and totals already fetched, also used by
+    `get_projects_page`. Another family member's personal project isn't
+    included (privacy is within the family)."""
     visible = [p for p in projects if not p.get("owner_id") or p["owner_id"] == viewer_user_id]
     out = []
     for p in visible:
         t = totals.get(p["id"], {"expense": 0.0, "income": 0.0, "savings": 0.0})
-        # "הסכום הנוכחי" המוצג ברשימה: נטו — הכנסות+חיסכון פחות הוצאות
+        # The "current amount" shown in the list: net, income+savings minus expenses
         net = t["income"] + t["savings"] - t["expense"]
         budget = p.get("budget_target")
         out.append({
@@ -3019,8 +3197,8 @@ def projects_from_rows(projects: list, totals: dict, viewer_user_id: str) -> lis
             "owner_id": p.get("owner_id"),
             "budget_target": float(budget) if budget is not None else None,
             "amount": round(net, 2),
-            # למלבן ברשימה (מתן, 12.10): "נשארו ₪X מתוך ₪Y" — אותו חישוב
-            # כמו בעמוד הפרויקט (‎spent‎ = הוצאות בלבד)
+            # For the card in the list (Matan, 12.10): "₪X left of ₪Y", the same
+            # calculation as on the project page (`spent` = expenses only)
             "spent": round(t["expense"], 2),
             "saved": round(t["savings"], 2),
             "track_expense": p.get("track_expense", True),
@@ -3032,15 +3210,17 @@ def projects_from_rows(projects: list, totals: dict, viewer_user_id: str) -> lis
 
 
 def _project_totals(family_id: str) -> dict:
-    """סכום כל הזמן לכל פרויקט, מפורק לפי סוג עסקה (expense/income/savings).
+    """The all-time total per project, broken down by transaction type
+    (expense/income/savings).
 
-    מחושב במסד (RPC ‎project_totals‎) ולא בפייתון. הגרסה הקודמת משכה את
-    *כל* עסקאות הפרויקטים של המשפחה, מאז ומתמיד, בכל טעינה של עמוד
-    ההגדרות והפרויקטים — וחיברה אותן כאן. אצל משפחה עם טיול אחד זה כבר
-    56 שורות שנמשכות כדי לקבל מספר אחד, והמספר גדל לנצח.
+    Computed in the database (RPC `project_totals`), not in Python. The
+    previous version pulled *every* project transaction of the family, ever, on
+    every load of the settings and projects pages, and summed them here. For a
+    family with one trip that is already 56 rows pulled to get one number, and
+    the number grows forever.
 
-    ה-RPC הוא ‎security invoker‎, כך ש-RLS ממשיכה לחול ולא נפתחה פה
-    דלת לראות פרויקטים של משפחה אחרת."""
+    The RPC is `security invoker`, so RLS still applies and no door was opened
+    here to see another family's projects."""
     client = get_client()
     if not client:
         return {}
@@ -3079,9 +3259,10 @@ def add_project(family_id: str, name: str, created_by: str, budget_target: float
 
 
 def set_project_archived(project_id: str, family_id: str, archived: bool) -> bool:
-    """"הפרויקט הסתיים" / "פתיחה מחדש" (מתן, 30.9). העסקאות לא נוגעות —
-    רק הדגל, שמוציא את הפרויקט מהרשימות ומטופס ההוספה. ‎False‎ כששום שורה
-    לא נגעה (נמחק בינתיים, או לא של המשפחה)."""
+    """"Project finished" / "reopen" (Matan, 30.9). The transactions aren't
+    touched, only the flag, which takes the project out of the lists and the
+    add form. `False` when no row was touched (deleted meanwhile, or not the
+    family's)."""
     client = get_client()
     if not client:
         return False
@@ -3097,8 +3278,9 @@ def set_project_archived(project_id: str, family_id: str, archived: bool) -> boo
 def update_project(project_id: str, family_id: str, name: str, budget_target: float = None,
                    description: str = None, icon: str = None, track_expense: bool = True,
                    track_income: bool = False, track_savings: bool = False):
-    """מעדכן שם/יעד/סוגי מעקב בלבד. שינוי בעלות (אישי/משותף) נעשה רק דרך
-    share_project/unshare_project הייעודיות — לא כאן."""
+    """Updates name/target/tracked types only. Changing ownership
+    (personal/shared) happens only through the dedicated
+    share_project/unshare_project, not here."""
     client = get_client()
     if not client:
         return False
@@ -3107,9 +3289,9 @@ def update_project(project_id: str, family_id: str, name: str, budget_target: fl
             .select("track_expense, track_income, track_savings") \
             .eq("id", project_id).eq("family_id", family_id).limit(1).execute().data
         if not rows:
-            return None                 # נמחק בינתיים — המסלול אומר את זה (404)
+            return None                 # Deleted meanwhile: the route says so (404)
         existing = rows[0]
-        # סוגים שהופעלו כרגע לראשונה — נזרע להם קטגוריות התחלתיות
+        # Types just switched on for the first time; seed starter categories for them
         newly_enabled = [
             t for t, before, after in (
                 ("expense", existing.get("track_expense"), track_expense),
@@ -3123,7 +3305,7 @@ def update_project(project_id: str, family_id: str, name: str, budget_target: fl
             "icon": icon, "track_expense": track_expense, "track_income": track_income,
             "track_savings": track_savings,
         }).eq("id", project_id).eq("family_id", family_id).execute()
-        # ראו update_category
+        # See update_category
         if not result.data:
             return False
 
@@ -3136,15 +3318,16 @@ def update_project(project_id: str, family_id: str, name: str, budget_target: fl
 
 
 def share_project(project_id: str, family_id: str, user_id: str):
-    """הופך פרויקט אישי למשותף: נפתח לכל בני המשפחה, וכל העסקאות שכבר
-    שויכו אליו הופכות לשיוך משותף (user_id=NULL) — תואם לבקשת מתן שהמעבר
-    למשותף גורר גם את ההוצאות/הכנסות עצמן. רק הבעלים הנוכחי רשאי לבצע זאת."""
+    """Turns a personal project into a shared one: opened to every family member,
+    and every transaction already attached to it becomes shared (user_id=NULL),
+    per Matan's request that moving to shared carries the expenses/income
+    themselves too. Only the current owner may do this."""
     client = get_client()
     if not client:
         return False, "Database not configured"
     try:
-        # לא ‎.single()‎: על פרויקט שנמחק רגע קודם הוא זרק, והמשתמש קיבל שגיאה
-        # כללית במקום "נמחק בינתיים" (סקירה של 1.10)
+        # Not `.single()`: on a project deleted a moment earlier it raised, and
+        # the user got a generic error instead of "deleted meanwhile" (review of 1.10)
         rows = client.table("projects").select("owner_id") \
             .eq("id", project_id).eq("family_id", family_id).limit(1).execute().data
         proj = rows[0] if rows else None
@@ -3162,8 +3345,9 @@ def share_project(project_id: str, family_id: str, user_id: str):
 
 
 def unshare_project(project_id: str, family_id: str, user_id: str):
-    """מחזיר פרויקט משותף להיות אישי — רק מי שיצר את הפרויקט במקור (created_by)
-    רשאי לבצע זאת, גם אם הפרויקט משותף כרגע ולכולם יש אליו גישה."""
+    """Turns a shared project back into a personal one: only whoever originally
+    created the project (created_by) may do this, even if it is currently
+    shared and everyone has access to it."""
     client = get_client()
     if not client:
         return False, "Database not configured"
@@ -3185,21 +3369,25 @@ def unshare_project(project_id: str, family_id: str, user_id: str):
 
 
 def delete_project(project_id: str, family_id: str):
-    """מוחק את הפרויקט, את קטגוריותיו (ON DELETE CASCADE) — ואת העסקאות שבו.
+    """Deletes the project, its categories (ON DELETE CASCADE), and the
+    transactions in it.
 
-    הייתה בחירה "להשאיר את העסקאות", והמסך הבטיח שהן "יחזרו לקטגוריה
-    הרגילה שלהן". לעסקת פרויקט אין קטגוריה רגילה: היא נחתה בהוצאות הבית
-    כ"ללא קטגוריה" (ON DELETE SET NULL), והחודשים שבהם נרשמה התייקרו
-    בדיעבד — שיפוץ של ₪40,000 על שלושה חודשים. מתן החליט (28.9.2026):
-    מחיקת פרויקט מוחקת את העסקאות שבו. כסף של פרויקט ממילא לא נספר
-    בהוצאות הבית, אז אף סכום של הבית לא זז. כל עסקה נמחקת עוברת דרך
-    הטריגר לארכיון הפנימי."""
+    There used to be a choice to "keep the transactions", and the screen
+    promised they would "return to their regular category". A project
+    transaction has no regular category: it landed in household expenses as
+    "uncategorised" (ON DELETE SET NULL), and the months it was recorded in
+    became more expensive after the fact: a ₪40,000 renovation over three
+    months. Matan decided (28.9.2026): deleting a project deletes its
+    transactions. Project money isn't counted in household expenses anyway, so
+    no household amount moves. Every deleted transaction goes through the
+    trigger into the internal archive."""
     client = get_client()
     if not client:
         return False, 0
     try:
-        # קודם לוודא שהפרויקט עוד קיים: אחרת "לא נמצא" היה חוזר אחרי שהעסקאות
-        # כבר נמחקו — בדיוק כשבן משפחה אחר מחק אותו שנייה קודם.
+        # First make sure the project still exists: otherwise "not found" would
+        # come back after the transactions were already deleted, exactly when
+        # another family member deleted it a second earlier.
         exists = client.table("projects").select("id") \
             .eq("id", project_id).eq("family_id", family_id).limit(1).execute().data
         if not exists:
@@ -3209,9 +3397,10 @@ def delete_project(project_id: str, family_id: str):
         wiped = len(gone.data or [])
         result = client.table("projects").delete() \
             .eq("id", project_id).eq("family_id", family_id).execute()
-        # ‎(ok, wiped)‎ ולא ‎True‎: זו הפעולה ההרסנית ביותר שכל חבר יכול
-        # לעשות בלי סיסמה ובלי הרשאת מנהל, והמשתמש צריך לראות כמה עסקאות
-        # באמת נעלמו — בדיוק כמו באיפוס העסקאות.
+        # `(ok, wiped)` and not `True`: this is the most destructive action any
+        # member can take without a password or manager rights, and the user
+        # needs to see how many transactions really vanished, just like the
+        # transaction reset.
         return bool(result.data), wiped
     except Exception:
         logger.exception("delete_project")
@@ -3219,8 +3408,9 @@ def delete_project(project_id: str, family_id: str):
 
 
 def get_project_for_transaction(project_id: str, family_id: str):
-    """שדות מינימליים הנחוצים לאימות ואכיפה בהוספת/עדכון עסקה משויכת
-    לפרויקט: owner_id (לאכיפת שיוך אוטומטי) ודגלי המעקב (לוודא שהסוג נתמך)."""
+    """The minimal fields needed to validate and enforce when adding/updating a
+    transaction attached to a project: owner_id (to enforce automatic
+    attribution) and the tracking flags (to check the type is supported)."""
     client = get_client()
     if not client:
         return None
@@ -3229,25 +3419,28 @@ def get_project_for_transaction(project_id: str, family_id: str):
             .select("owner_id, track_expense, track_income, track_savings") \
             .eq("id", project_id).eq("family_id", family_id).single().execute().data
     except Exception:
-        # שני הקוראים מפרשים None כ"הפרויקט לא נמצא" ומסרבים — הכיוון
-        # הבטוח. אבל למשתמש זה נראה כאילו פרויקט קיים נעלם, וזה בדיוק
-        # הדיווח שאי אפשר לחקור בלי traceback.
+        # Both callers read None as "project not found" and refuse: the safe
+        # direction. But to the user it looks as if an existing project vanished,
+        # and that is exactly the report that can't be investigated without a
+        # traceback.
         logger.exception("get_project_for_transaction")
         return None
 
 
 def get_project_detail(project_id: str, family_id: str, viewer_user_id: str) -> dict:
-    """פרטי פרויקט + כל העסקאות שלו, מכל החודשים ביחד. אם זה פרויקט אישי
-    ששייך לבן משפחה אחר — מחזיר None (חסימת גישה מלאה, לא רק הסתרה)."""
+    """Project details + all its transactions, across all months together. If it
+    is a personal project belonging to another family member, returns None
+    (full access block, not just hiding)."""
     client = get_client()
     if not client or not family_id:
         return None
-    # מזהה משובש (קישור שנחתך) — PostgREST היה דוחה אותו בשגיאה, והיא 503
+    # A malformed id (a truncated link): PostgREST would reject it with an
+    # error, and that is a 503
     if not _UUID_RE.match(str(project_id)):
         return None
     try:
-        # לא ‎.single()‎: על אפס שורות הוא זורק, וזה הפך פרויקט שנמחק לדף
-        # תקלה ("נסו לרענן") במקום ל"לא קיים"
+        # Not `.single()`: it raises on zero rows, which turned a deleted project
+        # into an error page ("try refreshing") instead of "doesn't exist"
         found = client.table("projects").select("*") \
             .eq("id", project_id).eq("family_id", family_id).limit(1).execute().data
         if not found:
@@ -3263,7 +3456,8 @@ def get_project_detail(project_id: str, family_id: str, viewer_user_id: str) -> 
         transactions = _format_transactions(result.data)
 
         totals = {"expense": 0.0, "income": 0.0, "savings": 0.0}
-        # חלוקה לפי קטגוריה לכל סוג — מחושב מהעסקאות שכבר נשלפו (בלי שליפה נוספת)
+        # Breakdown by category per type, computed from the transactions already
+        # fetched (no extra query)
         grouped = {"expense": {}, "income": {}, "savings": {}}
         for t in transactions:
             typ = t["type"]
@@ -3310,20 +3504,21 @@ def get_project_detail(project_id: str, family_id: str, viewer_user_id: str) -> 
         raise DataUnavailable("get_project_detail") from e
 
 
-# ─── Project categories (ייעודיות לכל פרויקט, נפרדות מקטגוריות המשפחה) ────────
+# ─── Project categories (per project, separate from the family's categories) ─
 
 def _seed_project_categories(project_id: str, family_id: str, types: list):
-    """זריעת קטגוריות התחלתיות לפרויקט — עותק מקטגוריות המשפחה הרגילות
-    מאותם סוגים, כברירת מחדל שניתן לערוך/למחוק/להוסיף עליה בלי להשפיע
-    על קטגוריות המשפחה המקוריות."""
+    """Seeds starter categories for a project: a copy of the family's regular
+    categories of the same types, as a default that can be edited, deleted or
+    added to without affecting the family's original categories."""
     if not types:
         return
     client = get_client()
     if not client:
         return
     try:
-        # כיבוי מעקב לא מוחק את הקטגוריות, אז הדלקה מחדש הייתה זורעת אותן
-        # שוב — "משכורת" פעמיים. מה שכבר יש בפרויקט (שם+סוג) לא מועתק.
+        # Turning tracking off doesn't delete the categories, so turning it back
+        # on seeded them again: "salary" twice. Whatever the project already has
+        # (name+type) is not copied.
         existing = {(c["name"], c["type"]) for c in client.table("project_categories")
                     .select("name, type").eq("project_id", project_id)
                     .eq("family_id", family_id).execute().data}
@@ -3369,14 +3564,15 @@ def add_project_category(project_id: str, family_id: str, name: str, icon: str, 
         return None, str(e)
 
 
-# ─── מחיקת קטגוריה: אין עסקה שנשארת בלי קטגוריה ─────────────────────────────
+# ─── Deleting a category: no transaction is left uncategorised ──────────────
 #
-# מחיקה פשוטה השאירה את העסקאות של הקטגוריה "ללא קטגוריה" (ה-FK הוא ‎ON
-# DELETE SET NULL‎). עכשיו הן מועברות לקטגוריה אחרת **לפני** המחיקה, ואילוץ
-# ‎transactions_category_required‎ במסד תופס מירוץ: עסקה שנוספה לקטגוריה
-# בין ההעברה למחיקה מכשילה את המחיקה, במקום להישאר יתומה.
+# A plain delete left the category's transactions "uncategorised" (the FK is
+# `ON DELETE SET NULL`). Now they are moved to another category **before** the
+# delete, and the `transactions_category_required` constraint in the database
+# catches the race: a transaction added to the category between the move and
+# the delete makes the delete fail instead of being orphaned.
 
-# (טבלת הקטגוריות, העמודה בעסקה שמצביעה עליה)
+# (the categories table, the column in transactions that points at it)
 _CATEGORY_KINDS = {
     "family":  ("categories", "category_id"),
     "project": ("project_categories", "project_category_id"),
@@ -3384,10 +3580,12 @@ _CATEGORY_KINDS = {
 
 
 def category_deletion_plan(kind: str, cat_id: str, family_id: str, project_id: str = None):
-    """מה יקרה אם הקטגוריה תימחק: ‎{"category", "count", "alternatives"}‎,
-    או ‎None‎ אם היא לא קיימת (או של משפחה/פרויקט אחרים).
+    """What happens if the category is deleted: `{"category", "count",
+    "alternatives"}`, or `None` if it doesn't exist (or belongs to another
+    family/project).
 
-    ‎alternatives‎ — הקטגוריות מאותו סוג, באותו מקום, שאפשר להעביר אליהן."""
+    `alternatives`: the categories of the same type, in the same place, that
+    the transactions can be moved to."""
     table, column = _CATEGORY_KINDS[kind]
     client = get_client()
     if not client:
@@ -3418,8 +3616,9 @@ def category_deletion_plan(kind: str, cat_id: str, family_id: str, project_id: s
 
 def delete_category_moving(kind: str, cat_id: str, family_id: str,
                            move_to: str = None, project_id: str = None) -> bool:
-    """מעביר את העסקאות של הקטגוריה ל-‎move_to‎ ואז מוחק אותה.
-    הבדיקה שהיעד תקין היא של הקורא (‎category_deletion_plan‎)."""
+    """Moves the category's transactions to `move_to` and then deletes it.
+    Checking that the target is valid is the caller's job
+    (`category_deletion_plan`)."""
     table, column = _CATEGORY_KINDS[kind]
     client = get_client()
     if not client:
@@ -3442,9 +3641,10 @@ def update_project_category(cat_id: str, project_id: str, family_id: str, name: 
     try:
         result = client.table("project_categories").update({"name": name, "icon": icon}) \
             .eq("id", cat_id).eq("project_id", project_id).eq("family_id", family_id).execute()
-        # ‎.data‎ מחזיר את השורות שנגעו בפועל. בלי הבדיקה הזאת "נשמר"
-        # נאמר גם כששום שורה לא התאימה — למשל כשבן משפחה אחר מחק את
-        # הפריט שנייה קודם, או כשהמזהה שייך למשפחה אחרת.
+        # `.data` returns the rows actually touched. Without this check "saved"
+        # was reported even when no row matched: for example when another family
+        # member deleted the item a second earlier, or when the id belongs to
+        # another family.
         return bool(result.data)
     except Exception:
         logger.exception("update_project_category")
@@ -3458,9 +3658,10 @@ def delete_project_category(cat_id: str, project_id: str, family_id: str) -> boo
     try:
         result = client.table("project_categories").delete() \
             .eq("id", cat_id).eq("project_id", project_id).eq("family_id", family_id).execute()
-        # ‎.data‎ מחזיר את השורות שנגעו בפועל. בלי הבדיקה הזאת "נשמר"
-        # נאמר גם כששום שורה לא התאימה — למשל כשבן משפחה אחר מחק את
-        # הפריט שנייה קודם, או כשהמזהה שייך למשפחה אחרת.
+        # `.data` returns the rows actually touched. Without this check "saved"
+        # was reported even when no row matched: for example when another family
+        # member deleted the item a second earlier, or when the id belongs to
+        # another family.
         return bool(result.data)
     except Exception:
         logger.exception("delete_project_category")
@@ -3469,34 +3670,39 @@ def delete_project_category(cat_id: str, project_id: str, family_id: str) -> boo
 
 # ─── Analytics ───────────────────────────────────────────────────────────────
 
-# ─── חודש אחד, שליפה אחת ──────────────────────────────────────────────────────
+# ─── One month, one query ───────────────────────────────────────────────────
 #
-# עמוד החודש הריץ 12 פניות למסד, ושבע מהן קראו בדיוק את אותן שורות:
-# הסיכום, שלושה פילוחים לקטגוריה ושניים לבן משפחה — כולם תת-קבוצות של
-# העסקאות שכבר נשלפו לרשימת "כל העסקאות".
+# The month page made 12 database calls, and seven of them read exactly the
+# same rows: the summary, three breakdowns by category and two by family
+# member, all subsets of the transactions already fetched for the "all
+# transactions" list.
 #
-# הזמן (כ-180 מילישניות) הוא לא העיקר. העיקר הוא שכל אחת מהשבע גזרה
-# לעצמה מחדש את אותם שני כללים — החרגת עסקאות פרויקט, והסתרת פרויקט
-# אישי של בן משפחה אחר. הכלל השני נשכח פעם אחת כבר, וזה מתועד בהערה
-# בקוד: עסקת פרויקט הופיעה בתוך קטגוריה חודשית בלי להיספר בסכום שלה.
+# The time (about 180 milliseconds) isn't the main point. The main point is
+# that each of the seven re-derived the same two rules for itself: excluding
+# project transactions, and hiding another family member's personal project.
+# The second rule was already forgotten once, and that is recorded in a code
+# comment: a project transaction showed up inside a monthly category without
+# being counted in its total.
 #
-# שליפה אחת עם גזירות בשמות ברורים הופכת את סוג הבאג הזה לבלתי אפשרי:
-# אין מאיפה לשכוח את הכלל, כי הוא מיושם פעם אחת.
+# One query with clearly named derivations makes this kind of bug impossible:
+# there is nowhere to forget the rule, because it is applied once.
 
 def fetch_month_page(family_id: str, year: int, month: int) -> dict:
-    """כל מה שעמוד החודש צריך, בנסיעה אחת למסד.
+    """Everything the month page needs, in one trip to the database.
 
-    מחליפה חמש שליפות שרצו ברצף (הגדרות, חברים, קטגוריות, שורות החודש,
-    ארכיון) — ראו ההערה ב-‎_run_queries‎ ב-app.py על למה הן רצות ברצף
-    ולא במקביל, ואת המיגרציה ‎20260923120000_month_page_fn.sql‎ על למה
-    התשובה היא פחות נסיעות ולא נסיעות מקבילות.
+    Replaces five queries that ran in sequence (settings, members, categories,
+    the month's rows, archive); see the note in `_run_queries` in app.py on why
+    they run in sequence and not in parallel, and migration
+    `20260923120000_month_page_fn.sql` on why the answer is fewer trips rather
+    than parallel ones.
 
-    העיבוד נשאר כאן ולא ירד ל-SQL בכוונה: ‎_merge_settings‎ וקיצור השמות
-    הם אותו קוד שכל שאר האפליקציה עוברת דרכו, ושכפול שלהם במסד היה יוצר
-    שני מקורות אמת שיכולים להיפרד בשקט.
+    The processing stays here and wasn't moved to SQL on purpose:
+    `_merge_settings` and name shortening are the same code the rest of the app
+    goes through, and duplicating them in the database would create two sources
+    of truth that could silently drift apart.
 
-    ‎null‎ מהפונקציה = המשפחה אינה של הקורא, או שהשליפה נכשלה. שניהם
-    ‎DataUnavailable‎: אף אחד מהם אינו "משפחה בלי נתונים"."""
+    `null` from the function = the family isn't the caller's, or the query
+    failed. Both are `DataUnavailable`: neither is "a family with no data"."""
     client = get_client()
     if not client:
         raise DataUnavailable("fetch_month_page: no client")
@@ -3512,8 +3718,8 @@ def fetch_month_page(family_id: str, year: int, month: int) -> dict:
     if not data:
         raise DataUnavailable("fetch_month_page: empty")
 
-    # זהה ל-‎_fetch_family_members‎: התבניות מציגות שם פרטי, והשם המלא
-    # נשמר לצדו כי יש מקומות שמראים אותו במלואו.
+    # Same as `_fetch_family_members`: the templates show a first name, and the
+    # full name is kept next to it because some places show it in full.
     members = data.get("members") or []
     for m in members:
         m["full_name"] = m.get("name", "")
@@ -3531,19 +3737,21 @@ def fetch_month_page(family_id: str, year: int, month: int) -> dict:
 
 
 def fetch_home_page(family_id: str, today, recent_limit: int, viewer_user_id: str) -> dict:
-    """כל מה שדף הבית צריך, בנסיעה אחת למסד (מתן, 13.10).
+    """Everything the home page needs, in one trip to the database (Matan, 13.10).
 
-    מחליפה תשע שליפות שרצו ברצף — ראו המיגרציה
-    ‎20261013120000_home_page_fn.sql‎. כמו ‎fetch_month_page‎: רק ההובלה
-    השתנתה; החישובים הם אותן פונקציות (‎summary_from_rows‎, ‎week_from_rows‎,
-    ‎recent_from_rows‎) שהשליפות הנפרדות עוברות דרכן.
+    Replaces nine queries that ran in sequence; see migration
+    `20261013120000_home_page_fn.sql`. Like `fetch_month_page`: only the
+    transport changed; the calculations are the same functions
+    (`summary_from_rows`, `week_from_rows`, `recent_from_rows`) the separate
+    queries go through.
 
-    ‎null‎ = המשפחה אינה של הקורא, או שהשליפה נכשלה — ‎DataUnavailable‎."""
+    `null` = the family isn't the caller's, or the query failed:
+    `DataUnavailable`."""
     client = get_client()
     if not client:
         raise DataUnavailable("fetch_home_page: no client")
     week_from, week_start, week_to = week_bounds(today)
-    # מרווח ביטחון כמו ב-‎get_recent_transactions‎: שורות פרטיות יסוננו
+    # Safety margin as in `get_recent_transactions`: private rows get filtered out
     fetch_limit = recent_limit * 3 if viewer_user_id else recent_limit
     try:
         data = client.rpc("get_home_page", {
@@ -3574,7 +3782,7 @@ def fetch_home_page(family_id: str, today, recent_limit: int, viewer_user_id: st
         "members":    members,
         "categories": data.get("categories") or [],
         "rows":       rows,
-        # זהה ל-‎get_monthly_summary‎: בלי עסקאות פרויקט
+        # Same as `get_monthly_summary`: no project transactions
         "summary":    summary_from_rows([r for r in rows if not r.get("project_id")]),
         "recent":     data.get("recent") or [],
         "week":       week_from_rows(data.get("week_rows") or [],
@@ -3584,11 +3792,13 @@ def fetch_home_page(family_id: str, today, recent_limit: int, viewer_user_id: st
 
 
 def fetch_settings_page(family_id: str, today, viewer_user_id: str) -> dict:
-    """כל מה שעמוד ההגדרות צריך מהמסד, בנסיעה אחת (מתן, 13.10) — ראו
-    ‎20261013120100_settings_page_fn.sql‎. החישובים — אותן פונקציות
-    (‎category_averages_from_totals‎, ‎price_changes_from‎, ‎_format_transactions‎).
+    """Everything the settings page needs from the database, in one trip (Matan,
+    13.10); see `20261013120100_settings_page_fn.sql`. The calculations are the
+    same functions (`category_averages_from_totals`, `price_changes_from`,
+    `_format_transactions`).
 
-    ‎null‎ = המשפחה אינה של הקורא, או שהשליפה נכשלה — ‎DataUnavailable‎."""
+    `null` = the family isn't the caller's, or the query failed:
+    `DataUnavailable`."""
     client = get_client()
     if not client:
         raise DataUnavailable("fetch_settings_page: no client")
@@ -3614,7 +3824,7 @@ def fetch_settings_page(family_id: str, today, viewer_user_id: str) -> dict:
         "members":      members,
         "categories":   data.get("categories") or [],
         "cat_averages": category_averages_from_totals(data.get("category_totals")),
-        # זהה ל-‎get_recurring_transactions‎
+        # Same as `get_recurring_transactions`
         "recurring":    _format_transactions(
             _filter_hidden_personal_projects(data.get("recurring") or [], viewer_user_id), settings),
         "ended":        data.get("ended") or [],
@@ -3624,7 +3834,8 @@ def fetch_settings_page(family_id: str, today, viewer_user_id: str) -> dict:
 
 
 def _members_first_names(members: list) -> list:
-    """זהה ל-‎_fetch_family_members‎: שם פרטי לתצוגה, והמלא לצדו."""
+    """Same as `_fetch_family_members`: a first name for display, and the full
+    one next to it."""
     for m in members:
         m["full_name"] = m.get("name", "")
         m["name"] = first_name(m.get("name", ""))
@@ -3632,8 +3843,8 @@ def _members_first_names(members: list) -> list:
 
 
 def fetch_projects_page(family_id: str, viewer_user_id: str) -> dict:
-    """עמוד הפרויקטים בנסיעה אחת (מתן, 13.10) — ראו
-    ‎20261013130000_projects_and_months_page_fn.sql‎. ‎DataUnavailable‎ בכשל."""
+    """The projects page in one trip (Matan, 13.10); see
+    `20261013130000_projects_and_months_page_fn.sql`. `DataUnavailable` on failure."""
     client = get_client()
     if not client:
         raise DataUnavailable("fetch_projects_page: no client")
@@ -3644,7 +3855,7 @@ def fetch_projects_page(family_id: str, viewer_user_id: str) -> dict:
     if not data:
         raise DataUnavailable("fetch_projects_page: empty")
     family = data.get("family") or {}
-    # זהה ל-‎_project_totals‎
+    # Same as `_project_totals`
     totals = {pid: {k: float((t or {}).get(k) or 0) for k in ("expense", "income", "savings")}
               for pid, t in (data.get("totals") or {}).items()}
     rows = data.get("projects") or []
@@ -3659,7 +3870,8 @@ def fetch_projects_page(family_id: str, viewer_user_id: str) -> dict:
 
 
 def months_window(today) -> tuple:
-    """‎(מ-, עד-לא-כולל)‎: 12 החודשים שעד החודש הנוכחי — החלון של ‎monthly_trend‎."""
+    """`(from, until-exclusive)`: the 12 months up to the current one, the window
+    of `monthly_trend`."""
     last = today.year * 12 + today.month - 1
     first = last - 11
     nxt = last + 1
@@ -3667,8 +3879,9 @@ def months_window(today) -> tuple:
 
 
 def fetch_months_page(family_id: str, today) -> dict:
-    """עמוד ההשוואה בנסיעה אחת (מתן, 13.10). ההוצאות של החלון נשלפות פעם אחת
-    ומזינות גם את "לפי קטגוריה" וגם את "לפי בן משפחה". ‎DataUnavailable‎ בכשל."""
+    """The comparison page in one trip (Matan, 13.10). The window's expenses are
+    fetched once and feed both "by category" and "by family member".
+    `DataUnavailable` on failure."""
     client = get_client()
     if not client:
         raise DataUnavailable("fetch_months_page: no client")
@@ -3693,10 +3906,11 @@ def fetch_months_page(family_id: str, today) -> dict:
 
 
 def fetch_month_rows(family_id: str, year: int, month: int) -> list:
-    """כל שורות החודש, כולל עסקאות פרויקט, עם כל השיוכים.
+    """All the month's rows, including project transactions, with all their links.
 
-    זו השליפה שממנה נגזר כל עמוד החודש. היא מחזירה גם עסקאות פרויקט —
-    הגזירות למטה הן שמחליטות מי מתעלמת מהן ומי מציגה אותן."""
+    This is the query the whole month page is derived from. It also returns
+    project transactions; the derivations below decide which ignore them and
+    which show them."""
     client = get_client()
     if not client:
         raise DataUnavailable("fetch_month_rows: no client")
@@ -3714,16 +3928,16 @@ def fetch_month_rows(family_id: str, year: int, month: int) -> list:
 
 
 def _household_rows(rows: list) -> list:
-    """רק עסקאות שאינן משויכות לפרויקט.
+    """Only transactions not attached to a project.
 
-    זה הכלל שכל הסיכומים החודשיים חולקים: פרויקט הוא הוצאה חד-פעמית
-    שמעוותת את תמונת ה"חודש הרגיל", ולכן הוא מוצג בנפרד. מיושם כאן
-    פעם אחת במקום בשבע שאילתות."""
+    This is the rule all the monthly summaries share: a project is a one-off
+    expense that distorts the picture of a "normal month", so it is shown
+    separately. Applied here once instead of in seven queries."""
     return [r for r in rows if not r.get("project_id")]
 
 
 def summary_from_rows(rows: list) -> dict:
-    """אותו סיכום כמו get_monthly_summary, מתוך שורות שכבר בידנו."""
+    """The same summary as get_monthly_summary, from rows already in hand."""
     summary = _empty_summary()
     for row in _household_rows(rows):
         t = row["type"]
@@ -3738,24 +3952,26 @@ def summary_from_rows(rows: list) -> dict:
     return summary
 
 
-# הדלי של עסקאות שאיבדו את הקטגוריה שלהן (הקטגוריה נמחקה — ‎ON DELETE
-# SET NULL‎). בעבר הן התמזגו בשקט לתוך קטגוריית "אחר" של המשפחה, כי
-# הקיבוץ היה לפי שם; עכשיו הן דלי נפרד ואפשר לראות שיש כסף שצריך שיוך.
+# The bucket for transactions that lost their category (the category was
+# deleted: `ON DELETE SET NULL`). They used to merge silently into the family's
+# "other" category, because grouping was by name; now they are a separate
+# bucket and it is visible that some money needs assigning.
 _NO_CATEGORY = "ללא קטגוריה"
 
 
 def category_breakdown_from_rows(rows: list, categories: list, type_: str) -> list:
-    """סכום לכל קטגוריה מהסוג המבוקש.
+    """The total per category of the requested type.
 
-    מקובץ לפי **מזהה** הקטגוריה, לא לפי שמה. שם הוא לא מפתח: אין במסד
-    אילוץ ייחודיות על שמות קטגוריות, ושתי קטגוריות שונות באותו שם היו
-    מתמזגות לשורה אחת שאיש לא ביקש. זה גם מה שהשתיק את תקציבי
-    הקטגוריות — הם שמורים לפי מזהה, והשורות שיצאו מכאן לא נשאו אותו
-    בכלל, אז ‎apply_budgets‎ חיפשה ולא מצאה **אף פעם**.
+    Grouped by the category's **id**, not its name. A name is not a key: the
+    database has no uniqueness constraint on category names, and two different
+    categories with the same name would merge into one row nobody asked for.
+    That is also what silenced the category budgets: they are stored by id,
+    and the rows coming out of here didn't carry it at all, so
+    `apply_budgets` searched and **never** found anything.
 
-    כל קטגוריות הסוג מופיעות תמיד, גם בחודש שאין בו נתון עבורן — אחרת
-    קטגוריה נעלמת מהעמוד בדיוק בחודש שבו לא הוצאת בה, וזה נראה כאילו
-    נמחקה."""
+    All of the type's categories always appear, even in a month with no data
+    for them; otherwise a category vanishes from the page exactly in the month
+    you spent nothing on it, and it looks as if it was deleted."""
     buckets = {c["id"]: {"category_id": c["id"], "name": c["name"],
                          "icon": c.get("icon", "📦"), "total": 0.0}
                for c in categories if c.get("type") == type_ and c.get("id")}
@@ -3766,8 +3982,8 @@ def category_breakdown_from_rows(rows: list, categories: list, type_: str) -> li
         cat = row.get("categories") or {}
         key = row.get("category_id")
         if key not in buckets:
-            # קטגוריה שאינה ברשימה (נמחקה, או שייכת למשפחה אחרת דרך
-            # נתון ישן) — לוקחים את השם המוטבע בשורה עצמה
+            # A category not in the list (deleted, or belonging to another family
+            # through old data): use the name stamped on the row itself
             buckets[key] = {
                 "category_id": key,
                 "name": cat.get("name") or _NO_CATEGORY,
@@ -3788,15 +4004,16 @@ def _month_before(year: int, month: int) -> tuple:
 
 
 def month_recap(family_id: str, today, categories: list):
-    """כרטיס "ספטמבר נסגר" בדף הבית (מתן, 13.10).
+    """The "September closed" card on the home page (Matan, 13.10).
 
-    רק ביום הראשון של החודש — "יום למחרת זה נעלם לבד". מחזיר ‎None‎ בכל יום
-    אחר, ובחודש שעבר בלי אף עסקה (אין מה לסכם). הוצאות הבית בלבד, בלי
-    פרויקטים — כמו כל סיכום חודשי. זורק ‎DataUnavailable‎.
+    Only on the first day of the month ("the next day it goes away by itself").
+    Returns `None` on any other day, and for a past month with no transactions
+    at all (nothing to sum up). Household expenses only, no projects, like
+    every monthly summary. Raises `DataUnavailable`.
 
-    ‎diff‎ — הוצאות החודש שעבר פחות החודש שלפניו (שלילי = הוצאתם פחות);
-    ‎None‎ כשבחודש שלפניו לא היו הוצאות, כי "₪14,950 יותר מאוגוסט" על
-    אוגוסט ריק אינו השוואה."""
+    `diff`: last month's expenses minus the month before (negative = you spent
+    less); `None` when the month before had no expenses, because "₪14,950 more
+    than August" against an empty August is not a comparison."""
     if today.day != 1:
         return None
     year, month = _month_before(today.year, today.month)
@@ -3816,17 +4033,20 @@ def month_recap(family_id: str, today, categories: list):
     }
 
 
-# קטגוריית משכורת מזוהה לפי השם — כמו בחירת ברירת המחדל בטופס (‎transactions.js‎)
+# A salary category is recognised by name, like the default choice in the form
+# (`transactions.js`)
 _SALARY_WORD = "משכורת"
 
 
 def income_sources(transactions: list) -> list:
-    """"הכנסות — מאיפה הגיעו" בעמוד החודש (מתן, 30.9): שורה לכל משכורת לפי מי
-    שרשום עליה ("משכורת מתן", "משכורת אור"), ושורה אחת "הכנסות נוספות" לכל
-    השאר. משכורות קודם, מהגדולה לקטנה; הנוספות אחרונות.
+    """"Income: where it came from" on the month page (Matan, 30.9): a row per
+    salary by whoever it is recorded under ("משכורת מתן", "משכורת אור"), and one
+    row "other income" for everything else. Salaries first, largest to
+    smallest; the other income last.
 
-    מקבלת את עסקאות הבית של החודש (בלי פרויקטים — כמו ‎month_transactions‎).
-    משכורת בלי בעלים (שיוך כבוי, או משותפת) היא פשוט "משכורת", בלי שם."""
+    Takes the month's household transactions (no projects, like
+    `month_transactions`). A salary with no owner (attribution off, or shared)
+    is just "salary", with no name."""
     salaries, extra = {}, None
     for t in transactions:
         if t.get("type") != "income":
@@ -3853,10 +4073,12 @@ def income_sources(transactions: list) -> list:
 
 
 def member_breakdown_from_rows(rows: list, type_: str) -> list:
-    """סכום לכל בן משפחה. נגזר רק לסוגים שהמשפחה הפעילה בהם שיוך.
+    """The total per family member. Derived only for the types the family turned
+    attribution on for.
 
-    מקובץ לפי user_id ולא לפי שם — כך הצבע של כל בן משפחה נשאר קבוע גם
-    אם שניים חולקים שם פרטי. עסקאות ללא בעלים נאספות יחד תחת "משותפת"."""
+    Grouped by user_id and not by name, so each family member's colour stays
+    fixed even if two share a first name. Transactions with no owner are
+    gathered together under "shared"."""
     members: dict = {}
     for row in _household_rows(rows):
         if row["type"] != type_:
@@ -3872,19 +4094,21 @@ def member_breakdown_from_rows(rows: list, type_: str) -> list:
 
 
 def project_breakdown_from_rows(rows: list) -> list:
-    """מקבצת את עסקאות הפרויקטים של החודש לפי פרויקט.
+    """Groups the month's project transactions by project.
 
-    הסעיף הציג רשימה שטוחה של כל עסקאות הפרויקטים יחד, כך שבחודש עם
-    שיפוץ וטיול העין לא יכלה להפריד ביניהם — וזו בדיוק השאלה ("כמה עלה
-    לי השיפוץ החודש?"). כאן כל פרויקט הוא שורה.
+    The section used to show a flat list of all project transactions together,
+    so in a month with a renovation and a trip the eye couldn't separate them,
+    and that is exactly the question ("how much did the renovation cost me this
+    month?"). Here each project is one row.
 
-    מקובץ לפי **מזהה** ולא לפי שם: שני פרויקטים יכולים להיקרא אותו דבר,
-    וקיבוץ לפי שם היה מאחד להם את הכסף — אותו באג בדיוק שהיה בפילוח
-    הקטגוריות.
+    Grouped by **id** and not by name: two projects can have the same name,
+    and grouping by name would merge their money, exactly the bug the category
+    breakdown had.
 
-    כל סוג נשמר בנפרד ולא מקוזז לסכום אחד: פרויקט עם החזר כספי היה מוצג
-    כ"עלה פחות", ו-₪0 על פרויקט שגם הוציא וגם קיבל הוא מספר שמסתיר את
-    שני הצדדים. המיון הוא לפי מה שיצא בפועל.
+    Each type is kept separately and not netted into one amount: a project with
+    a refund would show as "cost less", and ₪0 on a project that both spent
+    and received is a number that hides both sides. Ordering is by what was
+    actually spent.
     """
     by_project = {}
     for row in rows:
@@ -3914,13 +4138,13 @@ def project_breakdown_from_rows(rows: list) -> list:
 
 
 def category_filter_chips(transactions: list) -> dict:
-    """שורת הקטגוריות שנפתחת מתחת ל"הוצאות"/"הכנסות"/"חיסכון" ב"כל העסקאות"
-    (מתן, 30.9 — אפשרות א): לכל סוג, הקטגוריות שהיו בו החודש עם הסכום,
-    מהגדולה לקטנה.
+    """The category row that opens under "expenses"/"income"/"savings" in "all
+    transactions" (Matan, 30.9, option A): for each type, the categories it
+    had this month with their totals, largest first.
 
-    כל עסקה מקבלת ‎cat_key‎ — המפתח שהדפדפן מסנן לפיו. לפי מזהה ולא לפי
-    שם, כמו כל פילוח בעמוד; קטגוריית פרויקט מקבלת קידומת כדי שלא תתערבב
-    בקטגוריה רגילה."""
+    Every transaction gets a `cat_key`: the key the browser filters by. By id
+    and not name, like every breakdown on the page; a project category gets a
+    prefix so it doesn't mix with a regular category."""
     groups = {}
     for tx in transactions:
         if tx.get("category_id"):
@@ -3941,21 +4165,26 @@ def category_filter_chips(transactions: list) -> dict:
 
 def month_transactions_from_rows(rows: list, settings: dict = None,
                                  viewer_user_id: str = None) -> list:
-    """רשימת העסקאות להצגה: כוללת פרויקטים, מסתירה פרויקט אישי של אחר."""
+    """The transaction list for display: includes projects, hides another
+    member's personal project."""
     return _format_transactions(
         _filter_hidden_personal_projects(rows, viewer_user_id), settings)
 
 
 def monthly_trend(archive: list, num_months: int = 12, today=None) -> list:
-    """גרף המגמה בעמוד ההשוואה — נגזר מטבלת הארכיון שמתחתיו, ולא נשלף בנפרד.
+    """The trend chart on the comparison page, derived from the archive table
+    under it rather than fetched separately.
 
-    הוא נשלף בנפרד עד היום, ושלוש פעמים הסכים עם הטבלה רק בערך: פעם שכח
-    להחריג פרויקטים (יולי ₪31,400 בגרף, ₪9,400 בטבלה), פעם נעצר ב"היום"
-    והשמיט את שכר הדירה של ה-30 בחודש הנוכחי, ופעם שלף אלפי עסקאות
-    שנחתכו ב-‎max_rows‎. עכשיו זה אותו מקור, אז הם לא יכולים להיפרד.
+    It was fetched separately until now, and three times it agreed with the
+    table only roughly: once it forgot to exclude projects (July ₪31,400 in the
+    chart, ₪9,400 in the table), once it stopped at "today" and left out the
+    rent due on the 30th of the current month, and once it fetched thousands of
+    transactions that got cut at `max_rows`. Now it is the same source, so they
+    can't drift apart.
 
-    רק 12 החודשים שעד החודש הנוכחי: תשלום ששולם מראש לנובמבר לא יוצר
-    עמודה ב"12 החודשים האחרונים". מהישן לחדש, כמו שהגרף מצייר."""
+    Only the 12 months up to the current one: a payment made in advance for
+    November doesn't create a bar in "the last 12 months". Oldest to newest, as
+    the chart draws."""
     hebrew_months = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
                      "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"]
     today = today or clock.today()
@@ -3979,11 +4208,13 @@ def monthly_trend(archive: list, num_months: int = 12, today=None) -> list:
 
 
 def trend_verdict(trend: list, today=None):
-    """שורת המסקנה מעל גרף ההשוואה (מתן, 12.10): החודש האחרון שנגמר מול
-    הממוצע של עד 3 החודשים שלפניו — במילים, בלי לפענח עמודות.
+    """The takeaway line above the comparison chart (Matan, 12.10): the last
+    finished month against the average of up to 3 months before it, in words,
+    without decoding bars.
 
-    החודש הנוכחי לא נבחן: באמצע החודש כל חודש נראה "חסכוני". אין חודש
-    קודם להשוות אליו, או שלא יצא בו כלום — ‎None‎, ואין שורה."""
+    The current month isn't judged: mid-month every month looks "thrifty". No
+    earlier month to compare with, or nothing was spent in it: `None`, and no
+    line."""
     today = today or clock.today()
     done = [t for t in trend or [] if (t["year"], t["month"]) < (today.year, today.month)]
     if len(done) < 2 or done[-1]["expense"] <= 0:
@@ -3994,7 +4225,7 @@ def trend_verdict(trend: list, today=None):
         return None
     avg = sum(before) / len(before)
     pct = round((last["expense"] - avg) / avg * 100)
-    # בשקלים שלמים: "ממוצע ₪11,066.67" הוא דיוק שאף אחד לא צריך במשפט
+    # In whole shekels: "average ₪11,066.67" is precision nobody needs in a sentence
     return {"month_name": last["month_name"], "expense": round(last["expense"]), "avg": round(avg),
             "count": len(before), "pct": abs(pct),
             "direction": "same" if abs(pct) < 3 else ("up" if pct > 0 else "down")}
@@ -4005,12 +4236,15 @@ _SHORT_MONTHS = ["", "ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "י
 
 
 def category_trend(family_id: str, months: list, categories: list, today=None) -> dict:
-    """כרטיס "לפי קטגוריה" בעמוד ההשוואה (מתן, 30.9): כמה יצא על כל קטגוריה
-    בכל אחד מ-‎months‎ — אותם חודשים כמו הגרף שמעליו, מהישן לחדש.
+    """The "by category" card on the comparison page (Matan, 30.9): how much went
+    to each category in each of `months`, the same months as the chart above,
+    oldest to newest.
 
-    הוצאות הבית בלבד (בלי פרויקטים), כמו כל סיכום חודשי. ממוצע והחודש הכי
-    יקר — מהחודשים שנגמרו: החודש הנוכחי עוד לא נגמר, והוא היה מוריד את
-    הממוצע ונראה "חסכוני" בכל אמצע חודש. קטגוריה בלי אף שקל בחלון — בחוץ."""
+    Household expenses only (no projects), like every monthly summary. The
+    average and the most expensive month come from finished months: the
+    current month isn't over yet, and it would pull the average down and look
+    "thrifty" in every mid-month. A category without a single shekel in the
+    window is left out."""
     today = today or clock.today()
     if not months:
         return {"months": [], "categories": []}
@@ -4033,8 +4267,9 @@ def category_trend(family_id: str, months: list, categories: list, today=None) -
 
 
 def category_trend_from_rows(rows: list, months: list, categories: list, today=None) -> dict:
-    """החלק של ‎category_trend‎ שאחרי השליפה — גם עבור ‎get_months_page‎.
-    שורות מחוץ ל-‎months‎ נזרקות, אז חלון רחב יותר לא משנה את התוצאה."""
+    """The part of `category_trend` after the query, also used by
+    `get_months_page`. Rows outside `months` are dropped, so a wider window
+    doesn't change the result."""
     today = today or clock.today()
     if not months:
         return {"months": [], "categories": []}
@@ -4048,7 +4283,8 @@ def category_trend_from_rows(rows: list, months: list, categories: list, today=N
             continue
         key = r.get("category_id") or "none"
         totals.setdefault(key, [0.0] * len(months))[i] += float(r["amount"])
-        # העסקאות עצמן — לחלון שנפתח בנגיעה בעמודה של חודש (מתן, 30.9)
+        # The transactions themselves, for the window that opens on tapping a
+        # month's bar (Matan, 30.9)
         items.setdefault(key, [[] for _ in months])[i].append(
             {"date": d[:10], "description": r.get("description") or "", "amount": float(r["amount"])})
 
@@ -4067,7 +4303,8 @@ def category_trend_from_rows(rows: list, months: list, categories: list, today=N
             "avg": round(sum(done) / len(done), 2) if done else None,
             "max": vals[top] if top is not None else None,
             "max_label": _FULL_MONTHS[months[top][1]] if top is not None else None,
-            # "החודש" רק כשהחודש האחרון בחלון הוא באמת החודש הנוכחי
+            # "This month" only when the last month in the window really is the
+            # current month
             "current": vals[-1] if months[-1] == (today.year, today.month) else None,
             "total": round(sum(vals), 2),
             "items": [sorted(m, key=lambda x: x["date"], reverse=True) for m in items[key]],
@@ -4079,12 +4316,13 @@ def category_trend_from_rows(rows: list, months: list, categories: list, today=N
 
 
 def member_trend(family_id: str, months: list) -> list:
-    """"הוצאות לפי בן משפחה" לאורך החודשים — עמוד ההשוואה (מתן, 3.10 — רעיון 15).
+    """"Expenses by family member" over the months, on the comparison page
+    (Matan, 3.10, idea 15).
 
-    הוצאות הבית בלבד (בלי פרויקטים), כמו הגרף בעמוד החודש
-    (‎member_breakdown_from_rows‎): לפי ‎user_id‎, ובלי בעלים — "משותפת".
-    מחזירה ‎[{"user_id", "name", "values": [...]}]‎, ערך לכל חודש ב-‎months‎,
-    מהגדול לקטן. זורקת DataUnavailable."""
+    Household expenses only (no projects), like the chart on the month page
+    (`member_breakdown_from_rows`): by `user_id`, and without an owner,
+    "shared". Returns `[{"user_id", "name", "values": [...]}]`, a value per
+    month in `months`, largest first. Raises DataUnavailable."""
     if not months:
         return []
     client = get_client()
@@ -4103,7 +4341,7 @@ def member_trend(family_id: str, months: list) -> list:
 
 
 def member_trend_from_rows(rows: list, months: list) -> list:
-    """החלק של ‎member_trend‎ שאחרי השליפה — גם עבור ‎get_months_page‎."""
+    """The part of `member_trend` after the query, also used by `get_months_page`."""
     if not months:
         return []
     index = {(y, m): i for i, (y, m) in enumerate(months)}
@@ -4127,10 +4365,10 @@ def member_trend_from_rows(rows: list, months: list) -> list:
 
 
 def category_monthly_averages(family_id: str, today=None) -> dict:
-    """ממוצע חודשי לכל קטגוריה, לכל המחלקות — לשורה "בממוצע ₪1,850 בחודש"
-    בהגדרות (מתן, 3.10 — רעיון 38). שלושת החודשים **השלמים** האחרונים, מחולק
-    ב-3, בלי פרויקטים. קטגוריה בלי שום
-    הוצאה בחלון — לא במילון. זורקת DataUnavailable."""
+    """The monthly average per category, for every department, for the line
+    "₪1,850 a month on average" in settings (Matan, 3.10, idea 38). The last
+    three **whole** months, divided by 3, without projects. A category with no
+    expense at all in the window isn't in the dict. Raises DataUnavailable."""
     start, end = averages_window(today or clock.today())
     client = get_client()
     if not client:
@@ -4149,7 +4387,8 @@ def category_monthly_averages(family_id: str, today=None) -> dict:
 
 
 def averages_window(today) -> tuple:
-    """‎(מ-, עד-לא-כולל)‎: שלושת החודשים השלמים האחרונים, בלי החודש הנוכחי."""
+    """`(from, until-exclusive)`: the last three whole months, without the
+    current month."""
     end = f"{today.year:04d}-{today.month:02d}-01"
     sm, sy = today.month - _HISTORY_MONTHS, today.year
     while sm <= 0:
@@ -4159,25 +4398,27 @@ def averages_window(today) -> tuple:
 
 
 def category_averages_from_totals(totals: dict) -> dict:
-    """הסכום בחלון לכל קטגוריה → ממוצע חודשי מעוגל. בלי קטגוריות שלא הוציאו."""
+    """The window total per category → a rounded monthly average. Without
+    categories that spent nothing."""
     return {str(cid): round(float(t) / _HISTORY_MONTHS)
             for cid, t in (totals or {}).items() if float(t) > 0}
 
 
-# כמה חודשים אחורה נכללים בממוצע. הקבוע יושב כאן כי גם השליפה וגם
-# החישוב חייבים להסכים עליו — אחרת "ממוצע שלושת החודשים" מחושב על
-# חלון אחר ממה שנשלף.
+# How many months back go into the average. The constant lives here because
+# both the query and the calculation must agree on it; otherwise "the
+# three-month average" is computed over a different window than was fetched.
 _HISTORY_MONTHS = 3
 
 
 def budget_alerts(breakdown: list) -> list:
-    """התראות על קטגוריות שעברו את התקציב.
+    """Alerts for categories that went over budget.
 
-    ‎budget_alert‎ היה בעבר החלטה נפרדת מ"יש תקציב", עם תיבת סימון
-    משלה. בפועל זו הבחנה בלי הבדל — מי שטרח להגדיר תקציב רוצה לדעת
-    כשחרג ממנו, אחרת הוא רק מספר על המסך — והתיבה ירדה. השדה נשאר
-    בנתונים, עם ברירת מחדל ‎True‎ (ראו ‎category_budget‎), כדי שתקציבים
-    שנשמרו בכתיב הישן ימשיכו להתנהג נכון."""
+    `budget_alert` used to be a decision separate from "has a budget", with its
+    own checkbox. In practice it was a distinction without a difference: anyone
+    who bothered to set a budget wants to know when they went over it,
+    otherwise it is just a number on the screen, and the checkbox was dropped.
+    The field stays in the data, defaulting to `True` (see `category_budget`),
+    so budgets saved in the old shape keep behaving correctly."""
     out = []
     for row in breakdown:
         if not (row.get("budget_over") and row.get("budget_alert")):
@@ -4193,17 +4434,19 @@ def budget_alerts(breakdown: list) -> list:
 
 
 def category_anchor(category_id) -> str:
-    """העוגן של קטגוריית הוצאה בעמוד החודש. עסקה בלי קטגוריה — אין לה
-    שורה משלה עם מזהה, אז מובילים לפירוט ההוצאות כולו."""
+    """The anchor of an expense category on the month page. A transaction with no
+    category has no row of its own with an id, so it links to the whole
+    expense breakdown."""
     return f"cat-{category_id}" if category_id else "expense-breakdown"
 
 
 def month_alerts(expense_breakdown: list) -> list:
-    """ההתראות של החודש, לדף הבית: רק חריגה מתקציב של קטגוריה (מתן,
-    11.10). "גבוה מהממוצע" והתראות המאזן (הוצאות מעל ההכנסות, מאזן שלילי)
-    הוסרו — מי שרוצה התראות קובע תקציב, והמאזן כבר אדום בראש הבית.
+    """The month's alerts, for the home page: only a category going over budget
+    (Matan, 11.10). "Higher than average" and the balance alerts (expenses
+    above income, negative balance) were removed: whoever wants alerts sets a
+    budget, and the balance is already red at the top of the home page.
 
-    ‎expense_breakdown‎ אחרי ‎apply_budgets‎."""
+    `expense_breakdown` after `apply_budgets`."""
     return budget_alerts(expense_breakdown)
 
 
@@ -4226,7 +4469,7 @@ def _fetch_family_members(family_id: str) -> list:
 
 
 def get_family_members(family_id: str) -> list:
-    """ממוטב-לבקשה (ראה _request_cache) — נקרא כמה פעמים בעמוד אחד."""
+    """Cached per request (see _request_cache): called several times on one page."""
     return _request_cache(f"members:{family_id}", lambda: _fetch_family_members(family_id))
 
 
@@ -4237,7 +4480,7 @@ def update_family_name(family_id: str, name: str):
     try:
         result = client.table("families").update({"name": name}).eq("id", family_id).execute()
         _invalidate_family_cache(family_id)
-        # ראו update_category: "נשמר" על שום שורה הוא שקר קטן שמצטבר.
+        # See update_category: "saved" on no row is a small lie that adds up.
         return bool(result.data)
     except Exception:
         logger.exception("update_family_name")
@@ -4252,18 +4495,20 @@ def _fetch_family(family_id: str) -> dict:
         result = client.table("families").select("*").eq("id", family_id).single().execute()
         return result.data or {}
     except Exception as e:
-        # {} מתמזג לברירות המחדל, והעסקה נרשמת על שם של בן משפחה אחר
+        # {} merges into the defaults, and the transaction is recorded under
+        # another family member
         raise DataUnavailable("family") from e
 
 
 def get_family(family_id: str) -> dict:
-    """ממוטב-לבקשה (ראה _request_cache) — נקרא גם ישירות וגם דרך ההעדפות."""
+    """Cached per request (see _request_cache): called both directly and through
+    the settings."""
     return _request_cache(f"family:{family_id}", lambda: _fetch_family(family_id))
 
 
 def family_name_for_code(code: str):
-    """שם המשפחה שמאחורי קוד הזמנה, או None אם הקוד לא קיים — לתצוגה מקדימה
-    ("מצטרפים למשפחת כהן?") לפני שהמשתמש מאשר."""
+    """The family name behind an invite code, or None if the code doesn't exist,
+    for a preview ("מצטרפים למשפחת כהן?") before the user confirms."""
     client = get_client()
     if not client or not code:
         return None
@@ -4276,9 +4521,10 @@ def family_name_for_code(code: str):
 
 
 def family_transaction_count(family_id: str) -> int:
-    """כמה תנועות יש למשפחה. משמש כדי להזהיר לפני מעבר למשפחה אחרת: התנועות
-    נשארות קשורות למשפחה הישנה דרך transactions.family_id, כך שמי שעוזב
-    משפחה עם היסטוריה מאבד אליה את הגישה."""
+    """How many transactions the family has. Used to warn before moving to another
+    family: the transactions stay tied to the old family through
+    transactions.family_id, so whoever leaves a family with history loses
+    access to it."""
     client = get_client()
     if not client:
         return 0
@@ -4289,20 +4535,21 @@ def family_transaction_count(family_id: str) -> int:
             .limit(1).execute()
         return result.count or 0
     except Exception as e:
-        # 0 נקרא כ"אין מה לאבד" ומדלג על אישור נטישת המשפחה
+        # 0 reads as "nothing to lose" and skips the leave-family confirmation
         raise DataUnavailable("family_transaction_count") from e
 
 
 def join_family_by_code(code: str):
-    """מצרפת את המשתמש המחובר למשפחה לפי קוד הזמנה.
+    """Joins the signed-in user to a family by invite code.
 
-    עוברת דרך RPC עם security definer ולא ב-SELECT ישיר: מדיניות ה-RLS
-    families_member_read מתירה לקרוא משפחה רק לחבר קיים בה, ומצטרף חדש
-    מעצם הגדרתו עוד לא חבר — לכן בדיקה ישירה תמיד נכשלת. ראו את המיגרציה
-    20260914120000_family_invite_code.sql.
+    Goes through an RPC with security definer and not a direct SELECT: the RLS
+    policy families_member_read allows reading a family only to an existing
+    member, and a new joiner by definition isn't a member yet, so a direct
+    check always fails. See migration 20260914120000_family_invite_code.sql.
 
-    מחזירה (family_id, error). error הוא None בהצלחה, ומחרוזת בעברית אחרת —
-    כדי שהקריאה למעלה תוכל להבחין בין "הצטרפת" ל"הקוד שגוי" במקום לבלוע."""
+    Returns (family_id, error). error is None on success, and a Hebrew string
+    otherwise, so the caller can tell "joined" from "wrong code" instead of
+    swallowing it."""
     client = get_client()
     if not client:
         return None, "בסיס הנתונים אינו זמין כרגע"
@@ -4312,9 +4559,10 @@ def join_family_by_code(code: str):
         result = client.rpc("join_family_by_code", {"p_code": code}).execute()
         family_id = result.data
         if not family_id:
-            # "או שפג תוקפו": קוד תקף שבוע, ומי שקיבל קוד ישן בדק שוב ושוב
-            # שהעתיק נכון. בלי להבחין בין השניים — "פג" היה מאשר לזר שניחש
-            # שהקוד היה אמיתי פעם.
+        # "Or expired": a code is valid for a week, and someone who got an old
+        # code checked again and again that they copied it right. Without telling
+        # the two apart: "expired" would confirm to a stranger who guessed that
+        # the code was once real.
             return None, "הקוד לא נמצא או שפג תוקפו — בקשו ממנהל המשפחה קוד חדש"
         return family_id, None
     except Exception:
@@ -4357,13 +4605,14 @@ def _next_month(year: int, month: int) -> str:
 
 def _format_transactions(rows: list, settings: dict = None) -> list:
     cfg = settings or DEFAULT_FAMILY_SETTINGS
-    # מקום עבודה נשען על שיוך ההכנסה לבן משפחה — בלי שיוך הכנסות אין את מי
-    # להציג. בלי הגדרה משלו מאז 11.10 (מתן): כששיוך הכנסות פעיל, הוא מוצג.
+    # Workplace relies on attributing income to a family member; without income
+    # attribution there is no one to show it for. No setting of its own since
+    # 11.10 (Matan): when income attribution is on, it is shown.
     show_workplace = cfg.get("owner_attribution", {}).get("income", True)
     out = []
     for row in rows:
-        # עסקה המשויכת לפרויקט משתמשת בקטגוריה הייעודית שלו (project_categories),
-        # לא בקטגוריות הרגילות של המשפחה
+        # A transaction attached to a project uses that project's own category
+        # (project_categories), not the family's regular categories
         if row.get("project_category_id"):
             cat = row.get("project_categories") or {}
         else:
@@ -4382,64 +4631,71 @@ def _format_transactions(rows: list, settings: dict = None) -> list:
             "category_icon":        cat.get("icon", "📦"),
             "user_id":              row.get("user_id"),
             "user_name":            first_name(user.get("name", "")) if row.get("user_id") else "משותפת",
-            # מיקום העבודה מוצג רק על הכנסות משכורת.
-            # מעדיפים תיעוד קפוא על העסקה עצמה (row.workplace) — כדי ששינוי
-            # מקום עבודה עתידי לא ישנה בטעות היסטוריה; NULL (עסקאות ישנות
-            # מלפני התכונה) נופל חזרה לחיפוש חי מהפרופיל כמו קודם.
+            # Workplace is shown only on salary income.
+            # The value frozen on the transaction itself (row.workplace) is
+            # preferred, so a future workplace change doesn't accidentally rewrite
+            # history; NULL (old transactions from before the feature) falls back
+            # to a live lookup from the profile as before.
             "workplace":            ((row.get("workplace") or user.get("workplace"))
                                      if show_workplace and row["type"] == "income"
                                         and "משכורת" in cat.get("name", "")
                                      else None),
             "is_recurring":         row.get("is_recurring", False),
             "recurring_frequency":  row.get("recurring_frequency"),
-            # "תשלום 3 מתוך 12" (מתן, 12.10)
+            # "תשלום 3 מתוך 12" (Matan, 12.10)
             "installments":         row.get("installments"),
             "installment_no":       row.get("installment_no"),
             "recurring_end_date":   str(row["recurring_end_date"]) if row.get("recurring_end_date") else None,
-            # מזהה התבנית הקבועה שיצרה את המופע הזה (None אם זו עסקה רגילה
-            # או תבנית בעצמה) — משמש לסנכרון חכם: הצעה לעדכן גם את התבנית
-            # כשמשנים סכום במופע.
+            # The id of the recurring template that created this occurrence (None
+            # for a regular transaction or a template itself). Used for smart
+            # sync: offering to update the template too when an occurrence's
+            # amount changes.
             "recurring_parent_id":  row.get("recurring_parent_id"),
             "project_id":           row.get("project_id"),
-            # מי *רשם* את העסקה (לא של מי הכסף — זה ‎user_id‎). ‎None‎ = לא ידוע.
+            # Who *recorded* the transaction (not whose money it is; that's
+            # `user_id`). `None` = unknown.
             "created_by":           row.get("created_by"),
             "project_name":         proj.get("name"),
             "project_icon":         proj.get("icon"),
             "has_receipt":          bool(row.get("receipt_path")),
-            # מופע צפוי של עסקה קבועה בחודש עתידי — עוד לא עסקה (‎projected_recurring_rows‎)
+            # A projected occurrence of a recurring transaction in a future month;
+            # not a transaction yet (`projected_recurring_rows`)
             "projected":            bool(row.get("projected")),
         })
     return out
 
 
-# ─── סיכום שנתי (מתן, 1.11) ───────────────────────────────────────────────
+# ─── Year in review (Matan, 1.11) ───────────────────────────────────────────
 
-# שינוי בקטגוריה מול השנה הקודמת — רק כשבשנה הקודמת הלך עליה לפחות זה.
-# ₪40 → ₪90 הוא "+125%" שלא אומר כלום.
+# Change in a category against the previous year, only when at least this much
+# went to it last year. ₪40 → ₪90 is a "+125%" that says nothing.
 _YEAR_COMPARE_MIN = 500
 
 
 def year_recap_due(today):
-    """איזו שנה מסכמים בכרטיס בדף הבית — 1–15 בינואר, אחרת ‎None‎. לא מדצמבר:
-    "השנה עוד לא נגמרה" (מתן, 1.11)."""
+    """Which year the home-page card sums up: January 1–15, otherwise `None`. Not
+    from December: "the year isn't over yet" (Matan, 1.11)."""
     if today.month == 1 and today.day <= 15:
         return today.year - 1
     return None
 
 
 def year_recap_partial(year: int, today) -> bool:
-    """"2026 עד עכשיו" (מתן, 1.11 — אפשרות ב): השנה הנוכחית היא תמיד בקרה באמצע
-    הדרך — גם בדצמבר. הסיכום המלא רק כשהשנה נגמרה."""
+    """"2026 so far" (Matan, 1.11, option B): the current year is always a
+    checkpoint halfway through, even in December. The full summary only once
+    the year is over."""
     return year == today.year
 
 
 def year_recap(family_id: str, viewer_user_id: str, year: int, today=None) -> dict:
-    """"2026 שלכם" — סיכום שנה שנפתח בלחיצה (מתן, 1.11).
+    """"Your 2026": a year summary that opens on tap (Matan, 1.11).
 
-    הכנסות, הוצאות וחיסכון של הבית (בלי פרויקטים — כמו כל סיכום), החודש הכי
-    חסכוני והכי יקר, הקטגוריות הגדולות, הפרויקטים של השנה, ומול השנה הקודמת —
-    **רק כשהשנה הקודמת מלאה** (יש בה ינואר). שליפה אחת לשתי השנים, בעמודים.
-    פרויקט אישי של בן משפחה אחר לא נכלל. זורק ‎DataUnavailable‎."""
+    The household's income, expenses and savings (no projects, like every
+    summary), the thriftiest and the most expensive month, the biggest
+    categories, the year's projects, and against the previous year **only when
+    the previous year is full** (it has a January). One query for both years,
+    in pages. Another family member's personal project isn't included. Raises
+    `DataUnavailable`."""
     client = get_client()
     if not client:
         raise DataUnavailable("year_recap: no client")
@@ -4458,7 +4714,7 @@ def year_recap(family_id: str, viewer_user_id: str, year: int, today=None) -> di
     cur = [r for r in rows if str(r["date"]).startswith(str(year))]
     prev = [r for r in rows if not str(r["date"]).startswith(str(year))]
     if partial:
-        # עד היום — ומול **אותה תקופה** בשנה שעברה, לא מול שנה שלמה
+        # Up to today, and against **the same period** last year, not a whole year
         upto = today.isoformat()[5:]
         cur = [r for r in cur if str(r["date"])[5:10] <= upto]
         prev = [r for r in prev if str(r["date"])[5:10] <= upto]

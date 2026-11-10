@@ -1,16 +1,17 @@
-"""לוגים של האפליקציה.
+"""Application logging.
 
-הקוד השתמש ב-print בלבד — 61 קריאות, רובן בתוך except. הפלט הזה הולך
-לבאפר הלוגים של Railway, שנמחק, ואף אחד לא קורא אותו. חשוב מכך: **Sentry
-לא ראה אותו**. חיברנו ניטור שגיאות ואז ניתבנו סביבו את מצב הכשל הנפוץ
-ביותר באפליקציה — שאילתה שנכשלת ונבלעת.
+The code used to use print only: 61 calls, most of them inside except. That
+output goes to Railway's log buffer, which gets wiped, and nobody reads it.
+More importantly, **Sentry never saw it**. We hooked up error monitoring and
+then routed the app's most common failure mode around it: a query that fails
+and is swallowed.
 
-עם logging, השילוב של Sentry עם מודול הלוגים תופס אוטומטית כל רשומה
-ברמת ERROR ומעלה והופך אותה לאירוע, ורשומות נמוכות יותר לפירורי-לחם
-שנצמדים לאירוע הבא. כלומר: אותה שורת קוד, אבל עכשיו רואים אותה.
+With logging, Sentry's logging integration automatically turns every record
+at ERROR and above into an event, and lower records into breadcrumbs attached
+to the next event. Same line of code, but now it is visible.
 
-logger.exception (ולא logger.error) בתוך except — הוא מצרף את ה-traceback
-המלא, שהוא בדיוק מה שחסר כדי לדעת למה השאילתה נכשלה.
+Use logger.exception (not logger.error) inside except: it attaches the full
+traceback, which is exactly what is missing to know why the query failed.
 """
 import logging
 import os
@@ -18,17 +19,18 @@ import sys
 
 
 def setup():
-    """מכוון את הלוגים ל-stderr, שם Railway אוסף אותם.
+    """Points logging at stderr, where Railway collects it.
 
-    נקרא פעם אחת מ-app.py. ‎force=True‎ כי gunicorn כבר נגע בהגדרות
-    הלוגים לפני שהאפליקציה נטענה, ובלעדיו ההגדרה כאן נבלעת בשקט."""
+    Called once from app.py. `force=True` because gunicorn has already touched
+    the logging config before the app is loaded, and without it the setup here
+    is silently ignored."""
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
         force=True,
     )
-    # רועשות מדי ברמת INFO, ולא מוסיפות דבר על מה שאנחנו כבר מתעדים
+    # Too noisy at INFO, and they add nothing to what we already log
     for noisy in ("httpx", "hpack", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 

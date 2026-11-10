@@ -1,18 +1,21 @@
-"""התראות לטלפון — Web Push (מתן, 31.10).
+"""Phone notifications: Web Push (Matan, 31.10).
 
-חמש התראות, כולן למשפחה ולא לאדם אחד:
-  · בן משפחה הצטרף           — ברגע ההצטרפות (‎app.join_*‎)
-  · המשכורת נרשמה            — המשכורת הראשונה בחודש, ברגע הרישום
-  · חודש נסגר                — ב-1 לחודש, בבוקר
-  · תשלום אחרון              — ביום שבו יורד התשלום האחרון בסדרת תשלומים
-  · לא נרשם כלום כבר שבוע    — אחרי 7, 14 ו-21 יום בלי עסקה חדשה
-שלוש האחרונות נשלחות מ-‎/internal/push/daily‎, ש-‎pg_cron‎ קורא לו פעם ביום.
+Five notifications, all to the family rather than one person:
+  · A family member joined      : at the moment of joining (`app.join_*`)
+  · The salary was recorded     : first salary of the month, when recorded
+  · Month closed                : on the 1st of the month, in the morning
+  · Last installment            : on the day the last payment of a series is due
+  · Nothing recorded for a week : after 7, 14 and 21 days with no new transaction
+The last three are sent from `/internal/push/daily`, which `pg_cron` calls once
+a day.
 
-ההצפנה ממומשת כאן (RFC 8291, ‎aes128gcm‎) על ‎cryptography‎ שכבר בתלויות,
-ולא דרך ‎pywebpush‎ — שגוררת ‎http-ece‎, חבילה שלא נבנית בכל סביבה. החתימה
-מול שירות ההתראות היא VAPID (RFC 8292): ‎JWT‎ ב-ES256.
+Encryption is implemented here (RFC 8291, `aes128gcm`) on top of
+`cryptography`, already a dependency, and not through `pywebpush`, which
+drags in `http-ece`, a package that doesn't build everywhere. Signing towards
+the push service is VAPID (RFC 8292): a `JWT` in ES256.
 
-בלי ‎VAPID_PRIVATE_KEY‎ בסביבה לא נשלח כלום, בשקט — מקומית ובבדיקות.
+Without `VAPID_PRIVATE_KEY` in the environment nothing is sent, silently:
+locally and in tests.
 """
 from __future__ import annotations
 
@@ -37,7 +40,7 @@ _RECORD_SIZE = 4096
 _TTL_SECONDS = 24 * 3600
 
 
-# ─── מפתחות ─────────────────────────────────────────────────────────────────
+# ─── Keys ───────────────────────────────────────────────────────────────────
 
 def b64u(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
@@ -54,7 +57,7 @@ def _point(public_key) -> bytes:
 
 
 def generate_vapid_keys() -> tuple:
-    """‎(private, public)‎ ב-base64url — להגדרה ב-Railway פעם אחת."""
+    """`(private, public)` in base64url, to set on Railway once."""
     key = ec.generate_private_key(ec.SECP256R1())
     d = key.private_numbers().private_value.to_bytes(32, "big")
     return b64u(d), b64u(_point(key.public_key()))
@@ -67,7 +70,7 @@ def _vapid_key():
     try:
         return ec.derive_private_key(int.from_bytes(b64u_decode(raw), "big"), ec.SECP256R1())
     except Exception:
-        logger.error("VAPID_PRIVATE_KEY אינו מפתח תקין — התראות כבויות")
+        logger.error("VAPID_PRIVATE_KEY is not a valid key; notifications are off")
         return None
 
 
@@ -75,8 +78,8 @@ _public_cache = {}
 
 
 def public_key() -> str | None:
-    """המפתח הציבורי, לדפדפן (‎applicationServerKey‎). ‎None‎ — התראות כבויות.
-    נגזר פעם אחת לכל ערך של המשתנה — הוא מוצג בכל עמוד."""
+    """The public key, for the browser (`applicationServerKey`). `None`: notifications
+    are off. Derived once per value of the variable, since it is rendered on every page."""
     raw = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
     if raw not in _public_cache:
         key = _vapid_key()
@@ -88,20 +91,20 @@ def enabled() -> bool:
     return _vapid_key() is not None
 
 
-# ─── הצפנה (RFC 8291) ──────────────────────────────────────────────────────
+# ─── Encryption (RFC 8291) ──────────────────────────────────────────────────
 
 def _hkdf(salt: bytes, info: bytes, length: int, ikm: bytes) -> bytes:
     return HKDF(algorithm=hashes.SHA256(), length=length, salt=salt, info=info).derive(ikm)
 
 
 def encrypt(payload: bytes, p256dh: str, auth: str, *, _server_key=None, _salt=None) -> bytes:
-    """גוף ההודעה המוצפן, בפורמט ‎aes128gcm‎ — רשומה אחת.
+    """The encrypted message body in `aes128gcm` format, one record.
 
-    ‎_server_key‎ ו-‎_salt‎ — רק לבדיקות (וקטורי הבדיקה של ה-RFC)."""
+    `_server_key` and `_salt` are for tests only (the RFC's test vectors)."""
     ua_public = b64u_decode(p256dh)
     auth_secret = b64u_decode(auth)
     if len(ua_public) != 65 or len(auth_secret) < 16:
-        raise ValueError("מפתחות מנוי לא תקינים")
+        raise ValueError("Invalid subscription keys")
     server_key = _server_key or ec.generate_private_key(ec.SECP256R1())
     server_public = _point(server_key.public_key())
     ua_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), ua_public)
@@ -112,7 +115,7 @@ def encrypt(payload: bytes, p256dh: str, auth: str, *, _server_key=None, _salt=N
     cek = _hkdf(salt, b"Content-Encoding: aes128gcm\x00", 16, ikm)
     nonce = _hkdf(salt, b"Content-Encoding: nonce\x00", 12, ikm)
     if len(payload) + 1 + 16 > _RECORD_SIZE:
-        raise ValueError("ההודעה ארוכה מדי")
+        raise ValueError("Message too long")
     body = AESGCM(cek).encrypt(nonce, payload + b"\x02", None)
     header = salt + _RECORD_SIZE.to_bytes(4, "big") + bytes([len(server_public)]) + server_public
     return header + body
@@ -136,11 +139,11 @@ def vapid_header(endpoint: str, key=None, now=None) -> str:
     return f"vapid t={token}, k={b64u(_point(key.public_key()))}"
 
 
-# ─── שליחה ──────────────────────────────────────────────────────────────────
+# ─── Sending ────────────────────────────────────────────────────────────────
 
 def _allowed_endpoint(endpoint: str) -> bool:
-    """רק לשירותי התראות אמיתיים — הכתובת מגיעה מהדפדפן, ובלי הבדיקה הזאת
-    השרת היה שולח בקשות לכל כתובת שמישהו רשם (SSRF)."""
+    """Real push services only: the URL comes from the browser, and without this
+    check the server would send requests to any URL someone registered (SSRF)."""
     try:
         url = urlparse(endpoint)
     except ValueError:
@@ -153,8 +156,9 @@ def _allowed_endpoint(endpoint: str) -> bool:
 
 
 def send(subscriptions: list, message: dict) -> list:
-    """שולחת לכל המנויים. מחזירה את הכתובות שכבר לא קיימות (404/410),
-    כדי שהקורא ימחק אותן. כשל במנוי אחד לא עוצר את השאר."""
+    """Sends to every subscriber. Returns the endpoints that no longer exist
+    (404/410) so the caller can delete them. A failure for one subscriber
+    doesn't stop the rest."""
     key = _vapid_key()
     if not key or not subscriptions:
         return []
@@ -177,20 +181,21 @@ def send(subscriptions: list, message: dict) -> list:
                 if res.status_code in (404, 410):
                     dead.append(endpoint)
                 elif res.status_code >= 400:
-                    logger.warning("push: %s מ-%s", res.status_code, urlparse(endpoint).hostname)
+                    logger.warning("push: %s from %s", res.status_code, urlparse(endpoint).hostname)
             except Exception:
-                logger.warning("push: שליחה נכשלה", exc_info=True)
+                logger.warning("push: send failed", exc_info=True)
     return dead
 
 
 def send_in_background(subscriptions: list, message: dict) -> None:
-    """כמו ‎notify.notify_owner‎: בלי לעכב את הבקשה, ובלי לגעת במסד מה-thread."""
+    """Like `notify.notify_owner`: without delaying the request, and without
+    touching the database from the thread."""
     if not subscriptions or not enabled():
         return
     threading.Thread(target=send, args=(list(subscriptions), dict(message)), daemon=True).start()
 
 
-# ─── הנוסחים ────────────────────────────────────────────────────────────────
+# ─── Wording ────────────────────────────────────────────────────────────────
 
 from .money import format_money  # noqa: E402
 from .wording import HEBREW_MONTHS  # noqa: E402
@@ -200,11 +205,11 @@ def _shekels(value) -> str:
     return "₪" + format_money(round(float(value or 0)))
 
 
-# הנוסחים — מתן, 1.11: בלי אימוג'ים, כותרת קצרה ושורה אחת של פרטים.
+# Wording (Matan, 1.11): no emoji, a short title and one line of details.
 
 def member_joined(name: str, family_name: str = "") -> dict:
-    # מתן כתב "נועה הצטרפה". אין לאפליקציה דרך לדעת מגדר, ושם לא אומר אותו —
-    # עד שיוחלט אחרת, הצורה הכפולה
+    # Matan wrote "נועה הצטרפה". The app has no way to know gender, and a name
+    # doesn't tell it; until decided otherwise, the double form
     who = (name or "").strip() or "בן משפחה חדש"
     return {"title": "הצטרפות למשפחה",
             "body": f"{who} הצטרף/ה לתקציב המשפחתי",
@@ -224,7 +229,8 @@ def month_closed(month: int, income, expense, savings) -> dict:
 
 
 def last_installment(description: str, amount) -> dict:
-    # שם בית העסק בכותרת, אחרי העברית — בתחילת שורה, שם באנגלית הופך את כיוונה
+    # Business name in the title after the Hebrew: at the start of a line an
+    # English name flips its direction
     what = (description or "").strip()
     return {"title": f"תשלום אחרון של {what}" if what else "תשלום אחרון",
             "body": f"{_shekels(amount)} פחות בחודש מעכשיו",

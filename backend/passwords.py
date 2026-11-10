@@ -1,20 +1,23 @@
-"""מה נדרש מסיסמה חדשה (מתן, 10.11.2026 — בדיקת אבטחה).
+"""What a new password must satisfy (Matan, 10.11.2026, security review).
 
-שני כללים, לכל סיסמה חדשה: הרשמה, איפוס, והחלפה בהגדרות. סיסמה קיימת
-לא נבדקת — מי שכבר רשום ממשיך להתחבר בדיוק כמו קודם.
+Two rules, for every new password: signup, reset, and change in settings.
+An existing password is never checked: anyone already registered keeps
+signing in exactly as before.
 
-  · לפחות 8 תווים (עד 10.11 — 6). ההמלצה של Supabase היא 8 לפחות.
-  · לא סיסמה שדלפה. רשימות של מאות מיליוני סיסמאות שדלפו מאתרים אחרים
-    מסתובבות ברשת, ותוקפים מנסים אותן אחת-אחת על כל אתר. ל-Supabase יש
-    בדיקה כזו מובנית, אבל רק בתוכנית בתשלום — אז היא כאן.
+  · At least 8 characters (6 until 10.11). Supabase recommends at least 8.
+  · Not a leaked password. Lists of hundreds of millions of passwords leaked
+    from other sites circulate online, and attackers try them one by one on
+    every site. Supabase has this check built in, but only on the paid plan,
+    so it lives here.
 
-הבדיקה מול Pwned Passwords (‎api.pwnedpasswords.com‎) לא שולחת את הסיסמה:
-נשלחים רק חמשת התווים הראשונים של ה-SHA-1 שלה, והשירות מחזיר את כל
-הסיומות שמתחילות בהם (מאות). ההשוואה נעשית כאן. ‎Add-Padding‎ מוסיף
-לתשובה שורות מזויפות עם ספירה 0, כדי שגם גודל התשובה לא יסגיר משהו.
+The check against Pwned Passwords (`api.pwnedpasswords.com`) never sends the
+password: only the first five characters of its SHA-1 are sent, and the
+service returns every suffix that starts with them (hundreds). The comparison
+happens here. `Add-Padding` adds fake rows with a count of 0 to the response,
+so that even the response size gives nothing away.
 
-אם השירות לא עונה — הסיסמה מתקבלת. הרשמה שנתקעת בגלל שירות חיצוני
-גרועה יותר מסיסמה אחת שלא נבדקה.
+If the service doesn't answer, the password is accepted. A signup stuck on an
+external service is worse than one unchecked password.
 """
 import hashlib
 
@@ -52,13 +55,13 @@ def is_leaked(password: str) -> bool:
     for line in body.splitlines():
         found, _, count = line.strip().partition(":")
         if found == suffix:
-            # שורות ריפוד מגיעות עם ספירה 0 — הן לא סיסמאות אמיתיות
+            # Padding rows come with a count of 0; they are not real passwords
             return count.strip() not in ("", "0")
     return False
 
 
 def problem(password: str):
-    """הודעת השגיאה לסיסמה חדשה, או None אם היא בסדר."""
+    """The error message for a new password, or None if it is fine."""
     if len(password) < MIN_LENGTH:
         return TOO_SHORT
     if is_leaked(password):

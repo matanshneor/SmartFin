@@ -30,14 +30,16 @@ logger = logs.get("smartfin.app")
 
 load_dotenv()
 
-# ─── ניטור שגיאות ────────────────────────────────────────────────────────────
-# בלי זה שגיאה שמשתמש נתקל בה מגיעה ל-error.html ושם נעלמת: ה-print ללוגים של
-# Railway נמחק ואף אחד לא קורא אותו. עם משתמש אחד זה נסבל כי הוא מגלה לבד;
-# עם מאה זה אומר שמשתמש מתוסכל עוזב ואין לנו מושג למה.
-# פעיל רק כש-SENTRY_DSN מוגדר, כך שפיתוח מקומי ופריסות קיימות לא מושפעים.
-# שמות משתנים ושדות שאסור שיעזבו את השרת. נבדק מול השם בפועל בקוד:
-# password/current_password במסלולי האימות, access_token/refresh_token
-# ב-session, image_bytes/b64 בסריקת הקבלה.
+# ─── Error monitoring ───────────────────────────────────────────────────────
+# Without this, an error a user hits reaches error.html and disappears there: the
+# print to Railway's logs gets wiped and nobody reads it. With one user that is
+# tolerable because they find out themselves; with a hundred it means a
+# frustrated user leaves and we have no idea why.
+# Active only when SENTRY_DSN is set, so local development and existing
+# deployments are unaffected.
+# Variable and field names that must never leave the server. Checked against
+# the actual names in the code: password/current_password in the auth routes,
+# access_token/refresh_token in the session, image_bytes/b64 in receipt scanning.
 _SECRET_NAMES = (
     "password", "passwd", "secret", "token", "authorization", "apikey",
     "api_key", "image_bytes", "b64", "encrypted_password",
@@ -49,36 +51,37 @@ def _looks_secret(name: str) -> bool:
 
 
 def _scrub_event(event, hint):
-    """מנקה את האירוע לפני שהוא עוזב את השרת.
+    """Scrubs the event before it leaves the server.
 
-    האפליקציה מטפלת בנתונים פיננסיים, ומסלול סריקת הקבלה נושא תמונה של
-    קבלה אמיתית — שום אחד מאלה לא אמור להגיע לשירות חיצוני.
+    The app handles financial data, and the receipt-scanning route carries a
+    photo of a real receipt: none of that should reach an external service.
 
-    הניקוי הקודם נגע רק ב-event["request"], וזה לא היה מספיק: ה-SDK מצרף
-    לכל frame ב-stacktrace גם את המשתנים המקומיים שהיו בזיכרון באותו רגע.
-    בפועל זה אומר שחריגה כלשהי במסלול התחברות, הרשמה, איפוס סיסמה או
-    מחיקת חשבון הייתה שולחת את הסיסמה עצמה; חריגה ב-inject_auth הייתה
-    שולחת את טוקני Supabase; וחריגה בסריקת קבלה הייתה שולחת את התמונה.
+    The previous scrubbing touched only event["request"], and that wasn't
+    enough: the SDK attaches to every frame in the stack trace the local
+    variables that were in memory at that moment. In practice, any exception in
+    the sign-in, signup, password-reset or account-deletion routes would send the
+    password itself; an exception in inject_auth would send Supabase tokens; and
+    an exception in receipt scanning would send the image.
 
-    include_local_variables=False כבר מכבה את זה ב-SDK, והניקוי כאן הוא
-    השכבה השנייה — בדיוק כמו שההערה המקורית התכוונה, אבל במקומות שבהם
-    הנתונים באמת נמצאים: extra, breadcrumbs, contexts ו-query_string,
-    שאף אחד מהם לא נגע בהם קודם."""
+    include_local_variables=False already turns that off in the SDK, and the
+    scrubbing here is the second layer, exactly as the original comment meant,
+    but in the places where the data really is: extra, breadcrumbs, contexts
+    and query_string, none of which were touched before."""
     request_data = event.get("request") or {}
     request_data.pop("data", None)
     request_data.pop("cookies", None)
-    # ה-query string נושא ?code=<קוד הזמנה> ב-/api/family/preview
+    # The query string carries ?code=<invite code> in /api/family/preview
     request_data.pop("query_string", None)
     headers = request_data.get("headers") or {}
     for sensitive in ("Cookie", "Authorization"):
         headers.pop(sensitive, None)
 
-    # משתנים מקומיים בכל frame — הנתיב שהיה פתוח לגמרי
+    # Local variables in every frame: the path that was wide open
     for value in (event.get("exception") or {}).get("values") or []:
         for frame in (value.get("stacktrace") or {}).get("frames") or []:
             frame.pop("vars", None)
 
-    # extra / contexts: ערכים שהקוד שולח במפורש, היום או בעתיד
+    # extra / contexts: values the code sends explicitly, today or in the future
     for section in ("extra", "contexts"):
         holder = event.get(section)
         if isinstance(holder, dict):
@@ -86,7 +89,7 @@ def _scrub_event(event, hint):
                 if _looks_secret(key):
                     holder[key] = "[scrubbed]"
 
-    # breadcrumbs: ה-SDK מתעד בהן בקשות ושאילתות שקדמו לשגיאה
+    # breadcrumbs: the SDK records the requests and queries that preceded the error
     for crumb in event.get("breadcrumbs") or []:
         if not isinstance(crumb, dict):
             continue
@@ -107,10 +110,11 @@ if _sentry_dsn:
     sentry_sdk.init(
         dsn=_sentry_dsn,
         integrations=[FlaskIntegration()],
-        send_default_pii=False,   # בלי כתובות IP, עוגיות או גוף בקשה
-        # ברירת המחדל היא True, והיא מה שצירף סיסמאות וטוקנים לכל דיווח
+        send_default_pii=False,   # no IP addresses, cookies or request body
+        # The default is True, and it is what attached passwords and tokens to
+        # every report
         include_local_variables=False,
-        traces_sample_rate=0.0,   # שגיאות בלבד — מדידות ביצועים עולות כסף ולא נחוצות כאן
+        traces_sample_rate=0.0,   # errors only: performance tracing costs money and isn't needed here
         environment=os.environ.get("RAILWAY_ENVIRONMENT_NAME", "local"),
         before_send=_scrub_event,
     )
@@ -124,52 +128,58 @@ app = Flask(
     static_url_path='/static',
 )
 
-# מפתח החתימה של ה-sessions חייב להגיע מהסביבה — בלי fallback, אחרת עוגיות
-# ניתנות לזיוף עם מפתח ציבורי ידוע. נכשלים בהפעלה במקום להמשיך בשקט.
+# The session signing key must come from the environment, with no fallback;
+# otherwise cookies can be forged with a known public key. Fail at startup
+# instead of carrying on silently.
 _secret = os.environ.get("SECRET_KEY")
 if not _secret:
     raise RuntimeError("SECRET_KEY environment variable is required — refusing to start without it")
 app.secret_key = _secret
 
-# נשארים מחוברים עד יציאה יזומה. העוגייה חיה 90 יום, ו-
-# SESSION_REFRESH_EACH_REQUEST (ברירת המחדל של Flask, מפורש כאן) דוחף את
-# תאריך התפוגה קדימה בכל בקשה, כך שמשתמש פעיל לעולם לא מגיע אליו.
-# מה שמאפשר את זה בפועל הוא רענון ה-refresh token ב-inject_auth: טוקן הגישה
-# של Supabase חי כשעה, וההתחברות שורדת כי הוא מוחלף מעצמו.
+# Users stay signed in until they sign out themselves. The cookie lives 90 days,
+# and SESSION_REFRESH_EACH_REQUEST (Flask's default, explicit here) pushes the
+# expiry forward on every request, so an active user never reaches it.
+# What actually makes this work is the refresh-token refresh in inject_auth:
+# Supabase's access token lives about an hour, and the session survives
+# because it is replaced automatically.
 #
-# המספר חל בפועל רק על סשן **נטוש** — מכשיר שנמכר, טלפון שאבד, או דפדפן
-# במחשב משותף. פעם זה היה עשר שנים, כלומר שאלה לא נסגרים לעולם.
+# The number really only applies to an **abandoned** session: a sold device, a
+# lost phone, or a browser on a shared computer. It used to be ten years, i.e.
+# those never got closed.
 app.permanent_session_lifetime = timedelta(days=90)
 
-# הקשחת עוגיות: העוגייה נושאת את טוקני Supabase, אז Secure חובה בפרודקשן
-# (בפיתוח מקומי על http זה היה שובר את ההתחברות — לכן מותנה).
+# Cookie hardening: the cookie carries Supabase tokens, so Secure is mandatory
+# in production (in local development over http it would break sign-in, hence
+# conditional).
 _IS_DEV = os.environ.get("FLASK_ENV") == "development"
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",   # גם הגנת CSRF בסיסית
+    SESSION_COOKIE_SAMESITE="Lax",   # also basic CSRF protection
     SESSION_COOKIE_SECURE=not _IS_DEV,
-    SESSION_REFRESH_EACH_REQUEST=True,   # חלון התפוגה נע קדימה עם כל שימוש
+    SESSION_REFRESH_EACH_REQUEST=True,   # the expiry window moves forward with every use
     PREFERRED_URL_SCHEME="https" if not _IS_DEV else "http",
-    MAX_CONTENT_LENGTH=8 * 1024 * 1024,  # תקרת גודל בקשה — מגן על העלאת קבלות
+    MAX_CONTENT_LENGTH=8 * 1024 * 1024,  # request size cap: protects receipt uploads
 )
 
-# מאחורי ה-proxy של Railway (TLS termination) — כדי ש-request.host_url יחזיר
-# https בקישורי איפוס-סיסמה. לא מזיק בפיתוח מקומי.
+# Behind Railway's proxy (TLS termination), so request.host_url returns https in
+# password-reset links. Harmless in local development.
 #
-# x_for=1 חיוני ל-rate limiting ולא רק לנוחות: בלעדיו remote_addr הוא צומת
-# הקצה של Railway ולא המשתמש. נמדד בפועל — 12 בקשות ממחשב אחד התפצלו על
-# ארבע כתובות proxy שונות, כך שהמגבלה לא נאכפה. גרוע מכך, כל המשתמשים
-# חולקים את אותן כתובות, ולכן משתמש אחד רועש היה יכול לנעול את ההתחברות
-# לכולם.
+# x_for is essential for rate limiting, not just convenience: without it
+# remote_addr is Railway's edge node and not the user. Measured in practice: 12
+# requests from one computer were split across four different proxy addresses,
+# so the limit wasn't enforced. Worse, all users share the same addresses, so
+# one noisy user could lock sign-in for everyone.
 #
-# הערך 2 נמדד ולא נוחש: Railway מוסיף שתי שכבות, ו-X-Forwarded-For מגיע
-# כ-"<לקוח>, <צומת קצה>". ProxyFix סופר מימין, כך ש-1 החזיר את צומת
-# הקצה ו-2 מחזיר את הלקוח. הספירה מימין היא גם מה שמונע זיוף: ערך
-# ש-הלקוח דוחף בעצמו נדחק שמאלה ולעולם לא נבחר.
+# The value 2 was measured, not guessed: Railway adds two layers, and
+# X-Forwarded-For arrives as "<client>, <edge node>". ProxyFix counts from the
+# right, so 1 returned the edge node and 2 returns the client. Counting from the
+# right is also what prevents spoofing: a value the client pushes itself is
+# pushed left and never chosen.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=1)
 
 
-# ראשון מכל ‎before_request‎: פניית חימום לא תרוץ במקביל לבקשה (‎db.request_started‎)
+# First of all `before_request` hooks: a warm-up ping won't run in parallel with
+# a request (`db.request_started`)
 @app.before_request
 def _db_request_started():
     db.request_started()
@@ -179,12 +189,14 @@ def _db_request_started():
 def _db_request_finished(exc):
     db.request_finished()
 
-# הגבלת קצב על מסלולי האימות — מונע ניחוש סיסמאות וסריקת מספרי טלפון.
+# Rate limiting on the auth routes: prevents password guessing and phone-number
+# scanning.
 #
-# האחסון חייב להיות משותף בפרודקשן. עם "memory://" כל worker של gunicorn
-# סופר לעצמו, כך שהמגבלה מוכפלת במספר ה-workers, וכל פריסה מאפסת את המונים —
-# כלומר ההגנה על התחברות, הרשמה ואיפוס סיסמה רופפת בהרבה ממה שכתוב בקוד.
-# זה היה מספיק כשזו הייתה אפליקציה משפחתית; ברגע שהכתובת מופצת זה לא.
+# The storage must be shared in production. With "memory://" each gunicorn worker
+# counts for itself, so the limit is multiplied by the number of workers, and
+# every deploy resets the counters; i.e. the protection on sign-in, signup and
+# password reset is much looser than what the code says. That was enough when
+# this was a family app; once the URL is shared, it isn't.
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -194,21 +206,23 @@ limiter = Limiter(
     get_remote_address,
     app=app,
     storage_uri=_RATELIMIT_STORAGE,
-    default_limits=[],  # רק המסלולים שמסומנים במפורש מוגבלים
-    # אם האחסון המשותף לא זמין — נופלים למונים מקומיים במקום להחזיר שגיאה.
-    # תקלה אצל ספק ה-Redis לא אמורה לנעול לאנשים את ההתחברות לאפליקציה:
-    # הגבלה רופפת לכמה דקות עדיפה בהרבה על אתר שאי אפשר להיכנס אליו.
+    default_limits=[],  # only routes explicitly marked are limited
+    # If the shared storage is unavailable, fall back to local counters rather
+    # than returning an error. An outage at the Redis provider shouldn't lock
+    # people out of the app: a loose limit for a few minutes is far better than
+    # a site nobody can get into.
     in_memory_fallback_enabled=True,
 )
 
-# אם נשארנו על זיכרון מקומי בפרודקשן — אומרים את זה בקול. הכישלון כאן שקט
-# מטבעו: הבקשות ממשיכות לעבוד והמגבלה פשוט לא נאכפת, כך שבלי ההתראה הזאת
-# אין שום דרך להבחין בין "מוגן" ל"נראה מוגן".
+# If we ended up on local memory in production, say so loudly. The failure here
+# is silent by nature: requests keep working and the limit simply isn't
+# enforced, so without this alert there is no way to tell "protected" from
+# "looks protected".
 #
-# ‎error‎ ולא ‎warning‎: ל-Sentry, ‎warning‎ הוא פירור ולא אירוע, והלוג של
-# Railway הוא חוצץ שנמחק ואף אחד לא קורא (ראו backend/logs.py). כלומר
-# ההתראה היחידה על כך שכל ההגבלות באפליקציה נחלשו פי 4 ומתאפסות בכל
-# פריסה — לא הגיעה לשום מקום שמישהו מסתכל בו.
+# `error` and not `warning`: to Sentry, `warning` is a breadcrumb, not an
+# event, and Railway's log is a buffer that gets wiped and nobody reads (see
+# backend/logs.py). So the only alert that every limit in the app was weakened
+# fourfold and resets on every deploy reached nowhere anyone looks.
 RATELIMIT_IS_SHARED = not _RATELIMIT_STORAGE.startswith("memory://")
 
 if not RATELIMIT_IS_SHARED and not _IS_DEV:
@@ -217,27 +231,31 @@ if not RATELIMIT_IS_SHARED and not _IS_DEV:
                  "Set RATELIMIT_STORAGE_URI.")
 
 
-# ─── נכסים סטטיים: חתימה לפי תוכן ────────────────────────────────────────────
+# ─── Static assets: content-based fingerprint ───────────────────────────────
 #
-# כל קובץ סטטי נשלח עם "no-cache", כלומר הדפדפן חייב לשאול את השרת בכל
-# טעינת עמוד אם העותק שלו עדיין תקף. שש שאלות כאלה בכל עמוד, כולן נענות
-# "לא השתנה", וכל אחת תופסת אחד משני ה-workers. בפועל שש מתוך שבע הפניות
-# בטעינת עמוד רגילה הן שיחה על כלום.
+# Every static file used to be sent with "no-cache", i.e. the browser must ask
+# the server on every page load whether its copy is still valid. Six such
+# questions on every page, all answered "not modified", and each one occupies
+# one of the two workers. In practice six out of seven requests in an ordinary
+# page load were a conversation about nothing.
 #
-# הסיבה היא שלכתובת אין גרסה: /static/css/style.css היא אותה כתובת בין אם
-# זה הקובץ של אתמול או של היום, אז לדפדפן אין דרך אחרת לדעת.
+# The reason is that the URL has no version: /static/css/style.css is the same
+# URL whether it is yesterday's file or today's, so the browser has no other
+# way to know.
 #
-# הפתרון: ‎?v=<חתימה>‎ שנגזרת מתוכן הקובץ, ותוקף של שנה. הדפדפן לא שואל,
-# וכשקובץ משתנה החתימה משתנה איתו — כתובת חדשה, הורדה מחדש, אוטומטית.
+# The fix: `?v=<fingerprint>` derived from the file's content, and a one-year
+# lifetime. The browser doesn't ask, and when a file changes its fingerprint
+# changes with it: a new URL, a fresh download, automatically.
 #
-# החתימה נגזרת מהתוכן ולא ממספר ידני, וזה העיקר: מספר שצריך לזכור לעדכן
-# הוא מספר שיישכח, והתוצאה היא דפדפן שמגיש קובץ ישן במשך שנה בלי שום דרך
-# לתקן מרחוק. כאן אי אפשר לשכוח.
+# The fingerprint is derived from the content and not a manual number, and
+# that is the point: a number you have to remember to bump is a number that
+# will be forgotten, and the result is a browser serving an old file for a
+# year with no way to fix it remotely. Here it can't be forgotten.
 _ASSET_HASHES: dict = {}
 
 
 def _asset_version(filename: str) -> str:
-    """שמונה תווים מתוך חתימת התוכן של הקובץ. ריק אם הוא לא נמצא."""
+    """Eight characters of the file's content fingerprint. Empty if it isn't found."""
     if filename in _ASSET_HASHES:
         return _ASSET_HASHES[filename]
 
@@ -246,30 +264,32 @@ def _asset_version(filename: str) -> str:
         with open(path, "rb") as f:
             digest = hashlib.sha256(f.read()).hexdigest()[:8]
     except OSError:
-        # קובץ שלא נמצא: לא מפילים את העמוד בגלל נכס חסר. הוא ייכשל
-        # בטעינה כמו קודם, וזה מצב שקל לראות.
+        # File not found: don't break the page over a missing asset. It will
+        # fail to load as before, and that is easy to see.
         digest = ""
     if not _IS_DEV:
         _ASSET_HASHES[filename] = digest
     return digest
 
 
-# סכום כסף בתבניות: ‎{{ x | money }}‎ — אגורות רק כשיש (ראו backend/money.py)
+# A money amount in templates: `{{ x | money }}`, agorot only when present
+# (see backend/money.py)
 app.jinja_env.filters["money"] = format_money
 app.jinja_env.globals["ui_icon"] = ui_icon
 app.jinja_env.globals["empty_illus"] = empty_illus
 app.jinja_env.globals["greeting"] = lambda: greeting(clock.now().hour)
 app.jinja_env.filters["count_of"] = count_of
-# "היום" / "אתמול" / "ראשון, 27.9" — מול היום של השעון המוזרק (בדיקות)
+# "היום" / "אתמול" / "ראשון, 27.9", against the injected clock's today (tests)
 app.jinja_env.filters["day_label"] = lambda d: day_label(d, clock.today())
 
 
 @app.context_processor
 def _versioned_static():
-    """דורס את url_for עבור נכסים סטטיים בלבד.
+    """Overrides url_for for static assets only.
 
-    דריסה ולא פונקציה חדשה, כדי ש-48 הקריאות הקיימות בתבניות לא ישתנו —
-    ובעיקר כדי שקריאה שתיכתב מחר תקבל את זה בלי שאיש יזכור."""
+    An override and not a new function, so the 48 existing calls in templates
+    don't change, and above all so a call written tomorrow gets this without
+    anyone remembering."""
     def versioned_url_for(endpoint, **values):
         if endpoint == "static" and "filename" in values and "v" not in values:
             version = _asset_version(values["filename"])
@@ -281,10 +301,11 @@ def _versioned_static():
 
 @app.after_request
 def _cache_static_forever(response):
-    """שנה של מטמון, אבל רק לכתובת חתומה.
+    """A year of caching, but only for a fingerprinted URL.
 
-    בלי החתימה זה היה מסוכן: כתובת בלי גרסה שנשמרת לשנה היא קובץ ישן
-    שאין דרך לרענן. עם חתימה, שינוי בקובץ מייצר כתובת אחרת ממילא."""
+    Without the fingerprint this would be dangerous: an unversioned URL cached
+    for a year is an old file with no way to refresh it. With a fingerprint, a
+    change to the file produces a different URL anyway."""
     if request.endpoint == "static" and request.args.get("v"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
@@ -294,16 +315,18 @@ _GZIP_TYPES = ("text/html", "text/css", "text/plain", "application/javascript",
                "text/javascript", "application/json", "image/svg+xml",
                "application/manifest+json")
 _GZIP_MIN = 1024
-_gzip_static = {}   # (נתיב, ETag) → בייטים דחוסים; קבצים סטטיים נדחסים פעם אחת לתהליך
+_gzip_static = {}   # (path, ETag) → compressed bytes; static files are compressed once per process
 
 
 @app.after_request
 def _gzip(response):
-    """דחיסה לכל מה שנשלח לטלפון (מתן, 13.10 — "הכי מהירה שאפשר").
+    """Compression for everything sent to the phone (Matan, 13.10: "as fast as
+    possible").
 
-    עמוד ההגדרות היה ‎117KB‎ וכך ‎13KB‎; ‎style.css‎ — ‎200KB‎ ו-‎45KB‎.
-    Railway לא דוחס בעצמו. קבצים סטטיים נדחסים פעם אחת ונשמרים בזיכרון;
-    עמודים — בכל בקשה (רמה 6: כמה מילישניות, מול עשרות KB פחות ברשת)."""
+    The settings page was `117KB` and is now `13KB`; `style.css` went from
+    `200KB` to `45KB`. Railway doesn't compress by itself. Static files are
+    compressed once and kept in memory; pages on every request (level 6: a few
+    milliseconds, against tens of KB less on the network)."""
     if (response.status_code != 200
             or "gzip" not in (request.headers.get("Accept-Encoding") or "").lower()
             or "Content-Encoding" in response.headers
@@ -329,14 +352,16 @@ def _gzip(response):
 
 
 def _mark_gzipped(response):
-    """אותו סימון בכל דרך — גם כשהבייטים הדחוסים באו מהזיכרון (בדיקת קוד,
-    14.10: שם ה-ETag נשאר "חזק" ודחוס ולא דחוס נשאו את אותו מזהה)."""
+    """The same marking every way, also when the compressed bytes came from memory
+    (code review, 14.10: there the ETag stayed "strong", and compressed and
+    uncompressed carried the same id)."""
     response.headers["Content-Encoding"] = "gzip"
-    # ETag של המקור כבר לא מתאר את הבייטים — "חלש" כדי שבדיקת 304 תמשיך לעבוד
+    # The original's ETag no longer describes the bytes; "weak" so the 304 check
+    # keeps working
     etag = response.headers.get("ETag")
     if etag and not etag.startswith("W/"):
         response.headers["ETag"] = "W/" + etag
-    # טווח בייטים של הקובץ הלא דחוס לא מתאים לגרסה הדחוסה
+    # A byte range of the uncompressed file doesn't match the compressed version
     response.headers.pop("Accept-Ranges", None)
     return response
 
@@ -344,52 +369,58 @@ def _mark_gzipped(response):
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 
 def _do_not_rewrite_session_cookie():
-    """מסמן שהתגובה הזאת לא תכתוב מחדש את עוגיית ה-session.
+    """Marks this response as not rewriting the session cookie.
 
-    זה חשוב בדיוק כשהרענון נכשל. שני ה-workers של gunicorn מקבלים בקשות
-    במקביל, וה-refresh token של Supabase מסובב בכל רענון — כך שבקשה אחת
-    יכולה לרענן בהצלחה ולכתוב טוקן חדש לעוגייה, בעוד בקשה מקבילה, שיצאה
-    עם הטוקן הישן ונתקעה על רשת סלולרית איטית, מגיעה אחריה ונכשלת. אם
-    הבקשה הכושלת תכתוב את העוגייה שלה, היא תדרוס את הטוקן התקין בטוקן
-    מת — והמשתמש ינותק בביקור הבא בלי שעשה דבר.
+    This matters exactly when the refresh failed. gunicorn's two workers take
+    requests in parallel, and Supabase's refresh token rotates on every
+    refresh, so one request can refresh successfully and write a new token to
+    the cookie while a parallel request, which left with the old token and got
+    stuck on a slow cellular network, arrives after it and fails. If the failed
+    request writes its cookie, it overwrites the good token with a dead one, and
+    the user is signed out on their next visit without having done anything.
 
-    הביטול עצמו נעשה ב-after_request ולא כאן, וזה לא עניין של סגנון:
-    Flask כותב את העוגייה כש-session מסומן permanent או modified, וכל
-    כתיבה ל-session בתוך ה-view (למשל recurring_synced בדשבורד) הייתה
-    מחזירה את modified לדלוק. גרוע מכך, ביטול permanent מוקדם היה הופך
-    את העוגייה שתיכתב לעוגיית-דפדפן שנמחקת בסגירה — כלומר בדיוק הניתוק
-    שאנחנו מונעים. ב-after_request כבר לא ירוץ קוד של view."""
+    The cancellation itself happens in after_request and not here, and that
+    isn't a matter of style: Flask writes the cookie when the session is marked
+    permanent or modified, and any write to the session inside the view (e.g.
+    recurring_synced on the dashboard) would turn modified back on. Worse,
+    cancelling permanent early would make the cookie to be written a browser
+    cookie that is deleted on close, exactly the sign-out we are preventing. In
+    after_request no view code runs anymore."""
     g.sf_skip_session_cookie = True
 
 
 @app.after_request
 def _honour_session_cookie_freeze(response):
-    """מקפיא את כתיבת העוגייה — אלא אם ה-session רוקן במכוון.
+    """Freezes writing the cookie, unless the session was emptied on purpose.
 
-    התנאי על user_id הוא לא פרט טכני. ההקפאה קיימת כדי לא לדרוס טוקן
-    תקין בטוקן מת כשרענון נכשל, וזה רלוונטי רק כל עוד יש התחברות. אבל
-    ‎session.clear()‎ — ביציאה יזומה, במחיקת חשבון, ובניתוק אחרי טוקן
-    שנדחה — הוא בדיוק הרגע שבו העוגייה **חייבת** להיכתב, כדי שתימחק.
+    The condition on user_id is not a technical detail. The freeze exists so a
+    good token isn't overwritten with a dead one when a refresh failed, and
+    that only matters while there is a session. But `session.clear()` (on an
+    explicit sign-out, on account deletion, and on sign-out after a rejected
+    token) is exactly the moment the cookie **must** be written, so it gets
+    deleted.
 
-    בלי התנאי הזה מי שלחץ "התנתק" בדיוק כשהרענון נכשל קיבל הודעה שיצא,
-    את עוגיות המכשיר נמחקות — ונשאר מחובר לגמרי, כי עוגיית ה-session
-    שלו מעולם לא נגעה. הבקשה הבאה הייתה מחזירה אותו לאפליקציה."""
+    Without this condition, whoever tapped "sign out" exactly when the refresh
+    failed got a message that they had signed out, their device cookies were
+    deleted, and they stayed fully signed in, because their session cookie was
+    never touched. The next request would take them back into the app."""
     if g.get("sf_skip_session_cookie") and session.get("user_id"):
-        # שני אלה יחד הם מה ש-should_set_cookie של Flask בודק. הערכים
-        # שבעוגייה אצל הדפדפן נשארים כפי שהם.
+        # These two together are what Flask's should_set_cookie checks. The
+        # values in the browser's cookie stay as they are.
         session.permanent = False
         session.modified  = False
     return response
 
 
 def _end_session(reason: str):
-    """מסיים את ההתחברות ומשאיר עקבות.
+    """Ends the session and leaves a trace.
 
-    ניתוק היה עד עכשיו שקט לגמרי, ולכן משתמש שהתלונן שהוא "נזרק החוצה"
-    לא הותיר שום דבר לחקור אותו. ההבטחה היא להישאר מחובר עד יציאה יזומה,
-    אז כל ניתוק אחר הוא אירוע שצריך להיות אפשר לראות."""
-    # warning ולא info: ההבטחה היא להישאר מחובר עד יציאה יזומה, אז כל
-    # ניתוק אחר הוא אירוע שצריך להיות אפשר לראות
+    A sign-out used to be completely silent, so a user who complained they were
+    "kicked out" left nothing to investigate. The promise is to stay signed in
+    until you sign out yourself, so any other sign-out is an event that must be
+    visible."""
+    # warning and not info: the promise is to stay signed in until you sign
+    # out, so any other sign-out is an event that must be visible
     logger.warning("session ended: %s", reason)
     if _sentry_dsn:
         sentry_sdk.capture_message(f"session ended: {reason}", level="warning")
@@ -400,9 +431,9 @@ def _end_session(reason: str):
 def inject_auth():
     token = session.get("access_token")
     if not token:
-        # מאפסים במפורש, ולא יוצאים בשקט. הלקוח הוא סינגלטון ברמת
-        # התהליך: בלי האיפוס, בקשה אנונימית ממשיכה לשאת את ה-JWT של
-        # המשתמש הקודם שטופל באותו worker.
+        # Reset explicitly, don't return silently. The client is a
+        # process-level singleton: without the reset, an anonymous request
+        # keeps carrying the JWT of the previous user handled by that worker.
         db.set_auth_token("")
         return
 
@@ -411,8 +442,9 @@ def inject_auth():
     expires_at = session.get("token_expires_at") or 0
     if session.get("refresh_token") and time.time() > expires_at - 120:
         sid = session.get("sid")
-        # התשובה עם הטוקן הקודם אולי לא הגיעה לטלפון (האפליקציה ירדה לרקע
-        # באמצע) — אז העוגייה ישנה, והטוקן העדכני מחכה במסד (מתן, 13.10)
+        # The response with the previous token may not have reached the phone
+        # (the app went to the background mid-request), so the cookie is stale
+        # and the latest token is waiting in the database (Matan, 13.10)
         if sid and _adopt_newer_tokens(sid):
             token, expires_at = session["access_token"], session["token_expires_at"]
     if session.get("refresh_token") and time.time() > expires_at - 120:
@@ -423,24 +455,28 @@ def inject_auth():
             session["access_token"]     = token
             session["refresh_token"]    = response.session.refresh_token
             session["token_expires_at"] = response.session.expires_at
-            session.permanent = True     # כל שימוש מאריך את חלון העוגייה
+            session.permanent = True     # every use extends the cookie window
             if sid:
                 db.web_session_rotate(sid, old_refresh, token, response.session.refresh_token,
                                       response.session.expires_at)
         elif fatal and sid and _adopt_newer_tokens(sid):
-            # בקשה מקבילה (worker אחר) רעננה רגע לפנינו ושמרה במסד
+            # A parallel request (another worker) refreshed just before us and
+            # stored it in the database
             token = session["access_token"]
         elif fatal and time.time() >= expires_at:
-            # הטוקן נדחה וגם טוקן הגישה כבר פג — ההתחברות מתה באמת ואין
-            # מה לשחזר. רק כאן מנתקים.
+            # The token was rejected and the access token has expired too: the
+            # session is really dead and there is nothing to recover. Only here
+            # do we sign out.
             _end_session(f"refresh token rejected: {err}")
             return
         else:
-            # לא מנתקים. שתי סיבות שונות מגיעות לכאן, ושתיהן בנות-שחזור:
-            # תקלה זמנית (רשת, 5xx), או דחייה בזמן שטוקן הגישה עדיין בתוקף —
-            # שזה בדיוק מה שקורה כשבקשה מקבילה כבר סובבה את הטוקן לפנינו.
-            # הבקשה הזאת ממשיכה עם טוקן הגישה הקיים, והבאה תנסו שוב; אם
-            # הדחייה אמיתית, הניתוק יקרה מעצמו כשטוקן הגישה יפוג.
+            # Don't sign out. Two different causes reach here, and both are
+            # recoverable: a transient failure (network, 5xx), or a rejection
+            # while the access token is still valid, which is exactly what
+            # happens when a parallel request already rotated the token before
+            # us. This request continues with the existing access token, and the
+            # next one will retry; if the rejection is real, the sign-out
+            # happens by itself when the access token expires.
             logger.warning("token refresh failed, keeping session: %s", err)
             _do_not_rewrite_session_cookie()
 
@@ -448,10 +484,12 @@ def inject_auth():
 
 
 def _adopt_newer_tokens(sid) -> bool:
-    """מחליף את הטוקנים שבעוגייה בעדכניים מהמסד, אם שם יש חדשים יותר.
+    """Replaces the tokens in the cookie with the latest ones from the database,
+    if newer ones are there.
 
-    "חדשים יותר" = refresh token אחר מזה שבעוגייה: רק רענון מצליח משנה
-    אותו במסד, אז אחר פירושו שהרענון קרה בבקשה שהתשובה שלה לא הגיעה."""
+    "Newer" = a refresh token different from the one in the cookie: only a
+    successful refresh changes it in the database, so a different one means the
+    refresh happened in a request whose response never arrived."""
     newer = db.web_session_get(sid)
     if not newer or not newer.get("refresh_token") or newer["refresh_token"] == session.get("refresh_token"):
         return False
@@ -463,35 +501,39 @@ def _adopt_newer_tokens(sid) -> bool:
     return True
 
 
-# ─── זיכרון המכשיר ────────────────────────────────────────────────────────────
+# ─── Device memory ──────────────────────────────────────────────────────────
 #
-# דף הנחיתה הוא דף שיווק: הוא נועד למי שלא מכיר את SmartFin. מי שכבר התחבר
-# מהמכשיר הזה פעם אחת לא צריך לראות אותו שוב — גם לא כשה-session נגמר או
-# כשיצא ביוזמתו. שתי העוגיות כאן הן הזיכרון היחיד ששורד סיום session, ולכן
-# הן נפרדות מעוגיית ה-session ומכילות רק את המינימום:
+# The landing page is a marketing page, meant for people who don't know
+# SmartFin. Someone who has signed in from this device once doesn't need to see
+# it again, not even when the session ends or they signed out themselves. The
+# two cookies here are the only memory that survives the end of a session, so
+# they are separate from the session cookie and hold only the minimum:
 #
-#   sf_returning — "כבר התחברת מכאן". קובע לאן הולך השורש.
-#   sf_last_id   — המזהה שאיתו התחבר (אימייל או טלפון), כדי למלא מראש את
-#                  הטופס. נמחקת ביציאה יזומה: מי שיצא במכוון ביקש שיפסיקו
-#                  לזכור אותו, וגם ייתכן שהוא מפנה את המכשיר לבן משפחה אחר.
+#   sf_returning: "you've signed in from here before". Decides where the root goes.
+#   sf_last_id:   the identifier they signed in with (email or phone), to
+#                 prefill the form. Deleted on an explicit sign-out: whoever
+#                 signed out on purpose asked to stop being remembered, and
+#                 may be handing the device to another family member.
 #
-# שתיהן HttpOnly — אין להן שום שימוש ב-JS, וכך גם XSS לא יכול לקרוא את
-# האימייל. אף החלטת הרשאה לא נשענת עליהן: ערך מזויף בהן משנה לכל היותר
-# איזה דף מוגש למי שלא מחובר, ומה מודפס בשדה טקסט. הסיסמה עדיין נדרשת.
+# Both are HttpOnly: JS has no use for them, and that way XSS can't read the
+# email either. No authorisation decision relies on them: a forged value at
+# most changes which page is served to someone not signed in, and what is
+# printed in a text field. The password is still required.
 _DEVICE_COOKIE   = "sf_returning"
 _LAST_ID_COOKIE  = "sf_last_id"
-_DEVICE_COOKIE_MAX_AGE = 10 * 365 * 24 * 60 * 60   # עשר שנים — רק "היה כאן פעם", לא התחברות
+_DEVICE_COOKIE_MAX_AGE = 10 * 365 * 24 * 60 * 60   # ten years: only "was here once", not a session
 
 
 def _remember_device(response, identifier: str = ""):
-    """מסמן את המכשיר כמוכר, ואם נמסר מזהה — זוכר גם אותו."""
+    """Marks the device as known, and if an identifier is given, remembers it too."""
     common = dict(max_age=_DEVICE_COOKIE_MAX_AGE, httponly=True,
                   samesite="Lax", secure=not _IS_DEV)
     response.set_cookie(_DEVICE_COOKIE, "1", **common)
     identifier = (identifier or "").strip()
     if identifier:
-        # תקרה וניקוי תווי בקרה — הערך חוזר לדפדפן ונכנס לשדה טופס, ואין
-        # שום סיבה שיהיה ארוך או מוזר. Jinja כבר עושה escaping בתבנית.
+        # A cap and stripping of control characters: the value goes back to the
+        # browser into a form field, and there is no reason for it to be long or
+        # odd. Jinja already escapes in the template.
         safe = re.sub(r"[\x00-\x1f\x7f]", "", identifier)[:120]
         response.set_cookie(_LAST_ID_COOKIE, safe, **common)
     return response
@@ -506,12 +548,13 @@ def _device_is_known() -> bool:
 
 
 def _is_api_request() -> bool:
-    """האם הבקשה מצפה ל-JSON ולא לעמוד HTML.
+    """Whether the request expects JSON rather than an HTML page.
 
-    ההפרדה הזאת היא מה שמבדיל בין "המשתמש ניווט לכתובת" לבין "הקוד בדף
-    קרא לשרת". fetch עוקב אחרי הפניות בשקט, כך שדף HTML שמוחזר לקריאת
-    API חוזר כתשובה תקינה עם קוד 200 — והלקוח מנסה לפרסר אותו כ-JSON
-    ונכשל. המשתמש רואה "שגיאת רשת" שלא תיפסק לעולם."""
+    This is what tells "the user navigated to a URL" apart from "the code on the
+    page called the server". fetch follows redirects silently, so an HTML page
+    returned to an API call comes back as a valid response with status 200, and
+    the client tries to parse it as JSON and fails. The user sees a "network
+    error" that never stops."""
     return request.path.startswith("/api/")
 
 
@@ -519,8 +562,8 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "user_id" not in session:
-            # קריאת API מקבלת 401 שהלקוח יודע לזהות; ניווט רגיל מקבל
-            # הפניה לטופס ההתחברות כמו תמיד.
+            # An API call gets a 401 the client knows how to detect; ordinary
+            # navigation gets a redirect to the sign-in form as always.
             if _is_api_request():
                 return jsonify({"error": "ההתחברות הסתיימה — יש להתחבר מחדש"}), 401
             return redirect(url_for("login"))
@@ -528,14 +571,15 @@ def login_required(f):
     return decorated
 
 
-# הנתיב ש-‎db.upload_receipt‎ יוצר: ‎<family_id>/<uuid>.<סיומת>‎
+# The path `db.upload_receipt` creates: `<family_id>/<uuid>.<extension>`
 _RECEIPT_NAME_RE = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.[a-z0-9]{2,5}$")
 
 
 def _receipt_path_ok(path, family_id) -> bool:
-    """נתיב הקבלה מגיע מהלקוח. האחסון כבר חוסם תיקייה של משפחה אחרת, אבל
-    בתוך המשפחה אפשר היה להצמיד לעסקה קבלה של עסקה אחרת — ואז מחיקת
-    אחת מחקה את הקובץ של שתיהן. מקבלים רק את מה שהאפליקציה עצמה יוצרת."""
+    """The receipt path comes from the client. Storage already blocks another
+    family's folder, but within the family a transaction could be given another
+    transaction's receipt, and then deleting one deleted both files. Only what
+    the app itself creates is accepted."""
     if not isinstance(path, str) or not family_id:
         return False
     folder, _, name = path.partition("/")
@@ -543,31 +587,33 @@ def _receipt_path_ok(path, family_id) -> bool:
 
 
 def _delete_unused_receipts(family_id, paths):
-    """מוחקת קבצי קבלה — חוץ ממה שעסקה אחרת עדיין מצביעה עליו. נקראת
-    אחרי מחיקת העסקאות. כשלא ידוע מה בשימוש, לא מוחקים: קובץ מיותר
-    באחסון עדיף על קבלה שבורה של מקרר ביום שצריך את האחריות."""
+    """Deletes receipt files, except what another transaction still points at.
+    Called after deleting the transactions. When it isn't known what is in use,
+    nothing is deleted: a stray file in storage beats a fridge's broken receipt
+    on the day the warranty is needed."""
     paths = [p for p in (paths or []) if p]
     if not paths:
         return
     try:
         in_use = db.receipts_in_use(family_id, paths)
     except db.DataUnavailable:
-        logger.error("receipts_in_use נכשל — הקבצים נשארים באחסון")
+        logger.error("receipts_in_use failed; the files stay in storage")
         return
     db.delete_receipts(session.get("access_token"), [p for p in paths if p not in in_use])
 
 
 class BadInput(ValueError):
-    """ערך מהלקוח שאין טעם לנסות לפרש — ראו ‎_text‎."""
+    """A value from the client there is no point trying to interpret; see `_text`."""
 
 
 def _text(value) -> str:
-    """שדה טקסט מגוף בקשת JSON: מחרוזת נקייה מרווחים, או "" כשהוא חסר.
+    """A text field from a JSON request body: a whitespace-stripped string, or ""
+    when it is missing.
 
-    כל ערך אחר — מספר, רשימה, אובייקט, בוליאני — הוא ‎BadInput‎, שעונה
-    422 "ערך לא תקין". קודם ‎(body.get("x") or "").strip()‎ נפל על מספר
-    ב-500, שנרשם אצלנו כתקלה אמיתית. הטפסים תמיד שולחים טקסט; זה
-    לבקשות שנשלחות ידנית."""
+    Any other value (number, list, object, boolean) is `BadInput`, which answers
+    422 "invalid value". Before, `(body.get("x") or "").strip()` crashed on a
+    number with a 500, which we logged as a real failure. The forms always send
+    text; this is for requests sent by hand."""
     if value is None:
         return ""
     if not isinstance(value, str):
@@ -590,7 +636,7 @@ def get_current_user():
 
 
 def family_settings():
-    """העדפות המשפחה המחוברת — נשלף פעם אחת לבקשה (cache על flask.g)."""
+    """The signed-in family's settings, fetched once per request (cached on flask.g)."""
     if "family_settings" not in g:
         fid = session.get("family_id")
         g.family_settings = db.get_family_settings(fid) if fid else dict(db.DEFAULT_FAMILY_SETTINGS)
@@ -599,45 +645,54 @@ def family_settings():
 
 @app.context_processor
 def inject_family_settings():
-    """family_settings זמין בכל תבנית (התגיות, המודאל וקבוצת ההעדפות תלויים בו).
+    """family_settings is available in every template (the tags, the modal and the
+    settings group depend on it).
 
-    זה רץ לפני **כל** render_template, כולל error.html. לכן כאן, ורק כאן,
-    כישלון שליפה לא מתפשט: אחרת תקלה במסד הייתה מפילה גם את דף השגיאה
-    שנועד לדווח עליה, והמשתמש היה מקבל מסך ריק לגמרי. התבניות כבר יודעות
-    להתמודד עם None — זה המצב של מי שלא מחובר.
+    This runs before **every** render_template, including error.html. So here,
+    and only here, a failed query doesn't propagate: otherwise a database
+    failure would also break the error page meant to report it, and the user
+    would get a completely blank screen. The templates already handle None:
+    that is the state of someone not signed in.
 
-    זו הקלה בתצוגה בלבד. החלטות שנשענות על ההעדפות — למשל שיוך עסקה לבן
-    משפחה ב-_resolve_owner — קוראות ל-family_settings() ישירות וממשיכות
-    להיכשל בגלוי, כי שם ערך שגוי נכתב למסד."""
+    This is a display-only relaxation. Decisions that rely on the settings (for
+    example attributing a transaction to a family member in _resolve_owner)
+    call family_settings() directly and keep failing visibly, because there a
+    wrong value is written to the database."""
     if "user_id" not in session:
         return {"family_settings": None, "push_key": None}
     try:
         settings = family_settings()
     except db.DataUnavailable:
         return {"family_settings": None, "push_key": push.public_key()}
-    # מתי החיוב הקבוע הבא — עותק בסשן, כדי שהבדיקה בתחילת העמוד הבא לא
-    # תצטרך לשלוף (‎_sync_recurring‎). משותף למשפחה: כל ריצה של המנוע מעדכנת.
+    # When the next recurring charge is: a copy in the session, so the check at
+    # the start of the next page doesn't have to query (`_sync_recurring`).
+    # Shared by the family: every engine run updates it.
     nxt = (settings or {}).get("recurring_next")
     if nxt and session.get("recurring_next") != nxt:
         session["recurring_next"] = nxt
-    # משפחה של אדם אחד (מתן, 5.10): "של מי" אומר כלום — לא התגית ליד כל
-    # עסקה, לא הגרף "לפי בן משפחה" ולא השאלה בחלון. רק בתצוגה: ההעדפה
-    # עצמה לא משתנה, וכשמצטרף מישהו הכל חוזר. עצל: נשלף רק בעמוד שבאמת
-    # מציג "של מי" — לא בדף שגיאה, למשל.
+    # A one-person family (Matan, 5.10): "whose" says nothing: not the tag next
+    # to each transaction, not the "by family member" chart and not the question
+    # in the window. Display only: the preference itself doesn't change, and
+    # when someone joins everything comes back. Lazy: fetched only on a page
+    # that really shows "whose", not on an error page, for example.
     single = _LazySingleMember()
-    # המפתח הציבורי להתראות — בכל עמוד, כי ההרשמה האוטומטית רצה מכל עמוד (‎js/push.js‎)
+    # The public key for notifications, on every page, because auto-subscribe
+    # runs from every page (`js/push.js`)
     return {"family_settings": settings, "single_member": single, "show_owner": _ShowOwner(settings, single),
             "push_key": push.public_key()}
 
 
 @app.context_processor
 def _client_lists():
-    """הקטגוריות ובני המשפחה לחלון "הוספת עסקה", בתוך העמוד (מתן, 13.10).
+    """The categories and family members for the "add transaction" window, inside
+    the page (Matan, 13.10).
 
-    עד עכשיו כל עמוד שלח אחריו עוד שתי בקשות (‎/api/categories‎,
-    ‎/api/family/members‎) רק כדי לחמם את החלון — ובלוגים רבות מהן נקטעו
-    באמצע כשעברו לעמוד הבא. רוב העמודים כבר שלפו בדיוק את זה, אז לוקחים
-    ממטמון הבקשה בלבד: מה שלא נשלף — לא נשלף בשבילנו, והחלון יבקש כרגיל."""
+    Until now every page sent two more requests after it (`/api/categories`,
+    `/api/family/members`) just to warm up the window, and in the logs many of
+    them were cut off midway when the user moved to the next page. Most pages
+    already fetched exactly this, so it is taken from the request cache only:
+    what wasn't fetched isn't fetched for our sake, and the window will ask as
+    usual."""
     def client_lists() -> dict:
         fid = session.get("family_id")
         cache = g.get("_sf_cache") or {}
@@ -653,7 +708,8 @@ def _client_lists():
 
 
 class _LazySingleMember:
-    """‎single_member()‎ בתבנית — האם במשפחה אדם אחד. בספק (שליפה נכשלה) — לא."""
+    """`single_member()` in templates: whether the family is one person. When in
+    doubt (the query failed), no."""
     def __init__(self):
         self._value = None
 
@@ -668,7 +724,8 @@ class _LazySingleMember:
 
 
 class _ShowOwner:
-    """‎show_owner.get(type)‎ — להציג "של מי" לסוג הזה: השיוך פעיל, ויש יותר מאדם אחד."""
+    """`show_owner.get(type)`: whether to show "whose" for this type: attribution
+    is on, and there is more than one person."""
     def __init__(self, settings, single):
         self._attr = (settings or {}).get("owner_attribution") or {}
         self._single = single
@@ -678,12 +735,12 @@ class _ShowOwner:
 
 
 def assign_member_colors(members: list, chosen: dict) -> dict:
-    """מזהה ← מספר צבע (‎_OWNER_HEX‎ ו-‎.owner-N‎).
+    """id → colour number (`_OWNER_HEX` and `.owner-N`).
 
-    מי שבחר צבע (מתן, 30.9 — סבב 6, פריט 13) מקבל אותו. כל השאר — לפי סדר
-    ההצטרפות, כמו תמיד, אבל מדלגים על צבע שמישהו כבר בחר: שני אנשים באותו
-    צבע, ואי אפשר להבדיל ביניהם. בחירה של מי שכבר לא במשפחה, או ערך שבור,
-    פשוט לא נחשבת."""
+    Whoever picked a colour (Matan, 30.9, round 6, item 13) gets it. Everyone
+    else by join order, as always, but skipping a colour someone already picked:
+    two people in the same colour can't be told apart. A pick by someone no
+    longer in the family, or a broken value, simply doesn't count."""
     ids = [m["id"] for m in members]
     size = len(_OWNER_HEX)
     colors, taken = {}, set()
@@ -705,7 +762,7 @@ def assign_member_colors(members: list, chosen: dict) -> dict:
 
 
 def _member_colors(family_id):
-    """צבע לכל בן משפחה — לתגי השם על עסקאות ולגרפים לפי בן משפחה."""
+    """A colour per family member, for name tags on transactions and per-member charts."""
     if not family_id:
         return {}
     members = db.get_family_members(family_id)
@@ -713,26 +770,28 @@ def _member_colors(family_id):
 
 
 def _run_queries(tasks: dict) -> dict:
-    """מריץ קבוצת שליפות DB ומחזיר {name: result}.
-    היה בעבר מקבילי (ThreadPoolExecutor) אבל הלקוח של Supabase הוא singleton
-    עם httpx client משותף — קריאות מקביליות מ-threads על אותו client גרמו ל-
-    "Server disconnected" תחת gunicorn (השליפה נכשלה בשקט והחזירה אפסים). מאז
-    שהעברנו את השרת ל-EU (אזור europe-west4) כל שליפה עולה ~30ms, אז הרצה
-    רצופה מהירה לגמרי (~7 שליפות = ~0.2ש') ובטוחה. רץ ב-thread הראשי, אז גם
-    flask.g/_request_cache עובד כרגיל."""
+    """Runs a group of DB queries and returns {name: result}.
+    It used to be parallel (ThreadPoolExecutor), but the Supabase client is a
+    singleton with a shared httpx client, and parallel calls from threads on the
+    same client caused "Server disconnected" under gunicorn (the query failed
+    silently and returned zeros). Since the server moved to the EU
+    (europe-west4) every query costs ~30ms, so running in sequence is perfectly
+    fast (~7 queries = ~0.2s) and safe. Runs on the main thread, so
+    flask.g/_request_cache work as usual too."""
     return {name: _timed(name, fn) for name, fn in tasks.items()}
 
 
-CHART_COLORS = 12   # ‎COLORS‎ ב-‎chart-setup.js‎ — חייב להישאר מסונכרן
+CHART_COLORS = 12   # `COLORS` in `chart-setup.js`: must stay in sync
 
 
 def _distinct_colors(items):
-    """אין שתי קטגוריות באותו צבע בעיגול של החודש (מתן, 12.10).
+    """No two categories in the same colour in the month's donut (Matan, 12.10).
 
-    כל אחת מבקשת את הצבע הקבוע שלה (‎color_idx‎ — המקום ברשימת הקטגוריות).
-    הגדולה קודם מקבלת את מה שביקשה; מי שהצבע שלה כבר תפוס — הצבע הפנוי
-    הבא. כך "סופר" נשאר זהב בכל החודשים, והקטגוריה התשיעית לא יוצאת זהב
-    גם היא. רק כשיש יותר קטגוריות מצבעים בחודש אחד — צבע חוזר."""
+    Each asks for its fixed colour (`color_idx`, its place in the category
+    list). The largest first gets what it asked for; one whose colour is
+    already taken gets the next free colour. So "סופר" stays gold in every
+    month, and the ninth category doesn't come out gold too. Only when a single
+    month has more categories than colours does a colour repeat."""
     taken = set()
     for c in sorted(items, key=lambda c: -(c.get("total") or 0)):
         want = (c.get("color_idx") or 0) % CHART_COLORS
@@ -744,9 +803,11 @@ def _distinct_colors(items):
 
 
 def _timed(name, fn):
-    """מריץ ‎fn‎ ורושם כמה זמן לקח — לשורת "timing" שבסוף הבקשה.
+    """Runs `fn` and records how long it took, for the "timing" line at the end
+    of the request.
 
-    מהירות הטעינה (מתן, 12.10): קודם למדוד איזו שליפה איטית, ורק אז לתקן."""
+    Load speed (Matan, 12.10): first measure which query is slow, and only then
+    fix."""
     start = time.perf_counter()
     try:
         return fn()
@@ -762,7 +823,7 @@ def _start_request_clock():
 
 @app.after_request
 def _log_query_timings(response):
-    """שורה אחת לבקשה שנמדדה: סך הכל, וכל שליפה לפי הסדר."""
+    """One line per measured request: the total, and every query in order."""
     timings = g.get("sf_timings")
     if timings and g.get("sf_request_start") is not None:
         total = (time.perf_counter() - g.sf_request_start) * 1000
@@ -772,9 +833,10 @@ def _log_query_timings(response):
 
 
 def _prime_request_cache(family_id, settings=None, categories=None, members=None, family=None):
-    """מזריק ל-cache של הבקשה (flask.g) ערכים שכבר נשלפו במקבץ, כדי
-    ש-context-processors ו-_member_colors ישתמשו בהם במקום לשלוף שוב באותה
-    בקשה. המפתחות חייבים להיות זהים לאלה שב-_request_cache ב-supabase_config."""
+    """Injects into the request cache (flask.g) values already fetched in the
+    batch, so the context processors and _member_colors use them instead of
+    fetching again in the same request. The keys must be identical to those in
+    _request_cache in supabase_config."""
     cache = getattr(g, "_sf_cache", None)
     if cache is None:
         cache = g._sf_cache = {}
@@ -788,44 +850,46 @@ def _prime_request_cache(family_id, settings=None, categories=None, members=None
         g.family_settings = settings
 
 
-# צבעי-מילוי מוצקים לעמודות גרף "לפי בן משפחה" — זהים לצבעי תגי-השם
-# (.owner-0..5 ב-style.css, חייב להישאר מסונכרן; מספר הצבעים כאן קובע כמה
-# בני משפחה מקבלים צבע ייחודי לפני שהמערכת חוזרת מהתחלה). משותפת (ללא
-# user_id) מקבלת אפור כמו .owner-shared. צבעים לא-שגרתיים שלא מתנגשים
-# עם הסמנטיים (ירוק=הכנסה, אדום=הוצאה, זהב=חיסכון).
+# Solid fill colours for the "by family member" chart bars, identical to the
+# name-tag colours (.owner-0..5 in style.css; must stay in sync; the number of
+# colours here decides how many family members get a unique colour before it
+# wraps around). Shared (no user_id) gets grey like .owner-shared. Unusual
+# colours that don't clash with the semantic ones (green=income, red=expense,
+# gold=savings).
 _OWNER_HEX  = {
-    0: "#2E67A8",  # כחול (מתן)
-    1: "#7048B0",  # סגול (אור)
-    2: "#A0457C",  # שזיף-מג'נטה
-    3: "#A85C3E",  # טרקוטה
-    4: "#5E7391",  # כחול-אפור צפחה
-    5: "#8A6A52",  # חום-טאופ
-    # שניים נוספים — שמונה לבחירה (מתן, 30.9 — סבב 6, פריט 13)
-    6: "#4B4FA8",  # אינדיגו
-    7: "#2F7385",  # כחול-פטרול
+    0: "#2E67A8",  # blue (Matan)
+    1: "#7048B0",  # purple (Or)
+    2: "#A0457C",  # plum-magenta
+    3: "#A85C3E",  # terracotta
+    4: "#5E7391",  # slate blue-grey
+    5: "#8A6A52",  # taupe brown
+    # Two more: eight to choose from (Matan, 30.9, round 6, item 13)
+    6: "#4B4FA8",  # indigo
+    7: "#2F7385",  # petrol blue
 }
 _SHARED_HEX = "#78716C"
-_EXTRA_INCOME_HEX = "#B8B0A2"   # "הכנסות נוספות" — אפור בהיר, שונה ממשכורת משותפת
-# יעדי חיסכון — גוונים של זהב, צבע החיסכון באפליקציה. הפלטה של ההוצאות נתנה
-# ליעד השני ירוק, וירוק כאן פירושו הכנסה.
+_EXTRA_INCOME_HEX = "#B8B0A2"   # "other income": light grey, distinct from a shared salary
+# Savings goals: shades of gold, the app's savings colour. The expense palette
+# gave the second goal green, and green here means income.
 _SAVINGS_HEX = ("#A67C00", "#D6AE34", "#6E5200", "#E8CF7A", "#8C6A12", "#C4A45A")
 
 
 # ─── Auth routes ──────────────────────────────────────────────────────────────
 
-# ─── בדיקת כתובת מייל ─────────────────────────────────────────────────────────
+# ─── Email address check ────────────────────────────────────────────────────
 #
-# לא RFC מלא — בדיוק מה שמונע את הטעות שקרתה בפועל: כתובת בלי סיומת.
-# לשני הטפסים יש ‎novalidate‎ (בכוונה, כדי שהשגיאות יהיו בעברית ובעיצוב
-# שלנו ולא בועית דפדפן באנגלית), ובשרת לא נבדק כלום — אז ‎israel@gmial‎
-# או ‎israel@gmail‎ נרשמו בהצלחה.
+# Not full RFC: exactly what prevents the mistake that actually happened, an
+# address with no TLD. Both forms have `novalidate` (on purpose, so errors are
+# in Hebrew and our design rather than an English browser bubble), and the
+# server checked nothing, so `israel@gmial` or `israel@gmail` signed up
+# successfully.
 #
-# למה זה חמור יותר משנשמע: המשתמש לא מגלה כלום ברגע ההרשמה. הוא מגלה
-# חודש אחר כך, כשהוא מנסה לאפס סיסמה והקישור נשלח לכתובת שלא קיימת.
-# אין לו מוצא, ואין שום מסלול באפליקציה לתקן כתובת. במסד יש כבר חשבון
-# כזה מיולי.
+# Why this is worse than it sounds: the user notices nothing at signup. They
+# find out a month later, when they try to reset a password and the link is
+# sent to an address that doesn't exist. They have no way out, and no route in
+# the app to fix an address. The database already has such an account from July.
 #
-# 254 תווים הוא האורך המרבי של כתובת מייל לפי התקן.
+# 254 characters is the maximum length of an email address per the standard.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$")
 
 
@@ -835,18 +899,20 @@ def _looks_like_email(value: str) -> bool:
 
 
 def _login_error(err: str) -> str:
-    """ממפה כשל התחברות להודעה שאומרת מה קרה.
+    """Maps a sign-in failure to a message that says what happened.
 
-    כל כשל הוצג כ"מייל/טלפון או סיסמה שגויים" — גם כשהסיסמה נכונה
-    לגמרי. ‎db.sign_in‎ תופסת כל חריגה ומחזירה את הטקסט שלה, אז הגבלת
-    קצב של Supabase, מייל שלא אומת ותקלת חיבור כולם נראו זהים.
+    Every failure used to be shown as "wrong email/phone or password", even
+    when the password was entirely correct. `db.sign_in` catches every
+    exception and returns its text, so a Supabase rate limit, an unconfirmed
+    email and a connection failure all looked the same.
 
-    המקרה שהופך את זה מאי-נוחות למלכודת: אם אימות מייל יופעל אי-פעם
-    בפרויקט, **כל משתמש חדש ננעל לצמיתות** — הוא נרשם, מקבל "כעת ניתן
-    להתחבר", ומקבל "סיסמה שגויה" לנצח. גם "שכחתי סיסמה" לא יעזור, כי
-    הסיסמה מעולם לא הייתה הבעיה.
+    The case that turns this from an inconvenience into a trap: if email
+    confirmation is ever turned on in the project, **every new user is locked
+    out for good**: they sign up, get "you can now sign in", and get "wrong
+    password" forever. "Forgot password" won't help either, because the
+    password was never the problem.
 
-    צד ההרשמה ממפה חמש שגיאות שונות בקפידה; כאן היה אפס."""
+    The signup side carefully maps five different errors; here there were none."""
     text = (err or "").lower()
     if "email not confirmed" in text or "not confirmed" in text:
         return ("החשבון עדיין לא אומת. בדקו את תיבת המייל — נשלח אליכם "
@@ -859,31 +925,33 @@ def _login_error(err: str) -> str:
 
 
 def _signup_form():
-    """השדות שהוקלדו בטופס ההרשמה, כדי להחזיר אותם עם השגיאה.
-    בלי הסיסמאות — אין סיבה שהן ישבו ב-HTML של תשובה."""
+    """The fields typed into the signup form, to return them with the error.
+    Without the passwords: there is no reason for them to sit in a response's
+    HTML."""
     return {
         "first_name":  request.form.get("first_name", "").strip(),
         "last_name":   request.form.get("last_name", "").strip(),
         "email":       request.form.get("email", "").strip(),
         "phone":       request.form.get("phone", "").strip(),
-        # או מקישור ההזמנה (‎/join/<code>‎ ← ‎/signup?invite=…‎, רעיון 43)
+        # or from the invite link (`/join/<code>` → `/signup?invite=…`, idea 43)
         "invite_code": request.form.get("invite_code", "").strip() or _clean_invite(request.args.get("invite")),
     }
 
 
 def _clean_invite(raw) -> str:
-    """קוד הזמנה מכתובת: אותיות וספרות בלבד, עד 12, באותיות גדולות. הוא נכנס
-    ל-HTML (‎value=‎) ולכתובות — שום דבר אחר לא עובר."""
+    """An invite code from a URL: letters and digits only, up to 12, upper-case.
+    It goes into HTML (`value=`) and into URLs; nothing else gets through."""
     return re.sub(r"[^A-Za-z0-9]", "", raw or "")[:12].upper()
 
 
 def _normalize_phone(raw: str) -> str:
-    """מנרמל מספר טלפון להשוואה/שמירה עקבית: ספרות בלבד, בצורה המקומית.
+    """Normalises a phone number for consistent comparison/storage: digits only,
+    in local form.
 
-    קידומת ‎+972‎ מומרת ל-‎0‎. בלי זה אותו מספר בדיוק נשמר בשתי צורות:
-    מי שנרשם עם ‎+972-54-1234567‎ נשמר כ-‎972541234567‎, ואז ההתחברות
-    שלו עם ‎054-1234567‎ לא מוצאת אותו לעולם — ושני אנשים יכלו "לתפוס"
-    את אותו מספר, כל אחד בכתיב אחר.
+    A `+972` prefix is converted to `0`. Without this the exact same number was
+    stored in two forms: someone who signed up with `+972-54-1234567` was stored
+    as `972541234567`, and then signing in with `054-1234567` never found them,
+    and two people could "claim" the same number, each in a different spelling.
     """
     digits = re.sub(r"\D", "", raw or "")
     if digits.startswith("972"):
@@ -891,11 +959,12 @@ def _normalize_phone(raw: str) -> str:
     return digits
 
 
-# מספר טלפון ישראלי: נייד (‎05X‎ ועוד שבע ספרות), קווי (‎0X‎ ועוד שבע),
-# או ‎07X‎ ועוד שבע. הבדיקה קיימת מאותה סיבה כמו זו של המייל — הטפסים
-# הם ‎novalidate‎ ובשרת לא נבדק דבר, אז ‎1‎ היה מספר תקין: הוא נשמר, הפך
-# למזהה התחברות חלופי חסר משמעות, ובגלל האינדקס הייחודי על הטלפון הוא
-# גם חסם את הערך הזה לכל שאר המשתמשים לתמיד.
+# An Israeli phone number: mobile (`05X` plus seven digits), landline (`0X` plus
+# seven), or `07X` plus seven. The check exists for the same reason as the
+# email one: the forms are `novalidate` and the server checked nothing, so `1`
+# was a valid number: it was saved, became a meaningless alternative sign-in
+# identifier, and because of the unique index on phone it also blocked that
+# value for every other user forever.
 _PHONE_RE = re.compile(r"^0(5\d|7\d|[2-4689])\d{7}$")
 
 
@@ -904,19 +973,19 @@ def _looks_like_phone(normalized: str) -> bool:
 
 
 def _begin_session(user_id, email, access_token, refresh_token, expires_at):
-    """פותח את הסשן של Flask אחרי התחברות. מחזיר
-    הודעת שגיאה, או ‎None‎ כשהכול הצליח."""
+    """Opens the Flask session after sign-in. Returns an error message, or
+    `None` when everything succeeded."""
     # Set JWT before querying profiles (RLS requires auth.uid())
     db.set_auth_token(access_token)
-    db.log_login_event()  # תיעוד כניסה פנימי (לבעל האתר)
+    db.log_login_event()  # internal sign-in record (for the site owner)
     profile, profile_ok = db.fetch_profile(user_id)
 
     if not profile_ok:
-        # הסיסמה נכונה, אבל הפרופיל לא נקרא. לא נכנסים: המשך מכאן היה
-        # מתחיל session בלי family_id, ומשם ensure_family היה יוצר
-        # משפחה חדשה ודורס את השיוך הקיים — ניתוק לצמיתות מכל
-        # ההיסטוריה בגלל תקלה של שתי שניות. כישלון שאפשר לנסות שוב
-        # אחריו הוא התוצאה הנכונה.
+        # The password is right, but the profile couldn't be read. Don't sign
+        # in: continuing from here would start a session with no family_id, and
+        # from there ensure_family would create a new family and overwrite the
+        # existing membership: cut off for good from all history over a
+        # two-second glitch. A failure that can be retried is the right outcome.
         return "לא הצלחנו לטעון את הפרטים שלך — נסו שוב בעוד רגע"
 
     session.permanent = True  # stay signed in until explicit logout
@@ -934,16 +1003,17 @@ def _begin_session(user_id, email, access_token, refresh_token, expires_at):
         session["family_id"] = db.ensure_family(user_id)
 
     if not session["family_id"]:
-        # גם היצירה נכשלה. session בלי משפחה הוא אפליקציה שאי אפשר
-        # לעשות בה כלום, ובניסיון הבא הוא ינסה ליצור משפחה שוב —
-        # אז עדיף לא להיכנס מאשר להיכנס למצב תקוע.
+        # Creation failed too. A session with no family is an app you can't do
+        # anything in, and on the next attempt it will try to create a family
+        # again, so better not to sign in than to sign into a stuck state.
         session.clear()
         return "לא הצלחנו לטעון את הפרטים שלך — נסו שוב בעוד רגע"
 
-    # עותק של הטוקנים במסד, לפי מזהה אקראי בעוגייה (ראו ‎inject_auth‎)
+    # A copy of the tokens in the database, keyed by a random id in the cookie
+    # (see `inject_auth`)
     session["sid"] = secrets.token_urlsafe(32)
     db.web_session_open(session["sid"], user_id, access_token, refresh_token, expires_at)
-    db.set_auth_token(access_token)     # הקריאה למסד רצה בלי טוקן משתמש
+    db.set_auth_token(access_token)     # the database call runs without a user token
     return None
 
 
@@ -954,9 +1024,10 @@ def login():
         return redirect(url_for("dashboard"))
 
     error = None
-    # מה ימלא את שדה "אימייל או טלפון". ב-GET זה המזהה שנשמר מההתחברות
-    # הקודמת מהמכשיר הזה; אחרי ניסיון כושל זה מה שהמשתמש הקליד עכשיו,
-    # כדי שלא יצטרך להקליד שוב אחרי טעות בסיסמה.
+    # What fills the "email or phone" field. On GET it is the identifier saved
+    # from the previous sign-in on this device; after a failed attempt it is
+    # what the user just typed, so they don't have to type it again after a
+    # wrong password.
     identifier = _remembered_identifier()
     if request.method == "POST":
         identifier = request.form.get("identifier", "").strip()
@@ -975,12 +1046,13 @@ def login():
                                    response.session.access_token, response.session.refresh_token,
                                    response.session.expires_at)
             if not error:
-                # מכאן והלאה המכשיר מוכר: גם אם ה-session ייגמר יום אחד,
-                # השורש יביא אותו לטופס ההתחברות ולא חזרה לדף השיווק.
+                # From here on the device is known: even if the session ends one
+                # day, the root takes it to the sign-in form and not back to the
+                # marketing page.
                 return _remember_device(redirect(url_for("dashboard")), identifier)
 
-    # העמוד נושא עכשיו את המזהה שנשמר, כך שהוא תלוי-עוגייה בדיוק כמו השורש
-    # ואסור שיישמר במטמון של דפדפן או proxy.
+    # The page now carries the saved identifier, so it depends on the cookie
+    # exactly like the root and must not be cached by a browser or proxy.
     response = make_response(render_template("login.html", error=error,
                                              active_tab="login",
                                              remembered_identifier=identifier))
@@ -989,17 +1061,19 @@ def login():
     return response
 
 
-# ─── Face ID ─────────────────────────────────────────────────────────────────
-# הוסר (מתן, 13.10): באייפון אתר לא יכול לפתוח Face ID ישירות — אפל מציגה
-# קודם חלון "התחברות אל railway.app" ומחכה ללחיצה. "אני רוצה שהאתר פשוט
-# יזהה אותי" — ההתחברות נשמרת (‎web_sessions‎), אז נכנסים ישר, בלי סריקה.
+# ─── Face ID ────────────────────────────────────────────────────────────────
+# Removed (Matan, 13.10): on an iPhone a website can't open Face ID directly;
+# Apple first shows a "sign in to railway.app" sheet and waits for a tap. "I
+# want the site to just recognise me": the session is kept (`web_sessions`), so
+# you go straight in, with no scan.
 
 
 @app.route("/join/<code>")
 def join_link(code):
-    """קישור ההזמנה מוואטסאפ (מתן, 3.10 — רעיון 43). בלי חשבון — טופס ההרשמה
-    עם הקוד מלא. עם חשבון — ההגדרות, בשורה "הצטרפות למשפחה אחרת" עם הקוד
-    מלא; ההצטרפות עצמה בלחיצה שלו, לא מעצמה."""
+    """The invite link from WhatsApp (Matan, 3.10, idea 43). Without an account:
+    the signup form with the code filled in. With an account: settings, at the
+    "join another family" row with the code filled in; the join itself is on
+    their tap, not automatic."""
     code = _clean_invite(code)
     if "user_id" in session:
         return redirect(url_for("settings", join=code) + "#join-family")
@@ -1030,34 +1104,39 @@ def signup():
             error = "מספר הטלפון אינו תקין — למשל 050-1234567"
         elif len(password) < passwords.MIN_LENGTH:
             error = passwords.TOO_SHORT
-        # "אימות סיסמה" הוסר מהטופס (מתן, 13.10 — יש עין שמראה מה הוקלד). נבדק
-        # רק אם נשלח, כדי שטופס ישן שעוד פתוח בטלפון ימשיך לעבוד
+        # "Confirm password" was removed from the form (Matan, 13.10: there is
+        # an eye that shows what was typed). Checked only if sent, so an old form
+        # still open on a phone keeps working
         elif "password_confirm" in request.form and password != password_confirm:
             error = "הסיסמאות אינן תואמות"
-        # אחרונה: היא היחידה שפונה לשירות חיצוני, אז רק כשכל השאר תקין
+        # Last: it is the only one calling an external service, so only when
+        # everything else is valid
         elif passwords.is_leaked(password):
             error = passwords.LEAKED
         else:
             name = f"{first_name} {last_name}"
             response, err = db.sign_up(email, password, name, phone)
             if err:
-                # ממפים שגיאות מוכרות מ-Supabase להודעה בעברית — בעבר כל
-                # שגיאה (גם הגבלת קצב, פורמט לא תקין וכו') הוצגה תמיד כ"האימייל
-                # כבר קיים" בטעות, מה שהטעה כשהבעיה האמיתית הייתה שונה לגמרי
+                # Map known Supabase errors to a Hebrew message. In the past every
+                # error (rate limit, invalid format, etc.) was always shown as
+                # "the email already exists" by mistake, which misled when the
+                # real problem was something else entirely
                 err_lower = err.lower()
                 if ("already registered" in err_lower or "already exists" in err_lower
                         or ("duplicate" in err_lower and "phone" in err_lower)
                         or "database error saving new user" in err_lower):
-                    # הודעה אחת לשני המקרים, בכוונה.
+                    # One message for both cases, on purpose.
                     #
-                    # קודם "האימייל כבר קיים" ו"הטלפון כבר רשום" היו שתי
-                    # תשובות שונות — כלומר טופס ההרשמה ענה בוודאות על
-                    # "האם הכתובת הזאת רשומה כאן". עם ‎enable_confirmations‎
-                    # כבוי זה גם אורקל וגם דרך לתפוס כתובת של מישהו אחר
-                    # כך שהוא לא יוכל להירשם לעולם.
+                    # Before, "the email already exists" and "the phone is
+                    # already registered" were two different answers, i.e. the
+                    # signup form answered with certainty "is this address
+                    # registered here". With `enable_confirmations` off it is
+                    # both an oracle and a way to grab someone else's address
+                    # so they can never sign up.
                     #
-                    # ההודעה מפנה להתחברות ולאיפוס סיסמה, שהם מה שמי
-                    # שבאמת שכח שיש לו חשבון צריך ממילא.
+                    # The message points to sign-in and password reset, which
+                    # is what someone who really forgot they have an account
+                    # needs anyway.
                     error = ("הרשמה נכשלה — ייתכן שכבר יש חשבון עם הפרטים האלה. "
                              "נסו להתחבר, או לאפס סיסמה.")
                 elif "invalid" in err_lower and "email" in err_lower:
@@ -1065,21 +1144,24 @@ def signup():
                 elif "rate limit" in err_lower:
                     error = "יותר מדי ניסיונות הרשמה בזמן קצר — נסו שוב בעוד כמה דקות"
                 else:
-                    # לא מדליפים את השגיאה הפנימית למשתמש — רק ללוג השרת
+                    # Don't leak the internal error to the user, only to the
+                    # server log
                     logger.error("signup: %s", err)
                     error = "הרשמה נכשלה — נסו שוב בעוד כמה רגעים"
             else:
-                # הצטרפות למשפחה קיימת לפי קוד ההזמנה. כישלון כאן לא מבטל את
-                # ההרשמה — המשתמש כבר נוצר ב-Auth ואסור להשאיר אותו בלי דרך
-                # להיכנס — אבל הוא כן חייב להיאמר בקול. בעבר הערך המוחזר נזרק,
-                # וכל מצטרף קיבל "נרשמת בהצלחה" ואז משפחה חדשה משלו בשקט.
+                # Joining an existing family by invite code. A failure here
+                # doesn't cancel the signup (the user already exists in Auth
+                # and must not be left with no way in), but it must be said out
+                # loud. The return value used to be thrown away, and every
+                # joiner got "signed up successfully" and then, silently, a new
+                # family of their own.
                 success = "נרשמתם בהצלחה! כעת ניתן להתחבר."
                 join_err = None
                 if invite_code and response and response.user:
-                    # ה-RPC מזהה את המצטרף דרך auth.uid(), ולכן ה-client חייב
-                    # לשאת את הטוקן של המשתמש החדש. לא מסתמכים על כך שה-SDK
-                    # יעשה זאת לבד אחרי sign_up — קובעים אותו במפורש, כמו
-                    # בכל מסלול אחר באפליקציה.
+                    # The RPC identifies the joiner through auth.uid(), so the
+                    # client must carry the new user's token. Don't rely on the
+                    # SDK doing it by itself after sign_up: set it explicitly, as
+                    # in every other route in the app.
                     session_obj = getattr(response, "session", None)
                     if session_obj and session_obj.access_token:
                         db.set_auth_token(session_obj.access_token)
@@ -1091,10 +1173,12 @@ def signup():
                         success = (f"נרשמתם בהצלחה! אבל {join_err}. "
                                    "אפשר להתחבר ולהצטרף למשפחה דרך ההגדרות.")
 
-                # נכנסים ישר (מתן, 13.10): עד עכשיו מי שסיים את הטופס קיבל "כעת
-                # ניתן להתחבר" והקליד שוב מייל וסיסמה — בדיוק ברגע שהכי קל לאבד
-                # משתמש חדש. ‎sign_up‎ מחזירה סשן כשאימות מייל כבוי; כשהוא דלוק
-                # (אין סשן) או שהכניסה נכשלה — כמו קודם, למסך ההתחברות.
+                # Sign straight in (Matan, 13.10): until now whoever finished the
+                # form got "you can now sign in" and typed email and password
+                # again, exactly when it is easiest to lose a new user.
+                # `sign_up` returns a session when email confirmation is off;
+                # when it is on (no session) or sign-in failed, as before, to
+                # the sign-in screen.
                 session_obj = getattr(response, "session", None) if response else None
                 if session_obj and session_obj.access_token and response.user:
                     begin_err = _begin_session(response.user.id, response.user.email,
@@ -1104,48 +1188,57 @@ def signup():
                         if join_err:
                             session["sf_notice"] = (f"נרשמתם בהצלחה! אבל {join_err}. "
                                                     "אפשר להצטרף למשפחה דרך ההגדרות.")
-                        # בלי קטגוריות (משפחה חדשה) הבית מעביר לאשף הפתיחה
+                        # Without categories (a new family) home redirects to
+                        # the onboarding wizard
                         return _remember_device(redirect(url_for("dashboard")), email)
                     logger.warning("signup auto sign-in failed for %s: %s", email, begin_err)
-                # ההרשמה לא מחברת אוטומטית, אבל היא כן הופכת את המכשיר
-                # למוכר — מי שהרגע פתח חשבון בוודאי לא צריך לראות שוב את
-                # דף השיווק, והמייל שלו כבר ממולא בטופס.
+                # Signup doesn't sign in automatically, but it does make the
+                # device known: someone who just opened an account certainly
+                # doesn't need to see the marketing page again, and their email
+                # is already prefilled in the form.
                 return _remember_device(
                     make_response(render_template("login.html", active_tab="login",
                                                   success=success,
                                                   remembered_identifier=email)),
                     email)
 
-    # מה שהוקלד חוזר עם השגיאה.
+    # What was typed comes back with the error.
     #
-    # עד היום כל שגיאת הרשמה — מייל לא תקין, סיסמאות שלא תואמות, מייל
-    # שכבר קיים — מחקה את כל ששת השדות, **כולל קוד ההזמנה**. מי שקיבל
-    # קוד בוואטסאפ והקליד סיסמה קצרה מדי נשאר בלי הקוד ובלי הפרטים,
-    # וצריך לחזור לשיחה ולחפש. זה ההפך הגמור מצד ההתחברות, ששומר את
-    # המזהה במפורש "כדי שלא יצטרך להקליד שוב אחרי טעות בסיסמה".
+    # Until now every signup error (invalid email, mismatched passwords, email
+    # already exists) wiped all six fields, **including the invite code**.
+    # Someone who got a code on WhatsApp and typed a too-short password was left
+    # without the code and without their details, and had to go back to the chat
+    # and search. The exact opposite of the sign-in side, which keeps the
+    # identifier explicitly "so they don't have to type it again after a wrong
+    # password".
     #
-    # הסיסמאות לא חוזרות, במכוון: אין סיבה שסיסמה תשב ב-HTML של תשובה.
+    # Passwords don't come back, on purpose: there is no reason for a password
+    # to sit in a response's HTML.
     return render_template("login.html", error=error, active_tab="signup",
                            signup=_signup_form()), 422 if error else 200
 
 
-# POST בלבד. עם ‎SameSite=Lax‎, ‎<img src=".../logout">‎ באתר אחר הוציא
-# את המבקר מהחשבון ומחק לו את עוגיות המכשיר. מטרד ולא פרצה — אבל מטרד
-# שמישהו יכול להפעיל מרחוק, ואין שום סיבה ש-GET יבצע פעולה.
+# POST only. With `SameSite=Lax`, `<img src=".../logout">` on another site
+# signed the visitor out and deleted their device cookies. A nuisance, not a
+# breach, but a nuisance someone can trigger remotely, and there is no reason
+# for a GET to perform an action.
 @app.route("/logout", methods=["POST"])
 @limiter.limit("30 per minute")
 def logout():
-    """יציאה יזומה מחזירה לדף הנחיתה, ומוחקת את כל מה שנשמר על המכשיר.
+    """An explicit sign-out goes back to the landing page, and deletes everything
+    stored on the device.
 
-    זו הנקודה שבה כל הזיכרון מתאפס — לא רק ה-session אלא גם שתי עוגיות
-    המכשיר. הכוונה מדויקת: יציאה יזומה היא הדרך היחידה החוצה, ומי שבחר
-    בה מקבל בדיוק את מה שאורח מקבל — דף הנחיתה, ומשם כפתור "התחברות".
-    זה גם מה שהופך את סימון המכשיר לאמין: מכאן והלאה, מכשיר שמסומן מוכר
-    אבל אין לו session הוא בהכרח מקרה שבו ההתחברות נגמרה מעצמה — וזה
-    בדיוק המקרה שבו דף שיווק הוא התשובה הלא נכונה."""
+    This is the point where all memory resets: not only the session but also
+    the two device cookies. The intent is precise: an explicit sign-out is the
+    only way out, and whoever chose it gets exactly what a guest gets: the
+    landing page, and from there a "sign in" button. It is also what makes the
+    device marker reliable: from then on, a device marked known but with no
+    session is necessarily a case where the session ended by itself, and that
+    is exactly the case where a marketing page is the wrong answer."""
     if session.get("sid"):
         db.web_session_close(session["sid"])
-    # טלפון משותף: מי שהתנתק לא ממשיך לקבל את ההתראות של המשפחה (מתן, 31.10)
+    # A shared phone: whoever signed out stops getting the family's
+    # notifications (Matan, 31.10)
     if session.get("push_endpoint"):
         db.push_unsubscribe(session["push_endpoint"])
     session.clear()
@@ -1162,25 +1255,28 @@ def forgot_password():
     email = _text(body.get("email"))
     if not email:
         return jsonify({"error": "נא להזין מייל"}), 422
-    # פורמט פסול הוא לא מידע על מי רשום, ולכן מותר לומר אותו בקול —
-    # בניגוד לתשובה שלמטה, שתמיד "נשלח" כדי לא לחשוף אילו כתובות קיימות.
-    # בלי זה מי שהקליד כתובת שבורה קיבל "נשלח קישור" וחיכה לו לשווא.
+    # An invalid format isn't information about who is registered, so it may be
+    # said out loud, unlike the response below, which always says "sent" so as
+    # not to reveal which addresses exist. Without this, whoever typed a broken
+    # address got "link sent" and waited for it in vain.
     if not _looks_like_email(email):
         return jsonify({"error": "כתובת המייל אינה תקינה"}), 422
 
     redirect_to = request.host_url.rstrip("/") + url_for("reset_password")
     ok, err = db.send_reset_email(email, redirect_to)
 
-    # התוצאה נזרקה לפח. ספק המייל של Supabase מוגבל לשני מיילים בשעה
-    # לכל הפרויקט, אז השלישי בשעה קיבל "שלחנו לך קישור" ולא קיבל כלום —
-    # ואין לו שום מסלול שחזור אחר, כי גם אימות המייל כבוי. שום דבר לא
-    # נרשם, ולא היה שום סימן שזה קורה.
+    # The result was thrown away. Supabase's email provider is limited to two
+    # emails an hour for the whole project, so the third in an hour got "we sent
+    # you a link" and received nothing, with no other recovery route, since
+    # email confirmation is off too. Nothing was logged, and there was no sign
+    # it was happening.
     if not ok:
-        # ‎error‎ ולא ‎warning‎: זה אירוע ב-Sentry, ולא פירור שאף אחד
-        # לא רואה בחוצץ הלוגים של Railway.
-        logger.error("send_reset_email נכשל: %s", err)
-        # מגבלת קצב אצל הספק היא מצב זמני, ואומרים אותו. שאר הכשלים
-        # נשארים גנריים כדי לא לחשוף אילו כתובות רשומות.
+        # `error` and not `warning`: this is an event in Sentry, not a
+        # breadcrumb nobody sees in Railway's log buffer.
+        logger.error("send_reset_email failed: %s", err)
+        # A rate limit at the provider is a temporary state, and it is said.
+        # Other failures stay generic so as not to reveal which addresses are
+        # registered.
         transient = "rate" in str(err).lower() or "limit" in str(err).lower()
         return jsonify({
             "error": ("יותר מדי בקשות איפוס ברגע זה. נסו שוב בעוד כמה דקות."
@@ -1188,19 +1284,21 @@ def forgot_password():
                       "לא הצלחנו לשלוח את הקישור כרגע. נסו שוב בעוד כמה דקות."),
         }), 503
 
-    # תמיד מחזירים הצלחה — לא חושפים אילו אימיילים רשומים
+    # Always return success: don't reveal which emails are registered
     return jsonify({"status": "ok"})
 
 
 @app.route("/reset-password")
 def reset_password():
-    """עמוד קביעת סיסמה חדשה — הטוקן מגיע ב-fragment של הקישור מהמייל."""
+    """The set-a-new-password page; the token arrives in the fragment of the
+    email link."""
     return render_template("reset_password.html")
 
 
 @app.route("/api/auth/reset", methods=["POST"])
-# לא מאומת, ומקבל טוקן שחזור מגוף הבקשה — כלומר פתוח לניחוש טוקנים.
-# ‎/api/auth/forgot‎ שלצידו כבר מוגבל ל-3 לדקה; זה נשכח.
+# Unauthenticated, and takes a recovery token from the request body, i.e. open
+# to token guessing. `/api/auth/forgot` next to it was already limited to 3 a
+# minute; this one was forgotten.
 @limiter.limit("5 per minute")
 def reset_password_submit():
     body             = request.get_json(silent=True) or {}
@@ -1224,12 +1322,13 @@ def reset_password_submit():
     return jsonify({"status": "ok"})
 
 
-# ─── Onboarding (משפחה חדשה בלבד) ──────────────────────────────────────────────
+# ─── Onboarding (new families only) ─────────────────────────────────────────
 
-# סט התחלתי גנרי — כל משפחה חדשה יכולה לערוך, למחוק או להוסיף עליו.
-# (לא כולל שמות ספציפיים כמו "קופת גמל אנליסט" שרלוונטיים רק למשפחה מסוימת)
+# A generic starter set: every new family can edit, delete or add to it.
+# (No specific names like "קופת גמל אנליסט" that are relevant only to one family)
 _DEFAULT_CATEGORIES = [
-    # ההוצאות וההכנסות — בדיוק כמו אצל מתן היום, באותו סדר (מתן, 13.10)
+    # Expenses and income: exactly as Matan has them today, in the same order
+    # (Matan, 13.10)
     {"name": "משכורת",               "icon": "💼", "type": "income"},
     {"name": "הכנסה נוספת",          "icon": "💵", "type": "income"},
     {"name": "דיור ושכירות",         "icon": "🏠", "type": "expense"},
@@ -1244,7 +1343,7 @@ _DEFAULT_CATEGORIES = [
     {"name": "חופשות",               "icon": "✈️", "type": "expense"},
     {"name": "אירועים ומתנות",       "icon": "🎁", "type": "expense"},
     {"name": "אחר",                  "icon": "📦", "type": "expense"},
-    # חיסכון — שתיים (מתן, 13.10)
+    # Savings: two (Matan, 13.10)
     {"name": "השקעות",               "icon": "📈", "type": "savings"},
     {"name": "פיקדון בנקאי",         "icon": "🏧", "type": "savings"},
 ]
@@ -1259,17 +1358,19 @@ def onboarding():
 
     family = db.get_family(user["family_id"])
 
-    # מי שהצטרף למשפחה שעוד לא סיימה את ההגדרה נוחת כאן, כי "צריך
-    # אשף" נמדד לפי היעדר קטגוריות. עד עכשיו הוא ראה את מסך הפתיחה
-    # ("משפחה חדשה או הצטרפות?") — שנראה בדיוק ככישלון, והמוצא
-    # המתבקש בו הוא "פותחים משפחה חדשה", כלומר פיצול המשפחה לשתיים.
+    # Someone who joined a family that hasn't finished setup lands here, because
+    # "needs the wizard" is measured by the absence of categories. Until now
+    # they saw the welcome screen ("new family or join?"), which looks exactly
+    # like a failure, and its obvious way out is "open a new family", i.e.
+    # splitting the family in two.
     #
-    # אם יש במשפחה עוד מישהו, ההצטרפות הצליחה ואין מה להגדיר: מי
-    # שפתח את המשפחה עוד לא סיים. זה מה שצריך להיאמר.
+    # If there is someone else in the family, the join succeeded and there is
+    # nothing to set up: whoever opened the family hasn't finished yet. That is
+    # what needs saying.
     #
-    # ורק למי שאינו המנהל. מי שפתח את המשפחה ונכנס אליו חבר באמצע
-    # האשף חייב להמשיך לראות את האשף — אחרת ההצטרפות נועלת אותו
-    # מחוץ להגדרה, ואף אחד מהשניים לא יכול להתקדם.
+    # And only to someone who isn't the manager. Whoever opened the family and
+    # had a member join mid-wizard must keep seeing the wizard; otherwise the
+    # join locks them out of setup, and neither of the two can move forward.
     try:
         others = [m for m in db.get_family_members(user["family_id"])
                   if m.get("id") != user["id"]]
@@ -1307,7 +1408,8 @@ def onboarding_complete():
     if family_name:
         db.update_family_name(user["family_id"], family_name)
 
-    # שלב "איך תרצו לעקוב?" — שיוך עסקאות לבני משפחה לפי בחירת המשפחה
+    # The "how would you like to track?" step: attributing transactions to
+    # family members, per the family's choice
     if isinstance(body.get("owner_attribution"), dict):
         oa = body["owner_attribution"]
         db.update_family_settings(user["family_id"], {"owner_attribution": {
@@ -1325,13 +1427,14 @@ def onboarding_complete():
 
 def _notify_owner_about_family(kind: str, family_id: str, family_name: str = None,
                                person_id: str = None):
-    """מייל לבעל האתר (מתן, 5.10): משפחה סיימה את אשף הפתיחה, או שמישהו
-    הצטרף למשפחה. שם המשפחה וכמה חברים יש בה עכשיו. נשלף כאן, בבקשה —
-    השליחה עצמה ב-thread בלי גישה למסד (ראו ‎notify.py‎). קישוט: שום
-    תקלה כאן לא מפילה הרשמה או הצטרפות.
+    """An email to the site owner (Matan, 5.10): a family finished the onboarding
+    wizard, or someone joined a family. The family name and how many members it
+    has now. Fetched here, in the request; the sending itself runs on a thread
+    with no database access (see `notify.py`). Decoration: no failure here
+    breaks a signup or a join.
 
-    ‎person_id‎ — מי שפתח את המשפחה או הצטרף עכשיו: שם, מייל וטלפון (מתן,
-    5.10). מתוך רשימת החברים שכבר נשלפה — בלי שליפה נוספת."""
+    `person_id`: whoever opened the family or just joined: name, email and phone
+    (Matan, 5.10). From the member list already fetched, with no extra query."""
     try:
         members = db.get_family_members(family_id)
         name = family_name or (db.get_family(family_id) or {}).get("name") or "בלי שם"
@@ -1353,8 +1456,9 @@ def _notify_owner_about_family(kind: str, family_id: str, family_name: str = Non
                       f"טלפון: {person.get('phone') or 'לא הוזן'}"]
         notify.notify_owner(subject, lines)
         if kind == "joined":
-            # ולבני המשפחה עצמם — התראה לטלפון (מתן, 31.10). הקריאה רצה בשם
-            # מי שהצטרף, שכבר חבר, ומחזירה את המכשירים של כל השאר.
+            # And to the family members themselves: a phone notification (Matan,
+            # 31.10). The call runs as the joiner, who is already a member, and
+            # returns everyone else's devices.
             joiner = (person or {}).get("name") or (person or {}).get("full_name") or ""
             push.send_in_background(db.push_family_targets(), push.member_joined(joiner, name))
     except Exception:
@@ -1362,27 +1466,30 @@ def _notify_owner_about_family(kind: str, family_id: str, family_name: str = Non
 
 
 def _sync_recurring(family_id):
-    """משלים מופעים של עסקאות קבועות, פעם ביום לכל משתמש.
+    """Fills in occurrences of recurring transactions, once a day per user.
 
-    שני דברים תוקנו כאן ביחד.
+    Two things were fixed here together.
 
-    ראשית, זה רץ רק מהדשבורד. מי שהגיע ישר לעמוד החודש — מסימנייה,
-    מהתפריט התחתון או מקישור — ראה חודש בלי המשכורת ובלי ההוראות
-    הקבועות, ולא היה שום דבר שיסביר לו למה. המספרים תוקנו רק אם במקרה
-    עבר דרך דף הבית.
+    First, it used to run only from the dashboard. Whoever went straight to the
+    month page (from a bookmark, the bottom menu or a link) saw a month without
+    the salary and the standing orders, and nothing explained why. The numbers
+    were fixed only if they happened to pass through the home page.
 
-    שנית, הסימון "סונכרן להיום" נכתב גם כשהיצירה נכשלה — ואז הניסיון
-    הבא רק למחרת. כשל שנראה כהצלחה משאיר חודש שלם חסר.
+    Second, the "synced for today" mark was written even when creation failed,
+    and then the next attempt was only the next day. A failure that looks like
+    success leaves a whole month incomplete.
 
-    מסומן רק אחרי הצלחה, כך שכישלון חולף נפתר בטעינת העמוד הבאה."""
+    Marked only after success, so a passing failure is resolved on the next
+    page load."""
     if not family_id:
         return
     today = clock.today()
     today_str = today.isoformat()
     if session.get("recurring_synced") == today_str:
         return
-    # אין היום שום חיוב קבוע — לא בודקים (מתן 1.11). מהעותק שבסשן, שמתעדכן
-    # מההגדרות של המשפחה בכל עמוד (‎inject_family_settings‎) — בלי שליפה כאן.
+    # No recurring charge today: don't check (Matan 1.11). From the copy in the
+    # session, which is refreshed from the family's settings on every page
+    # (`inject_family_settings`), with no query here.
     if db.recurring_can_wait(session.get("recurring_next"), today):
         session["recurring_synced"] = today_str
         return
@@ -1391,12 +1498,12 @@ def _sync_recurring(family_id):
         session["recurring_synced"] = today_str
 
 
-# ─── Main pages (5 עמודים: בית · החודש · השוואה · פרויקטים · הגדרות) ────────
+# ─── Main pages (5 pages: home · month · comparison · projects · settings) ──
 
 def _home_page_separately(family_id, user, now):
-    """הדרך הישנה לדף הבית — שליפה לכל חלק. רק כש-‎get_home_page‎ לא זמינה.
-    ‎None‎ = אין קטגוריות (צריך את אשף הפתיחה)."""
-    # מקבץ השליפות הבלתי-תלויות (רצות בזו אחר זו — ראו _run_queries)
+    """The old way to the home page: a query per part. Only when `get_home_page`
+    is unavailable. `None` = no categories (needs the onboarding wizard)."""
+    # The batch of independent queries (run one after another; see _run_queries)
     batch = _run_queries({
         "settings":   lambda: db.get_family_settings(family_id),
         "summary":    lambda: db.get_monthly_summary(family_id, now.year, now.month),
@@ -1405,17 +1512,19 @@ def _home_page_separately(family_id, user, now):
         "is_new":     lambda: db.family_has_no_transactions(family_id),
     })
 
-    # "צריך onboarding" == אפס קטגוריות — נגזר מהקטגוריות שכבר שלפנו (בלי שליפה נוספת)
+    # "Needs onboarding" == zero categories, derived from the categories already
+    # fetched (no extra query)
     if not batch["categories"]:
         return None
 
-    # "עסקאות אחרונות" תלויות בהעדפות — נשלפות אחרי שיש לנו אותן
-    # עשר האחרונות **שהוזנו**, בסדר ההזנה — החדשה למעלה (מתן, 30.9). היום
-    # כתוב בתוך כל שורה ("היום · רמי לוי"), כי בסדר הזנה כותרות לפי יום היו
-    # חוזרות על עצמן.
+    # "Recent transactions" depend on the settings, so they are fetched once we
+    # have them. The last ten **entered**, in entry order, newest on top (Matan,
+    # 30.9). The day is written inside each row ("היום · רמי לוי"), because in
+    # entry order per-day headers would repeat themselves.
     transactions = _timed("recent", lambda: db.get_recent_transactions(family_id, limit=10,
                           settings=batch["settings"], viewer_user_id=user["id"]))
-    # "השבוע" (מתן, 30.9) — קישוט: תקלה בו לא מפילה את דף הבית
+    # "This week" (Matan, 30.9): decoration; a failure in it doesn't break the
+    # home page
     try:
         week = _timed("week", lambda: db.week_spending(family_id))
     except db.DataUnavailable:
@@ -1427,34 +1536,39 @@ def _home_page_separately(family_id, user, now):
 
 @app.route("/")
 def dashboard():
-    """השורש מגיש שני דברים שונים: דף נחיתה ציבורי למי שלא מחובר, והדשבורד
-    למי שכן.
+    """The root serves two different things: a public landing page to whoever
+    isn't signed in, and the dashboard to whoever is.
 
-    עד היום הוא היה מוגן ב-login_required והפנה ישר ל-/login, כך שכל מי
-    שקיבל קישור נחת על טופס התחברות בלי לדעת מה זה ולמה שימסור נתונים
-    פיננסיים. שם הפונקציה נשאר dashboard כדי שכל url_for הקיים ימשיך לעבוד.
+    Until now it was protected by login_required and redirected straight to
+    /login, so anyone who got a link landed on a sign-in form without knowing
+    what it is or why they should hand over financial data. The function name
+    stays dashboard so every existing url_for keeps working.
 
-    מי שלא מחובר מקבל אחד משניים: מכשיר שמעולם לא התחבר מכאן רואה את דף
-    הנחיתה, ומכשיר מוכר מדלג עליו ישר לטופס ההתחברות. דף שיווק הוא התשובה
-    הנכונה לאורח, ולא למי שרק רצה להיכנס לתקציב שלו. ‎?intro=1 הוא הדרך
-    לראות את דף הנחיתה בכל זאת — משם מגיע כפתור "חזרה" שבדף ההתחברות."""
+    Someone not signed in gets one of two: a device that never signed in from
+    here sees the landing page, and a known device skips it straight to the
+    sign-in form. A marketing page is the right answer for a guest, not for
+    someone who just wanted into their budget. `?intro=1` is the way to see the
+    landing page anyway; the "back" button on the sign-in page comes from there."""
     if "user_id" not in session:
-        # ‎?app=1‎ — נפתח מהאייקון במסך הבית (start_url במניפסט). מי שהתקין
-        # את האפליקציה כבר בחר בה; דף שיווק הוא לא מה שהוא צריך לראות. זה
-        # קרה למי שהתקין לפני שהתחבר: לאפליקציה המותקנת באייפון יש עוגיות
-        # משלה, ו-‎sf_returning‎ עוד לא היה בהן.
+        # `?app=1`: opened from the home-screen icon (start_url in the manifest).
+        # Whoever installed the app already chose it; a marketing page isn't
+        # what they need to see. This happened to people who installed before
+        # signing in: the installed app on iPhone has its own cookies, and
+        # `sf_returning` wasn't in them yet.
         opened_as_app = request.args.get("app") == "1"
         if (_device_is_known() or opened_as_app) and not request.args.get("intro"):
             response = redirect(url_for("login"))
         else:
-            # החודש נגזר מהשעון ולא מקודד בתבנית. "ספטמבר 2026" קבוע
-            # היה נכון ליום שנכתב ושגוי מ-1 באוקטובר, ותאריך ישן בדף
-            # שיווק קורא כמו פרויקט נטוש.
+            # The month is derived from the clock, not hard-coded in the
+            # template. A fixed "September 2026" was right on the day it was
+            # written and wrong from October 1st, and an old date on a
+            # marketing page reads like an abandoned project.
             now = clock.now()
             response = make_response(render_template(
                 "landing.html", demo_month=_month_label(now.year, now.month)))
-        # התוכן כאן תלוי במצב ההתחברות ובעוגיית המכשיר, ולכן אסור שיישמר
-        # במטמון כלשהו — ו-Vary אומר את זה גם ל-proxy שבדרך.
+        # The content here depends on sign-in state and the device cookie, so it
+        # must not be stored in any cache, and Vary tells that to any proxy on
+        # the way too.
         response.headers["Cache-Control"] = "no-store"
         response.headers["Vary"] = "Cookie"
         return response
@@ -1471,11 +1585,12 @@ def dashboard():
             month=now.month, is_new_family=True,
         )
 
-    # עלול לכתוב שורות, אז לפני מקבץ השליפות
+    # May write rows, so before the query batch
     _timed("recurring", lambda: _sync_recurring(family_id))
 
-    # נסיעה אחת למסד (מתן, 13.10): ‎get_home_page‎ מביאה את כל מה שהיה תשע
-    # שליפות. אם היא לא זמינה (המיגרציה עוד לא רצה, תקלה) — הדרך הישנה.
+    # One trip to the database (Matan, 13.10): `get_home_page` brings everything
+    # that used to be nine queries. If it is unavailable (the migration hasn't
+    # run yet, a failure), the old way.
     month_rows = None
     try:
         batch = _timed("home_page", lambda: db.fetch_home_page(
@@ -1496,13 +1611,15 @@ def dashboard():
         if "recent" in batch else batch["transactions"]
     week = batch["week"]
 
-    # מיחזור תוצאות המקבץ ל-context-processors ו-_member_colors (בלי שליפה חוזרת)
+    # Recycling the batch results into the context processors and
+    # _member_colors (no repeat query)
     _prime_request_cache(family_id, settings=batch["settings"], categories=batch["categories"],
                          members=batch["members"], family=batch.get("family"))
 
-    # התראות החודש — רק כאן, כשיש (מתן, 11.10): חריגה מתקציב של קטגוריה.
-    # לחיצה מובילה לקטגוריה בעמוד החודש. שורות החודש נשלפות רק כשיש
-    # תקציבים — בלעדיהם אין מה לבדוק. קישוט: תקלה לא מפילה את דף הבית.
+    # The month's alerts, only here, when there are any (Matan, 11.10): a
+    # category over budget. A tap leads to the category on the month page. The
+    # month's rows are fetched only when there are budgets; without them there
+    # is nothing to check. Decoration: a failure doesn't break the home page.
     alerts = []
     if (batch["settings"] or {}).get("limits"):
         try:
@@ -1514,16 +1631,17 @@ def dashboard():
         except db.DataUnavailable:
             pass
 
-    # "ספטמבר נסגר" (מתן, 13.10) — רק ביום הראשון של החודש. קישוט: תקלה לא
-    # מפילה את דף הבית.
+    # "September closed" (Matan, 13.10), only on the first day of the month.
+    # Decoration: a failure doesn't break the home page.
     try:
         recap = db.month_recap(family_id, clock.today(), batch["categories"])
     except db.DataUnavailable:
         recap = None
 
-    # פרויקט מוצמד (מתן, 12.10): "טיול ליוון: נשארו ₪7,800 מתוך ₪12,000" מתחת
-    # למאזן. רק כשמישהו הצמיד — אחרת אין שליפה. פרויקט שהסתיים או שנמחק —
-    # הכרטיס לא מופיע. קישוט: תקלה לא מפילה את דף הבית.
+    # A pinned project (Matan, 12.10): "Greece trip: ₪7,800 left of ₪12,000"
+    # under the balance. Only when someone pinned one; otherwise no query. A
+    # finished or deleted project: the card doesn't appear. Decoration: a
+    # failure doesn't break the home page.
     pinned_project = None
     pinned_id = ((batch["settings"] or {}).get("pinned_projects") or {}).get(user["id"])
     if pinned_id:
@@ -1533,14 +1651,15 @@ def dashboard():
         except db.DataUnavailable:
             pinned_project = None
 
-    # "איך מצרפים בן משפחה" (מתן, 5.10) — בכניסה הראשונה, אחרי אשף הפתיחה
-    # (‎?welcome=1‎ מכפתור "לאפליקציה"), ורק כשעוד אין במשפחה אף אחד אחר
+    # "How to add a family member" (Matan, 5.10): on the first visit, after the
+    # onboarding wizard (`?welcome=1` from the "to the app" button), and only
+    # while there is nobody else in the family yet
     welcome_invite = None
     if request.args.get("welcome") == "1" and len(batch["members"] or []) == 1:
         try:
             family = _fresh_invite(db.get_family(family_id), user)
         except db.DataUnavailable:
-            family = None          # קישוט: תקלה לא מפילה את דף הבית
+            family = None          # decoration: a failure doesn't break the home page
         if family and family.get("invite_code") and not _invite_expired(family):
             welcome_invite = {"code": family["invite_code"], "family_name": family.get("name") or ""}
 
@@ -1558,11 +1677,13 @@ def dashboard():
         welcome_invite=welcome_invite,
         alerts=alerts,
         recap=recap,
-        # "2026 שלכם" (מתן, 1.11) — כרטיס 1–15 בינואר, הסיכום נטען בלחיצה
+        # "Your 2026" (Matan, 1.11): a card on January 1–15; the summary loads
+        # on tap
         year_recap_year=db.year_recap_due(clock.today()),
         hebrew_months=_HEBREW_MONTHS,
         pinned_project=pinned_project,
-        # ל"בן משפחה הצטרף" (‎whats-new.js‎): מזהה, שם פרטי וצבע — בלי פרטים נוספים
+        # For "a family member joined" (`whats-new.js`): id, first name and
+        # colour, no other details
         home_members=[{"id": m["id"], "name": m.get("name") or "",
                        "color": _member_colors(family_id).get(m["id"])}
                       for m in (batch["members"] or [])],
@@ -1573,7 +1694,8 @@ def dashboard():
 @limiter.limit("30 per minute")
 @login_required
 def year_recap_api():
-    """"2026 שלכם" — סיכום השנה, נפתח בלחיצה (מתן, 1.11). רק מי שלוחץ רואה."""
+    """"Your 2026": the year summary, opens on tap (Matan, 1.11). Only whoever
+    taps sees it."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא משויכת משפחה לחשבון"}), 400
@@ -1591,11 +1713,13 @@ def year_recap_api():
 @app.route("/month")
 @login_required
 def month_view():
-    """עמוד החודש: כל הנתונים והגרפים של חודש נתון (ברירת מחדל: הנוכחי)."""
+    """The month page: all the data and charts for a given month (default: the
+    current one)."""
     user      = get_current_user()
     now       = clock.now()
-    # type=int מוודא שזה מספר, לא שזה חודש קיים: ?month=99999999 הפיל את
-    # העמוד ב-500 עד שהתגלה. נופלים לחודש הנוכחי במקום להתפוצץ.
+    # type=int checks it is a number, not that it is an existing month:
+    # ?month=99999999 crashed the page with a 500 until it was found. Fall back
+    # to the current month instead of blowing up.
     year      = request.args.get("year",  now.year,  type=int)
     month     = request.args.get("month", now.month, type=int)
     if not 1 <= (month or 0) <= 12:
@@ -1604,12 +1728,13 @@ def month_view():
         year = now.year
     family_id = user["family_id"]
 
-    # לפני השליפות: בלי זה חודש שנפתח ישירות (סימנייה, תפריט, קישור)
-    # מוצג בלי המשכורת ובלי ההוראות הקבועות
+    # Before the queries: without this a month opened directly (bookmark,
+    # menu, link) is shown without the salary and the standing orders
     _timed("recurring", lambda: _sync_recurring(family_id))
 
     is_current = (year == now.year and month == now.month)
-    # כיוון החץ של "חזרה לחודש הנוכחי": מחודש עתידי החודש הנוכחי הוא אחורה
+    # The direction of the "back to the current month" arrow: from a future
+    # month, the current month is backwards
     is_future = (year, month) > (now.year, now.month)
 
     if not family_id:
@@ -1621,53 +1746,62 @@ def month_view():
             strip_months=[{"year": year, "month": month}], hebrew_months=_HEBREW_MONTHS,
             is_current=is_current, is_future=is_future, summary_data=db._empty_summary(),
             expense_data=[], members_data=[], income_data=[], savings_data=[], savings_home=[],
-            # התבנית ניגשת ל-project_month ללא תנאי. המסלול הזה נשכח כשנוספו
-            # הפרויקטים, ומשתמש בלי משפחה קיבל 500 במקום העמוד הריק המיועד.
+            # The template accesses project_month unconditionally. This route
+            # was forgotten when projects were added, and a user with no family
+            # got a 500 instead of the intended empty page.
             project_month={"expense": 0, "income": 0, "savings": 0,
                            "transactions": [], "projects": []},
         )
 
-    # שלב 1 — שליפות בלתי-תלויות. שורות החודש נשלפות **פעם אחת**, וכל
-    # הסיכומים נגזרים מהן: הסיכום, שלושת הפילוחים לקטגוריה, שני הפילוחים
-    # לבן משפחה ורשימת העסקאות היו שבע שאילתות על אותן שורות בדיוק.
+    # Stage 1: independent queries. The month's rows are fetched **once**, and
+    # every summary is derived from them: the summary, the three category
+    # breakdowns, the two family-member breakdowns and the transaction list used
+    # to be seven queries over exactly the same rows.
     #
-    # החיסכון בזמן (כ-180ms) הוא הצד הפחות חשוב. העיקר הוא שכל אחת מהשבע
-    # גזרה לעצמה מחדש את אותם שני כללים — החרגת עסקאות פרויקט, והסתרת
-    # פרויקט אישי של בן משפחה אחר — והכלל השני כבר נשכח פעם אחת (ראו
-    # ההערה על התאמת קטגוריות לפי שם, למטה). עכשיו הוא מיושם פעם אחת.
-    # ...וחמש השליפות שנשארו הן עכשיו נסיעה אחת. ‎_run_queries‎ מריצה
-    # ברצף (ראו ההערה שם — מקביליות על הלקוח המשותף החזירה אפסים בשקט),
-    # אז החמש שילמו זו אחרי זו ~30ms כל אחת. ‎get_month_page‎ מחזירה את
-    # חמשתן יחד; ההרכבה נשארה ב-Python ולא ירדה ל-SQL, כדי שלא יהיו שני
-    # מקורות אמת ל-‎_merge_settings‎ ולקיצור השמות.
+    # The time saved (about 180ms) is the less important side. The main point is
+    # that each of the seven re-derived the same two rules for itself (excluding
+    # project transactions, and hiding another family member's personal
+    # project), and the second rule was already forgotten once (see the note on
+    # matching categories by name, below). Now it is applied once.
+    # ...and the five queries that remained are now one trip. `_run_queries`
+    # runs them in sequence (see the note there: parallelism on the shared
+    # client silently returned zeros), so the five paid ~30ms each, one after
+    # another. `get_month_page` returns all five together; the assembly stayed
+    # in Python and wasn't moved to SQL, so there aren't two sources of truth
+    # for `_merge_settings` and name shortening.
     p1 = _timed("month_page", lambda: db.fetch_month_page(family_id, year, month))
     settings_ = p1["settings"]
     rows      = p1["rows"]
-    # חודש עתידי (מתן, 1.11): העסקאות הקבועות הצפויות בו מופיעות ונספרות,
-    # עד שהסדרה נגמרת — "כמו תחזית". מסומנות "צפוי" ולא נפתחות לעריכה.
-    # בחודש הנוכחי — כמו קודם: עסקה קבועה מופיעה מהיום שהיא יורדת, כשהמנוע
-    # יוצר אותה. (4.10–1.11 גם חודש עתידי לא הציג אותן.)
+    # A future month (Matan, 1.11): the recurring transactions expected in it
+    # appear and are counted, until the series ends, "like a forecast". Marked
+    # "expected" and not opened for editing. In the current month, as before: a
+    # recurring transaction appears from the day it is charged, when the engine
+    # creates it. (From 4.10 to 1.11 a future month didn't show them either.)
     if is_future:
         rows = list(rows) + db.projected_recurring_rows(family_id, user["id"], year, month)
-        # כמו השליפה עצמה — מהחדש לישן, אז הצפויים נכנסים במקומם ולא בסוף
+        # Like the query itself, newest first, so the projected ones go into
+        # their place and not at the end
         rows.sort(key=lambda r: str(r.get("date") or ""), reverse=True)
 
-    # מוזן כאן ולא לפני ‎render_template‎ כמו קודם: שליפות שלב 2 (חריגות,
-    # קצב, הוראות קבועות) פונות בעצמן לקטגוריות ולחברי המשפחה, ועכשיו הן
-    # מקבלות אותם מהמקבץ במקום לשלוף שוב באמצע הבקשה.
+    # Fed here and not right before `render_template` as before: stage 2
+    # queries (overages, pace, standing orders) access the categories and
+    # family members themselves, and now they get them from the batch instead
+    # of querying again mid-request.
     _prime_request_cache(family_id, settings=settings_, members=p1["members"],
                          categories=p1["categories"], family=p1["family"])
 
     summary = db.summary_from_rows(rows)
-    # תקציבי הקטגוריות נוספים לפילוח ההוצאות: הפס מודד מול ההחלטה של
-    # המשפחה במקום מול סך ההוצאות החודש
+    # Category budgets are added to the expense breakdown: the bar measures
+    # against the family's decision instead of against the month's total
+    # expenses
     expense_breakdown = db.apply_budgets(
         db.category_breakdown_from_rows(rows, p1["categories"], "expense"), settings_)
     income_breakdown  = db.category_breakdown_from_rows(rows, p1["categories"], "income")
     savings_breakdown = db.category_breakdown_from_rows(rows, p1["categories"], "savings")
-    # צבע קבוע לכל קטגוריה (מתן, 12.10): לפי המקום שלה ברשימת הקטגוריות של
-    # המשפחה, ולא לפי המקום בפילוח החודש — "סופר" זהב בכל החודשים, והעיגול
-    # יכול "לזרום" בין חודשים. פרויקט — לפי המזהה, יציב גם הוא.
+    # A fixed colour per category (Matan, 12.10): by its place in the family's
+    # category list, not its place in the month's breakdown, so "סופר" is gold
+    # in every month and the ring can "flow" between months. A project: by id,
+    # also stable.
     _cat_order = {c["id"]: i for i, c in enumerate(c for c in (p1["categories"] or [])
                                                    if c.get("type") == "expense")}
     for c in expense_breakdown:
@@ -1677,24 +1811,26 @@ def month_view():
             c["color_idx"] = _cat_order.get(c.get("category_id"), len(_cat_order))
     _distinct_colors(expense_breakdown)
 
-    # רצועת החודשים: מהישן לחדש (ה-RPC מחזיר מהחדש לישן), ותמיד כוללת את
-    # החודש הנצפה — גם אם אין בו עסקאות ולכן הוא לא חוזר מה-RPC
+    # The month strip: oldest to newest (the RPC returns newest first), and it
+    # always includes the viewed month, even if it has no transactions and so
+    # doesn't come back from the RPC
     strip_months = [{"year": m["year"], "month": m["month"]} for m in reversed(p1["archive"] or [])]
     if not any(m["year"] == year and m["month"] == month for m in strip_months):
         strip_months.append({"year": year, "month": month})
         strip_months.sort(key=lambda m: (m["year"], m["month"]))
 
-    # שלב 2 — שליפות שתלויות בהעדפות/בסיכום
-    # גרף "לפי בן משפחה" — לא כשבמשפחה אדם אחד: עמודה אחת לא אומרת כלום
-    # (מתן, 5.10; כמו בעמוד ההשוואה)
+    # Stage 2: queries that depend on the settings/summary.
+    # The "by family member" chart, not when the family is one person: one bar
+    # says nothing (Matan, 5.10; as on the comparison page)
     active_types = [t for t in ("expense", "income", "savings")
                     if settings_["owner_attribution"].get(t) and len(p1["members"] or []) > 1]
     month_transactions = db.month_transactions_from_rows(rows, settings_, user["id"])
-    # שורת הקטגוריות מתחת ל"הוצאות" וכו׳ ב"כל העסקאות" (מתן, 30.9)
+    # The category row under "expenses" etc. in "all transactions" (Matan, 30.9)
     tx_cat_chips = db.category_filter_chips(month_transactions)
 
-    # פעילות פרויקטים החודש — מוחרגת מהמאזן/הגרפים, ומוצגת בנפרד. נגזרת
-    # מהעסקאות שכבר נשלפו (שכוללות גם עסקאות פרויקט), בלי שליפה נוספת.
+    # Project activity this month: excluded from the balance/charts and shown
+    # separately. Derived from the transactions already fetched (which include
+    # project transactions), with no extra query.
     project_txs = [t for t in month_transactions if t.get("project_id")]
     project_month = {
         "expense":      round(sum(t["amount"] for t in project_txs if t["type"] == "expense"), 2),
@@ -1704,15 +1840,19 @@ def month_view():
         "projects":     db.project_breakdown_from_rows(project_txs),
     }
 
-    # ומכאן — רק העסקאות הרגילות. כל שאר נתוני החודש (סיכום, פילוח קטגוריות,
-    # חלוקה בין בני משפחה, חריגות) כבר מסננים עסקאות פרויקט בשאילתה עצמה;
-    # הרשימה הזו הייתה היחידה שלא, והתבנית מתאימה עסקאות לקטגוריות לפי *שם*.
-    # קטגוריית פרויקט ששמה זהה לקטגוריה משפחתית (למשל "אחר", שנזרעת בשתיהן)
-    # גרמה לעסקת הפרויקט להופיע בתוך הקטגוריה החודשית — בלי להיספר בסכום שלה.
+    # And from here on, only the regular transactions. All the rest of the
+    # month's data (summary, category breakdown, split between family members,
+    # overages) already filters project transactions in the query itself; this
+    # list was the only one that didn't, and the template matches transactions
+    # to categories by *name*. A project category with the same name as a family
+    # category (e.g. "אחר", seeded in both) made the project transaction appear
+    # inside the monthly category, without being counted in its total.
     month_transactions = [t for t in month_transactions if not t.get("project_id")]
 
-    # קבועות מול משתנות (מתן, 12.10): מה שהיה יוצא בכל מקרה (עסקה קבועה —
-    # תבנית או מופע, כולל תשלומים) ומה שתלוי בכם. רק כשיש קבועות — בלי, אין מה לחלק.
+    # Fixed versus variable (Matan, 12.10): what would go out anyway (a
+    # recurring transaction, template or occurrence, including installments) and
+    # what depends on you. Only when there are recurring ones; without them
+    # there is nothing to split.
     _exp = [t for t in month_transactions if t["type"] == "expense"]
     _fixed = [t for t in _exp if t.get("is_recurring") or t.get("recurring_parent_id")]
     fixed_split = None
@@ -1721,13 +1861,15 @@ def month_view():
         exp_total = round(sum(t["amount"] for t in _exp), 2)
         fixed_split = {"fixed": fixed_total, "variable": round(exp_total - fixed_total, 2)}
 
-    # גרף חלוקה בין בני משפחה לכל סוג עסקה שהמשפחה הפעילה בו שיוך
+    # A split chart between family members for every transaction type the
+    # family turned attribution on for
     _type_labels = {"expense": "הוצאות", "income": "הכנסות", "savings": "חיסכון"}
     mcolors = _member_colors(family_id)
 
-    # כרטיסי ההכנסות והחיסכון — גרף עגול כמו ההוצאות (מתן, 30.9). משכורת בצבע
-    # של בן המשפחה (אותו צבע כמו התג עם השם), והכנסות נוספות באפור ניטרלי.
-    # האחוזים מסתכמים ל-100 בדיוק (‎share_map‎).
+    # The income and savings cards: a donut like expenses (Matan, 30.9). A salary
+    # in the family member's colour (the same colour as their name tag), and
+    # other income in a neutral grey. The percentages sum to exactly 100
+    # (`share_map`).
     income_sources = db.income_sources(month_transactions)
     income_pcts = share_map([{"name": s["label"], "total": s["total"]} for s in income_sources])
     for src in income_sources:
@@ -1742,14 +1884,15 @@ def month_view():
         c["color"] = _SAVINGS_HEX[i % len(_SAVINGS_HEX)]
     member_breakdowns = []
     for t in active_types:
-        # ‎mb‎ ולא ‎rows‎: ‎rows‎ הוא שורות החודש, ודריסה שלו כאן הייתה
-        # מרעילה את כל מה שנגזר ממנו בהמשך
+        # `mb` and not `rows`: `rows` is the month's rows, and overwriting it
+        # here would poison everything derived from it later
         mb = db.member_breakdown_from_rows(rows, t)
         for r in mb:
             idx = mcolors.get(r.get("user_id"))
             r["color"] = _OWNER_HEX.get(idx, _SHARED_HEX) if idx is not None else _SHARED_HEX
-        # עמודה אחת לא משווה כלום — בתחילת חודש, כשרק אחד הזין, זה היה גרף
-        # בגובה חצי מסך עם עמודה יחידה (מתן, 12.10). "משותפת" נחשבת עמודה.
+        # One bar compares nothing: at the start of a month, when only one
+        # person had entered anything, it was a half-screen chart with a single
+        # bar (Matan, 12.10). "Shared" counts as a bar.
         if len(mb) >= 2:
             member_breakdowns.append({"type": t, "label": _type_labels[t], "rows": mb})
 
@@ -1776,8 +1919,8 @@ def month_view():
         hebrew_months=_HEBREW_MONTHS,
         is_current=is_current, is_future=is_future,
         summary_data=summary,
-        # רק קטגוריות פעילות (total>0) — כדי שאינדקסי הצבעים בגרף העגול
-        # יתאמו למקרא (שגם הוא מסונן ל-active), ובלי פרוסות ברוחב 0.
+        # Only active categories (total>0), so the colour indexes in the donut
+        # match the legend (also filtered to active), and without zero-width slices.
         expense_data=[c for c in expense_breakdown if c.get("total", 0) > 0],
         income_data=[{"name": s["label"], "total": s["total"], "color": s["color"], "pct": s["pct"]}
                      for s in income_sources],
@@ -1791,16 +1934,17 @@ def month_view():
 @login_required
 @limiter.limit("5 per hour")
 def export_account():
-    """ייצוא מלא של הנתונים — סעיף 20 (ניידות) ב-GDPR.
+    """A full data export: Article 20 (portability) of the GDPR.
 
-    עד עכשיו הייצוא היחיד היה ‎/month.csv‎: חודש בודד, מעמוד החודש,
-    בלי פרופיל, בלי קטגוריות ובלי פרויקטים. כלומר "קחו את הנתונים
-    ולכו" היה אפשרי רק חודש-חודש ביד, וזו לא ניידות.
+    Until now the only export was `/month.csv`: a single month, from the month
+    page, with no profile, no categories and no projects. So "take your data and
+    go" was possible only month by month by hand, and that isn't portability.
 
-    JSON ולא CSV כי אלה כמה טבלאות עם קשרים ביניהן, וקובץ שטוח אחד היה
-    מאבד אותם. ‎/month.csv‎ נשאר לגיליון אלקטרוני.
+    JSON and not CSV, because these are several tables with relations between
+    them, and one flat file would lose them. `/month.csv` stays for
+    spreadsheets.
 
-    ‎5 per hour‎: זו שאילתה שמושכת את כל ההיסטוריה של המשפחה.
+    `5 per hour`: this is a query that pulls the family's entire history.
     """
     user = get_current_user()
     if not user["family_id"]:
@@ -1817,13 +1961,14 @@ def export_account():
     )
 
 
-# תא שמתחיל באחד מאלה הוא נוסחה באקסל (CSV injection)
+# A cell starting with one of these is a formula in Excel (CSV injection)
 _CSV_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
 
 
 def _csv_text(value) -> str:
-    """טקסט חופשי לתא ב-CSV. גרש בהתחלה אומר לאקסל "טקסט, לא נוסחה":
-    "‎-50 הנחה‎" לא יהפוך ל-‎#NAME?‎, ותיאור זדוני לא ירוץ אצל מי שפותח."""
+    """Free text for a CSV cell. A leading apostrophe tells Excel "text, not a
+    formula": "`-50 הנחה`" won't become `#NAME?`, and a malicious description
+    won't run for whoever opens it."""
     text = str(value or "")
     return "'" + text if text.startswith(_CSV_FORMULA_START) else text
 
@@ -1832,16 +1977,18 @@ def _csv_text(value) -> str:
 @limiter.limit("10 per minute")
 @login_required
 def month_csv():
-    """ייצוא עסקאות החודש כ-CSV.
+    """Exports the month's transactions as CSV.
 
-    נתונים שאפשר להוציא הם נתונים שאפשר לבטוח בהם, וזו התשובה הזולה
-    ביותר ל"מה קורה אם ארצה לעזוב". גם כל שיחה עם רואה חשבון מתחילה כאן.
+    Data you can take out is data you can trust, and this is the cheapest
+    answer to "what happens if I want to leave". Every conversation with an
+    accountant starts here too.
 
-    שני פרטים שקובעים אם הקובץ באמת נפתח נכון בעברית:
-    · BOM בתחילת הקובץ — בלעדיו אקסל מפרש UTF-8 כקידוד מקומי, וכל
-      התיאורים והקטגוריות הופכים לג'יבריש. זו התלונה מספר אחת על ייצוא
-      CSV בעברית, והיא נראית כמו באג באפליקציה ולא בתוכנה שפותחת.
-    · ‎\r\n‎ כסוף שורה — מה ש-Excel מצפה לו."""
+    Two details decide whether the file really opens correctly in Hebrew:
+    · A BOM at the start of the file: without it Excel reads UTF-8 as a local
+      encoding, and every description and category turns into gibberish. That
+      is the number one complaint about Hebrew CSV exports, and it looks like a
+      bug in the app rather than in the program opening it.
+    · `\r\n` as the line ending: what Excel expects."""
     user      = get_current_user()
     now       = clock.now()
     year      = request.args.get("year",  now.year,  type=int)
@@ -1853,8 +2000,9 @@ def month_csv():
 
     rows = []
     if user["family_id"]:
-        # אותה שליפה שמזינה את עמוד החודש, כולל סינון פרויקט אישי של
-        # בן משפחה אחר — הייצוא לא אמור לחשוף מה שהמסך מסתיר
+        # The same query that feeds the month page, including filtering out
+        # another family member's personal project: the export mustn't reveal
+        # what the screen hides
         rows = db.get_month_transactions(
             user["family_id"], year, month,
             settings=family_settings(), viewer_user_id=user["id"])
@@ -1888,12 +2036,14 @@ def month_csv():
 @app.route("/months")
 @login_required
 def months():
-    """עמוד השוואה: החודש הנוכחי מול חודשים קודמים + כניסה לכל חודש."""
+    """The comparison page: the current month against previous months + entry to
+    each month."""
     user      = get_current_user()
     family_id = user["family_id"]
     _sync_recurring(family_id)
     now       = clock.now()
-    # נסיעה אחת למסד (מתן, 13.10) — ‎get_months_page‎; אם לא זמינה, כמו קודם
+    # One trip to the database (Matan, 13.10): `get_months_page`; if
+    # unavailable, as before
     page = None
     if family_id:
         try:
@@ -1907,15 +2057,16 @@ def months():
                  else db.get_months_archive(family_id) if family_id else [])
     trend     = db.monthly_trend(archive, 12)
     months_shown = [(t["year"], t["month"]) for t in trend[-12:]]
-    # "לפי קטגוריה" (מתן, 30.9): אותם חודשים כמו הגרף שמעליו. נשלחים 12, והדפדפן
-    # מציג 3 / 6 / 12 לפי הטווח שבוחרים (רעיון 24)
+    # "By category" (Matan, 30.9): the same months as the chart above. 12 are
+    # sent, and the browser shows 3 / 6 / 12 by the chosen range (idea 24)
     if page is not None:
         cat_trend = db.category_trend_from_rows(page["expense_rows"], months_shown, page["categories"])
     else:
         cat_trend = db.category_trend(family_id, months_shown,
                                       db.get_categories(family_id)) if family_id else None
-    # "הוצאות לפי בן משפחה" לאורך החודשים (רעיון 15) — רק כששיוך ההוצאות פעיל
-    # ויש יותר מבן משפחה אחד. קישוט: תקלה לא מפילה את העמוד
+    # "Expenses by family member" over the months (idea 15), only when expense
+    # attribution is on and there is more than one family member. Decoration: a
+    # failure doesn't break the page
     member_series = None
     if family_id and family_settings()["owner_attribution"].get("expense") \
             and len(db.get_family_members(family_id)) > 1:
@@ -1934,8 +2085,8 @@ def months():
                            verdict=db.trend_verdict(trend),
                            member_series=member_series,
                            today_year=now.year, today_month=now.month,
-                           # "2026 עד עכשיו" כל השנה, כולל דצמבר; בינואר "סיכום 2026"
-                           # (מתן, 1.11 — "השנה עוד לא נגמרה")
+                           # "2026 עד עכשיו" all year, including December; in January
+                           # "סיכום 2026" (Matan, 1.11: "the year isn't over yet")
                            recap_year=now.year - 1 if now.month == 1 else now.year,
                            recap_partial=now.month > 1,
                            _HEBREW_MONTHS=_HEBREW_MONTHS)
@@ -1944,10 +2095,11 @@ def months():
 @app.route("/projects")
 @login_required
 def projects():
-    """עמוד פרויקטים: תקציב לפרויקט — טיול, שיפוץ, אירוע ועוד."""
+    """The projects page: a budget per project (trip, renovation, event and more)."""
     user      = get_current_user()
     family_id = user["family_id"]
-    # נסיעה אחת למסד (מתן, 13.10) — ‎get_projects_page‎; אם לא זמינה, כמו קודם
+    # One trip to the database (Matan, 13.10): `get_projects_page`; if
+    # unavailable, as before
     page = None
     if family_id:
         try:
@@ -1960,11 +2112,12 @@ def projects():
         project_list, finished, last = page["active"], page["finished"], page["last_activity"]
     else:
         project_list = db.get_projects(family_id, user["id"]) if family_id else []
-        # "פרויקטים שהסתיימו" — חלק סגור בתחתית (מתן, 30.9)
+    # "Finished projects": a collapsed section at the bottom (Matan, 30.9)
         finished = db.get_projects(family_id, user["id"], archived=True) if family_id else []
         last = db.project_last_activity(family_id) if len(project_list) > 1 else {}
-    # הפרויקט שנוספה לו עסקה לאחרונה — ראשון (מתן, 12.10). בלי עסקאות — אחריהם,
-    # בסדר שהגיע (החדש קודם). ‎sorted‎ יציב, אז שני הסדרים נשמרים.
+    # The project with the most recent transaction comes first (Matan, 12.10).
+    # Those without transactions come after them, in the order they arrived
+    # (newest first). `sorted` is stable, so both orders are kept.
     if len(project_list) > 1:
         project_list = sorted(project_list, key=lambda p: last.get(p["id"]) or "", reverse=True)
     return render_template("projects.html", active_page="projects", user=user,
@@ -1972,21 +2125,24 @@ def projects():
 
 
 def _member_names(family_id) -> dict:
-    """מזהה ← שם פרטי, לסימן "נרשמה ע״י". מי שכבר לא במשפחה לא ברשימה."""
+    """id → first name, for the "recorded by" mark. Whoever is no longer in the
+    family isn't in the list."""
     return {m["id"]: m["name"] for m in db.get_family_members(family_id)} if family_id else {}
 
 
 def _others_contributions(project: dict, viewer_id: str, names: dict) -> str:
-    """"10 עסקאות נרשמו כאן על ידי אור" — לאישור של "החזר להיות אישי".
+    """"10 transactions were recorded here by Or": for confirming "make personal
+    again".
 
-    החזרה לאישי מסתירה את הפרויקט מכל השאר, כולל את מה שהם עצמם רשמו בו
-    (החלטת מתן, 28.9.2026). אז זה נאמר מראש, בשמות ובמספרים. עסקאות שלא
-    ידוע מי רשם (לפני שהתחלנו לשמור את זה) לא נספרות."""
+    Making it personal again hides the project from everyone else, including
+    what they themselves recorded in it (Matan's decision, 28.9.2026). So it is
+    said upfront, with names and numbers. Transactions where it isn't known who
+    recorded them (from before we started storing that) aren't counted."""
     from collections import Counter
     counts = Counter(names.get(t["created_by"], "בן משפחה לשעבר")
                      for t in project.get("transactions") or []
                      if t.get("created_by") and t["created_by"] != viewer_id)
-    # בלי זכר ונקבה (מתן, 1.10)
+    # Gender-neutral (Matan, 1.10)
     parts = [(f"עסקה אחת נרשמה כאן על ידי {name}" if n == 1
               else f"{n} עסקאות נרשמו כאן על ידי {name}")
              for name, n in counts.most_common()]
@@ -1994,10 +2150,11 @@ def _others_contributions(project: dict, viewer_id: str, names: dict) -> str:
 
 
 def _project_gone():
-    """פרויקט שנמחק, או קישור שנחתך: לרשימה, עם הסבר.
+    """A deleted project, or a truncated link: to the list, with an explanation.
 
-    אותה הודעה גם לפרויקט אישי של בן משפחה אחר — "לא נמצא" ולא "אין
-    הרשאה", כדי שהתשובה לא תאשר שהוא קיים (ראו ‎project_access_required‎)."""
+    The same message for another family member's personal project too: "not
+    found" and not "no permission", so the answer doesn't confirm it exists
+    (see `project_access_required`)."""
     session["sf_notice"] = "הפרויקט הזה כבר לא קיים"
     return redirect(url_for("projects"))
 
@@ -2010,7 +2167,8 @@ def project_detail(project_id):
     project = db.get_project_detail(project_id, family_id, user["id"]) if family_id else None
     if not project:
         return _project_gone()
-    # "הפרויקט הסתיים?" (מתן, 12.10): פרויקט פעיל שלא נוספה לו עסקה חודשיים
+    # "Project finished?" (Matan, 12.10): an active project with no new
+    # transaction for two months
     quiet_since = None
     if not project.get("archived") and project.get("transactions"):
         last = max(str(t.get("date") or "")[:10] for t in project["transactions"])
@@ -2031,8 +2189,9 @@ def project_detail(project_id):
 @app.route("/projects/new")
 @login_required
 def project_new():
-    """יצירת פרויקט — מסך משלו, ולא טופס שנפתח בתוך הרשימה (מתן, 5.10).
-    ‎?icon=…&name=…‎ — מהרעיונות להתחלה ("✈️ טיול"), שממלאים את הטופס."""
+    """Creating a project: a screen of its own, not a form that opens inside the
+    list (Matan, 5.10). `?icon=…&name=…`: from the starter ideas ("✈️ טיול"),
+    which prefill the form."""
     user = get_current_user()
     return render_template("project_new.html", active_page="projects", user=user,
                            icon=_text(request.args.get("icon"))[:16],
@@ -2042,8 +2201,9 @@ def project_new():
 @app.route("/projects/<project_id>/edit")
 @login_required
 def project_edit(project_id):
-    """מסך עריכת הגדרות הפרויקט (שם/תיאור/יעד/מעקב/שיתוף) + ניהול הקטגוריות —
-    נפרד מעמוד התצוגה הנקי של הפרויקט."""
+    """The screen for editing the project's settings
+    (name/description/target/tracking/sharing) + managing categories, separate
+    from the project's clean view page."""
     user      = get_current_user()
     family_id = user["family_id"]
     project = db.get_project_detail(project_id, family_id, user["id"]) if family_id else None
@@ -2056,17 +2216,20 @@ def project_edit(project_id):
 
 
 def _parse_project_body(body: dict):
-    """מפענח ומאמת שדות משותפים ליצירה/עדכון של פרויקט (שם/יעד/סוגי מעקב
-    בלבד — לא בעלות: זו נקבעת בנפרד ב-add_project_route, ומשתנה אחר כך רק
-    דרך share_project_route/unshare_project_route).
-    Returns (fields_dict, error) — fields_dict מוכן להעברה ל-db.add/update_project."""
+    """Parses and validates the fields shared by creating/updating a project
+    (name/target/tracked types only, not ownership: that is set separately in
+    add_project_route, and changes later only through
+    share_project_route/unshare_project_route).
+    Returns (fields_dict, error); fields_dict is ready to pass to
+    db.add/update_project."""
     name = _text(body.get("name"))
     if not name:
         return None, "נא להזין שם לפרויקט"
 
-    # ‎_parse_amount‎ ולא ‎float()‎ חשוף: יעד שלילי נשמר והוצג כ-‎-₪5,000‎,
-    # ו-‎1e12‎ הציף את ‎numeric(10,2)‎ וחזר כ-500 סתום — בדיוק המבוי הסתום
-    # שהפונקציה הזאת נכתבה כדי למנוע. יעד ריק הוא ערך תקין (אין יעד).
+    # `_parse_amount` and not a bare `float()`: a negative target was saved and
+    # shown as `-₪5,000`, and `1e12` overflowed `numeric(10,2)` and came back as
+    # an opaque 500, exactly the dead end this function was written to prevent.
+    # An empty target is a valid value (no target).
     budget_target, err = (None, None)
     if body.get("budget_target") not in (None, ""):
         budget_target, err = _parse_amount(body.get("budget_target"))
@@ -2094,7 +2257,8 @@ def _parse_project_body(body: dict):
 @limiter.limit("60 per minute")
 @login_required
 def precheck_transaction_route():
-    """לפני שמירה של עסקה חדשה: כפילות? סכום חריג? (מתן, 30.9 — סבב 6, 6–7)."""
+    """Before saving a new transaction: a duplicate? an unusual amount? (Matan,
+    30.9, round 6, 6–7)."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"duplicate": None, "unusual": None})
@@ -2105,7 +2269,7 @@ def precheck_transaction_route():
 @app.route("/api/search", methods=["GET"])
 @login_required
 def search_route():
-    """חיפוש בכל החודשים — הזכוכית המגדלת בדף הבית (מתן, 30.9)."""
+    """Search across all months: the magnifying glass on the home page (Matan, 30.9)."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"results": [], "count": 0, "truncated": False,
@@ -2119,8 +2283,9 @@ def search_route():
 @limiter.limit("60 per minute")
 @login_required
 def descriptions():
-    """התיאורים שכבר נכתבו, להשלמה בטופס (מתן, 3.10 — רעיון 41). נטען פעם אחת
-    כשהטופס נפתח; הסינון לפי מה שמקלידים — בדפדפן."""
+    """Descriptions already written, for autocomplete in the form (Matan, 3.10,
+    idea 41). Loaded once when the form opens; filtering by what is typed
+    happens in the browser."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"descriptions": []})
@@ -2134,8 +2299,9 @@ def descriptions():
 @limiter.limit("60 per minute")
 @login_required
 def week_card():
-    """כרטיס "השבוע" לשבוע קודם — הדפדוף בדף הבית (מתן, 2.10). מחזיר את
-    הכרטיס כ-HTML מאותה תבנית שדף הבית מרנדר, כדי שלא יהיו שתי גרסאות."""
+    """The "this week" card for an earlier week: paging on the home page (Matan,
+    2.10). Returns the card as HTML from the same template the home page
+    renders, so there aren't two versions."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא מצאנו את המשפחה שלכם — רעננו את הדף"}), 400
@@ -2143,7 +2309,7 @@ def week_card():
         offset = int(request.args.get("offset", "0"))
     except ValueError:
         return jsonify({"error": "ערך לא תקין"}), 422
-    if not 0 <= offset <= 1040:          # עד 20 שנה אחורה
+    if not 0 <= offset <= 1040:          # up to 20 years back
         return jsonify({"error": "ערך לא תקין"}), 422
     try:
         week = db.week_spending(user["family_id"], offset=offset)
@@ -2163,8 +2329,9 @@ def add_project_route():
     fields, err = _parse_project_body(body)
     if err:
         return jsonify({"error": err}), 422
-    # אפשר ליצור פרויקט משותף או אישי עבור עצמו בלבד — אף פעם לא אישי
-    # עבור בן משפחה אחר (owner_id נקבע כאן מהמשתמש המחובר, לא מהבקשה)
+    # You can create a shared project or a personal one for yourself only, never
+    # a personal one for another family member (owner_id is set here from the
+    # signed-in user, not from the request)
     is_personal = bool(body.get("is_personal"))
     owner_id = user["id"] if is_personal else None
     proj, err = db.add_project(user["family_id"], created_by=user["id"], owner_id=owner_id, **fields)
@@ -2175,15 +2342,17 @@ def add_project_route():
 
 
 def tx_visible_required(arg: str):
-    """עסקה בפרויקט אישי של בן משפחה אחר — כאילו אינה קיימת.
+    """A transaction in another family member's personal project: as if it
+    doesn't exist.
 
-    בכל רשימה היא כבר מוסתרת (‎_filter_hidden_personal_projects‎), אבל
-    המסלולים שפועלים על עסקה לפי מזהה בדקו רק את פרויקט *היעד*. מי שהשיג
-    מזהה — ורשימת הקבועות בהגדרות מסרה אותו — יכול היה לערוך, למחוק
-    ולפתוח את הקבלה. 404 ולא 403: 403 היה מאשר שהעסקה קיימת.
+    In every list it is already hidden (`_filter_hidden_personal_projects`),
+    but the routes acting on a transaction by id checked only the *target*
+    project. Whoever got hold of an id (and the recurring list in settings
+    handed it out) could edit, delete and open the receipt. 404 and not 403:
+    403 would confirm the transaction exists.
 
-    ‎arg‎ הוא שם הפרמטר בכתובת (‎tx_id‎ / ‎template_id‎). חייב לשבת מתחת
-    ל-‎login_required‎."""
+    `arg` is the name of the URL parameter (`tx_id` / `template_id`). Must sit
+    under `login_required`."""
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
@@ -2201,16 +2370,17 @@ def tx_visible_required(arg: str):
 
 
 def project_access_required(f):
-    """חוסם גישה לפרויקט אישי של בן משפחה אחר.
+    """Blocks access to another family member's personal project.
 
-    הקריאה כבר הייתה מוגנת — ‎get_project_detail‎ ו-‎get_projects‎ מסננות
-    פרויקט אישי שאינו של הצופה. הכתיבה לא: כל שמונת המסלולים סיננו לפי
-    family_id בלבד. כלומר בן משפחה שניחש או ראה מזהה של פרויקט אישי יכול
-    היה לערוך אותו, למחוק אותו על כל עסקאותיו, או לקרוא את הקטגוריות שלו
-    — פרויקט שאסור לו אפילו לראות ברשימה.
+    Reading was already protected: `get_project_detail` and `get_projects`
+    filter out a personal project that isn't the viewer's. Writing wasn't: all
+    eight routes filtered by family_id only. So a family member who guessed or
+    saw a personal project's id could edit it, delete it with all its
+    transactions, or read its categories: a project they aren't even allowed
+    to see in the list.
 
-    "לא נמצא" ולא "אין הרשאה" בכוונה: פרויקט אישי הוא פרטי, והתשובה
-    אסור שתאשר שהוא קיים."""
+    "Not found" and not "no permission" on purpose: a personal project is
+    private, and the answer must not confirm it exists."""
     @wraps(f)
     def decorated(project_id, *args, **kwargs):
         user = get_current_user()
@@ -2247,20 +2417,23 @@ def update_project_route(project_id):
 @project_access_required
 def delete_project_route(project_id):
     user = get_current_user()
-    # בלי ‎delete_transactions‎ מהגוף: העסקאות נמחקות תמיד (ראו ‎db.delete_project‎),
-    # והשרת לא סומך על לשונית ישנה שעוד שולחת "להשאיר".
-    # נאסף לפני: אחרי המחיקה אין עסקה שמצביעה על הקבצים, ושום דבר אחר לא
-    # ימחק אותם (ראו ‎db.delete_receipts‎ על הניקוי הלילי שלא עובד).
+    # No `delete_transactions` from the body: the transactions are always
+    # deleted (see `db.delete_project`), and the server doesn't trust an old tab
+    # still sending "keep".
+    # Collected first: after the delete no transaction points at the files, and
+    # nothing else will delete them (see `db.delete_receipts` on the nightly
+    # cleanup that doesn't work).
     receipts = db.receipt_paths(user["family_id"], project_ids=[project_id])
     ok, wiped = db.delete_project(project_id, user["family_id"])
     if ok:
         _delete_unused_receipts(user["family_id"], receipts)
     if not ok:
-        # שום שורה לא נגעה: הפרויקט כבר נמחק על ידי בן משפחה אחר, או
-        # שהמזהה אינו של המשפחה הזאת. "נמחק" על כלום הוא שקר.
+        # No row was touched: the project was already deleted by another family
+        # member, or the id isn't this family's. "Deleted" on nothing is a lie.
         return jsonify({"error": "הפרויקט לא נמצא — ייתכן שנמחק בינתיים"}), 404
-    # ‎deleted‎ מוחזר כדי שהמשתמש יראה כמה עסקאות באמת נעלמו, בדיוק כמו
-    # באיפוס העסקאות. "מחק גם עסקאות" לא נשא שום מספר.
+    # `deleted` is returned so the user sees how many transactions really
+    # vanished, just like the transaction reset. "Also delete transactions"
+    # carried no number at all.
     return jsonify({"status": "ok", "deleted": wiped})
 
 
@@ -2269,7 +2442,8 @@ def delete_project_route(project_id):
 @login_required
 @project_access_required
 def share_project_route(project_id):
-    """הופך פרויקט אישי למשותף. רק הבעלים הנוכחי רשאי (נאכף ב-db.share_project)."""
+    """Turns a personal project into a shared one. Only the current owner may
+    (enforced in db.share_project)."""
     user = get_current_user()
     ok, err = db.share_project(project_id, user["family_id"], user["id"])
     if not ok:
@@ -2282,7 +2456,8 @@ def share_project_route(project_id):
 @login_required
 @project_access_required
 def unshare_project_route(project_id):
-    """מחזיר פרויקט משותף להיות אישי. רק מי שיצר אותו במקור רשאי (נאכף ב-db.unshare_project)."""
+    """Turns a shared project back into a personal one. Only whoever originally
+    created it may (enforced in db.unshare_project)."""
     user = get_current_user()
     ok, err = db.unshare_project(project_id, user["family_id"], user["id"])
     if not ok:
@@ -2293,8 +2468,8 @@ def unshare_project_route(project_id):
 @app.route("/api/projects", methods=["GET"])
 @login_required
 def list_projects_route():
-    """‎?include_archived=1‎ — טופס העסקה: גם פרויקטים שהסתיימו, מסומנים, כדי
-    שעסקה ישנה שנערכת לא תיפול מהפרויקט שלה."""
+    """`?include_archived=1`: the transaction form: finished projects too, marked,
+    so an old transaction being edited doesn't fall out of its project."""
     user = get_current_user()
     archived = None if request.args.get("include_archived") == "1" else False
     return jsonify(db.get_projects(user["family_id"], user["id"], archived=archived)
@@ -2306,7 +2481,7 @@ def list_projects_route():
 @login_required
 @project_access_required
 def archive_project_route(project_id):
-    """"הפרויקט הסתיים" (‎archived: true‎) / "פתיחה מחדש" (‎false‎)."""
+    """"Project finished" (`archived: true`) / "reopen" (`false`)."""
     user = get_current_user()
     archived = (request.get_json(silent=True) or {}).get("archived")
     if not isinstance(archived, bool):
@@ -2321,9 +2496,10 @@ def archive_project_route(project_id):
 @login_required
 @project_access_required
 def pin_project_route(project_id):
-    """"הצמדה לבית" (מתן, 12.10): פרויקט אחד לכל בן משפחה, בהגדרות המשפחה
-    תחת ‎pinned_projects[user_id]‎ — ממוזג לפי מפתח, אז שני בני משפחה שמצמידים
-    באותו רגע לא דורסים זה את זה. ‎null‎ — בלי הצמדה."""
+    """"Pin to home" (Matan, 12.10): one project per family member, in the
+    family settings under `pinned_projects[user_id]`, merged by key, so two
+    family members pinning at the same moment don't overwrite each other.
+    `null`: no pin."""
     user = get_current_user()
     pinned = (request.get_json(silent=True) or {}).get("pinned")
     if not isinstance(pinned, bool):
@@ -2338,9 +2514,10 @@ def pin_project_route(project_id):
 @limiter.limit("10 per minute")
 @login_required
 def app_installed_route():
-    """נכנסו מהאייקון במסך הבית (מתן, 13.10): מעכשיו בלי הפס "הוסיפו למסך הבית"
-    — גם כשהמשתמש הזה נכנס מהדפדפן. נשמר בהגדרות המשפחה תחת
-    ‎app_installed[user_id]‎, ממוזג לפי מפתח כמו ‎pinned_projects‎."""
+    """Opened from the home-screen icon (Matan, 13.10): from now on without the
+    "add to home screen" bar, even when this user comes in from the browser.
+    Stored in the family settings under `app_installed[user_id]`, merged by
+    key like `pinned_projects`."""
     user = get_current_user()
     if ((family_settings().get("app_installed") or {}).get(user["id"])):
         return jsonify({"status": "ok"})
@@ -2358,16 +2535,17 @@ def list_project_categories_route(project_id):
     return jsonify(db.get_project_categories(project_id, user["family_id"], type_))
 
 
-_CATEGORY_NAME_MAX = 30     # כמו ה-‎maxlength‎ של המסך
-_CATEGORY_ICON_MAX = 16     # אימוג'י מורכב (משפחה, דגל) הוא כמה תווים — עדיין אייקון
+_CATEGORY_NAME_MAX = 30     # like the screen's `maxlength`
+_CATEGORY_ICON_MAX = 16     # a compound emoji (family, flag) is several characters; still one icon
 
 
 def _category_fields(body: dict):
-    """שם ואייקון של קטגוריה (משפחתית או של פרויקט). מחזירה (name, icon, error).
+    """A category's name and icon (family or project). Returns (name, icon, error).
 
-    למסך היה ‎maxlength‎, לשרת — כלום. מי שפנה ל-API ישירות יכול היה לשמור
-    אייקון ‎<style>…</style>‎, והוא נכנס ל-‎innerHTML‎ אצל כל המשפחה; ו-
-    ‎{"name": 5}‎ הפיל את המסלול ב-500 על ‎.strip()‎ של מספר."""
+    The screen had a `maxlength`, the server nothing. Whoever called the API
+    directly could save an icon `<style>…</style>`, and it went into
+    `innerHTML` for the whole family; and `{"name": 5}` crashed the route with
+    a 500 on `.strip()` of a number."""
     name, icon = body.get("name"), body.get("icon")
     if name is not None and not isinstance(name, str):
         return None, None, "שם הקטגוריה חייב להיות טקסט"
@@ -2431,7 +2609,8 @@ def update_project_category_route(project_id, cat_id):
 @project_access_required
 def delete_project_category_route(project_id, cat_id):
     user = get_current_user()
-    # ‎get_project_for_transaction‎ לא מחזירה ‎id‎ — בלעדיו השאילתה רצה עם "None"
+    # `get_project_for_transaction` doesn't return `id`; without it the query
+    # runs with "None"
     project = {**(db.get_project_for_transaction(project_id, user["family_id"]) or {}),
                "id": project_id}
     return _delete_category("project", cat_id, user, project=project)
@@ -2442,14 +2621,15 @@ def delete_project_category_route(project_id, cat_id):
 @project_access_required
 def project_category_usage_route(project_id, cat_id):
     user = get_current_user()
-    # ‎get_project_for_transaction‎ לא מחזירה ‎id‎ — בלעדיו השאילתה רצה עם "None"
+    # `get_project_for_transaction` doesn't return `id`; without it the query
+    # runs with "None"
     project = {**(db.get_project_for_transaction(project_id, user["family_id"]) or {}),
                "id": project_id}
     return _category_usage("project", cat_id, user, project=project)
 
 
 def _invite_deadline(family):
-    """מתי קוד ההזמנה של המשפחה פג, או ‎None‎ אם אין תאריך."""
+    """When the family's invite code expires, or `None` if there is no date."""
     raw = (family or {}).get("invite_code_expires_at")
     if not raw:
         return None
@@ -2472,13 +2652,16 @@ def _invite_days_left(family):
 
 
 def _fresh_invite(family: dict, user: dict) -> dict:
-    """בהגדרות של כל בן משפחה תמיד יש קוד הזמנה תקף (בקשת מתן, 29.9.2026).
+    """Every family member's settings always have a valid invite code (Matan's
+    request, 29.9.2026).
 
-    הקוד תקף שבוע, ופג בשקט: מי שנכנס כדי לשלוח קוד מצא "הקוד פג". עכשיו
-    כניסה להגדרות כשהקוד כבר פג מפיקה חדש — אצל כל בן משפחה, לא רק המנהל.
-    **רק כשכבר פג** (‎renew_expired_invite_code‎, ולא ‎rotate‎): קוד שעוד בתוקף
-    אולי נשלח למישהו, והחלפה הייתה מבטלת אותו — וזו נשארת הרשאה של המנהל.
-    כשל משאיר את "הקוד פג" על המסך — לא נופלים בגללו."""
+    A code is valid for a week, and expires silently: whoever came in to send a
+    code found "the code expired". Now opening settings when the code has
+    already expired produces a new one, for every family member, not just the
+    manager. **Only when already expired** (`renew_expired_invite_code`, not
+    `rotate`): a code still valid may have been sent to someone, and replacing
+    it would cancel it, and that stays the manager's permission. A failure
+    leaves "the code expired" on screen; nothing breaks over it."""
     if not family:
         return family
     if family.get("invite_code") and not _invite_expired(family):
@@ -2488,24 +2671,26 @@ def _fresh_invite(family: dict, user: dict) -> dict:
 
 
 def _settings_separately(family_id, user):
-    """הדרך הישנה לעמוד ההגדרות — שליפה לכל חלק. רק כש-‎get_settings_page‎
-    לא זמינה, או כשאין משפחה."""
+    """The old way to the settings page: a query per part. Only when
+    `get_settings_page` is unavailable, or there is no family."""
     categories = db.get_categories(family_id)
-    # "בממוצע ₪1,850 בחודש" ליד כל קטגוריה (רעיון 38) — קישוט: תקלה לא מפילה
+    # "₪1,850 a month on average" next to each category (idea 38): decoration;
+    # a failure doesn't break the page
     try:
         cat_averages = db.category_monthly_averages(family_id) if family_id else {}
     except db.DataUnavailable:
         cat_averages = {}
     members    = db.get_family_members(family_id)       if family_id else []
     family     = _fresh_invite(db.get_family(family_id), user) if family_id else {}
-    # רק סדרות פעילות — ראו ‎db.is_active_template‎
+    # Active series only; see `db.is_active_template`
     recurring  = [r for r in db.get_recurring_transactions(family_id, user["id"],
                                                           settings=family_settings())
                   if db.is_active_template(r)] if family_id else []
-    # "₪5,000 ← ₪5,500 מאוקטובר" (רעיון 40)
+    # "₪5,000 ← ₪5,500 מאוקטובר" (idea 40)
     price_changes = db.recurring_price_changes(family_id, recurring) if recurring else {}
-    # כמה עסקאות באמת עומדות להימחק. "פעולה סופית ולא ניתנת לביטול" הוא
-    # משפט; מספר הוא עובדה, והוא מה שגורם לעצור.
+    # How many transactions are really about to be deleted. "A final action
+    # that can't be undone" is a sentence; a number is a fact, and it is what
+    # makes people stop.
     try:
         family_tx_count = db.family_transaction_count(family_id) if family_id else 0
     except db.DataUnavailable:
@@ -2519,8 +2704,9 @@ def settings():
     user       = get_current_user()
     family_id  = user["family_id"]
     today = clock.today()
-    # נסיעה אחת למסד (מתן, 13.10) — ‎get_settings_page‎. אם היא לא זמינה
-    # (המיגרציה עוד לא רצה, תקלה) — שליפה לכל חלק, כמו קודם.
+    # One trip to the database (Matan, 13.10): `get_settings_page`. If it is
+    # unavailable (the migration hasn't run yet, a failure), a query per part,
+    # as before.
     page = None
     if family_id:
         try:
@@ -2541,15 +2727,16 @@ def settings():
     else:
         categories, cat_averages, members, family, recurring, price_changes, family_tx_count = \
             _settings_separately(family_id, user)
-    # "הבא: 1.11" לכל עסקה קבועה (מתן, 12.10)
+    # "הבא: 1.11" for every recurring transaction (Matan, 12.10)
     next_charges = {t["id"]: next_charge_label(db.next_recurring_date(t, today), today)
                     for t in (recurring or [])}
-    # הפרופיל שלי כבר נמצא ברשימת החברים שנשלפה למעלה — היא מחזירה שם
-    # מלא, אימייל, טלפון ומקום עבודה לכל חבר. שליפה נוספת כאן הייתה
-    # פנייה שלמה למסד בשביל נתון שכבר ביד.
+    # My profile is already in the member list fetched above: it returns the
+    # full name, email, phone and workplace for every member. Another query here
+    # was a whole database round trip for data already in hand.
     profile = next((m for m in members if m["id"] == user["id"]), None)
     if profile is None:
-        # אין משפחה, או שהחבר לא חזר מהרשימה — נופלים לשליפה הישירה
+        # No family, or the member didn't come back in the list: fall back to the
+        # direct query
         profile = db.get_profile(user["id"]) or {}
     full_name = profile.get("full_name") or profile.get("name") or user["name"]
     name_parts = full_name.split(" ", 1)
@@ -2565,8 +2752,8 @@ def settings():
     }
     return render_template(
         "settings.html",
-        # תוקף קוד ההזמנה. בלי זה אין שום דרך לדעת שהקוד שאתה עומד
-        # לשלוח בוואטסאפ כבר לא יעבוד.
+        # The invite code's expiry. Without this there is no way to know that
+        # the code you are about to send on WhatsApp won't work anymore.
         invite_expired=_invite_expired(family),
         invite_expires_in=_invite_days_left(family),
         family_tx_count=family_tx_count,
@@ -2581,7 +2768,7 @@ def settings():
         next_charges=next_charges,
         hebrew_months=_HEBREW_MONTHS,
         account=account,
-        # בחירת צבע לבן משפחה (סבב 6, פריט 13)
+        # Picking a colour for a family member (round 6, item 13)
         member_colors=_member_colors(family_id),
         color_hex=_OWNER_HEX,
     )
@@ -2601,14 +2788,16 @@ def update_profile():
 
     if not first_name or not last_name:
         return jsonify({"error": "נא למלא שם פרטי ושם משפחה"}), 422
-    # ריק מותר כאן (השדה אינו חובה בעריכה), אבל מה שהוקלד חייב להיות מספר
+    # Empty is allowed here (the field isn't required when editing), but
+    # whatever was typed must be a number
     if phone and not _looks_like_phone(phone):
         return jsonify({"error": "מספר הטלפון אינו תקין — למשל 050-1234567"}), 422
 
     old_profile = db.get_profile(user["id"]) or {}
     old_workplace = old_profile.get("workplace") or ""
-    # הטלפון עבר ל"חשבון" (מתן, 1.10) ולא נשלח מכאן יותר. בלי זה כל שמירה
-    # של שם או מקום עבודה הייתה מוחקת אותו — ואיתו את ההתחברות בטלפון.
+    # The phone moved to "account" (Matan, 1.10) and isn't sent from here
+    # anymore. Without this, every save of name or workplace would delete it,
+    # and with it phone sign-in.
     if "phone" not in body:
         phone = old_profile.get("phone") or ""
 
@@ -2617,14 +2806,16 @@ def update_profile():
     if not ok:
         return jsonify({"error": _user_message(err, "עדכון הפרטים נכשל")}), 500
 
-    # מקום עבודה השתנה בפועל וסופק סקופ — מיישמים על היסטוריית עסקאות המשכורת
+    # The workplace really changed and a scope was given: apply it to the salary
+    # transaction history
     if workplace_scope and workplace != old_workplace and user["family_id"]:
         db.update_workplace_history(
             user["id"], user["family_id"], workplace or None, old_workplace or None,
             apply_to_all=(workplace_scope == "all"),
         )
 
-    # השם הפרטי מוצג בכל האתר (ברכות, עסקאות וכו') — לעדכן גם בסשן
+    # The first name is shown all over the site (greetings, transactions etc.),
+    # so update it in the session too
     session["user_name"] = db.first_name(full_name)
     return jsonify({"status": "ok", "full_name": full_name, "first_name": first_name,
                     "last_name": last_name, "phone": phone, "workplace": workplace})
@@ -2632,8 +2823,9 @@ def update_profile():
 
 @app.route("/api/profile/password", methods=["PUT"])
 @login_required
-# מאמת את הסיסמה הנוכחית מול Supabase, כלומר אורקל לניחוש סיסמאות למי
-# שהשיג סשן. ההגבלה על /login לא עוזרת כאן — זה מסלול אחר.
+# Checks the current password against Supabase, i.e. a password-guessing
+# oracle for anyone who got hold of a session. The limit on /login doesn't help
+# here; this is a different route.
 @limiter.limit("5 per minute")
 def update_password():
     body             = request.get_json(silent=True) or {}
@@ -2650,7 +2842,7 @@ def update_password():
     if passwords.is_leaked(password):
         return jsonify({"error": passwords.LEAKED}), 422
 
-    # מוודאים שהסיסמה הנוכחית נכונה לפני שמאפשרים להחליף אותה
+    # Make sure the current password is right before allowing it to be replaced
     _, err = db.sign_in(_current_email()[0], current_password)
     if err:
         return jsonify({"error": "הסיסמה הנוכחית שגויה"}), 403
@@ -2661,19 +2853,21 @@ def update_password():
     return jsonify({"status": "ok"})
 
 
-# מתן (13.10): 10 דקות. ביומנים (1.11) הבדיקה עלתה ‎0.2-0.4‎ שניות כל פעם, והמייל
-# כמעט לא משתנה — ושינוי מכאן ממילא נבדק בכל טעינה (‎pending_email‎). 12 שעות.
+# Matan (13.10): 10 minutes. In the logs (1.11) the check cost `0.2-0.4`
+# seconds each time, and the email almost never changes, and a change from here
+# is checked on every load anyway (`pending_email`). 12 hours.
 _EMAIL_FRESH_SECONDS = 12 * 3600
 
 
 def _current_email(cached=False):
-    """‎(email, pending_email)‎ מ-Supabase, ומעדכן את הסשן. בלי חיבור — המייל
-    שבסשן, ובלי "ממתין". ראו ‎db.get_auth_email‎.
+    """`(email, pending_email)` from Supabase, and updates the session. Without a
+    connection: the session's email, and no "pending". See `db.get_auth_email`.
 
-    ‎cached‎ — לעמוד ההגדרות (מתן, 13.10): הבדיקה מול שירות ההתחברות לקחה
-    ‎100-230ms‎ מכל טעינה, אז היא נעשית לכל היותר פעם ב-10 דקות. אבל לא כשיש
-    מייל שממתין לאישור — אז בודקים כל פעם, כדי שהאישור מהקישור יופיע מיד.
-    פעולות שבודקות סיסמה מול המייל תמיד בודקות טרי."""
+    `cached`, for the settings page (Matan, 13.10): the check against the auth
+    service took `100-230ms` off every load, so it is done at most once every
+    10 minutes. But not when an email is pending confirmation: then it is
+    checked every time, so the confirmation from the link shows up right away.
+    Actions that check a password against the email always check fresh."""
     if (cached and session.get("user_email") and not session.get("pending_email")
             and time.time() - (session.get("email_checked_at") or 0) < _EMAIL_FRESH_SECONDS):
         return session["user_email"], None
@@ -2692,8 +2886,8 @@ def _current_email(cached=False):
 @login_required
 @limiter.limit("20 per minute")
 def update_phone():
-    """שינוי טלפון מתיבת "חשבון" (מתן, 1.10). הטלפון משמש גם להתחברות,
-    אז ריק אינו מותר — כמו בהרשמה."""
+    """Changing the phone from the "account" box (Matan, 1.10). The phone is also
+    used for sign-in, so empty isn't allowed, as on signup."""
     user  = get_current_user()
     body  = request.get_json(silent=True) or {}
     phone = _normalize_phone(_text(body.get("phone")))
@@ -2707,11 +2901,13 @@ def update_phone():
 
 @app.route("/api/profile/email", methods=["PUT"])
 @login_required
-# בודק סיסמה — אותו אורקל כמו שינוי סיסמה, ואותה הגבלה. וכל בקשה שולחת מייל.
+# Checks a password: the same oracle as changing the password, and the same
+# limit. And every request sends an email.
 @limiter.limit("5 per minute")
 def update_email():
-    """שינוי מייל (מתן, 1.10): מייל חדש + הסיסמה הנוכחית, ואז קישור אישור.
-    בלי הסיסמה, מי שתופס טלפון פתוח מעביר את החשבון למייל שלו ומאפס סיסמה."""
+    """Changing the email (Matan, 1.10): a new email + the current password, then
+    a confirmation link. Without the password, whoever grabs an unlocked phone
+    moves the account to their own email and resets the password."""
     body             = request.get_json(silent=True) or {}
     new_email        = _text(body.get("email")).lower()
     current_password = body.get("current_password", "")
@@ -2732,19 +2928,20 @@ def update_email():
                                       url_for("settings", _external=True))
     if not ok:
         return jsonify({"error": _user_message(err, "שליחת מייל האישור נכשלה")}), 500
-    session["pending_email"] = new_email     # מכאן ההגדרות בודקות טרי עד האישור
+    session["pending_email"] = new_email     # from here settings check fresh until confirmation
     return jsonify({"status": "ok", "pending_email": new_email})
 
 
 @app.route("/api/account/reset", methods=["POST"])
 @login_required
-# אורקל סיסמה, ובנוסף פעולה הרסנית: מוחקת את כל עסקאות המשפחה.
-# מחמיר יותר — אין תרחיש לגיטימי של איפוס חוזר.
+# A password oracle, plus a destructive action: deletes all the family's
+# transactions. Stricter: there is no legitimate scenario for repeated resets.
 @limiter.limit("3 per hour")
 def reset_account_route():
-    """איפוס עסקאות: מוחק את כל העסקאות (הכנסות/הוצאות/חיסכון, כולל קבועות)
-    לפי הבחירה — של כל המשפחה או רק של המשתמש. החשבון, הקטגוריות, הפרויקטים
-    וההגדרות נשמרים. דורש אימות סיסמה. הנמחק מארוכב בארכיון הפנימי."""
+    """Transaction reset: deletes all the transactions (income/expenses/savings,
+    including recurring ones) per the choice: the whole family's or only the
+    user's. The account, categories, projects and settings are kept. Requires
+    password confirmation. What is deleted is archived in the internal archive."""
     user     = get_current_user()
     body     = request.get_json(silent=True) or {}
     password = body.get("password", "")
@@ -2761,17 +2958,18 @@ def reset_account_route():
 
     db.set_auth_token(response.session.access_token)
 
-    # איפוס כל המשפחה הוא הפעולה ההרסנית ביותר באפליקציה, והוא היה
-    # פתוח לכל חבר עם הסיסמה של עצמו בלבד. "רק שלי" נשאר פתוח — זה
-    # הכסף של מי שמבקש.
+    # Resetting the whole family is the most destructive action in the app, and
+    # it was open to any member with just their own password. "Only mine" stays
+    # open: it is the requester's own money.
     if scope == "family":
         denied = _require_manager()
         if denied:
             return denied
 
-    # ‎deleted‎ ולא ‎ok‎: אפס שורות הוא תוצאה תקינה (משפחה בלי עסקאות),
-    # אז הכישלון נמדד לפי ‎err‎ בלבד. המספר מוחזר כדי שהמשתמש יראה מה
-    # באמת קרה — זו הפעולה ההרסנית ביותר באפליקציה.
+    # `deleted` and not `ok`: zero rows is a valid result (a family with no
+    # transactions), so failure is measured by `err` alone. The number is
+    # returned so the user sees what really happened: this is the most
+    # destructive action in the app.
     deleted, err = db.reset_transactions(
         user["family_id"],
         only_user_id=user["id"] if scope == "mine" else None,
@@ -2784,19 +2982,22 @@ def reset_account_route():
 
 @app.route("/api/account", methods=["DELETE"])
 @login_required
-# אורקל סיסמה, והפעולה הכי הרסנית באפליקציה — מחיקת חשבון לצמיתות.
+# A password oracle, and the most destructive action in the app: permanently
+# deleting an account.
 @limiter.limit("3 per hour")
 def delete_account_route():
-    """מחיקת חשבון לצמיתות. מבחינת המשתמש הכל נמחק והמייל/טלפון משתחררים;
-    בפועל הנתונים מארוכבים לארכיון הפנימי של בעל האתר (ראה מיגרציית
-    20260711100000). דורש אימות סיסמה נוכחית."""
+    """Permanently deletes the account. From the user's point of view everything
+    is deleted and the email/phone are freed; in practice the data is archived
+    to the site owner's internal archive (see migration 20260711100000).
+    Requires confirming the current password."""
     body     = request.get_json(silent=True) or {}
     password = body.get("password", "")
 
     if not password:
         return jsonify({"error": "נא להזין את הסיסמה הנוכחית"}), 422
 
-    # אימות סיסמה — גם מגן ממחיקה בטעות וגם מרענן את הטוקן שאיתו נמחק
+    # Password check: both guards against deleting by mistake and refreshes the
+    # token the delete runs with
     response, err = db.sign_in(_current_email()[0], password)
     if err:
         return jsonify({"error": "הסיסמה שגויה"}), 403
@@ -2807,8 +3008,9 @@ def delete_account_route():
         return jsonify({"error": "מחיקת החשבון נכשלה"}), 500
 
     session.clear()
-    # מחיקת חשבון היא מחיקה — לא משאירים אחריה את המזהה ולא את סימון
-    # המכשיר. מי שיפתח את הכתובת אחר כך הוא שוב אורח שרואה את דף הנחיתה.
+    # Deleting an account is a deletion: don't leave the identifier or the device
+    # marker behind. Whoever opens the URL afterwards is a guest again and sees
+    # the landing page.
     response = jsonify({"status": "ok"})
     response.delete_cookie(_LAST_ID_COOKIE, samesite="Lax", secure=not _IS_DEV)
     response.delete_cookie(_DEVICE_COOKIE,  samesite="Lax", secure=not _IS_DEV)
@@ -2816,44 +3018,47 @@ def delete_account_route():
 
 
 def _parse_amount(raw):
-    """פרסינג בטוח של סכום עסקה: מספר סופי וחיובי בלבד.
-    מחזיר (value, error) — error בעברית מוצג למשתמש כ-422."""
+    """Safe parsing of a transaction amount: a finite, positive number only.
+    Returns (value, error); the Hebrew error is shown to the user as a 422."""
     try:
         value = float(raw)
     except (TypeError, ValueError):
         return None, "הסכום חייב להיות מספר"
     if not math.isfinite(value) or value <= 0:
         return None, "הסכום חייב להיות מספר חיובי"
-    # העמודה היא NUMERIC(10,2) ומתפוצצת מעל 99,999,999.99. בלי הבדיקה
-    # הזאת הקלדה שגויה של תשע ספרות מגיעה ל-Postgres, נכשלת שם, וחוזרת
-    # כ"הוספת העסקה נכשלה — נסו שוב" — כך שהמשתמש מנסו שוב את אותו קלט
-    # ונכשל שוב, בלי שום רמז למה.
+    # The column is NUMERIC(10,2) and blows up above 99,999,999.99. Without this
+    # check a nine-digit typo reaches Postgres, fails there, and comes back as
+    # "adding the transaction failed, try again", so the user retries the same
+    # input and fails again, with no hint why.
     if value > 99_999_999:
         return None, "הסכום גדול מדי"
-    # מתחת לאגורה מתעגל ל-0.00 ואז נופל על ה-CHECK של העמודה, עם אותה
-    # הודעה גנרית ואותו מבוי סתום
+    # Below an agora rounds to 0.00 and then hits the column's CHECK, with the
+    # same generic message and the same dead end
     if round(value, 2) <= 0:
         return None, "הסכום קטן מדי"
     return value, None
 
 
-# כמה שנים אחורה וקדימה עסקה עדיין הגיונית. רחב בכוונה — אנשים מזינים
-# היסטוריה מהעבר ומקדימים תשלומים לעתיד — וצר מספיק כדי לתפוס אסון.
+# How many years back and forward a transaction still makes sense. Wide on
+# purpose (people enter past history and prepay into the future) and narrow
+# enough to catch a disaster.
 _DATE_PAST_YEARS   = 10
 _DATE_FUTURE_YEARS = 5
 
 
 def _parse_date(raw):
-    """פרסינג בטוח של תאריך עסקה. מחזיר (iso_string, error).
+    """Safe parsing of a transaction date. Returns (iso_string, error).
 
-    ‎date‎ עבר עד היום מגוף הבקשה אל המסד בלי שום בדיקה, ולעמודה לא היה
-    אילוץ. זה לא נשאר תיאורטי בגלל מנוע העסקאות הקבועות: תבנית עם
-    תאריך התחלה בשנת 1000 גורמת לו לייצר מופע לכל חודש מאז, עד תקרת
-    500 השורות — 500 עסקאות אמיתיות בקריאה אחת, שנכנסות לסיכומים
-    ולהשוואת החודשים לתמיד.
+    Until now `date` passed from the request body to the database with no check
+    at all, and the column had no constraint. That didn't stay theoretical
+    because of the recurring engine: a template with a start date in the year
+    1000 makes it create an occurrence for every month since, up to the cap of
+    500 rows: 500 real transactions in one call, going into the summaries and
+    the month comparison forever.
 
-    האילוץ במסד (‎transactions_date_sane‎) הוא הרשת האחרונה והוא רחב,
-    כי CHECK חייב להיות immutable ולא יכול לדעת מה היום. כאן אפשר."""
+    The database constraint (`transactions_date_sane`) is the last net and it
+    is wide, because a CHECK must be immutable and can't know what today is.
+    Here we can."""
     if not isinstance(raw, str):
         return None, "התאריך חסר או אינו תקין"
     try:
@@ -2869,15 +3074,17 @@ def _parse_date(raw):
 
 
 def _require_manager():
-    """שער לפעולות הרסניות. מחזיר ‎None‎ אם מותר, או תשובת שגיאה מוכנה.
+    """A gate for destructive actions. Returns `None` if allowed, or a ready
+    error response.
 
-    התפקיד נוסף כדי שמישהו יהיה אחראי, אבל נאכף רק על הסרת חבר — כך
-    שכל מי שהצטרף עם קוד בן שישה תווים יכול היה למחוק את היסטוריית
-    כל המשפחה, למחוק קטגוריות ולהחליף את קוד ההזמנה.
+    The role was added so someone would be responsible, but it was enforced
+    only on removing a member, so anyone who joined with a six-character code
+    could delete the whole family's history, delete categories and replace the
+    invite code.
 
-    הבדיקה נגזרת מ-‎auth.uid()‎ במסד ולא מהסשן, ולכן אי אפשר לזייף
-    אותה מהלקוח. בכישלון שליפה מסרבים — "לא ידוע אם הוא מנהל" הוא
-    לא "כן"."""
+    The check derives from `auth.uid()` in the database and not the session, so
+    it can't be forged from the client. On a failed query, refuse: "unknown
+    whether they are the manager" isn't "yes"."""
     try:
         if db.is_family_manager():
             return None
@@ -2889,24 +3096,27 @@ def _require_manager():
 
 
 def _resolve_owner(body: dict, user: dict, tx_type: str, unchanged=None):
-    """מי הבעלים של העסקה — לפי העדפות המשפחה: סוג שהשיוך כבוי בו נשמר
-    תמיד כמשפחתי (NULL), גם אם הבקשה ניסתה לשלוח בעלים.
-    ערכים: uuid של בן משפחה, "shared" = משותפת (NULL), ובלי owner — המחובר.
-    מחזירה (user_id, error)."""
+    """Who owns the transaction, per the family settings: a type with attribution
+    off is always saved as household (NULL), even if the request tried to send
+    an owner.
+    Values: a family member's uuid, "shared" = shared (NULL), and without an
+    owner, the signed-in user. Returns (user_id, error)."""
     if not family_settings().get("owner_attribution", {}).get(tx_type, False):
         return None, None
     owner = body.get("owner")
     if owner == "shared":
         return None, None
-    # בעריכה: הבעלים שכבר רשום על העסקה נשאר מותר, גם אם כבר לא במשפחה
-    # (עבר למשפחה אחרת בקוד הזמנה). אחרת הטופס נאלץ להחליף אותו בשקט.
+    # When editing: the owner already on the transaction stays allowed, even if
+    # no longer in the family (moved to another family by invite code).
+    # Otherwise the form is forced to silently replace it.
     if owner and unchanged and owner == unchanged:
         return owner, None
     if owner:
-        # ה-uuid הגיע מהלקוח והתקבל עד היום כמו שהוא. RLS בודקת רק את
-        # family_id בשורה שנכתבת, לא את user_id, אז אפשר היה לרשום עסקה
-        # על שם מי שלא במשפחה — או לתלות הוצאה על בן הזוג. זו לא דליפת
-        # מידע אלא זיוף שיוך, וזה מספיק: הפילוח "לפי בן משפחה" מתבסס עליו.
+        # The uuid came from the client and until now was accepted as is. RLS
+        # checks only family_id on the row being written, not user_id, so a
+        # transaction could be recorded under someone not in the family, or an
+        # expense pinned on the partner. Not a data leak but forged attribution,
+        # and that is enough: the "by family member" breakdown relies on it.
         if owner not in {m["id"] for m in db.get_family_members(user["family_id"])}:
             return None, "בן המשפחה שנבחר אינו במשפחה שלך"
         return owner, None
@@ -2914,10 +3124,11 @@ def _resolve_owner(body: dict, user: dict, tx_type: str, unchanged=None):
 
 
 def _apply_project_assignment(body: dict, user: dict, tx_type: str, current=None):
-    """מיישם שיוך לפרויקט (אם body['project_id'] נשלח): מוודא שהפרויקט
-    עוקב אחרי סוג העסקה הזה, אוכף בשרת שיוך אוטומטי לבעלים בפרויקט אישי
-    (מתעלם מ-body['owner'] במקרה הזה), ומחליף את הקטגוריה הרגילה בקטגוריית
-    הפרויקט הייעודית. Returns (project_id, project_category_id, category_id, user_id, error)."""
+    """Applies a project attachment (if body['project_id'] was sent): checks the
+    project tracks this transaction type, enforces on the server automatic
+    attribution to the owner in a personal project (ignoring body['owner'] in
+    that case), and replaces the regular category with the project's own
+    category. Returns (project_id, project_category_id, category_id, user_id, error)."""
     current = current or {}
     project_id = body.get("project_id")
     if not project_id:
@@ -2933,15 +3144,17 @@ def _apply_project_assignment(body: dict, user: dict, tx_type: str, current=None
     if not project:
         return None, None, None, None, "הפרויקט לא נמצא"
 
-    # פרויקט אישי: רק הבעלים רשאי לכתוב אליו. הקריאה כבר מוסתרת מאחרים
-    # (‎_filter_hidden_personal_projects‎), אבל הכתיבה לא נבדקה — כך שבן
-    # משפחה יכול היה לרשום עסקאות לתוך פרויקט שאסור לו אפילו לראות.
+    # A personal project: only the owner may write to it. Reading is already
+    # hidden from others (`_filter_hidden_personal_projects`), but writing wasn't
+    # checked, so a family member could record transactions into a project they
+    # aren't even allowed to see.
     if project.get("owner_id") and project["owner_id"] != user["id"]:
         return None, None, None, None, "הפרויקט לא נמצא"
 
     track_key = {"expense": "track_expense", "income": "track_income", "savings": "track_savings"}[tx_type]
-    # "עוקב אחרי סוג" קובע מה אפשר **להוסיף** לפרויקט. עסקה שכבר בו נשארת —
-    # אחרת עריכת הסכום שלה הוציאה אותה בשקט מהפרויקט אל הוצאות הבית.
+    # "Tracks type" decides what can be **added** to the project. A transaction
+    # already in it stays; otherwise editing its amount silently moved it out of
+    # the project into household expenses.
     if not project.get(track_key) and project_id != current.get("project_id"):
         return None, None, None, None, "הפרויקט הזה לא עוקב אחרי המחלקה הזאת"
 
@@ -2953,7 +3166,7 @@ def _apply_project_assignment(body: dict, user: dict, tx_type: str, current=None
     if owner_err:
         return None, None, None, None, owner_err
 
-    # קטגוריית הפרויקט חייבת להיות של הפרויקט הזה, לא של אחר
+    # The project category must belong to this project, not another
     project_category_id = body.get("project_category_id")
     if not project_category_id:
         return None, None, None, None, "נא לבחור קטגוריה"
@@ -2965,8 +3178,9 @@ def _apply_project_assignment(body: dict, user: dict, tx_type: str, current=None
 
 
 def _validated_category(category_id, user: dict, tx_type: str):
-    """מוודא שהקטגוריה קיימת במשפחה ומתאימה לסוג העסקה.
-    מחזירה (category_id, error). אין עסקה בלי קטגוריה — גם לא דרך ה-API."""
+    """Checks the category exists in the family and matches the transaction type.
+    Returns (category_id, error). No transaction without a category, not even
+    through the API."""
     if not category_id:
         return None, "נא לבחור קטגוריה"
     for cat in db.get_categories(user["family_id"]):
@@ -2986,25 +3200,28 @@ def family_members():
     members = db.get_family_members(user["family_id"]) if user["family_id"] else []
     return jsonify([{"id": m["id"], "name": m["name"]} for m in members])
 
-# כמה מופעים רטרואקטיביים מותר לייצר בלי שהמשתמש יאשר במפורש.
+# How many retroactive occurrences may be created without the user explicitly
+# confirming.
 #
-# ‎_parse_date‎ מתיר 10 שנים אחורה, ו-‎materialize_recurring‎ רץ מיד אחרי
-# כל שמירה של תבנית. טעות הקלדה — ‎2016‎ במקום ‎2026‎ על שכר דירה של
-# ₪6,000 — ייצרה ‎~120‎ עסקאות אמיתיות בבקשה אחת, בלי אישור ובלי שום
-# מספר בתשובה. הן נכנסו לארכיון החודשים, לגרף המגמה ולייצוא ה-CSV,
-# והדרך היחידה החוצה היא "מחק את זו וכל הבאות" מהמוקדמת ביותר — משהו
-# שצריך לגלות לבד.
+# `_parse_date` allows 10 years back, and `materialize_recurring` runs right
+# after every template save. A typo (`2016` instead of `2026` on a ₪6,000 rent)
+# created `~120` real transactions in one request, with no confirmation and no
+# number in the response. They went into the month archive, the trend chart
+# and the CSV export, and the only way out is "delete this and all later ones"
+# from the earliest, something you have to discover by yourself.
 #
-# שלושה הוא מספר שמכסה מילוי אחורה סביר ("שכחתי להזין את שלושת החודשים
-# האחרונים") ועוצר כל דבר שנראה כמו תאונה.
+# Three covers a reasonable backfill ("I forgot to enter the last three
+# months") and stops anything that looks like an accident.
 _RETRO_WITHOUT_CONFIRM = 3
 
 
 def _retro_occurrences(body, tx_date, already=None):
-    """כמה מופעים ייווצרו רטרואקטיבית עבור התבנית שנשמרת עכשיו.
+    """How many occurrences will be created retroactively for the template being
+    saved now.
 
-    ‎already‎: התאריכים שהסדרה כבר תפסה (בעריכה — ‎db.existing_occurrence_dates‎).
-    תקופה תפוסה לא נספרת, בדיוק כמו שהמנוע לא ייצר אותה."""
+    `already`: the dates the series has already taken (when editing,
+    `db.existing_occurrence_dates`). A taken period isn't counted, just as the
+    engine won't create it."""
     if not body.get("is_recurring"):
         return 0
     freq = body.get("recurring_frequency") or "monthly_1"
@@ -3020,20 +3237,21 @@ def _retro_occurrences(body, tx_date, already=None):
                            if not db._already_materialized(freq, d, already)]
         return len(occurrences)
     except Exception:
-        # ספירה שנכשלה לא חוסמת שמירה לגיטימית; היא רק לא מגינה.
+        # A failed count doesn't block a legitimate save; it just doesn't protect.
         logger.exception("_retro_occurrences")
         return 0
 
 
-# התדירויות שהמנוע יודע לייצר. ‎NULL‎ עבר את ה-CHECK של המסד, אז
-# ‎{"is_recurring": true}‎ בלי תדירות יצר תבנית חיה ש-‎_recurring_occurrences‎
-# מפרשת כ-‎monthly_1‎ ומייצרת ממנה שורות ב-1 לכל חודש — בזמן שבורר
-# התדירות בממשק מציג ריק. מחרוזת לא מוכרת נעצרה רק ב-CHECK וחזרה כ-500.
+# The frequencies the engine knows how to produce. `NULL` passed the database's
+# CHECK, so `{"is_recurring": true}` with no frequency created a live template
+# that `_recurring_occurrences` reads as `monthly_1` and produces rows from on
+# the 1st of every month, while the frequency picker in the UI shows empty. An
+# unknown string was stopped only by the CHECK and came back as a 500.
 _FREQUENCIES = ("monthly_same", "monthly_1", "monthly_15", "weekly", "biweekly")
 
 
 def _validated_frequency(body):
-    """מחזירה ‎(frequency, error)‎. רלוונטי רק לעסקה שסומנה קבועה."""
+    """Returns `(frequency, error)`. Relevant only to a transaction marked recurring."""
     if not body.get("is_recurring"):
         return None, None
     freq = body.get("recurring_frequency")
@@ -3042,9 +3260,9 @@ def _validated_frequency(body):
     return freq, None
 
 
-# אין כאן תרחיש אנושי שמתקרב לגבול; הוא קיים כדי שסקריפט לא יוכל
-# למלא את המסד. כל מחיקה מייצרת גם שורת ‎owner_archive‎ דרך טריגר,
-# אז "הוסף-מחק-חזור" היה לולאה שמגדילה מסד של 500MB בלי שום ניקוי.
+# No human scenario comes near the limit; it exists so a script can't fill the
+# database. Every delete also produces an `owner_archive` row through a trigger,
+# so "add-delete-repeat" was a loop growing a 500MB database with no cleanup.
 @app.route("/api/transactions", methods=["POST"])
 @limiter.limit("60 per minute")
 @login_required
@@ -3080,8 +3298,9 @@ def add_transaction():
             return jsonify({"error": "תאריך הסיום של העסקה הקבועה מוקדם מתאריך ההתחלה"}), 422
 
 
-    # תשלומים (מתן, 12.10): הסכום הוא המחיר המלא, והשרת מחלק — עסקה קבועה
-    # חודשית עם תאריך סיום. ראו ‎db.installment_plan‎.
+    # Installments (Matan, 12.10): the amount is the full price, and the server
+    # splits it: a monthly recurring transaction with an end date. See
+    # `db.installment_plan`.
     installments = body.get("installments")
     plan = None
     if installments not in (None, "", 0, False):
@@ -3100,8 +3319,8 @@ def add_transaction():
     if freq_err:
         return jsonify({"error": freq_err}), 422
 
-    # ראו ‎_RETRO_WITHOUT_CONFIRM‎: סדרה שתייצר עשרות שורות אחורה היא
-    # כמעט תמיד טעות הקלדה בתאריך, ולא בקשה.
+    # See `_RETRO_WITHOUT_CONFIRM`: a series that would create dozens of rows
+    # back is almost always a date typo, not a request.
     retro = _retro_occurrences(body, tx_date)
     if retro > _RETRO_WITHOUT_CONFIRM and not request.args.get("confirm"):
         return jsonify({
@@ -3115,9 +3334,10 @@ def add_transaction():
     if proj_err:
         return jsonify({"error": proj_err}), 422
 
-    # הכנסת משכורת חדשה: מתעדים ("מקפיאים") את מקום העבודה הנוכחי של הבעלים
-    # על העסקה עצמה, כדי ששינוי מקום עבודה עתידי לא ישנה בשקט את מה שכבר
-    # נוצר — ראה update_workplace_history לזרימה של שינוי מקום עבודה בפועל.
+    # Adding a new salary: record ("freeze") the owner's current workplace on the
+    # transaction itself, so a future workplace change doesn't silently rewrite
+    # what was already created; see update_workplace_history for the flow of an
+    # actual workplace change.
     workplace_snapshot = None
     if tx_type == "income" and owner_user_id and category_id:
         cat = next((c for c in db.get_categories(user["family_id"]) if c["id"] == category_id), None)
@@ -3143,7 +3363,8 @@ def add_transaction():
     if plan:
         payload.update(amount=plan["first"], installments=plan["count"],
                        installment_no=1, installment_total=plan["total"])
-    # קבלה מצורפת אפשרית רק בהוצאות; ריק = לא נוגעים בעמודה (לא מוחקים קבלה קיימת בעריכה)
+    # An attached receipt is possible only on expenses; empty = don't touch the
+    # column (don't delete an existing receipt on edit)
     if tx_type == "expense" and body.get("receipt_path"):
         if not _receipt_path_ok(body["receipt_path"], user["family_id"]):
             return jsonify({"error": "הקבלה המצורפת אינה תקינה — נסו לצלם שוב"}), 422
@@ -3154,9 +3375,10 @@ def add_transaction():
         logger.error("add_transaction route: %s", err)
         return jsonify({"error": "הוספת העסקה נכשלה — נסו שוב"}), 500
 
-    # עסקה קבועה חדשה (גם רטרואקטיבית) — משלימים מיד את כל המופעים עד היום
+    # A new recurring transaction (retroactive too): fill in every occurrence up
+    # to today right away
     if payload["is_recurring"]:
-        db.materialize_recurring(user["family_id"])   # (created, ok) — כאן לא נדרש
+        db.materialize_recurring(user["family_id"])   # (created, ok): not needed here
 
     if tx_type == "income" and category_id and _is_salary(category_id, user):
         _push_salary(payload)
@@ -3174,8 +3396,9 @@ def _is_salary(category_id, user) -> bool:
 
 
 def _push_salary(payload):
-    """"המשכורת נרשמה" (מתן, 31.10) — לשאר בני המשפחה, פעם אחת בחודש של
-    העסקה: ‎push_family_targets‎ רושמת את החודש ולא מחזירה כלום בפעם השנייה."""
+    """"The salary was recorded" (Matan, 31.10), to the other family members,
+    once in the transaction's month: `push_family_targets` records the month
+    and returns nothing the second time."""
     try:
         when = date.fromisoformat(str(payload["date"])[:10])
         targets = db.push_family_targets("salary", f"{when.year}-{when.month:02d}")
@@ -3185,16 +3408,17 @@ def _push_salary(payload):
 
 
 def _budget_note(family_id, payload):
-    """"עברתם את התקציב של סופר ומזון ב-₪120" — אחרי הוספת הוצאה שחוצה את
-    התקציב של הקטגוריה שלה בחודש שלה (מתן, 3.10 — רעיון 17). רק הוצאות בית:
-    כסף של פרויקט לא נספר בתקציבי הבית. מידע ולא חסימה — תקלה כאן לא
-    מכשילה את ההוספה, היא רק מוותרת על ההערה."""
+    """"עברתם את התקציב של סופר ומזון ב-₪120": after adding an expense that
+    crosses its category's budget in its month (Matan, 3.10, idea 17).
+    Household expenses only: project money isn't counted in household budgets.
+    Information, not a block: a failure here doesn't fail the add, it just
+    skips the note."""
     if payload.get("type") != "expense" or payload.get("project_id") or not payload.get("category_id"):
         return None
     budget = db.category_budget(family_settings(), payload["category_id"])
     if not budget:
         return None
-    d = str(payload["date"])[:10]           # ‎_parse_date‎ מחזיר מחרוזת ISO
+    d = str(payload["date"])[:10]           # `_parse_date` returns an ISO string
     try:
         spent = db.category_month_spent(family_id, payload["category_id"], int(d[:4]), int(d[5:7]))
     except db.DataUnavailable:
@@ -3211,7 +3435,8 @@ def _budget_note(family_id, payload):
 
 
 def _still_matches(current: dict, expected: dict) -> bool:
-    """השדות שעריכה יכולה לשנות — זהים למה שהלקוח ראה אחרי השמירה שלו?"""
+    """The fields an edit can change: identical to what the client saw after its
+    save?"""
     for key in ("type", "date", "description", "category_id", "project_category_id", "user_id"):
         if key in expected and str(current.get(key) or "") != str(expected.get(key) or ""):
             return False
@@ -3262,8 +3487,9 @@ def update_transaction(tx_id):
     current = db.transaction_links(tx_id, user["family_id"])
     if current is None:
         return jsonify({"error": "העסקה לא נמצאה — ייתכן שנמחקה בינתיים"}), 404
-    # "בטל" אחרי עריכה (מתן, 30.9 — סבב 6, פריט 10): רק אם העסקה עדיין כמו
-    # שהעריכה שלנו השאירה אותה. אחרת מישהו שינה אותה מאז — לא דורסים אותו.
+    # "Undo" after an edit (Matan, 30.9, round 6, item 10): only if the
+    # transaction is still as our edit left it. Otherwise someone changed it
+    # since; don't overwrite them.
     if isinstance(body.get("if_match"), dict) and not _still_matches(current, body["if_match"]):
         return jsonify({"error": "העסקה השתנתה בינתיים, אז לא ביטלנו — כדי לא לדרוס את השינוי",
                         "conflict": True}), 409
@@ -3277,15 +3503,17 @@ def update_transaction(tx_id):
     if freq_err:
         return jsonify({"error": freq_err}), 422
 
-    # ראו ‎_RETRO_WITHOUT_CONFIRM‎: סדרה שתייצר עשרות שורות אחורה היא
-    # כמעט תמיד טעות הקלדה בתאריך, ולא בקשה. בעריכה נספרות רק תקופות
-    # שהסדרה עוד לא תפסה — אחרת כל תיקון בתבנית ותיקה הקפיץ את השאלה.
+    # See `_RETRO_WITHOUT_CONFIRM`: a series that would create dozens of rows
+    # back is almost always a date typo, not a request. When editing, only
+    # periods the series hasn't taken yet are counted; otherwise every fix to an
+    # old template popped up the question.
     already = None
     if body.get("is_recurring") and not request.args.get("confirm"):
         try:
             already = db.existing_occurrence_dates(tx_id, user["family_id"])
         except db.DataUnavailable:
-            # לא ידוע כמה ייווצרו. לשמור בלי לשאול זה בדיוק מה שהשאלה מונעת.
+            # Unknown how many would be created. Saving without asking is exactly
+            # what the question prevents.
             return jsonify({"error": "לא הצלחנו לבדוק את העסקה הקבועה — נסו שוב"}), 503
     retro = _retro_occurrences(body, tx_date, already)
     if retro > _RETRO_WITHOUT_CONFIRM and not request.args.get("confirm"):
@@ -3296,9 +3524,10 @@ def update_transaction(tx_id):
                      f"אם זה מה שרציתם — אשרו.",
         }), 409
 
-    # מופע של סדרה לא יכול להפוך לתבנית בפני עצמה. אין אילוץ במסד שמונע
-    # את זה, והתוצאה היא שתי סדרות מקבילות שמייצרות את אותו כסף פעמיים
-    # בכל חודש, לתמיד. מי שרוצה לשנות את הסדרה עושה זאת מהתבנית עצמה.
+    # An occurrence of a series can't become a template of its own. No database
+    # constraint prevents it, and the result is two parallel series producing the
+    # same money twice every month, forever. Whoever wants to change the series
+    # does so from the template itself.
     if bool(body.get("is_recurring", False)):
         try:
             if db.is_recurring_instance(tx_id, user["family_id"]):
@@ -3307,7 +3536,8 @@ def update_transaction(tx_id):
                              "ערכו אותה דרך ההגדרות ← עסקאות קבועות.",
                 }), 422
         except db.DataUnavailable:
-            # לא ידוע. סדרה כפולה היא נזק שאי אפשר לבטל; ניסיון חוזר לא.
+            # Unknown. A duplicate series is damage that can't be undone; a
+            # retry isn't.
             return jsonify({"error": "לא הצלחנו לבדוק את העסקה הקבועה — נסו שוב"}), 503
 
     payload = {
@@ -3323,14 +3553,16 @@ def update_transaction(tx_id):
         "project_id":           project_id,
         "project_category_id":  project_category_id,
     }
-    # קבלה מצורפת אפשרית רק בהוצאות; ריק = לא נוגעים בעמודה (לא מוחקים קבלה קיימת בעריכה)
+    # An attached receipt is possible only on expenses; empty = don't touch the
+    # column (don't delete an existing receipt on edit)
     if tx_type == "expense" and body.get("receipt_path"):
         if not _receipt_path_ok(body["receipt_path"], user["family_id"]):
             return jsonify({"error": "הקבלה המצורפת אינה תקינה — נסו לצלם שוב"}), 422
         payload["receipt_path"] = body["receipt_path"]
 
-    # עריכה מ"עסקאות קבועות" בהגדרות: מהחודש הנוכחי והלאה (מתן, 2.10).
-    # שינוי תאריך ההתחלה הוא תיקון של הסדרה עצמה — הוא נשאר עריכה רגילה.
+    # Editing from "recurring transactions" in settings: from the current month
+    # on (Matan, 2.10). Changing the start date is a correction of the series
+    # itself, so it stays an ordinary edit.
     if (request.args.get("from_now") and payload["is_recurring"]
             and str(tx_date) == str(current.get("date"))[:10]):
         series_reply = _edit_series_from_now(tx_id, user["family_id"], payload)
@@ -3341,25 +3573,26 @@ def update_transaction(tx_id):
     if err:
         logger.error("update_transaction route: %s", err)
         return jsonify({"error": "עדכון העסקה נכשל — נסו שוב"}), 500
-    # אף שורה לא נגעה: העסקה נמחקה בינתיים על ידי בן משפחה אחר, או
-    # שהמזהה שייך למשפחה אחרת. עד היום זה חזר כ-200 "נשמר", והמשתמש
-    # האמין שהעריכה שלו נקלטה.
+    # No row was touched: the transaction was deleted meanwhile by another family
+    # member, or the id belongs to another family. Until now this came back as a
+    # 200 "saved", and the user believed their edit went through.
     if not result:
         return jsonify({"error": "העסקה לא נמצאה — ייתכן שנמחקה בינתיים"}), 404
 
     if payload["is_recurring"]:
-        db.materialize_recurring(user["family_id"])   # (created, ok) — כאן לא נדרש
+        db.materialize_recurring(user["family_id"])   # (created, ok): not needed here
 
     return jsonify({"status": "ok", "transaction": result})
 
 
 def _edit_series_from_now(template_id, family_id, payload):
-    """עריכת עסקה קבועה "מעכשיו": השינוי נכתב על המופע של החודש הנוכחי,
-    והסדרה מתפצלת בו — אותו מנגנון כמו "עדכון להבא" (‎split_recurring_series‎).
-    ינואר עד החודש הקודם נשארים כמו שהם.
+    """Editing a recurring transaction "from now on": the change is written on the
+    current month's occurrence, and the series splits at it, the same mechanism
+    as "update from now on" (`split_recurring_series`). January up to the
+    previous month stay as they are.
 
-    ‎None‎ = אין עבר להגן עליו (הסדרה התחילה החודש, או נגמרה) — עורכים את
-    התבנית כרגיל. אחרת — התשובה למסלול."""
+    `None` = no past to protect (the series started this month, or ended): edit
+    the template as usual. Otherwise, the response for the route."""
     try:
         kind, ref = db.series_pivot(template_id, family_id)
     except db.DataUnavailable:
@@ -3379,7 +3612,8 @@ def _edit_series_from_now(template_id, family_id, payload):
         if payload["recurring_end_date"] and str(payload["recurring_end_date"]) < pivot_date:
             return jsonify({"error": "תאריך הסיום מוקדם מהחודש הנוכחי"}), 422
 
-    # 1. המופע מקבל את הערכים החדשים — בלי התאריך שלו ובלי קבלה של התבנית
+    # 1. The occurrence gets the new values, without its date and without the
+    #    template's receipt
     occurrence = {k: v for k, v in payload.items()
                   if k not in ("date", "is_recurring", "recurring_frequency",
                                "recurring_end_date", "receipt_path")}
@@ -3387,12 +3621,13 @@ def _edit_series_from_now(template_id, family_id, payload):
     if err or not result:
         logger.error("edit series from now: update occurrence: %s", err)
         return jsonify({"error": "עדכון העסקה הקבועה נכשל — נסו שוב"}), 500
-    # 2. הסדרה מתפצלת בו: הישנה נגמרת יום לפני, והוא התבנית של החדשה
+    # 2. The series splits at it: the old one ends a day before, and it is the
+    #    template of the new one
     new_id, err = db.split_recurring_series(template_id, pivot_id, family_id)
     if err or not new_id:
         logger.error("edit series from now: split: %s", err)
         return jsonify({"error": "עדכון העסקה הקבועה נכשל — נסו שוב"}), 500
-    # 3. ותדירות / תאריך סיום, אם שונו (הפיצול העתיק את של הישנה)
+    # 3. And frequency / end date, if changed (the split copied the old one's)
     _, err = db.update_transaction(new_id, family_id, {
         "recurring_frequency": payload["recurring_frequency"],
         "recurring_end_date":  payload["recurring_end_date"],
@@ -3404,8 +3639,9 @@ def _edit_series_from_now(template_id, family_id, payload):
 
 
 def _entered_text(meta: dict, viewer_id: str, names: dict, now=None) -> str:
-    """"הוזנה ע״י אור · אתמול 18:32" — ראו ‎/api/transactions/<id>/meta‎.
-    עסקה בלשון נקבה ("הוזנה"), כמו "נרשמה ע״י" וחלון הכפילות."""
+    """"הוזנה ע״י אור · אתמול 18:32"; see `/api/transactions/<id>/meta`.
+    "Transaction" is feminine in Hebrew ("הוזנה"), like "נרשמה ע״י" and the
+    duplicate window."""
     if meta.get("recurring_parent_id"):
         return "נוצרה אוטומטית מעסקה קבועה"
     now = now or clock.now()
@@ -3434,8 +3670,9 @@ def _entered_text(meta: dict, viewer_id: str, names: dict, now=None) -> str:
 @login_required
 @tx_visible_required("tx_id")
 def transaction_meta(tx_id):
-    """מי הזין ומתי — השורה בתחתית חלון העריכה (מתן, 3.10 — רעיון 22). לא
-    נכנסת לכל שורה בכל רשימה: נשלפת כשהחלון נפתח."""
+    """Who entered it and when: the line at the bottom of the edit window (Matan,
+    3.10, idea 22). Not added to every row of every list: fetched when the
+    window opens."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא מצאנו את המשפחה שלכם — רעננו את הדף"}), 400
@@ -3445,7 +3682,8 @@ def transaction_meta(tx_id):
         return jsonify({"error": "לא הצלחנו לטעון — נסו שוב"}), 503
     if meta is None:
         return jsonify({"error": "העסקה לא נמצאה"}), 404
-    # שמות בני המשפחה רק כשמישהו אחר הזין — ברוב הפעמים זו עסקה שלך
+    # Family members' names only when someone else entered it; most of the time
+    # it is your own transaction
     by = meta.get("created_by")
     names = _member_names(user["family_id"]) \
         if by and by != user["id"] and not meta.get("recurring_parent_id") else {}
@@ -3458,23 +3696,24 @@ def transaction_meta(tx_id):
 @login_required
 @tx_visible_required("tx_id")
 def delete_transaction(tx_id):
-    """מחיקת עסקה — ועסקה קבועה היא לא עסקה אחת.
+    """Deleting a transaction, and a recurring transaction isn't one transaction.
 
-    השאלה היא בדיוק זו של יומן: "רק את זו" או "את זו וכל הבאות". אין
-    כאן הבחנה בין "תבנית" למופע — היא פנימית לגמרי, ולמי שמוחק את שכר
-    הדירה של מרץ לא אמור להיות אכפת אם מרץ הוא במקרה החודש שבו הסדרה
-    נפתחה.
+    The question is exactly a calendar's: "only this one" or "this and all
+    following". There is no distinction here between "template" and occurrence:
+    it is entirely internal, and whoever deletes March's rent shouldn't have to
+    care whether March happens to be the month the series was opened.
 
-    בלי ‎mode‎ מוחזר 409 עם מספר המופעים שיימחקו ב"כל הבאות", כדי
-    שהשאלה תוצג עם המספר האמיתי — אותו דפוס של ‎/api/family/join‎."""
+    Without `mode`, a 409 is returned with the number of occurrences "all
+    following" would delete, so the question is shown with the real number:
+    the same pattern as `/api/family/join`."""
     user = get_current_user()
     mode = request.args.get("mode")
 
     try:
         occurrence, _ = db.recurring_occurrence(tx_id, user["family_id"])
     except db.DataUnavailable:
-        # לא ידוע אם יש סדרה מאחורי השורה. מחיקה עיוורת כאן היא בדיוק
-        # הנזק שאי אפשר לבטל, אז מסרבים.
+        # Unknown whether there is a series behind the row. A blind delete here
+        # is exactly the damage that can't be undone, so refuse.
         return jsonify({"error": "לא הצלחנו לבדוק אם זו עסקה קבועה — נסו שוב"}), 503
 
     if occurrence and mode not in ("one", "later"):
@@ -3513,9 +3752,11 @@ def delete_transaction(tx_id):
 @login_required
 @tx_visible_required("template_id")
 def stop_recurring_route(template_id):
-    """עוצר סדרה קבועה. במכוון לא מוחק את השורה: היא המופע הראשון בסדרה,
-    כלומר כסף שבאמת זז, והדיאלוג בהגדרות מבטיח שמה שכבר נוצר יישאר.
-    מי שרוצה למחוק את העסקה עצמה עושה זאת מרשימת העסקאות כמו בכל עסקה."""
+    """Stops a recurring series. Deliberately doesn't delete the row: it is the
+    first occurrence in the series, i.e. money that really moved, and the
+    dialog in settings promises that what was already created stays. Whoever
+    wants to delete the transaction itself does it from the transaction list,
+    like any transaction."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא משויכת משפחה לחשבון"}), 400
@@ -3534,7 +3775,8 @@ def stop_recurring_route(template_id):
 @login_required
 @tx_visible_required("template_id")
 def skip_recurring_route(template_id):
-    """"דלג על החודש הזה" על מופע צפוי בחודש עתידי (מתן, 1.11), ו"בטל"."""
+    """"Skip this month" on a projected occurrence in a future month (Matan,
+    1.11), and "undo"."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא משויכת משפחה לחשבון"}), 400
@@ -3563,12 +3805,14 @@ def skip_recurring_route(template_id):
 @login_required
 @tx_visible_required("template_id")
 def sync_recurring_template(template_id):
-    """"עדכן להבא": מפצל את הסדרה במופע שנערך (ראו ‎db.split_recurring_series‎).
+    """"Update from now on": splits the series at the edited occurrence (see
+    `db.split_recurring_series`).
 
-    המסלול כבר לא כותב סכום, קטגוריה או תיאור. מסלול העריכה הרגיל שמר
-    אותם על המופע רגע קודם — עם כל הבדיקות שלו — והפיצול רק הופך את
-    המופע הזה לתבנית. זה גם סוגר את מה שהיה כאן: מסלול כתיבה שני, עם
-    ולידציה משלו, לאותם שדות."""
+    The route no longer writes an amount, category or description. The ordinary
+    edit route saved them on the occurrence a moment earlier, with all its
+    checks, and the split only turns this occurrence into a template. That also
+    closes what used to be here: a second write route, with its own
+    validation, for the same fields."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא מצאנו את המשפחה שלך — רעננו את הדף, ואם זה חוזר התחברו מחדש"}), 400
@@ -3586,21 +3830,23 @@ def sync_recurring_template(template_id):
     return jsonify({"status": "ok", "template_id": new_id})
 
 
-# ─── API: Receipt scanning (צילום קבלה) ───────────────────────────────────────
+# ─── API: Receipt scanning ──────────────────────────────────────────────────
 
 @app.route("/api/receipts/discard", methods=["POST"])
 @limiter.limit("30 per minute")
 @login_required
 def discard_receipt():
-    """מוחק תמונה שנסרקה ולא נשמרה עם עסקה.
+    """Deletes an image that was scanned and not saved with a transaction.
 
-    הסריקה מעלה את התמונה **לפני** שיש עסקה. סריקה שננטשה — ✕ בלי שמירה,
-    סריקה שנייה באותו טופס, או תוצאה שחזרה לטופס שכבר נסגר — השאירה קובץ
-    שאף שורה לא מצביעה עליו. הניקוי הלילי שהיה אמור לאסוף אותם נכשל בכל
-    ריצה (ראו ‎db.delete_receipts‎), אז הדפדפן מבקש למחוק ברגע הנטישה.
+    Scanning uploads the image **before** there is a transaction. An abandoned
+    scan (✕ without saving, a second scan in the same form, or a result that
+    came back to a form already closed) left a file no row points at. The
+    nightly cleanup meant to collect them failed on every run (see
+    `db.delete_receipts`), so the browser asks to delete at the moment of
+    abandonment.
 
-    רק בתיקייה של המשפחה, ורק קובץ שאף עסקה לא מצביעה עליו: אחרת זו
-    דרך למחוק קבלה של עסקה קיימת."""
+    Only in the family's folder, and only a file no transaction points at:
+    otherwise it is a way to delete an existing transaction's receipt."""
     user = get_current_user()
     path = (request.get_json(silent=True) or {}).get("path")
     if not _receipt_path_ok(path, user["family_id"]):
@@ -3612,9 +3858,9 @@ def discard_receipt():
 
 
 @app.route("/api/receipts/scan", methods=["POST"])
-# המסלול היחיד כאן שעולה כסף אמיתי, והיחיד מבין 23 המסלולים הכותבים
-# שלא הייתה עליו שום הגבלה. סריקה אחת לוקחת 2-6 שניות, אז עשר לדקה
-# לא נוגעות באף אדם — הן נוגעות בסקריפט.
+# The only route here that costs real money, and the only one of the 23 writing
+# routes that had no limit at all. One scan takes 2-6 seconds, so ten a minute
+# affect no human; they affect a script.
 @limiter.limit("10 per minute")
 @login_required
 def scan_receipt_route():
@@ -3626,17 +3872,18 @@ def scan_receipt_route():
         used = db.receipt_scans_this_month(user["family_id"])
         used_globally = db.receipt_scans_globally_this_month()
     except db.DataUnavailable:
-        # לא ידוע כמה נוצל. הכיוון הבטוח הוא לסרב: אישור כשהבדיקה נכשלה
-        # מבטל בפועל את ההגבלה על חשבון ה-OpenAI, וזו הוצאה אמיתית.
+        # Unknown how much was used. The safe direction is to refuse: allowing
+        # when the check failed effectively removes the limit on the OpenAI
+        # account, and that is a real expense.
         return jsonify({
             "error": "לא הצלחנו לבדוק את מכסת הסריקות — נסו שוב, או הזינו ידנית.",
         }), 503
 
-    # התקרה הגלובלית נבדקת לפני זו של המשפחה: כשהיא נחצית זו לא אשמתו
-    # של מי שעומד כאן, וההודעה צריכה לומר את זה ולא להאשים אותו במכסה
-    # שהוא לא ניצל.
+    # The global cap is checked before the family's: when it is crossed it isn't
+    # the fault of whoever is standing here, and the message should say so rather
+    # than blame them for a quota they didn't use.
     if used_globally >= db.RECEIPT_GLOBAL_MONTHLY_LIMIT:
-        logger.error("סריקות קבלות: נחצתה התקרה הגלובלית (%s)", used_globally)
+        logger.error("receipt scans: the global cap was crossed (%s)", used_globally)
         return jsonify({
             "error": "סריקת הקבלות אינה זמינה כרגע. ניתן להזין את הפרטים ידנית.",
         }), 503
@@ -3650,7 +3897,8 @@ def scan_receipt_route():
     if not file or not file.filename:
         return jsonify({"error": "לא התקבלה תמונה"}), 422
 
-    # ולידציית סוג הקובץ לפני קריאה/אחסון — אותו whitelist של הסריקה עצמה
+    # File-type validation before reading/storing: the same whitelist as the
+    # scan itself
     if (file.mimetype or "") not in db._RECEIPT_MEDIA_TYPES:
         return jsonify({"error": "סוג הקובץ לא נתמך — נא לצלם או לבחור תמונה (JPG/PNG/WebP)"}), 422
 
@@ -3667,18 +3915,19 @@ def scan_receipt_route():
     if err:
         return jsonify({"error": err}), 422
 
-    # סריקה מוצלחת: נספרת במכסה גם אם העלאת התמונה לאחסון נכשלה
+    # A successful scan: counted in the quota even if uploading the image to
+    # storage failed
     db.record_receipt_scan(user["family_id"], user["id"])
 
     receipt_path, upload_err = db.upload_receipt(
         session.get("access_token"), user["family_id"], image_bytes, file.mimetype or "image/jpeg"
     )
     if upload_err:
-        # השגיאה נזרקה לפח לגמרי: לא נרשמה, לא הגיעה ל-Sentry, והמכסה
-        # כבר נספרה. המשתמש רואה סריקה מוצלחת בלי תג קבלה ואין שום
-        # עקבה שמסבירה למה. הקריאה ל-OpenAI כבר שולמה, אז לא מבטלים —
-        # רק אומרים.
-        logger.error("upload_receipt נכשל אחרי סריקה מוצלחת: %s", upload_err)
+        # The error was thrown away entirely: not logged, never reached Sentry,
+        # and the quota was already counted. The user sees a successful scan
+        # with no receipt tag and there is no trace explaining why. The OpenAI
+        # call was already paid for, so don't cancel, just say it.
+        logger.error("upload_receipt failed after a successful scan: %s", upload_err)
         receipt_path = None
 
     category_id = None
@@ -3702,19 +3951,23 @@ def scan_receipt_route():
 @login_required
 @tx_visible_required("tx_id")
 def view_receipt(tx_id):
-    """מפנה לקבלה המצורפת לעסקה.
+    """Redirects to the receipt attached to a transaction.
 
-    הפניה ולא JSON, וזו הנקודה כולה: קודם הסמל שלף את הכתובת ב-fetch ואז
-    קרא ל-window.open. ב-iOS זה נחסם תמיד — הדפדפן מתיר פתיחת חלון רק
-    כתוצאה ישירה מלחיצה, וההמתנה לשרת מבטלת את הקשר. אין חלון, אין שגיאה,
-    לא קורה כלום. בפועל הקבלות שנסרקו לא היו נגישות מהטלפון בכלל.
+    A redirect and not JSON, and that is the whole point: before, the icon
+    fetched the URL with fetch and then called window.open. On iOS that was
+    always blocked: the browser allows opening a window only as a direct result
+    of a tap, and waiting for the server breaks that link. No window, no error,
+    nothing happens. In practice scanned receipts weren't reachable from the
+    phone at all.
 
-    עכשיו הסמל הוא קישור רגיל, והדפדפן מנווט בעצמו — ניווט שנובע מלחיצה
-    לא נחסם. הכתובת החתומה נוצרת כאן ולא נשלחת ללקוח מראש, כך שהיא גם לא
-    יושבת ב-HTML של כל שורה עם קבלה.
+    Now the icon is an ordinary link, and the browser navigates by itself:
+    navigation resulting from a tap isn't blocked. The signed URL is created
+    here and not sent to the client in advance, so it also doesn't sit in the
+    HTML of every row with a receipt.
 
-    ‎/receipts/‎ ולא ‎/api/receipts/‎ כי זה ניווט של הדפדפן: תחת ‎/api/‎ סשן
-    שפג היה מחזיר 401 JSON ללשונית חדשה, במקום להעביר להתחברות."""
+    `/receipts/` and not `/api/receipts/` because this is browser navigation:
+    under `/api/`, an expired session would return a 401 JSON to a new tab
+    instead of redirecting to sign-in."""
     user = get_current_user()
     path = db.get_transaction_receipt_path(tx_id, user["family_id"])
     if not path:
@@ -3728,24 +3981,25 @@ def view_receipt(tx_id):
                                message="טעינת הקבלה נכשלה — נסו שוב בעוד רגע"), 500
 
     response = redirect(url)
-    # הכתובת החתומה קצרת-מועד ואישית; אסור שתישמר במטמון של proxy
+    # The signed URL is short-lived and personal; it must not be cached by a proxy
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
-# ─── ייבוא מחברת האשראי (מתן, 31.10) ─────────────────────────────────────────
+# ─── Import from the credit-card company (Matan, 31.10) ─────────────────────
 #
-# פעם בחודש: מורידים מהאתר של חברת האשראי את פירוט העסקאות, מעלים אותו כאן,
-# רואים טבלה עם קטגוריה מוצעת לכל עסקה וסימון של מה שכבר קיים — ומאשרים.
-# שני שלבים ושני מסלולים: ‎preview‎ קורא את הקובץ ולא כותב כלום, ‎commit‎
-# מקבל רק את השורות שאושרו. הקובץ עצמו לא נשמר בשום מקום.
+# Once a month: download the transaction statement from the card company's
+# site, upload it here, see a table with a suggested category per transaction
+# and a mark on what already exists, and confirm. Two steps and two routes:
+# `preview` reads the file and writes nothing, `commit` takes only the rows
+# that were confirmed. The file itself is never stored anywhere.
 
 def _expense_categories(family_id):
     return [c for c in db.get_categories(family_id) if c.get("type") == "expense"]
 
 
 def _json_form_field(name, kind):
-    """שדה JSON בטופס multipart — או ‎None‎ כשהוא חסר או שבור."""
+    """A JSON field in a multipart form, or `None` when it is missing or broken."""
     raw = request.form.get(name)
     if not raw or len(raw) > 50_000:
         return None
@@ -3774,9 +4028,10 @@ def import_page():
 
 
 @app.route("/api/import/preview", methods=["POST"])
-# קורא ל-OpenAI כשהקובץ לא מוכר וכדי לנחש קטגוריות לבתי עסק חדשים — כסף
-# אמיתי, כמו סריקת קבלה. ייבוא אמיתי הוא פעם בחודש; עשר לדקה הן לניסיונות
-# חוזרים עם קובץ אחר, ושישים ביום — תקרה לסקריפט.
+# Calls OpenAI when the file is unknown and to guess categories for new
+# businesses: real money, like receipt scanning. A real import is once a month;
+# ten a minute is for retries with another file, and sixty a day is a cap for
+# a script.
 @limiter.limit("10 per minute;60 per day")
 @login_required
 def import_preview_route():
@@ -3791,7 +4046,7 @@ def import_preview_route():
     data = file.read(card_import.MAX_FILE_BYTES + 1)
 
     layouts = [l for l in (_json_form_field("layouts", list) or [])[:20] if isinstance(l, dict)]
-    chosen = _json_form_field("mapping", dict)       # בחירה ידנית (שכבה 3)
+    chosen = _json_form_field("mapping", dict)       # a manual choice (layer 3)
     if chosen:
         layouts.insert(0, chosen)
 
@@ -3811,7 +4066,7 @@ def import_preview_route():
                     sheets, [{"signature": candidate["signature"], "mapping": mapping}])
                 ai_mapped = bool(used)
             if not used:
-                # שכבה 3: המשתמש בוחר בעצמו איזו עמודה היא מה
+                # Layer 3: the user picks which column is what
                 return jsonify({"status": "needs_mapping", **candidate})
     except card_import.ImportError_ as e:
         return jsonify({"error": str(e)}), 422
@@ -3829,7 +4084,8 @@ def import_preview_route():
         existing = db.import_existing_expenses(family_id, user["id"], (min(days) - pad).isoformat(),
                                                (max(days) + pad).isoformat())
     except db.DataUnavailable:
-        # בלי בדיקת כפילויות כל עסקה שכבר הוזנה ידנית הייתה נכנסת פעמיים
+        # Without the duplicate check every transaction already entered manually
+        # would go in twice
         return jsonify({"error": "לא הצלחנו לבדוק מה כבר קיים — נסו שוב בעוד רגע"}), 503
     history = db.import_category_history(family_id, (clock.today() - timedelta(days=365)).isoformat())
     learned = card_import.learned_categories(history)
@@ -3865,10 +4121,11 @@ def import_preview_route():
 
 
 def _offer_recurring(txs, family_id, viewer_id):
-    """הוראות קבע (מתן, 1.11): מציעים להפוך לעסקה קבועה חודשית — ולא חוזרים
-    עליהן בכל ייבוא. רק לחיוב האחרון של כל בית עסק בקובץ (קוסטה ג'ים חויב
-    ‎₪255‎ באוגוסט ו-‎₪179‎ בספטמבר — סדרה אחת, בסכום העדכני), ולא כשכבר יש
-    במשפחה סדרה פעילה לאותו בית עסק."""
+    """Standing orders (Matan, 1.11): offered as a monthly recurring transaction,
+    and not repeated on every import. Only for each business's last charge in
+    the file (Costa Gym was charged `₪255` in August and `₪179` in September:
+    one series, at the current amount), and not when the family already has an
+    active series for the same business."""
     try:
         templates = [r for r in db.get_recurring_transactions(family_id, viewer_id)
                      if db.is_active_template(r)]
@@ -3933,12 +4190,14 @@ def import_commit_route():
             "user_id":      owner_id,
             "family_id":    family_id,
             "is_recurring": False,
-            # אותם מפתחות בכל השורות: PostgREST מכניס מערך רק כשלכולן אותן עמודות
+            # The same keys on every row: PostgREST inserts an array only when
+            # they all have the same columns
             "recurring_frequency": None,
             "recurring_end_date":  None,
         })
-        # הוראת קבע שאושרה כעסקה קבועה: תבנית חודשית באותו יום בחודש, כמו
-        # עסקה קבועה שמוזנת ידנית. החודשים הבאים נוצרים מעצמם.
+        # A standing order confirmed as a recurring transaction: a monthly
+        # template on the same day of the month, like a recurring transaction
+        # entered manually. The following months are created by themselves.
         if row.get("recurring") is True:
             payload[-1].update(is_recurring=True, recurring_frequency="monthly_same")
 
@@ -3952,10 +4211,11 @@ def import_commit_route():
     return jsonify({"status": "ok", "created": created, "recurring": recurring}), 201
 
 
-# ─── התראות לטלפון (מתן, 31.10) ───────────────────────────────────────────────
+# ─── Phone notifications (Matan, 31.10) ─────────────────────────────────────
 #
-# ‎backend/push.py‎ — ההצפנה והנוסחים. כאן: רישום המכשיר, ביטולו, והריצה
-# היומית ש-‎pg_cron‎ מפעיל (חודש נסגר, תשלום אחרון, שבוע בלי רישום).
+# `backend/push.py`: the encryption and the wording. Here: registering the
+# device, removing it, and the daily run `pg_cron` triggers (month closed, last
+# installment, a week with nothing recorded).
 
 @app.route("/api/push/subscribe", methods=["POST"])
 @limiter.limit("20 per hour")
@@ -4001,9 +4261,10 @@ def _daily_message(kind: str, data: dict):
 @app.route("/internal/push/daily", methods=["POST"])
 @limiter.limit("10 per hour")
 def push_daily_route():
-    """‎pg_cron‎ קורא לכאן פעם ביום. בלי הסוד הנכון — 404, כאילו אין כאן כלום.
-    הסוד עובר גם למסד: ‎push_daily‎ בודקת אותו מול ה-Vault, כך שגם קריאה
-    ישירה ל-RPC בלי הסוד לא מחזירה דבר."""
+    """`pg_cron` calls here once a day. Without the right secret: 404, as if there
+    were nothing here. The secret is passed to the database too: `push_daily`
+    checks it against the Vault, so even a direct call to the RPC without the
+    secret returns nothing."""
     secret = os.environ.get("PUSH_CRON_SECRET", "")
     given = request.headers.get("X-Cron-Secret", "")
     if not secret or not secrets.compare_digest(secret.encode(), given.encode()):
@@ -4022,7 +4283,7 @@ def push_daily_route():
         sent += len(subs)
     if dead:
         db.push_forget(secret, dead)
-    logger.info("push daily: %s התראות, %s מכשירים שנמחקו", sent, len(dead))
+    logger.info("push daily: %s notifications, %s devices removed", sent, len(dead))
     return jsonify({"status": "ok", "sent": sent, "forgotten": len(dead)})
 
 
@@ -4043,10 +4304,11 @@ def add_category():
     user = get_current_user()
     body = request.get_json(silent=True) or {}
 
-    # שני השדות עברו ישירות למסד. ‎name‎ הוא ‎TEXT NOT NULL‎ שמקבל
-    # מחרוזת ריקה, אז נוצרה קטגוריה בלי שם — שורה בפילוח החודשי שאי
-    # אפשר לזהות ואי אפשר לחפש. ו-‎type‎ לא מוכר נעצר רק ב-CHECK של
-    # המסד וחזר כ-500 סתום, אחרי שכל מסלול כתיבה אחר כבר מאמת אותו.
+    # Both fields went straight to the database. `name` is `TEXT NOT NULL`, which
+    # accepts an empty string, so a category with no name was created: a row in
+    # the monthly breakdown that can't be identified or searched. And an unknown
+    # `type` was stopped only by the database CHECK and came back as an opaque
+    # 500, while every other write route already validates it.
     name, icon, field_err = _category_fields(body)
     if field_err:
         return jsonify({"error": field_err}), 422
@@ -4072,7 +4334,8 @@ def _category_key(name, type_) -> tuple:
 
 
 def _missing_default_categories(family_id) -> tuple:
-    """קטגוריות ברירת המחדל שאין למשפחה (לפי שם ומחלקה), ומה שכבר יש."""
+    """The default categories the family doesn't have (by name and department),
+    and what it already has."""
     existing = [c for c in db.get_categories(family_id) if c.get("family_id") == family_id]
     have = {_category_key(c.get("name"), c.get("type")) for c in existing}
     missing = [dict(c) for c in _DEFAULT_CATEGORIES if _category_key(c["name"], c["type"]) not in have]
@@ -4082,7 +4345,7 @@ def _missing_default_categories(family_id) -> tuple:
 @app.route("/api/categories/defaults", methods=["GET"])
 @login_required
 def missing_default_categories_route():
-    """מה יתווסף בשחזור ברירת המחדל — כדי שהאישור יגיד את זה בשמות."""
+    """What restoring the defaults will add, so the confirmation can say it by name."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא מצאנו את המשפחה שלך — רעננו את הדף"}), 400
@@ -4094,11 +4357,13 @@ def missing_default_categories_route():
 @limiter.limit("10 per minute")
 @login_required
 def restore_default_categories_route():
-    """מחזיר את קטגוריות ברירת המחדל שחסרות (מתן, 31.10 — "למי שמחק בטעות").
+    """Restores the missing default categories (Matan, 31.10: "for whoever deleted
+    by mistake").
 
-    רק מוסיף: קטגוריה קיימת לא משתנה ולא נמחקת, ועסקאות לא זזות — ולכן
-    זה פתוח לכל בן משפחה, כמו הוספת קטגוריה. מה שכבר קיים באותו שם ובאותה
-    מחלקה לא נוסף שוב, כך שלחיצה כפולה לא יוצרת כפילויות."""
+    Only adds: an existing category doesn't change and isn't deleted, and
+    transactions don't move, so it is open to every family member, like adding
+    a category. What already exists with the same name and department isn't
+    added again, so a double tap doesn't create duplicates."""
     user = get_current_user()
     family_id = user["family_id"]
     if not family_id:
@@ -4158,13 +4423,14 @@ _TYPE_NOUN = {"expense": "הוצאה", "income": "הכנסה", "savings": "חי�
 
 
 def _deletion_plan(kind, cat_id, user, project=None):
-    """התוכנית של ‎db.category_deletion_plan‎ ועוד ‎blocked‎ — למה אי אפשר
-    למחוק בכלל, או ‎None‎.
+    """The plan from `db.category_deletion_plan` plus `blocked`: why it can't be
+    deleted at all, or `None`.
 
-    הקטגוריה האחרונה מסוג מסוים נשארת: בלעדיה אי אפשר לרשום עסקה מהסוג
-    הזה, ועסקאות שכבר בה אין לאן להעביר. בפרויקט זה חל רק על סוג שהפרויקט
-    עוקב אחריו, או כשיש בה עסקאות — קטגוריית הכנסה ריקה בפרויקט שלא
-    עוקב אחרי הכנסות אפשר למחוק."""
+    The last category of a type stays: without it no transaction of that type
+    can be recorded, and the transactions already in it have nowhere to move.
+    In a project this applies only to a type the project tracks, or when it has
+    transactions: an empty income category in a project that doesn't track
+    income can be deleted."""
     plan = db.category_deletion_plan(kind, cat_id, user["family_id"],
                                      project_id=(project or {}).get("id"))
     if plan is None:
@@ -4191,8 +4457,9 @@ def _category_usage(kind, cat_id, user, project=None):
 
 
 def _delete_category(kind, cat_id, user, project=None):
-    """מחיקה עם העברה: עסקאות הקטגוריה עוברות ל-‎?move_to=‎ לפני המחיקה.
-    בלי יעד תקין כשיש עסקאות — 409, ושום דבר לא נוגע."""
+    """Delete with a move: the category's transactions move to `?move_to=` before
+    the delete. Without a valid target when there are transactions: 409, and
+    nothing is touched."""
     try:
         plan = _deletion_plan(kind, cat_id, user, project)
     except db.DataUnavailable:
@@ -4211,8 +4478,9 @@ def _delete_category(kind, cat_id, user, project=None):
 
     if not db.delete_category_moving(kind, cat_id, user["family_id"], move_to,
                                      project_id=(project or {}).get("id")):
-        # גם מירוץ נוחת כאן: עסקה שנוספה לקטגוריה אחרי ההעברה מכשילה את
-        # המחיקה באילוץ של המסד, והעסקאות שכבר הועברו נשארות ביעד
+        # A race lands here too: a transaction added to the category after the
+        # move makes the delete fail on the database constraint, and the
+        # transactions already moved stay at the target
         return jsonify({"error": "מחיקת הקטגוריה נכשלה — נסו שוב"}), 500
     return jsonify({"status": "ok", "moved": plan["count"] if move_to else 0})
 
@@ -4239,7 +4507,8 @@ def reorder_categories_route():
 @limiter.limit("30 per minute")
 @login_required
 def update_family_settings_route():
-    """עדכון העדפות המשפחה. מקבל עדכון חלקי וממזג לתוך הקיים."""
+    """Updates the family settings. Takes a partial update and merges it into the
+    existing ones."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא מצאנו את המשפחה שלך — רעננו את הדף, ואם זה חוזר התחברו מחדש"}), 400
@@ -4253,8 +4522,8 @@ def update_family_settings_route():
             k: bool(oa[k]) for k in ("expense", "income", "savings") if k in oa
         }
 
-    # תקציבי קטגוריות. מגיעים מהלקוח, אז נאמתים כמו כל סכום כסף אחר,
-    # ונבדקים שהם באמת קטגוריות של המשפחה הזאת.
+    # Category budgets. They come from the client, so they are validated like
+    # any other money amount, and checked to really be this family's categories.
     if isinstance(body.get("limits"), dict):
         family_categories = {c["id"] for c in db.get_categories(user["family_id"])}
         limits = dict((family_settings().get("limits") or {}))
@@ -4263,8 +4532,9 @@ def update_family_settings_route():
             if cat_id not in family_categories:
                 return jsonify({"error": "קטגוריה לא נמצאה"}), 422
 
-            # ‎null‎ או סכום 0 = הסרת התקציב. זו הדרך לבטל, ולא מחיקה
-            # נפרדת — כך "לא להגדיר תקציב" הוא אותו מסלול כמו "להסיר".
+            # `null` or an amount of 0 = removing the budget. This is the way to
+            # cancel, not a separate delete, so "don't set a budget" is the same
+            # route as "remove".
             if entry is None:
                 limits.pop(cat_id, None)
                 continue
@@ -4280,9 +4550,10 @@ def update_family_settings_route():
 
             limits[cat_id] = {"amount": amount, "alert": bool(entry.get("alert", True))}
 
-        # המפה המלאה, כי הסרה היא היעדרות ממנה. ‎_merge_settings‎ מחליפה
-        # את ‎limits‎ במלואה ולא ממזגת אותה — ראו ‎_WHOLE_MAP_KEYS‎. לפני כן
-        # היא מוזגה ב-‎.update()‎, שיכולה רק להוסיף, ולכן הסרה לא נשמרה.
+        # The full map, because removal is absence from it. `_merge_settings`
+        # replaces `limits` whole rather than merging it; see `_WHOLE_MAP_KEYS`.
+        # Before that it was merged with `.update()`, which can only add, so a
+        # removal was never saved.
         patch["limits"] = limits
 
     if not patch:
@@ -4297,8 +4568,9 @@ def update_family_settings_route():
 @limiter.limit("30 per minute")
 @login_required
 def set_member_color():
-    """בחירת צבע לבן משפחה (מתן, 30.9 — סבב 6, פריט 13). כל אחד לעצמו בלבד —
-    גם מנהל המשפחה לא בוחר לאחרים (מתן). צבע של מישהו אחר — תפוס."""
+    """Picking a colour for a family member (Matan, 30.9, round 6, item 13). Each
+    for themselves only: even the family manager doesn't choose for others
+    (Matan). Someone else's colour is taken."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא מצאנו את המשפחה שלך — רעננו את הדף"}), 400
@@ -4335,16 +4607,17 @@ def update_family():
 
 
 def _user_message(err, fallback: str = "הפעולה נכשלה — נסו שוב") -> str:
-    """מחזיר הודעה שמתאימה להצגה למשתמש.
+    """Returns a message fit to show the user.
 
-    שכבת ה-DB מחזירה שני סוגי מחרוזות באותו מקום: הודעות שנכתבו למשתמש
-    ("רק הבעלים של הפרויקט יכול…") וסימנים פנימיים שנכתבו למפתח
-    ("Database not configured", או ‎str(e)‎ גולמי מ-Supabase). המסלולים
-    הציגו את שתיהן כמו שהן.
+    The DB layer returns two kinds of strings in the same place: messages
+    written for the user ("רק הבעלים של הפרויקט יכול…") and internal markers
+    written for the developer ("Database not configured", or a raw `str(e)` from
+    Supabase). The routes showed both as they were.
 
-    הכלל כאן פשוט ובכוונה: הודעה למשתמש נכתבת בעברית. מחרוזת בלי עברית
-    היא פנימית — היא נכנסת ללוג ולא למסך. כך גם שגיאה עתידית שתיווסף
-    בשכבת ה-DB לא תדלוף לממשק בלי שאף אחד שם לב."""
+    The rule here is simple on purpose: a message for the user is written in
+    Hebrew. A string with no Hebrew is internal: it goes to the log and not to
+    the screen. That way a future error added in the DB layer won't leak to the
+    UI without anyone noticing."""
     if err and re.search(r"[\u0590-\u05FF]", str(err)):
         return str(err)
     if err:
@@ -4353,8 +4626,8 @@ def _user_message(err, fallback: str = "הפעולה נכשלה — נסו שו�
 
 
 def _family_rpc_message(err: str) -> str:
-    """מתרגם את שגיאות ה-RPC להודעה בעברית. ההודעות המקוריות באנגלית
-    ומיועדות ללוג, לא למשתמש."""
+    """Translates the RPC errors into a Hebrew message. The original messages are
+    in English and meant for the log, not the user."""
     text = (err or "").lower()
     if "only the family manager" in text:
         return "רק מנהל המשפחה יכול להסיר בני משפחה"
@@ -4368,13 +4641,14 @@ def _family_rpc_message(err: str) -> str:
 
 
 def _project_choice(body) -> str:
-    """"למחוק" או "להשאיר כמשותפים" — ומה שלא נבחר עדיין הוא שאלה."""
+    """"Delete" or "keep as shared"; whatever hasn't been chosen yet is a question."""
     choice = body.get("projects")
     return choice if choice in ("share", "delete") else "ask"
 
 
 def _needs_project_choice(err):
-    """409 עם המספר, כדי שהמסך ישאל — אותו דפוס כמו ‎/api/family/join‎."""
+    """409 with the number, so the screen asks: the same pattern as
+    `/api/family/join`."""
     count = db.project_choice_needed(err)
     if not count:
         return None
@@ -4385,12 +4659,12 @@ def _needs_project_choice(err):
 @login_required
 @limiter.limit("10 per minute")
 def remove_family_member_route(member_id):
-    """הסרת בן משפחה. מנהל המשפחה בלבד — נאכף ב-DB.
+    """Removing a family member. Family manager only, enforced in the DB.
 
-    keep_transactions הוא בחירה של המשתמש ולא ברירת מחדל שקטה: הכסף יצא
-    מהתקציב המשותף, אז "להשאיר" שומר על הסכומים החודשיים נכונים והעסקה
-    מוצגת כ"משותפת". "למחוק" משנה למפרע כל סיכום חודשי שבו הוא מופיע,
-    ולכן הוא חייב להיות בחירה מודעת."""
+    keep_transactions is the user's choice, not a silent default: the money
+    left the shared budget, so "keep" keeps the monthly totals right and the
+    transaction is shown as "shared". "Delete" retroactively changes every
+    monthly summary it appears in, so it must be a conscious choice."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא משויכת משפחה לחשבון"}), 400
@@ -4398,11 +4672,13 @@ def remove_family_member_route(member_id):
     body = request.get_json(silent=True) or {}
     keep = body.get("keep_transactions", True) is not False
 
-    # הפרויקטים האישיים של מי שמוסר נמחקים תמיד, עם העסקאות שבהם (החלטת
-    # מתן, 28.9.2026): המנהל לא רואה אותם, ואסור שיקבל לידיו דברים פרטיים של
-    # מי שהוסר. לא נקרא מהגוף — מי שעוזב בעצמו הוא היחיד שנשאל.
-    # הקבלות של כל מה שיימחק — הפרויקטים האישיים שלו תמיד, והעסקאות שלו
-    # אם נבחר למחוק אותן. המנהל נשאר במשפחה, אז מותר לו למחוק אחרי.
+    # The removed member's personal projects are always deleted, with their
+    # transactions (Matan's decision, 28.9.2026): the manager can't see them, and
+    # must not get hold of the private things of whoever was removed. Not read
+    # from the body: someone leaving by themselves is the only one asked.
+    # The receipts of everything to be deleted: their personal projects always,
+    # and their transactions if it was chosen to delete them. The manager stays
+    # in the family, so they may delete afterwards.
     receipts = db.receipt_paths(
         user["family_id"], project_ids=db.personal_project_ids(user["family_id"], member_id),
         user_id=None if keep else member_id)
@@ -4418,8 +4694,9 @@ def remove_family_member_route(member_id):
 @login_required
 @limiter.limit("10 per minute")
 def leave_family_route():
-    """עזיבת המשפחה. כל בן משפחה רשאי, כולל המנהל — כשהוא עוזב הניהול
-    עובר לוותיק שנשאר, כדי שלא תיוותר משפחה בלי מנהל."""
+    """Leaving the family. Any family member may, including the manager: when they
+    leave, management passes to the longest-standing member who stays, so no
+    family is left without a manager."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא משויכת משפחה לחשבון"}), 400
@@ -4428,9 +4705,10 @@ def leave_family_route():
     keep = body.get("keep_transactions", True) is not False
 
     choice = _project_choice(body)
-    # מי שעוזב מאבד את הרשאת האחסון של המשפחה ברגע שיצא, אז את הקבלות של מה
-    # שיימחק מוחקים **לפני** — ולכן קודם צריך לדעת בוודאות מה יימחק. אם יש
-    # פרויקטים אישיים ועוד לא נבחר מה לעשות בהם, שואלים לפני שנוגעים במשהו.
+    # Whoever leaves loses the family's storage permission the moment they leave,
+    # so the receipts of what will be deleted are deleted **before**, and so we
+    # first need to know for certain what will be deleted. If there are personal
+    # projects and no choice has been made yet, ask before touching anything.
     projects = db.personal_project_ids(user["family_id"], user["id"])
     if projects and choice == "ask":
         return jsonify({"needs_choice": True, "project_count": len(projects)}), 409
@@ -4444,8 +4722,9 @@ def leave_family_route():
     if err or not new_family_id:
         return jsonify({"error": _family_rpc_message(err)}), 400
 
-    # ה-session נושא את המשפחה הישנה; בלי העדכון הזה כל שליפה בבקשה הבאה
-    # תסונן לפי משפחה שהמשתמש כבר לא חבר בה, והאפליקציה תיראה ריקה
+    # The session carries the old family; without this update every query in the
+    # next request would be filtered by a family the user is no longer in, and
+    # the app would look empty
     session["family_id"] = new_family_id
     return jsonify({"status": "ok"})
 
@@ -4454,7 +4733,8 @@ def leave_family_route():
 @login_required
 @limiter.limit("10 per minute")
 def rotate_invite_code_route():
-    """החלפת קוד ההזמנה. הקוד הישן מפסיק לעבוד מיד — זו כל המטרה."""
+    """Replacing the invite code. The old code stops working immediately: that is
+    the whole point."""
     user = get_current_user()
     if not user["family_id"]:
         return jsonify({"error": "לא משויכת משפחה לחשבון"}), 400
@@ -4473,8 +4753,8 @@ def rotate_invite_code_route():
 @login_required
 @limiter.limit("20 per minute")
 def preview_family_code():
-    """תצוגה מקדימה לפני הצטרפות — "מצטרפים למשפחת כהן?". מוגבל בקצב כדי
-    שלא ישמש לסריקת קודים."""
+    """A preview before joining: "מצטרפים למשפחת כהן?". Rate-limited so it can't
+    be used to scan codes."""
     code = request.args.get("code", "").strip()
     if not code:
         return jsonify({"error": "נא להזין קוד הזמנה"}), 422
@@ -4488,26 +4768,29 @@ def preview_family_code():
 @login_required
 @limiter.limit("10 per minute")
 def join_family():
-    """הצטרפות למשפחה קיימת אחרי ההרשמה.
+    """Joining an existing family after signing up.
 
-    עד היום רגע ההרשמה היה ההזדמנות היחידה בכל חיי המוצר להזין קוד, ומי
-    שנרשם לפני שקיבל אותו נשאר תקוע במשפחה משלו בלי דרך חזרה."""
+    Until now the moment of signup was the only chance in the product's whole
+    life to enter a code, and whoever signed up before getting one was stuck in
+    a family of their own with no way back."""
     user = get_current_user()
     body = request.get_json(silent=True) or {}
     code = _text(body.get("code"))
     if not code:
         return jsonify({"error": "לא הוזן קוד הזמנה"}), 422
 
-    # מעבר למשפחה אחרת נוטש את התנועות הקיימות — הן נשארות קשורות למשפחה
-    # הישנה. למשתמש חדש זה לא מזיק; למשתמש עם היסטוריה זה הרסני, ולכן
-    # דורשים אישור מפורש ומחזירים את המספר כדי שה-UI יוכל להציג אותו.
+    # Moving to another family abandons the existing transactions: they stay
+    # tied to the old family. For a new user that is harmless; for a user with
+    # history it is devastating, so explicit confirmation is required and the
+    # number is returned so the UI can show it.
     current_family = user.get("family_id")
     if current_family and not body.get("confirm"):
         try:
             existing = db.family_transaction_count(current_family)
         except db.DataUnavailable:
-            # לא ידוע כמה היסטוריה תיזנח. דילוג על האישור בגלל תקלה הוא
-            # בדיוק האובדן שהאישור קיים כדי למנוע, אז מבקשים אותו בכל מקרה.
+            # Unknown how much history would be abandoned. Skipping the
+            # confirmation because of a failure is exactly the loss the
+            # confirmation exists to prevent, so ask for it anyway.
             existing = None
         if existing is None or existing:
             return jsonify({
@@ -4520,15 +4803,16 @@ def join_family():
         return jsonify({"error": err}), 400
     _notify_owner_about_family("joined", family_id, person_id=user["id"])
 
-    # בלי עדכון ה-session המשתמש ימשיך לראות את המשפחה הישנה עד ליציאה וכניסה
+    # Without updating the session the user would keep seeing the old family
+    # until signing out and in
     session["family_id"] = family_id
     return jsonify({"status": "ok", "family_id": family_id})
 
 
 @app.route("/privacy")
 def privacy():
-    """מדיניות פרטיות — ציבורית בכוונה: מי ששוקל להירשם צריך לקרוא אותה
-    לפני שהוא מוסר נתונים, לא אחרי."""
+    """The privacy policy, public on purpose: someone considering signing up
+    needs to read it before handing over data, not after."""
     return render_template("privacy.html")
 
 
@@ -4537,8 +4821,9 @@ def terms():
     return render_template("terms.html")
 
 
-# וואטסאפ, האייפון ומנועי חיפוש מבקשים את אלה בכתובת קבועה, בלי לקרוא את
-# ה-HTML — ובלעדיהם קישור לאפליקציה הופיע בלי הלוגו (‎404‎ ביומנים, 13.10).
+# WhatsApp, the iPhone and search engines request these at a fixed URL without
+# reading the HTML, and without them a link to the app showed up with no logo
+# (`404` in the logs, 13.10).
 @app.route("/favicon.ico")
 @app.route("/apple-touch-icon.png")
 @app.route("/apple-touch-icon-precomposed.png")
@@ -4550,53 +4835,56 @@ def touch_icon():
 
 @app.route("/robots.txt")
 def robots_txt():
-    """רק ה-API והקבלות סגורים לסורקים. דפי האפליקציה ממילא דורשים התחברות,
-    ודף הנחיתה וקישורי ההזמנה צריכים תצוגה מקדימה בשיתוף."""
+    """Only the API and receipts are closed to crawlers. The app's pages require
+    sign-in anyway, and the landing page and invite links need a preview when
+    shared."""
     return app.response_class("User-agent: *\nDisallow: /api/\nDisallow: /receipts/\n",
                               mimetype="text/plain")
 
 
 @app.route("/sw.js")
 def service_worker():
-    """מגיש את ה-Service Worker מהשורש כדי שה-scope שלו יכסה את כל האתר
-    (רישום מ-/static/ נחסם על ידי הדפדפן)."""
+    """Serves the Service Worker from the root so its scope covers the whole site
+    (registering from /static/ is blocked by the browser)."""
     return app.send_static_file("sw.js")
 
 
-# ─── Health checks ────────────────────────────────────────────────────────────
+# ─── Health checks ──────────────────────────────────────────────────────────
 #
-# שתי בדיקות, כי נשאלות כאן שתי שאלות שונות:
+# Two checks, because two different questions are asked here:
 #
-#   /health     — "התהליך חי?"  זו הבדיקה של Railway, והיא מחזירה 200 כל
-#                 עוד השרת עונה. אילו היא הייתה נכשלת בגלל תקלה ב-Supabase,
-#                 הפריסה הבאה הייתה נחסמת בדיוק ברגע הכי גרוע — תקלה של
-#                 שתי דקות במסד הייתה הופכת להשבתה ארוכה בהרבה.
-#   /health/db  — "המשתמשים יכולים באמת להשתמש באפליקציה?"  זו הבדיקה
-#                 שמוניטור חיצוני צריך לעקוב אחריה, והיא מחזירה 503 כשהמסד
-#                 לא עונה.
+#   /health     "Is the process alive?" This is Railway's check, and it returns
+#               200 as long as the server answers. If it failed because of a
+#               Supabase outage, the next deploy would be blocked at exactly
+#               the worst moment: a two-minute database outage would turn into
+#               a much longer one.
+#   /health/db  "Can users actually use the app?" This is the check an external
+#               monitor should follow, and it returns 503 when the database
+#               doesn't answer.
 #
-# קודם הייתה כאן רק הראשונה, והיא החזירה "ok" קבוע — כלומר גם כשהמסד היה
-# מת. מוניטור היה מדווח שהכול תקין בזמן שאף משפחה לא רואה את הכסף שלה,
-# והדרך היחידה לגלות הייתה שמישהו יטרח לספר.
+# Before, only the first one existed, and it returned a constant "ok", i.e.
+# even when the database was dead. A monitor would report all clear while no
+# family could see their money, and the only way to find out was for someone to
+# bother telling us.
 
-_HEALTH_TTL = 5.0            # שניות
+_HEALTH_TTL = 5.0            # seconds
 _health_cache = {"at": -_HEALTH_TTL, "ok": False, "detail": ""}
 
 
 def _database_health():
-    """מצב המסד, עם זיכרון של חמש שניות.
+    """The database's state, remembered for five seconds.
 
-    בלי הזיכרון, מוניטור תכוף (או מישהו שמחזיק F5) היה תופס worker
-    לכל בדיקה — ובדיוק בזמן תקלה, כשהבדיקות מתרבות והשרת עמוס, יש
-    ארבעה workers בסך הכול."""
+    Without the memory, a frequent monitor (or someone holding F5) would occupy
+    a worker for every check, and exactly during an outage, when checks
+    multiply and the server is loaded, there are four workers in total."""
     now = time.monotonic()
     if now - _health_cache["at"] >= _HEALTH_TTL:
         ok, detail = db.ping()
         _health_cache.update(at=now, ok=ok, detail=detail)
         if not ok:
-            # ‎error‎ ולא ‎warning‎: מסד שלא זמין הוא אירוע ב-Sentry. ברמת
-            # ‎warning‎ הוא פירור, והדרך היחידה לגלות נפילה הייתה
-            # שמשתמש יתלונן.
+            # `error` and not `warning`: an unavailable database is an event in
+            # Sentry. At `warning` it is a breadcrumb, and the only way to find
+            # out about an outage was for a user to complain.
             logger.error("health: database unreachable (%s)", detail)
     return _health_cache["ok"], _health_cache["detail"]
 
@@ -4604,11 +4892,11 @@ def _database_health():
 @app.route("/health")
 def health():
     ok, detail = _database_health()
-    # תמיד 200 — אבל אומר את האמת בגוף התשובה.
+    # Always 200, but it tells the truth in the response body.
     #
-    # ‎rate_limiting‎ כאן כי אי אפשר היה לדעת אחרת: ההגבלה נחלשת בשקט
-    # כשמשתנה הסביבה חסר או ש-Redis לא זמין, והבקשות ממשיכות לעבוד.
-    # עכשיו זו שאלה של ‎curl‎ אחד.
+    # `rate_limiting` is here because there was no other way to know: the limit
+    # weakens silently when the environment variable is missing or Redis is
+    # unavailable, and requests keep working. Now it is one `curl` away.
     return jsonify({
         "status":        "ok",
         "database":      "ok" if ok else detail,
@@ -4626,24 +4914,27 @@ def health_db():
 
 # ─── Security headers ─────────────────────────────────────────────────────────
 
-# Content-Security-Policy: ההגנה החזקה ביותר מפני XSS — הדפדפן מסרב להריץ
-# קוד שלא הגיע מהמקורות המותרים. אפשר היה להגדיר אותה רק אחרי שכל ה-JS
-# הוצא מה-HTML לקבצים: מדיניות שמתירה 'unsafe-inline' מוותרת על רוב הערך,
-# כי בדיוק כך נראית הזרקת קוד.
+# Content-Security-Policy: the strongest protection against XSS; the browser
+# refuses to run code that didn't come from the allowed sources. It could only
+# be set after all the JS was moved out of the HTML into files: a policy that
+# allows 'unsafe-inline' gives up most of the value, because that is exactly
+# what code injection looks like.
 #
-# script-src הוא 'self' בלבד — Chart.js הורד מקומית במקום להיטען מ-CDN.
-# ל-style-src נדרש 'unsafe-inline' כי התבניות משתמשות ב-style="..." לערכים
-# מחושבים (רוחב פסי התקדמות, צבע לכל בן משפחה); זו הרפיה מקובלת ומצומצמת,
-# והיא לא מאפשרת הרצת קוד.
+# script-src is 'self' only: Chart.js was downloaded locally instead of loading
+# from a CDN. style-src needs 'unsafe-inline' because the templates use
+# style="..." for computed values (progress-bar widths, a colour per family
+# member); that is an accepted, narrow relaxation, and it doesn't allow running
+# code.
 _CSP = "; ".join([
     "default-src 'self'",
     "script-src 'self'",
-    # גוגל הוסר משניהם: הפונט מתארח אצלנו, ומדיניות שמתירה מקורות שלא
-    # בשימוש היא רק משטח תקיפה מיותר.
+    # Google was removed from both: the font is self-hosted, and a policy that
+    # allows unused sources is just needless attack surface.
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    # + האחסון של Supabase: הקבלה נפתחת בתוך האפליקציה (‎receipt-viewer.js‎,
-    # מתן 12.10), ו-‎/receipts/<id>‎ מפנה לכתובת חתומה שם. רק תמונות — לא סקריפטים.
+    # + Supabase storage: the receipt opens inside the app (`receipt-viewer.js`,
+    # Matan 12.10), and `/receipts/<id>` redirects to a signed URL there. Images
+    # only, not scripts.
     "img-src 'self' data: blob:" + (
         " " + re.match(r"https?://[^/]+", os.environ.get("SUPABASE_URL", "")).group(0)
         if re.match(r"https?://[^/]+", os.environ.get("SUPABASE_URL", "")) else ""),
@@ -4654,8 +4945,9 @@ _CSP = "; ".join([
     "object-src 'none'",
 ])
 
-# מצב הדיווח נשלט בסביבה כדי שאפשר יהיה להריץ קודם ב-Report-Only, לראות מה
-# נשבר בפרודקשן האמיתי, ורק אז לאכוף. ברירת המחדל היא אכיפה.
+# The reporting mode is controlled by the environment so it can first run as
+# Report-Only, see what breaks in real production, and only then enforce. The
+# default is enforce.
 _CSP_REPORT_ONLY = os.environ.get("CSP_REPORT_ONLY") == "1"
 
 
@@ -4694,16 +4986,18 @@ def too_many_requests(e):
     if _is_api_request():
         return jsonify({"error": msg}), 429
 
-    # מסלולי האימות מקבלים את הטופס עצמו בחזרה, עם ההודעה מעליו.
-    # error.html הוא מבוי סתום — יש בו רק "חזור לדף הראשי" — ומי שנחסם
-    # הגיע לשם בדיוק כי לחץ פעמיים על "התחבר" ולא הבין למה כלום לא קרה.
-    # לשלוח אותו משם לדף מת, בלי מה שהקליד, זה להעניש אותו על חוסר סבלנות.
+    # The auth routes get the form itself back, with the message above it.
+    # error.html is a dead end (it only has "back to the home page"), and whoever
+    # got blocked ended up there exactly because they double-clicked "sign in"
+    # and didn't understand why nothing happened. Sending them from there to a
+    # dead page, without what they typed, punishes them for impatience.
     if request.path in ("/login", "/signup"):
         return render_template(
             "login.html", error=msg,
             active_tab="signup" if request.path == "/signup" else "login",
             remembered_identifier=_remembered_identifier(),
-            # גם כאן: מי שנחסם אחרי לחיצה כפולה לא צריך להקליד הכול מחדש
+            # Here too: whoever got blocked after a double click shouldn't have
+            # to type everything again
             signup=_signup_form() if request.path == "/signup" else None,
         ), 429
 
@@ -4711,14 +5005,17 @@ def too_many_requests(e):
 
 
 def _family_changed():
-    """מעדכן את הסשן אם המשתמש כבר במשפחה אחרת; מחזיר את שם החדשה, או ‎None‎.
+    """Updates the session if the user is already in another family; returns the
+    new family's name, or `None`.
 
-    הסשן זוכר את המשפחה מרגע ההתחברות. מי שהוסר ממנה — או יצא ממנה
-    במכשיר אחר — המשיך לשלוח את המזהה הישן, והמסד כבר לא ענה עליו: כמעט
-    כל מסך הפך לדף תקלה שמבקש לרענן, ורענון לא עזר עד התנתקות.
+    The session remembers the family from the moment of sign-in. Whoever was
+    removed from it (or left it on another device) kept sending the old id, and
+    the database no longer answered for it: almost every screen became an error
+    page asking to refresh, and refreshing didn't help until signing out.
 
-    נקרא רק אחרי שליפה שנכשלה, לא בכל בקשה: בשימוש רגיל אין אף שאילתה
-    נוספת. כישלון בבדיקה עצמה הוא "לא ידוע", לא "השתנתה"."""
+    Called only after a failed query, not on every request: in normal use there
+    isn't a single extra query. A failure of the check itself is "unknown", not
+    "changed"."""
     uid = session.get("user_id")
     if not uid:
         return None
@@ -4730,24 +5027,27 @@ def _family_changed():
     if not new_family or new_family == session.get("family_id"):
         return None
     session["family_id"] = new_family
-    # סנכרון העסקאות הקבועות נעשה פעם ביום **למשפחה** — החדשה עוד לא סונכרנה
+    # Syncing recurring transactions happens once a day **per family**: the new
+    # one hasn't been synced yet
     session.pop("recurring_synced", None)
     return ((profile.get("families") or {}).get("name")) or "המשפחה שלי"
 
 
 @app.errorhandler(db.DataUnavailable)
 def data_unavailable(e):
-    """שליפה שנכשלה מגיעה לכאן, ולא מוצגת כ"אין לך נתונים".
+    """A failed query arrives here, and isn't shown as "you have no data".
 
-    עשרה שולפים החזירו ‎[]‎ בכשל. משפחה עם שנתיים היסטוריה ראתה "אין
-    היסטוריה", ‎₪11,000‎ של הוצאות קבועות נעלמו מעמוד החודש, ומי
-    ש-‎get_family_members‎ נכשל עבורו קיבל "בן המשפחה שנבחר אינו במשפחה
-    שלך" על כל ניסיון להוסיף עסקה — שגיאה שמאשימה אותו בתקלה שלנו.
+    Ten fetchers returned `[]` on failure. A family with two years of history
+    saw "no history", `₪11,000` of recurring expenses vanished from the month
+    page, and whoever `get_family_members` failed for got "the selected family
+    member isn't in your family" on every attempt to add a transaction: an
+    error blaming them for our failure.
 
-    אפס מדומה נראה בדיוק כמו אפס אמיתי, וכל האפליקציה היא מספרים. אז
-    עדיף מסך שאומר "לא הצלחנו לטעון" על מסך שמשקר בשקט."""
+    A fake zero looks exactly like a real zero, and the whole app is numbers.
+    So a screen saying "we couldn't load" beats a screen that silently lies."""
     logger.error("DataUnavailable: %s", e)
-    # לפני שמכריזים על תקלה: אולי המשתמש כבר במשפחה אחרת (ראו ‎_family_changed‎)
+    # Before declaring a failure: maybe the user is already in another family
+    # (see `_family_changed`)
     new_name = _family_changed()
     if new_name:
         if _is_api_request():
@@ -4765,8 +5065,9 @@ def data_unavailable(e):
 def server_error(e):
     msg = "אירעה שגיאה בשרת. נסו שוב בעוד כמה רגעים."
     if _is_api_request():
-        # בלי זה תקלת שרת אמיתית מגיעה למשתמש כ"שגיאת רשת", והוא מנסה
-        # שוב ושוב בקשה שלעולם לא תצליח — ואנחנו לא שומעים על התקלה.
+        # Without this a real server failure reaches the user as a "network
+        # error", and they retry again and again a request that will never
+        # succeed, and we never hear about the failure.
         return jsonify({"error": msg}), 500
     return render_template("error.html", code=500, message=msg), 500
 
@@ -4774,9 +5075,9 @@ def server_error(e):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _month_label(year: int, month: int) -> str:
-    """שם החודש בעברית. חודש מחוץ לטווח נחתך במקום להיכנס לאינדוקס —
-    ‎_HEBREW_MONTHS[13] זרק IndexError והפיל את העמוד, ו-‎_HEBREW_MONTHS[-5]
-    החזיר בשקט את אוגוסט, וזה הגרוע מבין השניים."""
+    """The month name in Hebrew. A month out of range is clamped instead of being
+    used as an index: `_HEBREW_MONTHS[13]` raised IndexError and crashed the
+    page, and `_HEBREW_MONTHS[-5]` silently returned August, the worse of the two."""
     if not 1 <= month <= 12:
         month = clock.now().month
     return f"{_HEBREW_MONTHS[month]} {year}"

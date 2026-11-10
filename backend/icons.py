@@ -1,10 +1,12 @@
-"""אייקוני קו לכפתורים ולסימנים בממשק (מתן, 12.10).
+"""Line icons for buttons and markers in the UI (Matan, 12.10).
 
-עד אז חלק מהכפתורים היו אימוג'י — 📷 סריקה, 📅 תאריך, 📎 קבלה, 🔁 קבועה —
-צבעוניים ובסגנון של מערכת ההפעלה, ליד אייקוני קו בזהב של האתר. עכשיו כולם
-באותו קו. אימוג'י נשארים רק במה שהמשתמש בוחר בעצמו: קטגוריות ופרויקטים.
+Until then some buttons were emoji (📷 scan, 📅 date, 📎 receipt, 🔁 recurring):
+colourful and in the OS's style, next to the site's gold line icons. Now they
+are all the same line style. Emoji remain only where the user picks them:
+categories and projects.
 
-‎currentColor‎ — האייקון בצבע הטקסט שסביבו, ובגודל ‎1em‎ — בגודל הטקסט."""
+`currentColor`: the icon takes the surrounding text colour; size `1em`: the
+text size."""
 from markupsafe import Markup
 
 _PATHS = {
@@ -13,7 +15,7 @@ _PATHS = {
     "calendar": '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
     "receipt":  '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57'
                 'a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
-    # מסכים ריקים (מתן, 12.10) — במקום 📭 📅 🎯 🔁 🔍 ⚠️ 📊 💼 💰
+    # Empty states (Matan, 12.10), replacing 📭 📅 🎯 🔁 🔍 ⚠️ 📊 💼 💰
     "inbox":    '<path d="M22 12h-6l-2 3h-4l-2-3H2"/>'
                 '<path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
     "target":   '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
@@ -27,7 +29,7 @@ _PATHS = {
                 '<path d="m16.71 13.88.7.71-2.82 2.82"/>',
     "repeat":   '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/>'
                 '<path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
-    # "החשבון שלי" (מתן, 13.10) — שורה לכל פרט, כמו "עסקאות קבועות"
+    # "My account" (Matan, 13.10): one row per detail, like "Recurring transactions"
     "user":     '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
     "palette":  '<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1"/><circle cx="12" cy="7.5" r="1"/>'
                 '<circle cx="15.5" cy="10" r="1"/>',
@@ -38,7 +40,7 @@ _PATHS = {
 
 
 def empty_illus(name: str) -> Markup:
-    """איור למסך ריק: האייקון בגדול, בעיגול זהב עדין."""
+    """Empty-state illustration: the icon, large, in a soft gold circle."""
     return Markup(f'<div class="empty-illus" aria-hidden="true">{ui_icon(name)}</div>')
 
 

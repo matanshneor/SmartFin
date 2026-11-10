@@ -1,17 +1,18 @@
-"""ניסוח של "מספר + שם עצם" — כלל אחד לכל האפליקציה.
+"""Wording for "number + noun": one rule for the whole app.
 
-"1 חברים", "1 פרויקטים", "1 עסקאות יימחקו" — בעברית זה "חבר אחד",
-"פרויקט אחד", "עסקה אחת". אותו כלל בדיוק חי בדפדפן (‎sfCount‎ ב-core.js).
+"1 חברים", "1 פרויקטים", "1 עסקאות יימחקו": in Hebrew that is "חבר אחד",
+"פרויקט אחד", "עסקה אחת". The exact same rule lives in the browser (`sfCount`
+in core.js).
 """
 
-# שמות החודשים, באינדקס 1–12 (0 ריק). רשימה אחת לשרת ולתבניות.
+# Month names, indexed 1–12 (0 empty). One list for the server and templates.
 HEBREW_MONTHS = ["", "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
                  "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"]
 
 
 def count_of(n, one: str, many: str) -> str:
-    """‎count_of(1, "חבר אחד", "חברים") → "חבר אחד"‎; ‎count_of(3, …) → "3 חברים"‎.
-    ‎one‎ הוא הצירוף המלא ליחיד, כי המספר "אחד/אחת" תלוי במין של שם העצם."""
+    """`count_of(1, "חבר אחד", "חברים") → "חבר אחד"`; `count_of(3, …) → "3 חברים"`.
+    `one` is the full singular phrase, because "אחד/אחת" depends on the noun's gender."""
     try:
         n = int(n)
     except (TypeError, ValueError):
@@ -20,9 +21,10 @@ def count_of(n, one: str, many: str) -> str:
 
 
 def share_map(items) -> dict:
-    """אחוז לכל פריט מסך הכול, בשלמים שמסתכמים ל-100 בדיוק (שיטת השארית
-    הגדולה). עיגול רגיל של 62.5 ו-37.5 נתן 63% ו-38% — 101%, מספר שכל מי
-    שבודק יראה. מקבל רשימת ‎{"name", "total"}‎ ומחזיר ‎{name: אחוז}‎."""
+    """A whole-number percentage per item of the total, summing to exactly 100
+    (largest-remainder method). Plain rounding of 62.5 and 37.5 gave 63% and
+    38%: 101%, a number anyone checking would notice. Takes a list of
+    `{"name", "total"}` and returns `{name: percent}`."""
     items = [i for i in items if float(i.get("total") or 0) > 0]
     whole = sum(float(i["total"]) for i in items)
     if not whole:
@@ -35,13 +37,13 @@ def share_map(items) -> dict:
     return floors
 
 
-# ‎date.weekday()‎: שני = 0 … ראשון = 6
+# `date.weekday()`: Monday = 0 … Sunday = 6
 _WEEKDAYS = ("שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת", "ראשון")
 
 
 def day_label(date_str, today) -> str:
-    """כותרת יום ב"עסקאות אחרונות" (מתן, 30.9): "היום", "אתמול", ואחרת
-    "ראשון, 27.9" — עם השנה רק כשהיא לא השנה הנוכחית."""
+    """Day header in "Recent transactions" (Matan, 30.9): "היום", "אתמול", and
+    otherwise "ראשון, 27.9", with the year only when it isn't the current one."""
     import datetime
     try:
         d = datetime.date.fromisoformat(str(date_str)[:10])
@@ -56,7 +58,7 @@ def day_label(date_str, today) -> str:
 
 
 def greeting(hour: int) -> str:
-    """הברכה בראש מסך הבית, לפי השעה בישראל (מתן, 12.10 — במקום "שלום")."""
+    """The greeting at the top of the home screen, by Israel time (Matan, 12.10, instead of "שלום")."""
     if 5 <= hour < 12:
         return "בוקר טוב"
     if 12 <= hour < 17:
@@ -67,7 +69,7 @@ def greeting(hour: int) -> str:
 
 
 def next_charge_label(d, today) -> str:
-    """"הבא: היום" / "הבא: מחר" / "הבא: 1.11" — בלי שנה, אלא אם היא אחרת."""
+    """"הבא: היום" / "הבא: מחר" / "הבא: 1.11": no year unless it is a different one."""
     if d is None:
         return ""
     days = (d - today).days

@@ -1,16 +1,18 @@
-"""איך מציגים סכום כסף — כלל אחד לכל האפליקציה.
+"""How a money amount is shown: one rule for the whole app.
 
-עד 30.9.2026 כל תבנית עיגלה לשקל (‎"{:,.0f}"‎), והקלט קיבל אגורות. קפה
-ב-12.50 הוצג ₪13, ושלוש קניות של 10.40 הוצגו ₪10 כל אחת ו-₪31 ביחד —
-סכומים שלא מסתדרים על המסך. מתן בחר: אגורות מוצגות כשיש אגורות.
+Until 30.9.2026 every template rounded to whole shekels (`"{:,.0f}"`) while
+input accepted agorot. A 12.50 coffee showed as ₪13, and three 10.40
+purchases showed as ₪10 each and ₪31 together: totals that don't add up on
+screen. Matan's choice: show agorot when there are agorot.
 
-אותו כלל בדיוק חי בדפדפן (‎sfMoney‎ ב-core.js); שינוי כאן — גם שם.
+The exact same rule lives in the browser (`sfMoney` in core.js); change one,
+change both.
 """
 
 
 def format_money(value) -> str:
-    """‎12.5 → "12.50"‎, ‎180 → "180"‎, ‎1234.4 → "1,234.40"‎. בלי ₪ ובלי סימן:
-    הסימן והמטבע הם החלטה של המקום שמציג (‎-₪300‎, ‎+₪50‎)."""
+    """`12.5 → "12.50"`, `180 → "180"`, `1234.4 → "1,234.40"`. No ₪ and no sign:
+    the sign and currency are the caller's decision (`-₪300`, `+₪50`)."""
     try:
         amount = round(float(value or 0), 2)
     except (TypeError, ValueError):

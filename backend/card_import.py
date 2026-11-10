@@ -1,17 +1,18 @@
-"""ייבוא עסקאות מקובץ של חברת האשראי (מתן, 31.10).
+"""Importing transactions from a credit-card company's file (Matan, 31.10).
 
-פעם בחודש מורידים מהאתר של מקס, כאל או ישראכרט את פירוט העסקאות, ומעלים
-אותו לכאן. המודול הזה טהור — בלי מסד ובלי רשת (חוץ מ-OpenAI, שמבודד בשתי
-פונקציות בסוף) — כדי שאפשר יהיה לבדוק אותו עד הסוף בלי שום כפיל.
+Once a month the user downloads the transaction statement from the Max, Cal or
+Isracard site and uploads it here. This module is pure, with no database and
+no network (except OpenAI, isolated in two functions at the end), so it can be
+tested end to end without any doubles.
 
-שלוש שכבות לזיהוי העמודות, מהזולה ליקרה:
-  1. מילים מוכרות בשורת הכותרות ("תאריך עסקה", "שם בית העסק", "סכום חיוב").
-     זה מכסה את כל החברות הגדולות בלי לדעת מראש מה המבנה המדויק שלהן.
-  2. OpenAI — מקבל רק את שורת הכותרות ושלוש שורות לדוגמה, ואומר איזו עמודה
-     היא מה (‎ai_map_columns‎).
-  3. המשתמש בוחר בעצמו (‎mapping‎ שחוזר מהדפדפן).
+Three layers for detecting the columns, cheapest first:
+  1. Known words in the header row ("תאריך עסקה", "שם בית העסק", "סכום חיוב").
+     This covers all the big companies without knowing their exact layout upfront.
+  2. OpenAI: gets only the header row and three sample rows, and says which
+     column is what (`ai_map_columns`).
+  3. The user picks (`mapping` sent back from the browser).
 
-מה שנשאר באחריות ‎app.py‎: הרשאות, כפילויות מול המסד, וההוספה עצמה.
+Left to `app.py`: permissions, duplicates against the database, and the insert itself.
 """
 from __future__ import annotations
 
@@ -28,29 +29,30 @@ from html.parser import HTMLParser
 logger = logging.getLogger(__name__)
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
-# שורות גולמיות שנסרקות בכל גיליון. פירוט חודשי של משפחה הוא עשרות עד
-# מאות; התקרה היא נגד קובץ ענק שנשלח בטעות (או בכוונה).
+# Raw rows scanned per sheet. A family's monthly statement is tens to
+# hundreds; the cap guards against a huge file sent by mistake (or on purpose).
 MAX_ROWS_PER_SHEET = 5000
-# עסקאות בייבוא אחד — שנה שלמה של משפחה פעילה נכנסת בזה בנוחות.
+# Transactions per import: a full year of an active family fits comfortably.
 MAX_TRANSACTIONS = 500
-# כמה ימים הפרש עדיין נחשבים "אותה עסקה" — הזנה ידנית נעשית לפעמים יום
-# או יומיים אחרי הקנייה, וחברת האשראי רושמת לפעמים את יום הקליטה.
+# How many days apart still count as "the same transaction": manual entry is
+# sometimes a day or two after the purchase, and the card company sometimes
+# records the posting date.
 DUPLICATE_DAYS = 3
 
 FIELDS = ("date", "merchant", "charge", "amount", "notes", "sector")
 
 
 class ImportError_(Exception):
-    """קובץ שאי אפשר לקרוא. ההודעה בעברית ומוצגת למשתמש."""
+    """A file that can't be read. The message is in Hebrew and shown to the user."""
 
 
-# ─── קריאת הקובץ לטבלאות ────────────────────────────────────────────────────
+# ─── Reading the file into tables ───────────────────────────────────────────
 
 def read_sheets(data: bytes, filename: str = "") -> list:
-    """הקובץ כרשימת גיליונות, כל גיליון — רשימת שורות, כל שורה — רשימת תאים.
+    """The file as a list of sheets, each sheet a list of rows, each row a list of cells.
 
-    לפי התוכן ולא לפי הסיומת: חלק מהחברות מורידות "‎.xls‎" שהוא בפועל
-    דף HTML עם טבלה, ואנשים משנים סיומות."""
+    By content, not extension: some companies download a "`.xls`" that is
+    really an HTML page with a table, and people rename extensions."""
     if not data:
         raise ImportError_("הקובץ ריק")
     if len(data) > MAX_FILE_BYTES:
@@ -84,12 +86,12 @@ def _decode(data: bytes) -> str:
 def _read_xlsx(data: bytes) -> list:
     try:
         import openpyxl
-    except ImportError:                     # pragma: no cover — תלות מוצהרת
+    except ImportError:                     # pragma: no cover (declared dependency)
         raise ImportError_("קריאת קבצי אקסל אינה זמינה כרגע")
     try:
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except Exception:
-        logger.info("card_import: xlsx לא נקרא", exc_info=True)
+        logger.info("card_import: xlsx could not be read", exc_info=True)
         raise ImportError_("לא הצלחנו לפתוח את קובץ האקסל — ודאו שזה הקובץ שהורד מהאתר")
     sheets = []
     try:
@@ -108,12 +110,12 @@ def _read_xlsx(data: bytes) -> list:
 def _read_xls(data: bytes) -> list:
     try:
         import xlrd
-    except ImportError:                     # pragma: no cover — תלות מוצהרת
+    except ImportError:                     # pragma: no cover (declared dependency)
         raise ImportError_("קריאת קבצי אקסל ישנים אינה זמינה כרגע")
     try:
         book = xlrd.open_workbook(file_contents=data)
     except Exception:
-        logger.info("card_import: xls לא נקרא", exc_info=True)
+        logger.info("card_import: xls could not be read", exc_info=True)
         raise ImportError_("לא הצלחנו לפתוח את קובץ האקסל — ודאו שזה הקובץ שהורד מהאתר")
     sheets = []
     for sh in book.sheets():
@@ -185,23 +187,25 @@ def _read_csv(text: str) -> list:
     return rows
 
 
-# ─── PDF: דף החיוב החודשי (מתן, 31.10 — דוגמה של כאל) ───────────────────────
+# ─── PDF: the monthly statement (Matan, 31.10, a Cal sample) ────────────────
 #
-# ב-PDF אין טבלה — יש מילים במקומות על הדף. משחזרים אותה כך:
-#   1. מילים → שורות, לפי הגובה בדף.
-#   2. "שורת נתונים" = שורה עם תאריך וסכום. רצף שלהן הוא טבלה.
-#   3. הכותרות (שורה אחת או שתיים צמודות מעל — "תאריך / העסקה") קובעות את
-#      העמודות לפי המיקום האופקי; כל מילה בשורת נתונים הולכת לעמודה שלה.
-# כל טבלה יוצאת כ"גיליון" נפרד, ומשם הכל כמו באקסל — אותו זיהוי כותרות.
+# A PDF has no table, just words at positions on the page. It is rebuilt like this:
+#   1. Words → lines, by height on the page.
+#   2. A "data line" is a line with a date and an amount. A run of them is a table.
+#   3. The headers (one or two adjacent lines above, "תאריך / העסקה") define the
+#      columns by horizontal position; every word in a data line goes to its column.
+# Each table comes out as a separate "sheet", and from there it is all like
+# Excel: the same header detection.
 #
-# ובעברית: חלק מהקבצים שומרים כל מילה בסדר חזותי — "העסק" נשמר "קסעה".
-# מזהים את זה לפי מילות הכותרת המוכרות, והופכים.
+# And in Hebrew: some files store each word in visual order, so "העסק" is stored
+# as "קסעה". This is detected from known header words, and reversed.
 
 MAX_PDF_PAGES = 30
 _HEB = re.compile(r"[֐-׿]")
 _HEB_RUNS = re.compile(r"[֐-׿\"'׳״]+|[^֐-׿\"'׳״]+")
 _KNOWN_WORDS = ("תאריך", "סכום", "העסק", "העסקה", "חיוב", "פירוט", "עסקות", "עסקאות")
-# כמה נקודות מתחת לשורה קודמת עוד נחשבות אותה שורה, ומרווחים בין שורות כותרת
+# How many points below the previous line still count as the same line, and
+# the gap between header lines
 _LINE_TOLERANCE = 2.0
 _HEADER_TO_DATA = 15.0
 _HEADER_TO_HEADER = 8.0
@@ -212,7 +216,7 @@ _COLUMN_GAP = 6.0
 def _read_pdf(data: bytes) -> list:
     try:
         import pdfplumber
-    except ImportError:                     # pragma: no cover — תלות מוצהרת
+    except ImportError:                     # pragma: no cover (declared dependency)
         raise ImportError_("קריאת PDF אינה זמינה כרגע — הורידו מהאתר את הפירוט כקובץ אקסל")
     pages = []
     try:
@@ -221,7 +225,7 @@ def _read_pdf(data: bytes) -> list:
                 pages.append([{"text": w["text"], "x0": w["x0"], "x1": w["x1"], "top": w["top"]}
                               for w in page.extract_words()])
     except Exception:
-        logger.info("card_import: pdf לא נקרא", exc_info=True)
+        logger.info("card_import: pdf could not be read", exc_info=True)
         raise ImportError_("לא הצלחנו לפתוח את קובץ ה-PDF — נסו להוריד מהאתר את הפירוט כקובץ אקסל")
     sheets = sheets_from_pdf_words(pages)
     if not sheets:
@@ -231,7 +235,7 @@ def _read_pdf(data: bytes) -> list:
 
 
 def _visual_order(pages) -> bool:
-    """האם המילים העבריות שמורות הפוך. מכריעים לפי מילות כותרת מוכרות."""
+    """Whether the Hebrew words are stored reversed. Decided by known header words."""
     straight = flipped = 0
     for words in pages:
         for w in words:
@@ -251,7 +255,7 @@ def _fix_word(text: str, visual: bool) -> str:
 
 
 def _lines(words, visual):
-    """מילים → שורות, מלמעלה למטה; בכל שורה המילים מימין לשמאל."""
+    """Words → lines, top to bottom; within each line, words right to left."""
     lines = []
     for w in sorted(words, key=lambda w: w["top"]):
         w = dict(w, text=_fix_word(w["text"], visual))
@@ -274,12 +278,13 @@ def _is_data_line(line) -> bool:
 
 
 def _columns(header_lines):
-    """עמודות מהכותרות: מילים צמודות באותה שורה הן כותרת אחת ("שם בית
-    העסק"), וכותרות בשתי שורות שחופפות אופקית הן אותה עמודה ("סכום / חיוב")."""
+    """Columns from the headers: adjacent words on the same line are one header
+    ("שם בית העסק"), and headers on two lines that overlap horizontally are the
+    same column ("סכום / חיוב")."""
     cols = []
     for line in header_lines:
         clusters = []
-        for w in line["words"]:              # מימין לשמאל
+        for w in line["words"]:              # right to left
             if clusters and clusters[-1]["x0"] - w["x1"] <= _COLUMN_GAP:
                 c = clusters[-1]
                 c["x0"] = min(c["x0"], w["x0"])
@@ -297,7 +302,7 @@ def _columns(header_lines):
 
 
 def _cells(line, cols):
-    """כל מילה לעמודה הקרובה אליה (לפי הגבול שבאמצע הרווח בין עמודות)."""
+    """Each word to its nearest column (by the boundary midway between columns)."""
     cells = [[] for _ in cols]
     for w in line["words"]:
         mid = (w["x0"] + w["x1"]) / 2
@@ -308,8 +313,8 @@ def _cells(line, cols):
 
 
 def sheets_from_pdf_words(pages) -> list:
-    """עמודים של מילים (‎text, x0, x1, top‎) → "גיליונות" לפי טבלאות.
-    נפרד מ-‎pdfplumber‎ כדי שאפשר יהיה לבדוק אותו בלי קובץ."""
+    """Pages of words (`text, x0, x1, top`) → "sheets" by table.
+    Separate from `pdfplumber` so it can be tested without a file."""
     visual = _visual_order(pages)
     sheets = []
     for words in pages:
@@ -319,7 +324,7 @@ def sheets_from_pdf_words(pages) -> list:
             if not _is_data_line(lines[i]):
                 i += 1
                 continue
-            # הכותרות: עד שתי שורות צמודות מעל שורת הנתונים הראשונה
+            # The headers: up to two adjacent lines above the first data line
             header, top = [], lines[i]["top"]
             j = i - 1
             gap = _HEADER_TO_DATA
@@ -341,7 +346,8 @@ def sheets_from_pdf_words(pages) -> list:
     return sheets
 
 
-# סימני כיווניות שאקסל בעברית מפזר בתוך תאים — בלתי נראים, ושוברים השוואות
+# Direction marks that Hebrew Excel scatters inside cells: invisible, and they
+# break comparisons
 _BIDI = dict.fromkeys(map(ord, "‎‏‪‫‬‭‮⁦⁧⁨⁩﻿"), None)
 
 
@@ -354,7 +360,7 @@ def _clean_cell(value):
     return value
 
 
-# ─── זיהוי העמודות ──────────────────────────────────────────────────────────
+# ─── Detecting the columns ──────────────────────────────────────────────────
 
 def _norm_header(value) -> str:
     if not isinstance(value, str):
@@ -366,8 +372,8 @@ def _norm_header(value) -> str:
 
 
 def _first(headers, used, *preds):
-    """העמודה הראשונה שמתאימה לתנאי הראשון שמתאים למשהו — כך ש"תאריך
-    עסקה" מנצח את "תאריך חיוב" גם כשהוא מופיע אחריו."""
+    """The first column matching the first condition that matches anything, so
+    "תאריך עסקה" beats "תאריך חיוב" even when it appears after it."""
     for pred in preds:
         for i, h in enumerate(headers):
             if h and i not in used and pred(h):
@@ -376,10 +382,11 @@ def _first(headers, used, *preds):
 
 
 def detect_mapping(header_row) -> dict | None:
-    """מיפוי שדה → אינדקס עמודה לפי המילים בכותרות. ‎None‎ — לא שורת כותרות.
+    """Field → column index mapping from the header words. `None`: not a header row.
 
-    חייבים תאריך, בית עסק וסכום כלשהו. "סכום חיוב" (בשקלים, מה שבאמת ירד)
-    עדיף על "סכום עסקה" (שבעסקת חו"ל הוא בדולרים)."""
+    A date, a business and some amount are required. "סכום חיוב" (in shekels,
+    what was actually charged) is preferred over "סכום עסקה" (which, for a
+    purchase abroad, is in dollars)."""
     headers = [_norm_header(c) for c in header_row]
     if sum(1 for h in headers if h) < 3:
         return None
@@ -421,7 +428,7 @@ def detect_mapping(header_row) -> dict | None:
                              lambda h: h in ("הערות", "הערה", "פירוט נוסף", "סוג עסקה",
                                              "פרטים נוספים", "notes"),
                              has("הער"), has("סוג עסק"), has("פירוט")))
-    # הקטגוריה של חברת האשראי עצמה ("ענף" בכאל, "קטגוריה" במקס) — רמז
+    # The card company's own category ("ענף" at Cal, "קטגוריה" at Max): a hint
     m["sector"] = take(_first(headers, used,
                               lambda h: h in ("ענף", "קטגוריה", "ענף עסקי", "סוג בית עסק",
                                               "category")))
@@ -435,11 +442,12 @@ def header_signature(row) -> list:
 
 
 def find_header_candidate(sheets):
-    """לקובץ שהמילים לא זיהו: השורה שהכי סביר שהיא הכותרות, ושלוש שורות
-    אחריה — מה שנשלח ל-AI ומה שמוצג למשתמש בבחירה הידנית.
+    """For a file the words didn't recognise: the row most likely to be the headers,
+    and the three rows after it. This is what is sent to the AI and what the user
+    sees when picking manually.
 
-    מוצאים את שורת הנתונים הראשונה (יש בה תאריך וסכום), והכותרת היא השורה
-    הקרובה מעליה שיש בה לפחות שני תאי טקסט."""
+    Finds the first data row (it has a date and an amount); the header is the
+    nearest row above it with at least two text cells."""
     for rows in sheets:
         for d, data_row in enumerate(rows[:80]):
             if not _row_has_date_and_amount(data_row):
@@ -480,8 +488,8 @@ def _cell_text(c) -> str:
 
 
 def valid_mapping(mapping, width: int) -> dict | None:
-    """מיפוי שהגיע מבחוץ (AI או הדפדפן): אינדקסים שלמים בתוך רוחב הטבלה,
-    בלי עמודה כפולה, ועם השדות החובה."""
+    """A mapping that came from outside (AI or browser): integer indexes within
+    the table width, no column used twice, and the required fields present."""
     if not isinstance(mapping, dict):
         return None
     out = {}
@@ -499,7 +507,7 @@ def valid_mapping(mapping, width: int) -> dict | None:
     return out
 
 
-# ─── ערכים ──────────────────────────────────────────────────────────────────
+# ─── Values ─────────────────────────────────────────────────────────────────
 
 _EXCEL_EPOCH = date(1899, 12, 30)
 _DMY = re.compile(r"^(\d{1,2})[./\-](\d{1,2})[./\-](\d{2}|\d{4})(?:\s.*)?$")
@@ -507,8 +515,9 @@ _YMD = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$")
 
 
 def parse_date(value):
-    """תאריך מתא. סדר ישראלי (יום/חודש/שנה) — אף חברה ישראלית לא מוציאה
-    חודש/יום, ונחש לא נכון היה מזיז עסקאות בין חודשים בשקט."""
+    """A date from a cell. Israeli order (day/month/year): no Israeli company
+    exports month/day, and a wrong guess would silently move transactions
+    between months."""
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, datetime):
@@ -516,7 +525,7 @@ def parse_date(value):
     if isinstance(value, date):
         return value
     if isinstance(value, (int, float)):
-        # מספר סידורי של אקסל, רק בטווח הגיוני (1954–2119)
+        # An Excel serial number, only within a sane range (1954–2119)
         if 20000 <= value <= 80000:
             return _EXCEL_EPOCH + timedelta(days=int(value))
         return None
@@ -542,7 +551,7 @@ _NUM = re.compile(r"-?\d+(?:\.\d+)?")
 
 
 def _parse_amount_or_none(value):
-    """סכום מתא, עם סימן. "₪ 1,234.50", "54.90-", "(54.90)" ו-"‎-54.9‎"."""
+    """An amount from a cell, signed. "₪ 1,234.50", "54.90-", "(54.90)" and "`-54.9`"."""
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -552,7 +561,8 @@ def _parse_amount_or_none(value):
     s = value.translate(_BIDI).strip()
     if not s or not re.search(r"\d", s):
         return None
-    # תא עם אותיות שאינן סימון מטבע — טקסט, לא סכום ("תשלום 3 מתוך 12")
+    # A cell with letters that aren't a currency mark: text, not an amount
+    # ("תשלום 3 מתוך 12")
     letters = re.sub(r"(ש\"?ח|ש״ח|nis|ils|usd|eur|₪|\$|€|£)", "", s, flags=re.I)
     if re.search(r"[A-Za-z֐-׿]", letters):
         return None
@@ -576,7 +586,7 @@ _INSTALLMENT = re.compile(r"תשלום\s*(\d{1,2})\s*(?:מתוך|מ-|מ\s|/|מ)\
 
 
 def parse_installment(cells):
-    """"תשלום 3 מתוך 12" באחד התאים — ‎(3, 12)‎, או ‎None‎."""
+    """"תשלום 3 מתוך 12" in one of the cells → `(3, 12)`, or `None`."""
     for c in cells:
         if isinstance(c, str):
             m = _INSTALLMENT.search(c)
@@ -593,20 +603,21 @@ def _add_months(d: date, n: int) -> date:
     return date(y, m, min(d.day, calendar.monthrange(y, m)[1]))
 
 
-# ─── חילוץ העסקאות ──────────────────────────────────────────────────────────
+# ─── Extracting the transactions ────────────────────────────────────────────
 
 _SUMMARY_WORDS = ("סהכ", "סה כ", "סך הכל", "total", "יתרה")
 
 
 def extract(sheets, known_layouts=None):
-    """כל העסקאות בקובץ.
+    """All the transactions in the file.
 
-    ‎known_layouts‎: מיפויים שכבר אושרו (מה-AI או מהמשתמש), כרשימה של
-    ‎{"signature": [...], "mapping": {...}}‎. שורה שהכותרות שלה זהות לחתימה
-    מקבלת את המיפוי הזה.
+    `known_layouts`: mappings already confirmed (by the AI or the user), as a
+    list of `{"signature": [...], "mapping": {...}}`. A row whose headers equal
+    a signature gets that mapping.
 
-    מחזיר ‎(transactions, layouts_used)‎. רשימה ריקה של עסקאות עם
-    ‎layouts_used‎ ריק — לא נמצאה שורת כותרות; ‎app.py‎ עובר לשכבה הבאה."""
+    Returns `(transactions, layouts_used)`. An empty transaction list with an
+    empty `layouts_used` means no header row was found; `app.py` moves to the
+    next layer."""
     known = []
     for layout in known_layouts or []:
         if isinstance(layout, dict) and isinstance(layout.get("signature"), list):
@@ -657,8 +668,9 @@ def _cell(row, i):
     return row[i] if i is not None and i < len(row) else None
 
 
-# הוראת קבע (מתן, 1.11): כאל כותבת "הוראת קבע" בפירוט ו-‎הו"ק‎ בסוף שם בית
-# העסק, מקס — "הוראת קבע" בסוג העסקה. מילה שלמה בלבד — "הוקרה" אינה ‎הו"ק‎.
+# Standing order (Matan, 1.11): Cal writes "הוראת קבע" in the details and
+# `הו"ק` at the end of the business name; Max writes "הוראת קבע" in the
+# transaction type. Whole word only: "הוקרה" is not `הו"ק`.
 _STANDING = re.compile(r"הוראת\s*קבע|(?<![\u0590-\u05FF])הו[\"״']?ק(?![\u0590-\u05FF])")
 _STANDING_SUFFIX = re.compile(r"\s*(?<![\u0590-\u05FF])הו[\"״']?ק\s*$")
 
@@ -682,13 +694,15 @@ def _row_to_tx(row, mapping):
 
     charge = parse_amount(_cell(row, mapping.get("charge")))
     amount = parse_amount(_cell(row, mapping.get("amount")))
-    # עסקה שעוד לא חויבה (או בחו"ל, לפני המרה) — "סכום חיוב" ריק או 0
+    # A transaction not yet charged (or abroad, before conversion): the charge
+    # amount ("סכום חיוב") is empty or 0
     value = charge if charge not in (None, 0) else amount
     if value in (None, 0):
         return None
 
     inst = parse_installment([_cell(row, mapping.get("notes"))] + list(row))
-    # סדרת תשלומים אינה הוראת קבע: היא נגמרת, ויש לה מנגנון משלה
+    # An installment series is not a standing order: it ends, and it has its
+    # own mechanism
     standing = not inst and value > 0 and is_standing_order(row)
     if standing:
         merchant = _STANDING_SUFFIX.sub("", merchant) or merchant
@@ -696,9 +710,10 @@ def _row_to_tx(row, mapping):
     if inst:
         k, n = inst
         description = f"{merchant} (תשלום {k} מתוך {n})"
-        # בתשלומים, "תאריך עסקה" הוא יום הקנייה בכל אחד מהתשלומים. התשלום
-        # ה-k יורד k-1 חודשים אחריו — אחרת כל 12 התשלומים היו נוחתים באותו
-        # חודש, ובייבוא של החודש הבא — כפילות שלא נתפסת.
+        # With installments, the transaction date is the purchase day on every
+        # installment. Installment k is charged k-1 months later; otherwise all
+        # 12 installments would land in the same month, and next month's import
+        # would be an uncaught duplicate.
         when = _add_months(when, k - 1)
 
     return {
@@ -717,11 +732,11 @@ def _sector(value):
     return re.sub(r"\s+", " ", value).strip()[:40] if isinstance(value, str) and value.strip() else None
 
 
-# ─── שמות בתי עסק: התאמה להיסטוריה ──────────────────────────────────────────
+# ─── Business names: matching against history ───────────────────────────────
 
 def merchant_key(text) -> str:
-    """שם בית עסק להשוואה: בלי ספרות (מספר סניף), סימנים ורווחים כפולים.
-    "פז חולון 4531" ו"פז  חולון" — אותו מפתח."""
+    """A business name for comparison: no digits (branch number), symbols or
+    double spaces. "פז חולון 4531" and "פז  חולון" are the same key."""
     if not isinstance(text, str):
         return ""
     t = text.translate(_BIDI).lower()
@@ -733,8 +748,8 @@ def merchant_key(text) -> str:
 
 
 def _related(a: str, b: str) -> bool:
-    """אותו בית עסק: מפתח זהה, או שאחד הוא תחילת השני במילים שלמות
-    ("שופרסל" שהוזן ידנית ו"שופרסל דיל" מהקובץ)."""
+    """The same business: an identical key, or one is the start of the other in
+    whole words ("שופרסל" entered manually and "שופרסל דיל" from the file)."""
     if not a or not b:
         return False
     if a == b:
@@ -744,11 +759,12 @@ def _related(a: str, b: str) -> bool:
 
 
 def learned_categories(history) -> dict:
-    """מפתח בית עסק → הקטגוריה האחרונה שנבחרה לו במשפחה.
+    """Business key → the category last chosen for it in the family.
 
-    ‎history‎: שורות ‎{description, category_id, date}‎, מהחדשה לישנה. זה כל
-    ה"זיכרון": עסקה שמיובאת עם קטגוריה שתוקנה נשמרת עם תיאור = שם בית העסק,
-    ובחודש הבא היא זו שנמצאת כאן. גם עסקאות שהוזנו ידנית מלמדות."""
+    `history`: rows `{description, category_id, date}`, newest first. This is
+    the whole "memory": an imported transaction with a corrected category is
+    saved with description = business name, and next month it is the one found
+    here. Manually entered transactions teach too."""
     out = {}
     for row in history:
         key = merchant_key(row.get("description"))
@@ -767,9 +783,10 @@ def lookup_learned(key: str, learned: dict):
     return best[1] if best else None
 
 
-# כללים לפעם הראשונה, לפני שיש היסטוריה: מילה בשם בית העסק → מילה בשם
-# הקטגוריה. לפי שם ולא לפי מזהה, כי לכל משפחה קטגוריות משלה — וכלל חל רק
-# כשיש למשפחה קטגוריה שהשם שלה מתאים ("סופר ומזון", "מזון").
+# First-time rules, before there is any history: a word in the business name →
+# a word in the category name. By name, not id, because every family has its
+# own categories, and a rule applies only when the family has a category whose
+# name matches ("סופר ומזון", "מזון").
 _RULES = [
     (("שופרסל", "רמי לוי", "ויקטורי", "יוחננוף", "אושר עד", "טיב טעם", "יינות ביתן",
       "חצי חינם", "קרפור", "carrefour", "מגה", "פרש מרקט", "סופר", "מכולת", "מאפי",
@@ -805,14 +822,14 @@ _RULES = [
 
 
 def rule_category(merchant: str, categories: list):
-    """קטגוריה לפי הכללים, מתוך קטגוריות ההוצאה של המשפחה. ‎None‎ — אין.
+    """A category by the rules, from the family's expense categories. `None`: none.
 
-    מילה קצרה (עד 3 תווים: "פז", "בר", "hot") חייבת להופיע כמילה שלמה —
-    אחרת "בר" היה תופס את "עבר" ו"פז" את "חפז"."""
+    A short word (up to 3 characters: "פז", "בר", "hot") must appear as a whole
+    word; otherwise "בר" would match "עבר" and "פז" would match "חפז"."""
     text = (merchant or "").lower().translate(_BIDI)
     text = " " + re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", text)).strip() + " "
-    # המילה הארוכה ביותר מנצחת: "סופר פארם" הוא בריאות ולא "סופר",
-    # ו"מחסני חשמל" הוא קניות ולא "חשמל"
+    # The longest word wins: "סופר פארם" is health, not "סופר",
+    # and "מחסני חשמל" is shopping, not "חשמל"
     best = None
     for merchant_words, category_words in _RULES:
         hits = [w for w in merchant_words if ((f" {w} " in text) if len(w) <= 3 else (w in text))]
@@ -825,8 +842,9 @@ def rule_category(merchant: str, categories: list):
     return best[1] if best else None
 
 
-# הענף שחברת האשראי עצמה נותנת ("פנאי בילוי", "רכב ותחבורה") → מילה בשם
-# הקטגוריה של המשפחה. רק כשאין התאמה לפי בית העסק עצמו — הענף כללי יותר.
+# The sector the card company itself gives ("פנאי בילוי", "רכב ותחבורה") → a
+# word in the family's category name. Only when nothing matched by the business
+# itself; the sector is more general.
 _SECTOR_RULES = [
     (("מזון", "סופר", "מכולת"), ("מזון", "סופר")),
     (("רכב", "תחבור", "דלק", "חניה"), ("רכב", "תחבורה")),
@@ -852,17 +870,19 @@ def sector_category(sector, categories: list):
     return None
 
 
-# ─── כפילויות ───────────────────────────────────────────────────────────────
+# ─── Duplicates ─────────────────────────────────────────────────────────────
 
 def mark_duplicates(items: list, existing: list) -> None:
-    """מסמן כל עסקה מהקובץ שכבר קיימת במסד. משנה את ‎items‎ במקום.
+    """Marks every transaction from the file that already exists in the database.
+    Mutates `items` in place.
 
-    ‎exists‎: אותו סכום, עד ‎DUPLICATE_DAYS‎ ימים הפרש, ואותו בית עסק (או
-    שבעסקה הקיימת אין תיאור). ‎maybe‎: אותו סכום ותאריך קרוב, אבל תיאור
-    אחר — אולי הוזנה ידנית בשם אחר; לא מסומנת לייבוא, והמשתמש מחליט.
+    `exists`: same amount, at most `DUPLICATE_DAYS` days apart, and the same
+    business (or the existing transaction has no description). `maybe`: same
+    amount and a close date, but a different description: perhaps entered
+    manually under another name; not ticked for import, the user decides.
 
-    כל שורה קיימת "נצרכת" פעם אחת: שני קפה זהים באותו יום בקובץ, ואחד
-    מהם הוזן ידנית — השני עדיין חדש."""
+    Each existing row is "consumed" once: two identical coffees on the same day
+    in the file, one of them entered manually, so the other is still new."""
     pool = []
     for row in existing:
         try:
@@ -931,29 +951,29 @@ def _call_tool(client, tool, prompt, max_tokens):
 
 
 def ai_map_columns(headers: list, samples: list):
-    """שכבה 2: איזו עמודה היא מה, לפי הכותרות ושלוש שורות לדוגמה בלבד.
-    לא נשלח שום דבר מעבר לזה. ‎None‎ — לא זמין או לא הצליח."""
+    """Layer 2: which column is what, from the headers and three sample rows only.
+    Nothing beyond that is sent. `None`: unavailable or failed."""
     client = _openai()
     if not client:
         return None
-    col = {"type": "integer", "description": "אינדקס העמודה (מ-0), או ‎-1‎ אם אין כזאת"}
+    col = {"type": "integer", "description": "Column index (0-based), or -1 if there is none"}
     tool = {"type": "function", "function": {
         "name": "map_columns",
-        "description": "ממפה עמודות של קובץ פירוט עסקאות אשראי ישראלי לשדות.",
+        "description": "Maps the columns of an Israeli credit-card transaction statement to fields.",
         "parameters": {"type": "object", "properties": {
-            "date": dict(col, description="תאריך העסקה (לא תאריך החיוב), אינדקס מ-0"),
-            "merchant": dict(col, description="שם בית העסק / תיאור העסקה, אינדקס מ-0"),
-            "charge": dict(col, description="הסכום שחויב בשקלים, אינדקס מ-0, או -1"),
-            "amount": dict(col, description="סכום העסקה המקורי, אינדקס מ-0, או -1"),
-            "notes": dict(col, description="הערות / סוג עסקה (למשל תשלומים), או -1"),
+            "date": dict(col, description="Transaction date (not the charge date), 0-based index"),
+            "merchant": dict(col, description="Business name / transaction description, 0-based index"),
+            "charge": dict(col, description="Amount charged in shekels, 0-based index, or -1"),
+            "amount": dict(col, description="Original transaction amount, 0-based index, or -1"),
+            "notes": dict(col, description="Notes / transaction type (e.g. installments), or -1"),
         }, "required": ["date", "merchant", "charge", "amount"]},
     }}
     table = "\n".join(" | ".join(f"[{i}] {h}" for i, h in enumerate(r))
                       for r in [headers] + samples)
     try:
         data = _call_tool(client, tool,
-                          "אלה הכותרות ושלוש שורות ראשונות מקובץ פירוט עסקאות של כרטיס אשראי. "
-                          "החזר באמצעות הכלי איזו עמודה היא כל שדה.\n\n" + table, 200)
+                          "These are the headers and first three rows of a credit-card transaction statement. "
+                          "Use the tool to return which column each field is.\n\n" + table, 200)
     except Exception:
         logger.exception("ai_map_columns")
         return None
@@ -963,8 +983,8 @@ def ai_map_columns(headers: list, samples: list):
 
 
 def ai_categorize(merchants: list, category_names: list) -> dict:
-    """שמות בתי עסק → שם קטגוריה מתוך הקטגוריות של המשפחה בלבד.
-    רק שמות בתי העסק נשלחים — בלי סכומים, תאריכים או פרטי כרטיס."""
+    """Business names → a category name from the family's own categories only.
+    Only business names are sent: no amounts, dates or card details."""
     if not merchants or not category_names:
         return {}
     client = _openai()
@@ -973,19 +993,19 @@ def ai_categorize(merchants: list, category_names: list) -> dict:
     merchants = merchants[:80]
     tool = {"type": "function", "function": {
         "name": "categorize",
-        "description": "משייך כל בית עסק ישראלי לקטגוריית הוצאה.",
+        "description": "Assigns each Israeli business to an expense category.",
         "parameters": {"type": "object", "properties": {
             "items": {"type": "array", "items": {"type": "object", "properties": {
                 "merchant": {"type": "string"},
                 "category": {"type": "string", "enum": category_names + [""],
-                             "description": "ריק אם אין התאמה ברורה"},
+                             "description": "Empty if there is no clear match"},
             }, "required": ["merchant", "category"]}},
         }, "required": ["items"]},
     }}
     try:
         data = _call_tool(client, tool,
-                          "שייך כל אחד מבתי העסק הבאים (מפירוט כרטיס אשראי בישראל) לאחת "
-                          "הקטגוריות. אם לא ברור — השאר ריק.\n\n" + "\n".join(merchants),
+                          "Assign each of the following businesses (from an Israeli credit-card statement) to one of "
+                          "the categories. If unclear, leave it empty.\n\n" + "\n".join(merchants),
                           60 + 40 * len(merchants))
     except Exception:
         logger.exception("ai_categorize")
