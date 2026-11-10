@@ -1,15 +1,17 @@
-"""בדיקת דפדפן אמיתי: שורת התאריך בחלון ההוספה נכנסת למסך (מתן, 7.10).
+"""A real browser test: the date row in the add window fits the screen (Matan,
+7.10).
 
-במסך ברוחב 320, ובטקסט "גדול מאוד" גם ב-390, "תאריך אחר" יצא מהמסך
-בכ-40px. עכשיו הוא יורד שורה. ובאותה הזדמנות: שדות העסקה הקבועה ב-16px
-(בלי זום באייפון), אחד מתחת לשני, ונכנסים במלואם.
+On a 320-wide screen, and with "very large" text also at 390, "תאריך אחר" went off
+screen by about 40px. Now it wraps to the next line. And while at it: the recurring
+transaction fields at 16px (no zoom on iPhone), one below the other, and fully
+visible.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/date_row_fits.py
 """
 import os, sys, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 env = dict(os.environ); env["PORT"] = "8099"
@@ -27,11 +29,12 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# מה בתוך החלון בולט מעבר לגבולות שלו
+# what inside the window sticks out past its edges
 OUT = """() => { const s = document.querySelector('.modal-sheet'), r = s.getBoundingClientRect();
     return [...s.querySelectorAll('*')].filter(e => { const b = e.getBoundingClientRect();
         return b.width > 0 && (b.left < r.left - 1 || b.right > r.right + 1); }).map(e => e.id || e.className).slice(0, 4); }"""
-# ‎scrollWidth‎ של שדה בוחר הוא כל הטקסט; אם הוא רחב מהשדה — הטקסט נחתך
+# a select field's scrollWidth is all its text; if it is wider than the field, the
+# text is cut
 CLIPPED = """id => { const e = document.getElementById(id); return e.scrollWidth > e.clientWidth + 1; }"""
 
 try:

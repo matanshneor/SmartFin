@@ -1,12 +1,12 @@
-"""בדיקת דפדפן אמיתי: מכרטיס בדף הבית אל המחלקה בעמוד החודש — בלי שהכותרת
-הדביקה שלמעלה תסתיר את ראש הכרטיס (מתן, 2.10).
+"""A real browser test: from a card on the home page to the class on the month page,
+without the sticky header at the top hiding the top of the card (Matan, 2.10).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/home_card_jump.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 env = dict(os.environ)

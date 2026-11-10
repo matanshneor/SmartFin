@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: נגיעה בחודש בגרף ההשוואה פותחת אותו (מתן, 30.9 — רעיון 10).
+"""A real browser test: touching a month on the comparison chart opens it (Matan,
+30.9: idea 10).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/chart_click.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -60,7 +61,8 @@ try:
             });
         }""")
         print("columns:", [p_["label"] for p_ in pts])
-        # נגיעה בתחתית העמודה של החודש הקודם — גם איפה שאין עמודה גבוהה
+        # touching the bottom of the previous month's column, even where there is no
+        # tall column
         target = pts[-2]
         page.mouse.click(target["x"], target["y"]); page.wait_for_timeout(1500)
         print("clicked", target["label"], "->", page.url.replace(BASE, ""))

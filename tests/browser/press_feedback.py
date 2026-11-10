@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: כפתורי הסרגל, החלונות והבחירה הוצאה/הכנסה מתכווצים ברגע הלחיצה (מתן, 7.10 — סבב תנועה, סעיף 6).
+"""A real browser test: the bar buttons, windows and the expense/income choice shrink
+at the moment of pressing (Matan, 7.10: motion round, item 6).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/press_feedback.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -38,7 +39,7 @@ def press(page, target, measure, want):
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.down(); page.wait_for_timeout(250)
     held = scale(page, measure)
-    # עוזבים מחוץ לכפתור — בלי ללחוץ באמת (לא לנווט, לא לסגור)
+    # release outside the button: without really clicking (no navigating, no closing)
     page.mouse.move(5, 5); page.mouse.up(); page.wait_for_timeout(250)
     after = scale(page, measure)
     check(f"{target}: shrinks while pressed (scale {held:.2f}, want {want})", abs(held - want) < 0.005)
@@ -66,17 +67,20 @@ try:
         page.evaluate("document.activeElement.blur()")
         page.evaluate("document.querySelectorAll('#modalOverlay .toggle-btn')[1].id = 'pressToggle'")
         press(page, "#pressToggle", "#pressToggle", 0.97)
-        # עזיבה מחוץ לחלון נחשבת לחיצה על הרקע וסוגרת אותו — ואם לא, ‎Escape‎
+        # releasing outside the window counts as a click on the backdrop and closes it,
+        # and if not, Escape
         if page.locator("#modalOverlay.open").count(): page.keyboard.press("Escape")
         page.wait_for_timeout(500)
 
-        # חלון אישור — דרך ‎appConfirm‎ עצמו, בלי למחוק כלום
-        # בלי ‎return‎: ‎appConfirm‎ מחזיר הבטחה שמחכה לתשובה, ו-‎evaluate‎ היה מחכה איתה לנצח
+        # a confirmation window: through appConfirm itself, without deleting anything
+        # without return: appConfirm returns a promise awaiting an answer, and evaluate
+        # would wait with it forever
         page.evaluate("() => { window.appConfirm({ title: 'בדיקה', message: 'בדיקה', confirmText: 'כן' }); }")
         page.wait_for_timeout(400)
         press(page, "#confirmNo", "#confirmNo", 0.97)
-        # כפתור מושבת — לא נבדק כאן: הדפדפן עצמו לא מסמן אותו ‎:active‎, אז בדיקה
-        # כזו עוברת גם בלי ‎:not(:disabled)‎ ולא שומרת על כלום
+        # A disabled button: not tested here: the browser itself doesn't mark it
+        # :active, so such a test passes even without :not(:disabled) and guards
+        # nothing
         b.close()
 finally:
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)

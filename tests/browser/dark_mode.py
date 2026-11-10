@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: צילומי כל העמודים במצב כהה (מתן, 30.9 — סבב 6, פריט 4).
+"""A real browser test: screenshots of every page in dark mode (Matan, 30.9: round
+6, item 4).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/dark_mode.py
-הצילומים ב-/tmp/dark.
+The screenshots are in /tmp/dark.
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
 from _month_fill import fill_month
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -21,7 +22,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -73,7 +74,7 @@ try:
             if url: page.goto(BASE + url); page.wait_for_timeout(1600)
             page.screenshot(path=f"{SHOTS}/{name}.png", full_page=full)
 
-        fill_month(page, BASE)               # "לכל עסקאות החודש" — רק מעל 5 עסקאות
+        fill_month(page, BASE)               # "לכל עסקאות החודש": only above 5 transactions
         shot("home", "/")
         shot("month", "/month")
         page.click("#txScreenOpen"); page.wait_for_timeout(300)
@@ -91,12 +92,13 @@ try:
         page.goto(BASE + "/"); page.wait_for_timeout(1000)
         page.click("#fabBtn"); page.wait_for_timeout(1000)
         shot("add_form", full=False)
-        # ✕ ולא Escape: אחרי + המיקוד נשאר על הכפתור, ו-Escape נקלט רק בתוך החלון
+        # ✕ and not Escape: after + the focus stays on the button, and Escape is
+        # caught only inside the window
         page.click(".modal-close"); page.wait_for_timeout(400)
         page.click("#searchOpen"); page.fill("#searchInput", "DK-TEST"); page.wait_for_timeout(1500)
         shot("search", full=False)
         page.keyboard.press("Escape")
-        # מחיקה — לראות את חלון האישור
+        # delete: to see the confirmation window
         page.goto(BASE + "/month"); page.wait_for_timeout(1200)
         page.click("#txScreenOpen"); page.wait_for_timeout(300)
         print("done")

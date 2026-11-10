@@ -1,15 +1,16 @@
-"""בדיקת דפדפן אמיתי: שתי עריכות ברצף באותו עמוד — שתיהן נשמרות.
+"""A real browser test: two edits in a row on the same page: both are saved.
 
-מתן (30.9): "כשאני מנסה לערוך עסקה, לפעמים זה לא נותן לי ללחוץ על שמירת
-שינויים". אחרי שמירה מוצלחת הכפתור נשאר "שומר…" (‎isSubmitting‎), ובעמוד
-שמתרענן ברענון רך (הבית) ה-JS לא נטען מחדש — העריכה הבאה לא נשלחה.
+Matan (30.9): "when I try to edit a transaction, sometimes it doesn't let me tap
+save changes". After a successful save the button stayed "שומר…" (isSubmitting),
+and on a page that refreshes with a soft refresh (home) the JS isn't reloaded: the
+next edit wasn't sent.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/edit_twice.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -23,7 +24,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -70,7 +71,7 @@ try:
             page.wait_for_timeout(600)
             page.fill("#txAmount", str(new_amount))
             before = len(puts)
-            page.locator("#submitBtn").click(force=True)   # כמו אצבע: לוחצת גם על כפתור "תקוע"
+            page.locator("#submitBtn").click(force=True)   # like a finger: also taps a "stuck" button
             page.wait_for_timeout(2500)
             busy = page.evaluate("document.getElementById('submitBtn').classList.contains('is-busy')")
             still_open = page.evaluate("document.getElementById('modalOverlay').classList.contains('open')")

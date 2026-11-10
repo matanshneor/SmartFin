@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: החלקה על שורת עסקה לפי מהירות האצבע (מתן, 7.10 — עיצוב בנוסח אפל, סעיף 2).
+"""A real browser test: swiping a transaction row by finger speed (Matan, 7.10:
+Apple-style design, item 2).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/row_swipe.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -29,9 +30,10 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# מחווה שלמה מתוך הדף: תנועה כל ‎gap‎ ms (8 — מסך אמיתי; דרך CDP כל תנועה
-# מתעכבת ~40ms). ‎xs‎ — היסטים אופקיים מנקודת ההתחלה; ‎ys‎ — אנכיים, אם יש.
-# מחזיר את מיקום השורה רגע לפני העזיבה, כפי שהוא באמת מצויר.
+# A whole gesture from inside the page: a move every gap ms (8: a real screen;
+# through CDP every move is delayed ~40ms). xs: horizontal offsets from the start
+# point; ys: vertical ones, if any. Returns the row's position just before release,
+# as it is really painted.
 GESTURE = """([sel, xs, ys, gap, hold]) => new Promise(done => {
     const row = document.querySelector(sel);
     const r = row.getBoundingClientRect();
@@ -94,14 +96,15 @@ try:
                 if (c) { c.style.transition = 'none'; c.style.transform = ''; void c.offsetWidth; c.style.transition = ''; } }""", SEL)
             page.wait_for_timeout(100)
 
-        # 1. הנפה קצרה ומהירה שמאלה (36px) — נפתחת, ונעצרת ברוחב הכפתור
+        # 1. A short, fast flick left (36px): opens, and stops at the button's width
         gesture([-12, -24, -36])
         page.wait_for_timeout(900)
         s = state()
         check("short fast flick opens the row (open=%s, x=%.0f)" % (s["open"], s["x"]), s["open"] and abs(s["x"] + 76) < 2)
         reset()
 
-        # 2. אותו מרחק, לאט ועם עצירה — נשאר סגור (ההחלטה לפי מהירות, לא רק מרחק)
+        # 2. The same distance, slowly and with a stop: stays closed (the decision is
+        # by speed, not only distance)
         gesture([-6, -12, -18, -24, -30, -36], gap=60, hold=200)
         page.wait_for_timeout(900)
         s = state()
@@ -109,34 +112,36 @@ try:
               not s["open"] and abs(s["x"]) < 1)
         reset()
 
-        # 3. גרירה ארוכה ואיטית ימינה עם עצירה — נפתחת (מרחק לבדו עדיין עובד)
+        # 3. A long, slow drag right with a stop: opens (distance alone still works)
         gesture([10, 20, 30, 40, 50, 60, 70], gap=40, hold=200)
         page.wait_for_timeout(900)
         s = state()
         check("long slow drag right opens (open=%s, x=%.0f)" % (s["open"], s["x"]), s["open"] and abs(s["x"] - 76) < 2)
         reset()
 
-        # 4. השורה זזה עם האצבע אחד לאחד, בלי השהיה (50px → 42, אחרי 8 של ההחלטה)
+        # 4. The row moves with the finger one to one, with no delay (50px → 42,
+        # after 8 for the decision)
         mid = gesture([-10, -20, -30, -40, -50], gap=16, hold=0)
         check("row follows the finger with no lag (got %.0f, want -42)" % mid, abs(mid + 42) < 2)
         page.wait_for_timeout(900)
         reset()
 
-        # 5. מעבר לרוחב הכפתור — התנגדות הדרגתית, לא קיר
+        # 5. Past the button's width: gradual resistance, not a wall
         mid = gesture([-40, -80, -120, -160, -200], gap=16, hold=0)
-        # בלי התנגדות: ‎-192‎; הקיר הישן: ‎-100‎
+        # without resistance: -192; the old wall: -100
         check("past the button it resists, no hard stop (got %.0f)" % mid, -160 < mid < -110)
         page.wait_for_timeout(900)
         reset()
 
-        # 6. הנפה חזרה אחרי גרירה ארוכה — נסגרת (הכיוון של לאן היא הולכת)
+        # 6. A flick back after a long drag: closes (the direction it is heading)
         gesture([-15, -30, -45, -60, -70, -70, -70, -60, -45, -30], gap=12)
         page.wait_for_timeout(900)
         s = state()
         check("flick back after a long drag closes (open=%s, x=%.0f)" % (s["open"], s["x"]), not s["open"] and abs(s["x"]) < 1)
         reset()
 
-        # 6ב. התחרטות חזקה: שמאלה, ואז הנפה מהירה ימינה — נסגרת, לא נפתחת "עריכה" מהצד השני
+        # 6b. A strong change of mind: left, then a fast flick right: closes, "עריכה"
+        # doesn't open from the other side
         gesture([-15, -30, -45, -60, -70, -70, -50, -30, -15], gap=8)
         page.wait_for_timeout(900)
         s = state()
@@ -144,13 +149,13 @@ try:
               not s["open"] and abs(s["x"]) < 1)
         reset()
 
-        # 7. גלילה אנכית — השורה לא זזה
+        # 7. Vertical scrolling: the row doesn't move
         gesture([2, 4, 6, 8], ys=[-20, -40, -60, -80])
         page.wait_for_timeout(600)
         s = state()
         check("vertical scroll doesn't swipe (x=%.0f)" % s["x"], not s["open"] and abs(s["x"]) < 1)
 
-        # 8. נגיעה בשורה פתוחה סוגרת אותה (כמו קודם)
+        # 8. Touching an open row closes it (as before)
         gesture([-12, -24, -36])
         page.wait_for_timeout(900)
         gesture([], hold=30)

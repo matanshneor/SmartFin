@@ -1,14 +1,17 @@
-"""בדיקת דפדפן אמיתי: באנר ההתקנה נשאר אחרי הוספת עסקה בדף הבית (ב12-6).
+"""A real browser test: the install banner stays after adding a transaction on the
+home page (B12-6).
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-מתחברת כמשתמש הבדיקה א'; בזהות של אייפון, כדי שהבאנר יציג את הנחיית ההתקנה של iOS. תשובות השרת לבקשות האיטיות מדומות ב-Playwright.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, signs in as test user A; with an iPhone identity, so the banner shows the
+iOS install instruction. Server responses to the slow requests are mocked in
+Playwright.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/install_banner.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -22,7 +25,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 JPEG = "/tmp/tiny.jpg"
 open(JPEG, "wb").write(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
@@ -48,7 +51,7 @@ try:
             {"amount": "10", "type": "expense", "date": datetime.date.today().isoformat(), "description": "BANNER-SEED"}),
             headers={"Content-Type": "application/json"})
         page.goto(BASE + "/")
-        # מאז 13.10 — פס קבוע מעל התפריט (‎#installBar‎), מחוץ ל-‎main‎
+        # since 13.10: a fixed bar above the menu (#installBar), outside main
         shown = lambda: page.evaluate("""() => { const b = document.getElementById('installBar');
             return b && !b.hidden ? document.getElementById('installBarTitle').textContent : null; }""")
         before = shown()
@@ -69,4 +72,4 @@ finally:
         "db.get_client().table('categories').delete().eq('family_id', fid).eq('name', 'SCANTEST-CAT').execute()",
         "db.get_client().table('transactions').delete().eq('family_id', fid).in_('description', ['BANNER-SEED', 'BANNER-ADD']).execute()"])], cwd=ROOT)
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later

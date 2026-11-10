@@ -1,13 +1,13 @@
-"""בדיקת דפדפן אמיתי: רצועת החודשים ממורכזת על החודש הנוכחי — גם אחרי
-רענון רך (חזרה לאפליקציה, הוספת עסקה). מתן (1.10) ראה יולי-אוגוסט כשהחודש
-היה אוקטובר.
+"""A real browser test: the month strip is centred on the current month, also after
+a soft refresh (returning to the app, adding a transaction). Matan (1.10) saw
+July-August when the month was October.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/month_strip_center.py
 """
 import os, json, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):

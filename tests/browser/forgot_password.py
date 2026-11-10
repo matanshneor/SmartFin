@@ -1,9 +1,10 @@
-"""בדיקת דפדפן אמיתי: "שכחתי סיסמה" מציג את מה שהשרת באמת אמר (ב4).
+"""A real browser test: "שכחתי סיסמה" shows what the server really said (B4).
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-ולא נוגעת במסד: כל תשובת שרת מדומה ב-Playwright. תשובות השרת לבקשות האיטיות מדומות ב-Playwright.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, and doesn't touch the database: every server response is mocked in
+Playwright. Server responses to the slow requests are mocked in Playwright.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/forgot_password.py
 """
 import os, json, time, subprocess, signal
@@ -21,7 +22,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 JPEG = "/tmp/tiny.jpg"
 open(JPEG, "wb").write(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
@@ -55,4 +56,4 @@ try:
         b.close()
 finally:
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later

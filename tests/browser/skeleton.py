@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: שלד טעינה — רק ברשת איטית (מתן, 30.9 — סבב 6, פריט 14).
+"""A real browser test: a loading skeleton, only on a slow network (Matan, 30.9:
+round 6, item 14).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/skeleton.py
 """
 import os, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -31,8 +32,9 @@ try:
         except Exception: time.sleep(0.5)
     with sync_playwright() as p:
         b = p.chromium.launch()
-        # ‎service_workers="block"‎: עיכוב הרשת של הדפדפן לא חל על בקשות שה-SW עושה,
-        # אז בלי זה הניווט "מהיר" והבדיקה לא בודקת כלום
+        # service_workers="block": the browser's network throttling doesn't apply to
+        # requests the SW makes, so without this navigation is "fast" and the test
+        # tests nothing
         page = b.new_context(viewport={"width": 390, "height": 844}, service_workers="block").new_page()
         page.goto(BASE + "/login")
         page.fill("#identifier", env.get("RLS_TEST_EMAIL_A", "rls-test-family-a@smartfin.test"))
@@ -41,7 +43,7 @@ try:
         page.wait_for_url(lambda u: "/login" not in u, timeout=15000)
         page.wait_for_timeout(800)
 
-        # רשת מהירה: השלד לא מופיע בכלל
+        # fast network: the skeleton doesn't appear at all
         page.evaluate("""() => { window.__sk = 0; new MutationObserver(m => m.forEach(r => r.addedNodes.forEach(n => {
             if (n.classList && n.classList.contains('skeleton-screen')) window.__sk++; }))).observe(document.body, {childList: true}); }""")
         seen = []
@@ -50,10 +52,11 @@ try:
         page.wait_for_load_state("load"); page.wait_for_timeout(300)
         print("fast network — landed:", page.url.replace(BASE, ""), "| skeleton on new page:", page.locator(".skeleton-screen").count())
 
-        # רשת איטית: עיכוב של 1.5 שניות על כל טעינת עמוד
-        # "רשת איטית": השלד כבר קיבל את הלחיצה, ואז הניווט נעצר — כלומר העמוד
-        # הבא "לא מגיע". (עיכוב הרשת של הדפדפן לא חל על שרת מקומי, והחזקת
-        # הבקשה ב-Playwright תוקעת את הבדיקה עצמה.)
+        # slow network: a 1.5-second delay on every page load
+        # "slow network": the skeleton already got the tap, and then navigation is
+        # stopped: that is, the next page "doesn't arrive". (The browser's network
+        # throttling doesn't apply to a local server, and holding the request in
+        # Playwright stalls the test itself.)
         page.evaluate("""() => document.addEventListener('click', e => {
             if (e.target.closest('.bottom-nav a')) e.preventDefault(); }, { once: true })""")
         page.locator(".bottom-nav a").nth(2).click()

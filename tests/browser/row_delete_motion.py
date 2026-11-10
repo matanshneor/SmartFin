@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: שורה שנמחקת יוצאת בעדינות, והשורות שמתחת עולות ברצף (מתן, 7.10 — סבב תנועה, סעיף 1).
+"""A real browser test: a deleted row leaves gently, and the rows below rise
+smoothly (Matan, 7.10: motion round, item 1).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/row_delete_motion.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -29,7 +30,8 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# לוחץ "מחיקה" באישור, ומאותו רגע מודד בכל פריים איפה השורה שמתחת לנמחקת
+# taps "מחיקה" in the confirmation, and from that moment measures every frame where
+# the row below the deleted one is
 WATCH = """([gone, below]) => new Promise(done => {
     const row = document.querySelector('.transaction-item[data-id="' + gone + '"]');
     const next = document.querySelector('.transaction-item[data-id="' + below + '"]');
@@ -76,13 +78,13 @@ try:
             cats = page.request.get(BASE + "/api/categories").json()
             cat = next(c["id"] for c in cats if c["type"] == "expense")
             ids = []
-            for i in range(3):          # היום, אתמול, שלשום — הסדר בדף הבית ידוע
+            for i in range(3):          # today, yesterday, the day before: the order on the home page is known
                 r = page.request.fetch(BASE + "/api/transactions", method="POST", headers={"Content-Type": "application/json"},
                     data=json.dumps({"amount": 10 + i, "type": "expense", "category_id": cat, "description": f"{tag}-{i}",
                                      "date": (datetime.date.today() - datetime.timedelta(days=i)).isoformat()}))
                 body = r.json(); ids.append((body.get("transaction") or body)["id"])
             page.goto(BASE + "/"); page.wait_for_timeout(1500)
-            # לפי הסדר שעל המסך — מוחקים את האמצעית ומודדים את זו שמתחתיה
+            # by the order on screen: delete the middle one and measure the one below it
             order = page.evaluate("[...document.querySelectorAll('.transaction-item[data-id]')].map(e => e.dataset.id)")
             return [i for i in order if i in ids] if all(i in order for i in ids) else ids
 
@@ -95,7 +97,7 @@ try:
             page.click("#deleteTxBtn")
             page.wait_for_selector("#confirmOverlay.open", timeout=5000)
             page.wait_for_timeout(300)
-            # התשובה מהשרת לוקחת זמן — מחכים שהשורה תתחיל לצאת, לא לפני
+            # the server's response takes time: wait for the row to start leaving, not before
             page.route("**/api/transactions/*", lambda route: route.continue_())
             return page.evaluate(WATCH, [ids[1], ids[2]])
 

@@ -1,16 +1,18 @@
-"""בדיקת דפדפן אמיתי: קבלה מצורפת לא מגביהה את שורת העסקה (בבית ובעמוד החודש).
+"""A real browser test: an attached receipt doesn't make the transaction row taller
+(on the home page and the month page).
 
-מתן (30.9): "השורה של העסקה מתרחבת ואני לא אוהב את זה". בבית הסיכה ישבה
-בשורה משלה מתחת לסכום (+9px). מדפיסה את גובה שתי השורות — אמור להיות זהה.
-הפרש של פיקסל אחד בעמוד החודש הוא קו ההפרדה (לשורה האחרונה אין).
+Matan (30.9): "the transaction row expands and I don't like it". On the home page
+the pin sat on its own line below the amount (+9px). Prints the height of both
+rows: they should be identical. A one-pixel difference on the month page is the
+divider (the last row has none).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/receipt_row_height.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
 from _month_fill import fill_month
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -24,7 +26,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -69,7 +71,7 @@ try:
         print("created:", st)
         H = """desc => [...document.querySelectorAll('.transaction-item, .cat-tx-row')].filter(r => r.textContent.includes(desc) && r.offsetParent !== null)
                  .map(r => ((r.querySelector(".tx-head") || r).getBoundingClientRect().height).toFixed(2))"""
-        fill_month(page, BASE)               # "לכל עסקאות החודש" — רק מעל 5 עסקאות
+        fill_month(page, BASE)               # "לכל עסקאות החודש": only above 5 transactions
         for path in ("/", "/month"):
             page.goto(BASE + path); page.wait_for_timeout(900)
             if path == "/month":

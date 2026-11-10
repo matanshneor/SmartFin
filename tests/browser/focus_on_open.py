@@ -1,15 +1,16 @@
-"""בדיקת דפדפן אמיתי: חלון שנפתח מקבל את המיקוד (מתן, 7.10).
+"""A real browser test: an opened window gets the focus (Matan, 7.10).
 
-‎visibility‎ של הרקע עבר ב-0.25s, ובפריים הראשון הוא עוד היה ‎hidden‎ —
-בדיוק כשהקוד מיקד את שדה הסכום. המיקוד נשאר על +, ו-Escape (שנקלט רק
-בתוך החלון) לא סגר אותו. גם חלון האישור: "ביטול" לא קיבל את המיקוד.
+The backdrop's visibility transitioned over 0.25s, and in the first frame it was
+still hidden, exactly when the code focused the amount field. The focus stayed on
++, and Escape (caught only inside the window) didn't close it. The confirmation
+window too: "ביטול" didn't get the focus.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/focus_on_open.py
 """
 import os, sys, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 env = dict(os.environ); env["PORT"] = "8099"

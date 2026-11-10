@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: מסך החיפוש ומסך "כל עסקאות החודש" עולים מלמטה ויורדים באותו מסלול (מתן, 7.10 — סבב תנועה, סעיף 3).
+"""A real browser test: the search screen and the "כל עסקאות החודש" screen rise from
+the bottom and go down the same path (Matan, 7.10: motion round, item 3).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/full_screens_motion.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -29,7 +30,7 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# לוחץ על ‎trigger‎ (או מקש), ומאותו רגע מודד בכל פריים את המסך עצמו
+# taps trigger (or a key), and from that moment measures the screen itself every frame
 TRACK = """([trigger, key, screen, ms]) => new Promise(done => {
     const out = [];
     if (trigger) document.querySelector(trigger).click();
@@ -55,7 +56,7 @@ def closing(name, frames):
     ys = [f["y"] for f in frames if f["y"] is not None]
     check(f"{name}: slides back down on close ({len([y for y in ys if y > 1])} frames)", len([y for y in ys if y > 1]) >= 3)
     check(f"{name}: …doesn't block taps on the way out",
-          # מהרגע שהסגירה התחילה — ב"כל העסקאות" Escape עובר דרך ‎history.back()‎
+          # from the moment closing started: in "כל העסקאות" Escape goes through history.back()
           all(f["pe"] == "none" for f in frames if f["shown"] and f["hidden"]))
     check(f"{name}: …and is really gone in the end", not frames[-1]["shown"])
 
@@ -73,7 +74,7 @@ try:
         page.fill("#password", env["RLS_TEST_PASSWORD_A"])
         page.click("button.submit-btn")
         page.wait_for_url(lambda u: "/login" not in u, timeout=15000)
-        # "לכל עסקאות החודש" מופיע רק כשיש בחודש יותר מ-5 עסקאות
+        # "לכל עסקאות החודש" appears only when the month has more than 5 transactions
         cat = next(c["id"] for c in page.request.get(BASE + "/api/categories").json() if c["type"] == "expense")
         for i in range(7):
             page.request.fetch(BASE + "/api/transactions", method="POST", headers={"Content-Type": "application/json"},

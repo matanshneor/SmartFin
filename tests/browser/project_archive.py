@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: "הפרויקט הסתיים" ופתיחה מחדש (מתן, 30.9 — סבב 6, פריט 3).
+"""A real browser test: "הפרויקט הסתיים" and reopening (Matan, 30.9: round 6, item
+3).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/project_archive.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -49,7 +50,7 @@ try:
         api("POST", "/api/transactions", {"amount": 4000, "type": "expense", "project_id": pid,
                                           "project_category_id": pcat, "date": datetime.date.today().isoformat(),
                                           "description": "PA-TEST קבלן"})
-        # מאז 9.10 הסיום בתחתית עמוד הפרויקט, לא בעמוד העריכה
+        # since 9.10 finishing is at the bottom of the project page, not on the edit page
         page.goto(BASE + f"/projects/{pid}/edit"); page.wait_for_timeout(1000)
         print("edit page finish buttons (expect 0):", page.locator("[data-archive-project]").count())
         page.goto(BASE + f"/projects/{pid}"); page.wait_for_timeout(1000)
@@ -63,7 +64,8 @@ try:
 
         page.goto(BASE + "/projects"); page.wait_for_timeout(1000)
         print("in main list:", page.locator("#projectsList .project-tile-name", has_text="PA-שיפוץ").count())
-        # מאז העיצוב החדש של העמוד: הפעילים בגלריה בלי כותרת, והסתיימו כ"שבבים"
+        # since the page's new design: the active ones in a gallery with no heading,
+        # and finished ones as "chips"
         print("sections:", page.get_attribute("#activeProjects", "aria-label"), "|",
               page.locator("#finishedProjects .projects-section-title").inner_text(),
               "| finished list:", [t.strip() for t in page.locator("#finishedProjects .finished-chip").all_inner_texts()])
@@ -72,12 +74,12 @@ try:
         print("banner:", page.locator(".project-archived-banner").inner_text().replace("\n", " | "))
         page.screenshot(path="/tmp/archived.png")
 
-        # עסקה ישנה בפרויקט שהסתיים נפתחת לעריכה ונשארת בו
+        # an old transaction in a finished project opens for editing and stays in it
         page.locator(".cat-tx-row:visible, .transaction-item:visible", has_text="PA-TEST").first.click(); page.wait_for_timeout(1200)
         print("editing old tx — project kept:", page.locator("#txProject option:checked").inner_text())
         page.keyboard.press("Escape"); page.wait_for_timeout(400)
 
-        # עסקה חדשה — הפרויקט לא מוצע
+        # a new transaction: the project isn't offered
         page.goto(BASE + "/"); page.wait_for_timeout(800)
         page.click("#fabBtn"); page.wait_for_timeout(900)
         opts = page.locator("#txProject option").all_inner_texts() if page.locator("#txProject").is_visible() else []

@@ -1,15 +1,16 @@
-"""בדיקת דפדפן אמיתי: מי שהמשפחה שלו השתנתה מאחורי הגב לא נתקע על דף תקלה.
+"""A real browser test: whoever's family changed behind their back doesn't get stuck
+on a fault page.
 
-מתחברת כמשתמש הבדיקה ב', מעבירה אותו (SQL בהרשאות בעלים) למשפחה של א' —
-מה שהסרה או יציאה במכשיר אחר עושות — ופותחת את עמוד החודש. מחזירה אותו
-בסוף.
+Signs in as test user B, moves them (SQL with owner privileges) to A's family (what
+removal or leaving on another device does) and opens the month page. Moves them
+back at the end.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/family_changed_session.py
 """
 import os, json, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -59,7 +60,8 @@ try:
         page.goto(BASE + "/month")
         print("before the move, month page:", "לא הצלחנו לטעון" not in page.content())
 
-        # מאחורי הגב: ב' עובר למשפחה של א' — מה שהסרה או יציאה במכשיר אחר עושות
+        # behind their back: B moves to A's family (what removal or leaving on another
+        # device does)
         sql(f"update profiles set family_id = '{a['family_id']}' where id = '{b['id']}'")
 
         page.goto(BASE + "/month")

@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: בחירת אייקון מרשת והצעה לפי השם (מתן, 30.9 — סבב 6, פריט 8).
+"""A real browser test: choosing an icon from a grid and a suggestion by name (Matan,
+30.9: round 6, item 8).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/icon_picker.py
 """
 import os, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -44,7 +45,7 @@ try:
         page.click("#projectIcon"); page.wait_for_timeout(300)
         print("picker open:", page.is_visible(".icon-picker"), "| keyboard focus on field:", page.evaluate("document.activeElement.id") == "projectIcon")
         page.screenshot(path="/tmp/icon_picker.png")
-        page.locator(".icon-picker-btn", has_text="🏖").click(); page.wait_for_timeout(450)   # הבורר יורד ב-250ms
+        page.locator(".icon-picker-btn", has_text="🏖").click(); page.wait_for_timeout(450)   # the picker goes down in 250ms
         print("picked:", page.input_value("#projectIcon"), "| picker closed:", not page.is_visible(".icon-picker"))
         page.fill("#projectName", "דלק"); page.wait_for_timeout(100)
         print("hand pick not overwritten by suggestion:", page.input_value("#projectIcon"))

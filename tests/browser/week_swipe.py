@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: החלקה בכרטיס "השבוע" לפי מהירות האצבע (מתן, 7.10 — עיצוב בנוסח אפל, סעיף 3).
+"""A real browser test: swiping the "השבוע" card by finger speed (Matan, 7.10:
+Apple-style design, item 3).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/week_swipe.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -29,7 +30,8 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# מחווה מתוך הדף, תנועה כל ‎gap‎ ms (8 — מסך אמיתי; דרך CDP כל תנועה מתעכבת ~40ms)
+# a gesture from inside the page, a move every gap ms (8: a real screen; through CDP
+# every move is delayed ~40ms)
 GESTURE = """([xs, gap, hold]) => new Promise(done => {
     const card = document.querySelector('.week-card');
     const r = card.getBoundingClientRect();
@@ -62,7 +64,8 @@ try:
         page.fill("#password", env["RLS_TEST_PASSWORD_A"])
         page.click("button.submit-btn")
         page.wait_for_url(lambda u: "/login" not in u, timeout=15000)
-        # הכרטיס מופיע רק כשיש עסקאות — אחת היום ואחת בשבוע שעבר (החשבון זמני ונמחק בסוף)
+        # the card appears only when there are transactions: one today and one last
+        # week (the account is temporary and deleted at the end)
         cats = page.request.get(BASE + "/api/categories").json()
         cat = next(c["id"] for c in cats if c["type"] == "expense")
         for days in (0, 8):
@@ -75,20 +78,20 @@ try:
 
         def gesture(xs, gap=8, hold=0):
             page.evaluate(GESTURE, [xs, gap, hold])
-            page.wait_for_timeout(1500)                 # הבקשה לשבוע אחר והחלפת הכרטיס
+            page.wait_for_timeout(1500)                 # the request for another week and replacing the card
             return int(page.evaluate("document.querySelector('.week-card').dataset.offset"))
 
-        # 1. אותו מרחק קצר, לאט ועם עצירה — נשאר בשבוע הזה
+        # 1. The same short distance, slowly and with a stop: stays on this week
         check("short slow drag stays on this week", gesture([-6, -12, -18, -24, -30], gap=60, hold=200) == 0)
-        # 2. הנפה קצרה ומהירה שמאלה — לשבוע הקודם
+        # 2. A short, fast flick left: to the previous week
         check("short fast flick goes to last week", gesture([-10, -20, -30]) == 1)
-        # 3. הנפה קצרה ומהירה ימינה — חזרה לשבוע הזה
+        # 3. A short, fast flick right: back to this week
         check("short fast flick back returns to this week", gesture([10, 20, 30]) == 0)
-        # 4. גרירה ארוכה ואיטית עם עצירה — מרחק לבדו עדיין עובד
+        # 4. A long, slow drag with a stop: distance alone still works
         check("long slow drag still works", gesture([-15, -30, -45, -60, -75, -90], gap=40, hold=200) == 1)
-        # 5. גרירה ארוכה שמאלה והנפה חזרה — לא עובר (הכיוון של לאן היא הולכת)
+        # 5. A long drag left and a flick back: doesn't switch (the direction it is heading)
         check("long drag then flick back stays", gesture([-20, -40, -60, -80, -80, -80, -60, -40, -20], gap=12) == 1)
-        # 6. אין שבוע הבא — הנפה ימינה מהשבוע הזה לא עושה כלום
+        # 6. There is no next week: a flick right from this week does nothing
         gesture([10, 20, 30])
         check("no next week from this week", gesture([10, 20, 30, 40]) == 0)
         b.close()

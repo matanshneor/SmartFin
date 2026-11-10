@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: החלונות הקטנים עולים מלמטה ויורדים באותו מסלול (מתן, 7.10 — סבב תנועה, סעיף 2).
+"""A real browser test: the small windows rise from the bottom and go down the same
+path (Matan, 7.10: motion round, item 2).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/small_sheets_motion.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -29,8 +30,8 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# לוחץ על ‎trigger‎, ומאותו רגע מודד בכל פריים את הכרטיס: כמה הוא מתחת למקומו
-# ‎(translateY)‎ ומה השקיפות של הרקע. ‎sheet‎ — סלקטור של החלון.
+# taps trigger, and from that moment measures the card every frame: how far below its
+# place it is (translateY) and the backdrop's opacity. sheet: the window's selector.
 TRACK = """([trigger, sheet, card, ms]) => new Promise(done => {
     const out = [];
     const t = document.querySelector(trigger);
@@ -77,7 +78,7 @@ try:
         page.click("button.submit-btn")
         page.wait_for_url(lambda u: "/login" not in u, timeout=15000)
 
-        # תקציבים — עמוד החודש. הכפתור מופיע רק כשיש הוצאות בחודש
+        # budgets: the month page. The button appears only when the month has expenses
         cats = page.request.get(BASE + "/api/categories").json()
         page.request.fetch(BASE + "/api/transactions", method="POST", headers={"Content-Type": "application/json"},
             data=json.dumps({"amount": 120, "type": "expense", "description": "SHEET-MOTION",
@@ -90,7 +91,7 @@ try:
         page.keyboard.press("Escape")
         frames = page.evaluate(TRACK, ["#nothing", ".budget-sheet", ".color-sheet-card", 600])
         verdict("budgets", frames, False)
-        # בזמן היציאה החלון לא חוסם לחיצות על העמוד
+        # while leaving, the window doesn't block taps on the page
         page.evaluate("document.getElementById('budgetsOpen').click()"); page.wait_for_timeout(500)
         page.keyboard.press("Escape"); page.wait_for_timeout(60)
         blocks = page.evaluate("""(() => { const s = document.querySelector('.budget-sheet');
@@ -98,7 +99,7 @@ try:
         check("budgets: while sliding out it doesn't block taps", not blocks)
         page.wait_for_timeout(500)
 
-        # בורר האייקונים — פרויקט חדש
+        # the icon picker: a new project
         page.goto(BASE + "/projects/new"); page.wait_for_timeout(1200)
         verdict("icon picker", page.evaluate(TRACK, ["#projectIcon", ".icon-picker", ".icon-picker-card", 700]), True)
         page.wait_for_timeout(200)

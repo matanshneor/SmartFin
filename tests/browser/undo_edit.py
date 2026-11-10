@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: "בטל" אחרי עריכה — בחלון, בשורה בדף הבית, ובלי לדרוס שינוי של אחר (מתן, 30.9 — סבב 6, פריט 10).
+"""A real browser test: "בטל" after an edit: in the window, on the home page row, and
+without overwriting someone else's change (Matan, 30.9: round 6, item 10).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/undo_edit.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -49,10 +50,11 @@ try:
         tid = (made.get("transaction") or made)["id"]
         amount_now = lambda: next(t["amount"] for t in page.request.get(BASE + "/api/search?q=UN-TEST").json()["results"])
 
-        # "לכל עסקאות החודש" מופיע רק מעל 5 עסקאות (מאז 5.10). כאן יש פחות, והן
-        # ברשימה המקוצרת — שם גם + נגיש (המסך המלא מכסה אותו)
+        # "לכל עסקאות החודש" appears only above 5 transactions (since 5.10). Here there
+        # are fewer, and they are in the short list, where + is also reachable (the
+        # full screen covers it)
         open_all = lambda: page.locator("#txScreenOpen").click() if page.locator("#txScreenOpen").count() else None
-        # 1. עמוד החודש — חלון עריכה
+        # 1. The month page: the edit window
         page.goto(BASE + "/month"); page.wait_for_timeout(1200)
         open_all(); page.wait_for_timeout(300)
         page.locator(f'.cat-tx-row[data-id="{tid}"]:visible').first.click(); page.wait_for_timeout(1200)
@@ -62,7 +64,7 @@ try:
         page.click("#appToast .toast-action"); page.wait_for_timeout(2800)
         print("month — after בטל:", amount_now(), "|", page.locator("#appToast .toast-msg").inner_text())
 
-        # 2. דף הבית — אותו חלון עריכה (מאז 5.10; קודם עריכה בתוך השורה)
+        # 2. The home page: the same edit window (since 5.10; before, inline editing)
         page.goto(BASE + "/"); page.wait_for_timeout(1000)
         page.locator(f'.transaction-item[data-id="{tid}"] .tx-head').click(); page.wait_for_timeout(1200)
         page.fill("#txAmount", "410"); page.click("#submitBtn"); page.wait_for_timeout(3000)
@@ -70,7 +72,7 @@ try:
         page.click("#appToast .toast-action"); page.wait_for_timeout(3000)
         print("home — after בטל:", amount_now())
 
-        # 3. מישהו שינה בינתיים — "בטל" לא דורס
+        # 3. Someone changed it in the meantime: "בטל" doesn't overwrite
         page.goto(BASE + "/month"); page.wait_for_timeout(1200)
         open_all(); page.wait_for_timeout(300)
         page.locator(f'.cat-tx-row[data-id="{tid}"]:visible').first.click(); page.wait_for_timeout(1200)

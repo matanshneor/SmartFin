@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: משיכה למטה סוגרת את חלון ההוספה (מתן, 7.10 — עיצוב בנוסח אפל, סעיף 1).
+"""A real browser test: pulling down closes the add window (Matan, 7.10: Apple-style
+design, item 1).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/sheet_pull_down.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -52,7 +53,7 @@ try:
         def open_sheet():
             page.click(".fab")
             page.wait_for_timeout(600)
-            page.evaluate("document.activeElement.blur()")   # המקלדת לא משנה כאן, רק מפריעה לצילום
+            page.evaluate("document.activeElement.blur()")   # the keyboard doesn't matter here, it only gets in the screenshot's way
 
         def handle_y():
             return page.evaluate("document.querySelector('.modal-handle').getBoundingClientRect().top") + 6
@@ -63,11 +64,12 @@ try:
                 if gap_ms: page.wait_for_timeout(gap_ms)
                 cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [
                     {"x": x0 + (x1 - x0) * i / steps, "y": y0 + (y1 - y0) * i / steps}]})
-            if hold_ms: page.wait_for_timeout(hold_ms)    # עצירה לפני העזיבה — מהירות אפס
+            if hold_ms: page.wait_for_timeout(hold_ms)    # a stop before release: zero speed
             cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
 
-        # הנפה מהירה נשלחת מתוך הדף, תנועה כל 8ms כמו מסך אמיתי. דרך CDP כל
-        # תנועה מתעכבת ~40ms, וה"הנפה" יוצאת איטית ויושבת בדיוק על הסף.
+        # A fast flick is sent from inside the page, a move every 8ms like a real
+        # screen. Through CDP every move is delayed ~40ms, and the "flick" comes out
+        # slow and sits exactly on the threshold.
         def flick(y0, dist):
             page.evaluate("""([y0, dist]) => new Promise(done => {
                 const el = document.elementFromPoint(200, y0);
@@ -84,7 +86,8 @@ try:
                 setTimeout(tick, 8);
             })""", [y0, dist])
 
-        # 0. בפתיחה בלחיצה החלון עולה ונעצר — לא קופץ מעבר למקום ולא חוזר
+        # 0. When opened by tap the window rises and stops: doesn't overshoot and
+        # come back
         page.evaluate("document.getElementById('fabBtn').click()")
         tops = page.evaluate("""() => new Promise(done => {
             const sh = document.querySelector('.modal-sheet'), out = [], t0 = performance.now();
@@ -96,7 +99,7 @@ try:
               min(tops) >= final - 0.5)
         page.click(".modal-close"); page.wait_for_timeout(500)
 
-        # 1. גרירה קצרה ואיטית, עצירה, עזיבה — חוזר למקום
+        # 1. A short, slow drag, stop, release: returns to place
         open_sheet()
         hy = handle_y()
         touch(200, hy, 200, hy + 90, 12, 30, hold_ms=200)
@@ -105,7 +108,7 @@ try:
         check("…and the sheet is back in place",
               page.evaluate("document.querySelector('.modal-sheet').style.transform") == "")
 
-        # 2. החלון זז עם האצבע באמצע הגרירה
+        # 2. The window moves with the finger in the middle of the drag
         cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": 200, "y": hy}]})
         for i in range(1, 8):
             page.wait_for_timeout(16)
@@ -119,22 +122,23 @@ try:
         check("sheet follows the finger 1:1 (~140px down: got %.0f)" % moved, 125 <= moved <= 145)
         check("dragging back up and letting go keeps it open", is_open())
 
-        # 3. הנפה קצרה ומהירה — נסגר, למרות שהיא קצרה יותר מהגרירה של מקרה 1
+        # 3. A short, fast flick: closes, although it is shorter than case 1's drag
         flick(hy, 70)
         page.wait_for_timeout(900)
         check("short fast flick closes the sheet", not is_open())
 
-        # 4. נפתח שוב נקי, במקום
+        # 4. Opens again clean, in place
         open_sheet()
         page.wait_for_timeout(300)
         top = page.evaluate("document.querySelector('.modal-sheet').getBoundingClientRect().bottom")
         check("reopens in place after a pull-close (bottom %.0f)" % top, abs(top - 844) < 2)
 
-        # 4ב. נפתח מיד אחרי סגירה במשיכה — לפני שהניקוי של הסגירה הספיק לרוץ
+        # 4b. Opens right after closing by pull: before the close's cleanup had time
+        # to run
         page.click(".modal-close"); page.wait_for_timeout(500)
         open_sheet()
         flick(hy, 70)
-        for _ in range(150):                              # wait_for_function נחסם ב-CSP של האתר
+        for _ in range(150):                              # wait_for_function is blocked by the site's CSP
             if not is_open(): break
             page.wait_for_timeout(20)
         page.evaluate("document.getElementById('fabBtn').click()")
@@ -142,23 +146,24 @@ try:
               page.evaluate("document.querySelector('.modal-sheet').style.transform") == "")
         page.wait_for_timeout(600)
 
-        # 5. גרירה ארוכה ואיטית — נסגר
+        # 5. A long, slow drag: closes
         touch(200, hy, 200, hy + 330, 25, 30, hold_ms=150)
         page.wait_for_timeout(900)
         check("long slow drag closes the sheet", not is_open())
 
-        # 6. משיכה למעלה — לא נסגר, ואין קפיצה
+        # 6. Pulling up: doesn't close, and no jump
         open_sheet()
         touch(200, hy + 40, 200, hy - 150, 10, 20)
         page.wait_for_timeout(900)
         check("pulling up keeps it open", is_open())
 
-        # 7. תנועה הצידה — לא נגררת
+        # 7. Sideways movement: isn't dragged
         touch(330, hy + 120, 60, hy + 140, 10, 16)
         page.wait_for_timeout(600)
         check("sideways swipe keeps it open", is_open())
 
-        # 8. כשהתוכן גלול פנימה — משיכה למטה גוללת, לא סוגרת (מסך נמוך, כדי שיהיה מה לגלול)
+        # 8. When the content is scrolled inside: pulling down scrolls, doesn't close
+        # (a short screen, so there is something to scroll)
         page.click(".modal-close"); page.wait_for_timeout(500)
         page.set_viewport_size({"width": 390, "height": 560})
         open_sheet()
@@ -168,7 +173,7 @@ try:
         page.wait_for_timeout(900)
         check("pull while scrolled inside scrolls instead of closing", is_open())
 
-        # 9. ה-✕ עדיין סוגר
+        # 9. The ✕ still closes
         page.click(".modal-close")
         page.wait_for_timeout(500)
         check("the close button still works", not is_open())

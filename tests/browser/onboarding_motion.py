@@ -1,15 +1,17 @@
-"""בדיקת דפדפן אמיתי: שלבי ההרשמה נכנסים מהצד לפי הכיוון — קדימה משמאל, חזרה מימין (מתן, 7.10 — סבב תנועה, סעיף 4).
+"""A real browser test: the sign-up steps enter from the side by direction: forward
+from the left, back from the right (Matan, 7.10: motion round, item 4).
 
-המשפחה של חשבון הבדיקה הזמני מאבדת את הקטגוריות שלה — אחרת אין אשף. החשבון נמחק בסוף ממילא.
+The temporary test account's family loses its categories; otherwise there is no
+wizard. The account is deleted at the end anyway.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/onboarding_motion.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -31,7 +33,7 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# לוחץ על ‎button‎, ומאותו רגע מודד בכל פריים את ‎translateX‎ של ‎step‎
+# taps button, and from that moment measures step's translateX every frame
 TRACK = """([button, step, ms]) => new Promise(done => {
     document.getElementById(button).click();
     const el = document.getElementById(step), out = [], t0 = performance.now();
@@ -72,7 +74,8 @@ try:
             return page
 
         page = session(False)
-        # "אחר" מוגנת מפני מחיקה באתר — ישירות במסד, רק במשפחה של החשבון הזמני
+        # "אחר" is protected from deletion on the site: directly in the database, only
+        # in the temporary account's family
         wipe = "\n".join([
             "import os, sys", "sys.path.insert(0, '.')",
             "from dotenv import load_dotenv; load_dotenv('.env')",

@@ -1,14 +1,16 @@
-"""בדיקת דפדפן אמיתי: שמירה שקיבלה דף שגיאה (502) לא אומרת "שגיאת רשת — נסה שוב" (ב12-3).
+"""A real browser test: a save that got an error page (502) doesn't say "שגיאת רשת —
+נסה שוב" (B12-3).
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-מתחברת כמשתמש הבדיקה א'; תשובת השמירה מדומה ב-Playwright, אז דבר לא נכתב. תשובות השרת לבקשות האיטיות מדומות ב-Playwright.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, signs in as test user A; the save response is mocked in Playwright, so
+nothing is written. Server responses to the slow requests are mocked in Playwright.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/gateway_error.py
 """
 import os, json, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -22,7 +24,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 JPEG = "/tmp/tiny.jpg"
 open(JPEG, "wb").write(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
@@ -45,7 +47,7 @@ try:
             status=502, content_type="text/html", body="<html><body>Application failed to respond</body></html>")
             if route.request.method == "POST" else route.continue_())
         page.goto(BASE + "/settings")
-        page.evaluate("document.getElementById('fabBtn').click()")   # + מוסתר בהגדרות (body.no-fab); החלון נפתח שם
+        page.evaluate("document.getElementById('fabBtn').click()")   # + is hidden in settings (body.no-fab); the window opens there
         page.wait_for_selector("#modalOverlay.open")
         page.fill("#txAmount", "44"); page.click("#submitBtn"); page.wait_for_timeout(1500)
         msg = page.text_content("#formError")
@@ -62,4 +64,4 @@ finally:
         "db.set_auth_token(r.session.access_token)", "fid = db.get_profile(r.user.id)['family_id']",
         "db.get_client().table('categories').delete().eq('family_id', fid).eq('name', 'SCANTEST-CAT').execute()"])], cwd=ROOT)
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later

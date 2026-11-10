@@ -1,11 +1,13 @@
-"""עוזר במסד לבדיקת הדפדפן של ב9 — רץ ב-.venv. פקודות: setup / read / cleanup."""
+"""A database helper for the B9 browser test: runs in .venv. Commands: setup / read /
+cleanup."""
 import os, sys, json
 sys.path.insert(0, os.getcwd())
 from dotenv import load_dotenv; load_dotenv(".env")
 from backend import supabase_config as db
 cmd = sys.argv[1]
-# משתמש ב' — במשפחה אחרת. קודם היה כאן מזהה קבוע של חשבון הבדיקה הישן, שנמחק
-# ב-5.10 (החשבונות זמניים מאז, ‎_accounts‎): ההכנסה נכשלה והעזר לא הדפיס כלום.
+# User B: in another family. There used to be a fixed id of the old test account
+# here, deleted on 5.10 (the accounts have been temporary since, _accounts): the
+# insert failed and the helper printed nothing.
 rb, _ = db.sign_in(os.environ["RLS_TEST_EMAIL_B"], os.environ["RLS_TEST_PASSWORD_B"])
 B = rb.user.id
 r, _ = db.sign_in(os.environ.get("RLS_TEST_EMAIL_A", "rls-test-family-a@smartfin.test"), os.environ["RLS_TEST_PASSWORD_A"])
@@ -17,7 +19,7 @@ if cmd == "setup":
     settings = (db.get_family(fid) or {}).get("settings") or {}
     json.dump({"attribution": settings.get("owner_attribution")}, open(state_file, "w"))
     db.update_family_settings(fid, {"owner_attribution": {"expense": True, "income": False, "savings": False}})
-    # קטגוריה חובה מאז 30.9 (‎transactions_category_required‎)
+    # category required since 30.9 (transactions_category_required)
     cat = t("categories").select("id").eq("family_id", fid).eq("type", "expense").limit(1).execute().data[0]["id"]
     t("transactions").insert({"family_id": fid, "amount": 90, "type": "expense", "date": sys.argv[2],
                               "description": "KEEP-GONE", "user_id": B, "category_id": cat}).execute()

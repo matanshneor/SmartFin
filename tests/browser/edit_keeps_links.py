@@ -1,15 +1,17 @@
-"""בדיקת דפדפן אמיתי: עריכה משנה רק את מה ששינו — קטגוריה ריקה, בעלים שעזב, פרויקט שלא עוקב (ב9).
+"""A real browser test: an edit changes only what was changed: an empty category,
+an owner who left, a project that doesn't track (B9).
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-מתחברת כמשתמש הבדיקה א' (RLS_TEST_* ב-.env) וכותבת למסד האמיתי — ומנקה
-אחריה. תשובות השרת לבקשות האיטיות מדומות ב-Playwright.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, signs in as test user A (RLS_TEST_* in .env) and writes to the real
+database, and cleans up after itself. Server responses to the slow requests are
+mocked in Playwright.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/edit_keeps_links.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -23,7 +25,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 JPEG = "/tmp/tiny.jpg"
 open(JPEG, "wb").write(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
@@ -57,12 +59,14 @@ try:
         put = lambda url, body: page.request.put(BASE + url, data=json.dumps(body),
                                                 headers={"Content-Type": "application/json"}).json()
         print("setup:", helper("setup", today))
-        # "עסקה בלי קטגוריה" ירדה מכאן (7.10): מאז 30.9 המסד עצמו לא מאפשר אותה
-        # (‎transactions_category_required‎), אז אין מה לשמור עליו בעריכה
-        # פרויקט שעוקב אחרי הכנסות, הכנסה בו — ואז הוא מפסיק לעקוב
+        # "a transaction without a category" was dropped from here (7.10): since 30.9
+        # the database itself doesn't allow it (transactions_category_required), so
+        # there is nothing to preserve on edit
+        # a project tracking income, an income in it, and then it stops tracking
         proj = post("/api/projects", {"name": "KEEP-PROJ", "track_expense": True, "track_income": True})
         pid = (proj.get("project") or proj).get("id")
-        # קטגוריה חובה מאז 30.9 — ובפרויקט, קטגוריה של הפרויקט עצמו
+        # category required since 30.9, and in a project, a category of the project
+        # itself
         pcats = page.request.get(BASE + f"/api/projects/{pid}/categories?type=income").json()
         pcats = pcats.get("categories", pcats) if isinstance(pcats, dict) else pcats
         print("project income category:", bool(pcats))
@@ -97,9 +101,10 @@ try:
                   "->", "OK" if now[field] == was[field] and now["amount"] != was["amount"] else "WRONG")
         b.close()
 finally:
-    # ניקוי: כל מה שהתסריט יצר במשפחת הבדיקה — גם אם הוא נפל באמצע.
-    # קוד רגיל ולא מחרוזת משורשרת: הגרסה הקודמת נשברה על ‎created = None‎
-    # ("invalid input syntax for type uuid") והשאירה שאריות לריצה הבאה.
+    # Cleanup: everything the script created in the test family, even if it failed
+    # midway. Plain code and not a concatenated string: the previous version broke
+    # on created = None ("invalid input syntax for type uuid") and left leftovers
+    # for the next run.
     cleanup = "\n".join([
         "import os, sys",
         "sys.path.insert(0, '.')",
@@ -114,9 +119,10 @@ finally:
         "t('categories').delete().eq('family_id', fid).eq('name', 'SCANTEST-CAT').execute()",
         "print('cleaned')",
     ])
-    # קודם העסקאות (KEEP-*) ורק אז הקטגוריה הזמנית: מחיקת קטגוריה שעסקה עוד
-    # משתמשת בה מאפסת את הקטגוריה של העסקה — והמסד מסרב (קטגוריה חובה, 30.9)
+    # First the transactions (KEEP-*) and only then the temporary category: deleting
+    # a category a transaction still uses nulls the transaction's category, and the
+    # database refuses (category required, 30.9)
     subprocess.run([os.path.join(ROOT, ".venv/bin/python3"), os.path.join(ROOT, "tests/browser/edit_keep_helper.py"), "cleanup"], cwd=ROOT)
     subprocess.run([os.path.join(ROOT, ".venv/bin/python3"), "-c", cleanup], cwd=ROOT)
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later

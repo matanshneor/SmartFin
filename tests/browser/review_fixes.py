@@ -1,12 +1,12 @@
-"""בדיקת דפדפן אמיתי: שלושת התיקונים מהסקירה (מתן, 1.10) — סגירה באמצע "בודק…",
-ומשיכה לרענון שלא נתפסת בתוך חלון פתוח.
+"""A real browser test: the three fixes from the review (Matan, 1.10): closing in the
+middle of "בודק…", and pull-to-refresh that isn't caught inside an open window.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/review_fixes.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -20,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -44,7 +44,7 @@ try:
         cat = next(c["id"] for c in page.request.get(BASE + "/api/categories").json() if c["type"] == "expense")
         today = datetime.date.today()
 
-        # ── 1. סגירת הטופס באמצע "בודק…" ──
+        # ── 1. Closing the form in the middle of "בודק…" ──
         held = []
         page.route("**/api/transactions/precheck", lambda route: held.append(route))
         page.click("#fabBtn"); page.wait_for_timeout(800)
@@ -59,7 +59,7 @@ try:
         saved = page.request.get(BASE + "/api/search?q=FX-TEST").json()["count"]
         print("closed during check — saved?", saved)
 
-        # ── 2. גרירה למטה בתוך תוצאות החיפוש ──
+        # ── 2. Dragging down inside the search results ──
         for i in range(25):
             page.request.fetch(BASE + "/api/transactions", method="POST", headers={"Content-Type": "application/json"},
                                data=json.dumps({"amount": 10 + i, "type": "expense", "category_id": cat,

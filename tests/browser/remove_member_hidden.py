@@ -1,16 +1,16 @@
-"""בדיקת דפדפן אמיתי: הסרת בן משפחה מוסתרת תחת "אפשרויות מתקדמות",
-ושלוש שאלות קודמות לה — נסיגה בכל אחת מהן לא שולחת כלום.
+"""A real browser test: removing a family member is hidden under "אפשרויות
+מתקדמות", and three questions precede it: backing out of any of them sends nothing.
 
-מעבירה זמנית את משתמש הבדיקה ב' למשפחה של א' (SQL בהרשאות בעלים, כמו
-test_family_join) ומחזירה אותו בסוף. בקשת ההסרה עצמה נעצרת בדפדפן ולא
-מגיעה לשרת — שום הסרה אמיתית לא מתבצעת.
+Temporarily moves test user B to A's family (SQL with owner privileges, like
+test_family_join) and moves them back at the end. The removal request itself is
+stopped in the browser and doesn't reach the server: no real removal happens.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/remove_member_hidden.py
 """
 import os, json, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -67,7 +67,7 @@ try:
         page.route("**/api/family/members/**", hold)
 
         page.goto(BASE + "/settings")
-        # קבוצת "המשפחה שלי" בהגדרות מקופלת; פותחים אותה כמו משתמש
+        # the "המשפחה שלי" group in settings is collapsed; open it like a user
         page.click("button:has(.group-title:text-is('המשפחה שלי'))")
         page.wait_for_timeout(400)
         print("icon next to members:", page.locator(".remove-member-btn").count())
@@ -81,11 +81,11 @@ try:
             return page.inner_text("#confirmTitle")
 
         def answer(sel):
-            # השאלה הבאה נפתחת מיד אחרי הקודמת, אז לא מחכים לסגירה
+            # the next question opens right after the previous one, so don't wait for closing
             page.click(sel)
             page.wait_for_timeout(400)
 
-        # נסיגה בכל אחת משלוש השאלות
+        # backing out of each of the three questions
         for stop_at in (1, 2, 3):
             page.click("#removeMemberBtn")
             titles = [dialog()]
@@ -95,15 +95,15 @@ try:
                 answer("#confirmYes")
                 titles.append(dialog())
                 if stop_at == 2:
-                    page.evaluate("document.getElementById('confirmOverlay').click()")  # נסיגה
+                    page.evaluate("document.getElementById('confirmOverlay').click()")  # back out
                     page.wait_for_timeout(300)
                 else:
                     answer("#confirmNo")            # "להשאיר כמשותפות"
                     titles.append(dialog())
-                    answer("#confirmNo")            # ביטול באישור האחרון
+                    answer("#confirmNo")            # cancel on the last confirmation
             print(f"stop at {stop_at}: {titles} → sent {len(sent)}")
 
-        # עד הסוף
+        # all the way
         page.click("#removeMemberBtn"); dialog(); answer("#confirmYes")
         dialog(); answer("#confirmNo")
         print("final:", dialog(), "|", page.inner_text("#confirmMessage"))

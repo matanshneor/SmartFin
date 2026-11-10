@@ -1,13 +1,14 @@
-"""בדיקת דפדפן אמיתי: פירוט קטגוריה וקבוצות בהגדרות נפתחים בהחלקה ולא בקפיצה (מתן, 7.10 — סבב תנועה, סעיף 5).
+"""A real browser test: category breakdown and groups in settings open with a slide
+and not a jump (Matan, 7.10: motion round, item 5).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/reveal_motion.py
 
-מדפיס PASS/FAIL לכל מקרה ויוצא עם קוד 1 אם משהו נכשל.
+Prints PASS/FAIL for each case and exits with code 1 if something failed.
 """
 import os, sys, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -29,7 +30,7 @@ def check(name, ok):
     print(("PASS " if ok else "FAIL ") + name)
     if not ok: failed.append(name)
 
-# לוחץ (‎clicks‎ — רשימה של [סלקטור, אחרי כמה ms]) ומודד כל פריים את הגובה של ‎body‎
+# taps (clicks: a list of [selector, after how many ms]) and measures body's height every frame
 TRACK = """([clicks, body, ms]) => new Promise(done => {
     const out = [], t0 = performance.now();
     const pending = clicks.slice();
@@ -90,10 +91,11 @@ try:
         shrinks("category details", page.evaluate(TRACK, [[["#revealTrigger", 0]], "#revealList", 450]), full)
         check("category details: aria-expanded is false right away",
               page.get_attribute("#revealTrigger", "aria-expanded") == "false")
-        # לחיצה באמצע הסגירה — נפתח שוב מהגובה שעל המסך, בלי לקפוץ ל-0
+        # a tap in the middle of closing: reopens from the height on screen, without
+        # jumping to 0
         frames = page.evaluate(TRACK, [[["#revealTrigger", 0], ["#revealTrigger", 600], ["#revealTrigger", 680]], "#revealList", 1200])
         after = [f["h"] for f in frames if f["t"] >= 680]
-        # מרגע הלחיצה השנייה: לא נופל ל-0, ורק עולה עד הגובה המלא
+        # from the second tap: doesn't drop to 0, and only rises to the full height
         rises = all(b2 >= a2 - 0.5 for a2, b2 in zip(after, after[1:]))
         check("tap again while closing: reopens from where it was (starts at %.0f, only grows, ends %.0f)"
               % (after[0], after[-1]), after[0] > 2 and rises and after[-1] > full - 1)

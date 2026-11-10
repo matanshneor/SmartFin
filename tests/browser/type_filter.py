@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: סינון "כל העסקאות" לפי סוג ולפי קטגוריה בעמוד החודש (מתן, 30.9 — רעיון 5, אפשרות א).
+"""A real browser test: filtering "כל העסקאות" by type and by category on the month
+page (Matan, 30.9: idea 5, option A).
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/type_filter.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -55,7 +56,7 @@ try:
                                         ("expense", ex["TF-דלק"], 50, "TF-TEST פז"),
                                         ("income", by["income"], 5000, "TF-TEST משכורת"),
                                         ("savings", by["savings"], 700, "TF-TEST קרן"),
-                                        # שישית — "לכל עסקאות החודש" מופיע רק מעל 5 (מאז 5.10)
+                                        # a sixth: "לכל עסקאות החודש" appears only above 5 (since 5.10)
                                         ("expense", ex["TF-דלק"], 30, "TF-TEST סונול")):
             api("POST", "/api/transactions", {"amount": amount, "type": kind, "category_id": cat,
                                               "date": today, "description": desc})
@@ -82,8 +83,8 @@ try:
         print("back to expense resets:", visible(), count())
         page.locator(".tx-cat-chips:visible .tx-cat-chip", has_text="TF-סופר").click(); page.wait_for_timeout(150)
         page.screenshot(path="/tmp/cat_filter.png")
-        # צ'יפי התאריך בטופס עדיין עובדים, והסינון לא נגע בתאריך.
-        # קודם סוגרים את "כל העסקאות" — המסך מכסה את +, גם למשתמש
+        # The date chips in the form still work, and the filter didn't touch the date.
+        # First close "כל העסקאות": the screen covers +, for a user too
         page.keyboard.press("Escape"); page.wait_for_timeout(400)
         page.click("#fabBtn"); page.wait_for_timeout(800)
         page.locator(".date-quick-chips .date-chip", has_text="אתמול").click(); page.wait_for_timeout(100)

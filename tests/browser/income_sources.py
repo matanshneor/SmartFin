@@ -1,11 +1,12 @@
-"""בדיקת דפדפן אמיתי: "הכנסות — מאיפה הגיעו" (הצעה ד) — נכנס החודש, ואז משכורת לכל אחד והכנסות נוספות.
+"""A real browser test: "הכנסות — מאיפה הגיעו" (proposal D): came in this month, then
+a salary for each person and additional income.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/income_sources.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -19,7 +20,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 
 
@@ -52,7 +53,8 @@ try:
         if not other:
             _, c2 = api("POST", "/api/categories", {"name": "INC-OTHER", "icon": "🎁", "type": "income"}); other = (c2.get("category") or c2)["id"]
         me = page.request.get(BASE + "/api/family/members").json()[0]["id"]
-        # שיוך הכנסות לבני משפחה — כבוי במשפחת הבדיקה; מדליקים זמנית (ומחזירים בסוף)
+        # attributing income to family members: off in the test family; turn it on
+        # temporarily (and restore at the end)
         print("attribution on:", api("PUT", "/api/family/settings", {"owner_attribution": {"income": True}})[0])
         today = datetime.date.today().isoformat()
         for amount, cat, owner in ((12400, salary, me), (500, other, None), (700, other, me)):

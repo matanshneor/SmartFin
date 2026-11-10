@@ -1,14 +1,17 @@
-"""בדיקת דפדפן אמיתי: מסך "אין חיבור" נטען עם העיצוב של האפליקציה (ב12-5).
+"""A real browser test: the "no connection" screen loads with the app's styling
+(B12-5).
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-מתחברת כמשתמש הבדיקה א'; ה-service worker אמיתי, והרשת מנותקת דרך Playwright. תשובות השרת לבקשות האיטיות מדומות ב-Playwright.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, signs in as test user A; the service worker is real, and the network is
+cut through Playwright. Server responses to the slow requests are mocked in
+Playwright.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/offline_page.py
 """
 import os, json, time, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -22,7 +25,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 JPEG = "/tmp/tiny.jpg"
 open(JPEG, "wb").write(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
@@ -43,7 +46,7 @@ try:
             {"name": "SCANTEST-CAT", "icon": "🧪", "type": "expense"}), headers={"Content-Type": "application/json"})
         page.goto(BASE + "/")
         page.evaluate("() => navigator.serviceWorker.ready")
-        page.reload()                          # עכשיו הדף בשליטת ה-SW, והקבצים עוברים דרכו
+        page.reload()                          # now the page is controlled by the SW, and the files go through it
         page.wait_for_function("() => !!navigator.serviceWorker.controller")
         page.wait_for_timeout(1000)
         page.context.set_offline(True)
@@ -70,4 +73,4 @@ finally:
         "db.set_auth_token(r.session.access_token)", "fid = db.get_profile(r.user.id)['family_id']",
         "db.get_client().table('categories').delete().eq('family_id', fid).eq('name', 'SCANTEST-CAT').execute()"])], cwd=ROOT)
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later

@@ -1,15 +1,17 @@
-"""בדיקת דפדפן אמיתי: מחיקה בעמוד החודש מסירה את כל העותקים של העסקה (ב12-7).
+"""A real browser test: deleting on the month page removes all copies of the
+transaction (B12-7).
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-מתחברת כמשתמש הבדיקה א' (RLS_TEST_* ב-.env) וכותבת למסד האמיתי — ומנקה
-אחריה. תשובות השרת לבקשות האיטיות מדומות ב-Playwright.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, signs in as test user A (RLS_TEST_* in .env) and writes to the real
+database, and cleans up after itself. Server responses to the slow requests are
+mocked in Playwright.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/delete_all_copies.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -23,7 +25,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 JPEG = "/tmp/tiny.jpg"
 open(JPEG, "wb").write(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
@@ -57,23 +59,24 @@ try:
         page.goto(BASE + "/month")
         copies = lambda: page.evaluate("(id) => document.querySelectorAll('[data-id=\"' + id + '\"]').length", tid)
         before = copies()
-        # "לכל עסקאות החודש" מופיע רק כשיש יותר מ-5 (מאז 5.10); עם עסקה אחת היא
-        # כבר ברשימה המקוצרת
+        # "לכל עסקאות החודש" appears only when there are more than 5 (since 5.10); with
+        # one transaction it is already in the short list
         if page.locator("#txScreenOpen").count():
             page.click("#txScreenOpen")
         page.locator(f'.cat-tx-row[data-id="{tid}"]').locator("visible=true").first.click()
         page.wait_for_selector("#modalOverlay.open")
         page.click("#deleteTxBtn")
         page.wait_for_selector("#confirmOverlay.open"); page.click("#confirmYes")
-        page.wait_for_timeout(1500)                     # לפני הרענון של אחרי 6 שניות
+        page.wait_for_timeout(1500)                     # before the refresh after 6 seconds
         after = copies()
         print(f"copies on the page: before {before}, right after delete {after}")
         print("   all gone:", before > 1 and after == 0)
         b.close()
 finally:
-    # ניקוי: כל מה שהתסריט יצר במשפחת הבדיקה — גם אם הוא נפל באמצע.
-    # קוד רגיל ולא מחרוזת משורשרת: הגרסה הקודמת נשברה על ‎created = None‎
-    # ("invalid input syntax for type uuid") והשאירה שאריות לריצה הבאה.
+    # Cleanup: everything the script created in the test family, even if it failed
+    # midway. Plain code and not a concatenated string: the previous version broke
+    # on created = None ("invalid input syntax for type uuid") and left leftovers
+    # for the next run.
     cleanup = "\n".join([
         "import os, sys",
         "sys.path.insert(0, '.')",
@@ -90,4 +93,4 @@ finally:
     ])
     subprocess.run([os.path.join(ROOT, ".venv/bin/python3"), "-c", cleanup], cwd=ROOT)
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later

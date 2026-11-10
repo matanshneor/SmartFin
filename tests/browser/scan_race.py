@@ -1,15 +1,17 @@
-"""בדיקת דפדפן אמיתי: סריקת קבלה שחוזרת לטופס שכבר נסגר או הוחלף (ב1).
+"""A real browser test: a receipt scan returning to a form that was already closed or
+replaced (B1).
 
-לא נאספת על ידי pytest (אין לה קידומת test_), כי היא מרימה שרת מקומי,
-מתחברת כמשתמש הבדיקה א' (RLS_TEST_* ב-.env) וכותבת למסד האמיתי — ומנקה
-אחריה. תשובות השרת לבקשות האיטיות מדומות ב-Playwright.
+Not collected by pytest (it has no test_ prefix), because it brings up a local
+server, signs in as test user A (RLS_TEST_* in .env) and writes to the real
+database, and cleans up after itself. Server responses to the slow requests are
+mocked in Playwright.
 
-הרצה (Playwright מותקן בפייתון של המערכת, לא ב-.venv):
+Run (Playwright is installed in the system Python, not in .venv):
     /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 tests/browser/scan_race.py
 """
 import os, json, time, datetime, subprocess, signal
 from playwright.sync_api import sync_playwright
-import _accounts  # noqa: F401 — חשבונות בדיקה זמניים, נמחקים בסוף הריצה
+import _accounts  # noqa: F401 (temporary test accounts, deleted at the end of the run)
 
 ROOT = os.getcwd()
 def _dotenv(path):
@@ -23,7 +25,7 @@ env = {**os.environ, **{k: v for k, v in _dotenv(os.path.join(ROOT, ".env")).ite
 env["PORT"] = "8099"
 srv = subprocess.Popen([os.path.join(ROOT, ".venv/bin/python3"), "-m", "backend.app"], cwd=ROOT, env=env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       start_new_session=True)   # במצב פיתוח Flask מוליד תהליך-בן שחייב למות איתו
+                       start_new_session=True)   # in debug mode Flask spawns a child process that must die with it
 BASE = "http://127.0.0.1:8099"
 JPEG = "/tmp/tiny.jpg"
 open(JPEG, "wb").write(bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9"))
@@ -74,14 +76,15 @@ try:
                      date: txDate.value, receipt: txReceiptPath.value,
                      open: document.getElementById('modalOverlay').classList.contains('open')})""")
 
-        # ── 1. הבאג: סריקה ← סגירה ← עריכת עסקה קיימת ← התשובה חוזרת
+        # ── 1. The bug: scan → close → edit an existing transaction → the response returns
         page.click("#fabBtn"); page.wait_for_selector("#modalOverlay.open")
         page.set_input_files("#receiptInput", JPEG)
         page.click("#modalClose")
         print("   url:", page.url, "| rows with id:", page.locator(f'[data-id="{created}"]').count(),
               "| visible:", [page.locator(f'[data-id="{created}"]').nth(i).is_visible() for i in range(page.locator(f'[data-id="{created}"]').count())])
         page.screenshot(path="/tmp/before_row_click.png")
-        # מאז 5.10 נגיעה בשורה פותחת ישר את החלון המלא (העורך בשורה הוסר)
+        # since 5.10 touching a row opens the full window directly (the inline editor
+        # was removed)
         page.locator(f'[data-id="{created}"] .tx-head').first.click()
         page.wait_for_selector("#modalOverlay.open", timeout=5000)
         page.wait_for_timeout(4000)
@@ -91,7 +94,7 @@ try:
         print("   discarded stale upload:", discards)
         page.click("#modalClose"); discards.clear()
 
-        # ── 2. בקרה: סריקה רגילה נכנסת לטופס, ונטישה מוחקת את התמונה
+        # ── 2. Control: a normal scan goes into the form, and abandoning deletes the image
         page.click("#fabBtn"); page.wait_for_selector("#modalOverlay.open")
         page.set_input_files("#receiptInput", JPEG)
         page.wait_for_timeout(4000)
@@ -102,9 +105,10 @@ try:
         print("   abandoned → discarded:", discards)
         b.close()
 finally:
-    # ניקוי: כל מה שהתסריט יצר במשפחת הבדיקה — גם אם הוא נפל באמצע.
-    # קוד רגיל ולא מחרוזת משורשרת: הגרסה הקודמת נשברה על ‎created = None‎
-    # ("invalid input syntax for type uuid") והשאירה שאריות לריצה הבאה.
+    # Cleanup: everything the script created in the test family, even if it failed
+    # midway. Plain code and not a concatenated string: the previous version broke
+    # on created = None ("invalid input syntax for type uuid") and left leftovers
+    # for the next run.
     cleanup = "\n".join([
         "import os, sys",
         "sys.path.insert(0, '.')",
@@ -121,4 +125,4 @@ finally:
     ])
     subprocess.run([os.path.join(ROOT, ".venv/bin/python3"), "-c", cleanup], cwd=ROOT)
     os.killpg(os.getpgid(srv.pid), signal.SIGTERM)
-    time.sleep(2)   # תהליך-הבן של Flask נסגר רגע אחרי
+    time.sleep(2)   # Flask's child process closes a moment later
