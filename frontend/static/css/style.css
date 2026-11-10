@@ -1371,20 +1371,6 @@ a.alert-card:active { transform: scale(0.98); }
     cursor: not-allowed;
 }
 
-/* ─── Behind the clock and battery (Matan, 10.11.2026) ────────────── */
-/* iOS 26 ignores theme-color and tints the status bar area from the page:
-   from the first full-width fixed element at the top, or else from the body's
-   background. Ours is the light cream under the cards, so a faded cream band sat
-   over the dark hero. This strip gives it the hero's colour instead. Its height
-   is the clock area only, so it is zero wherever there is none (desktop).
-   Matan is trying it out; if he doesn't like it, remove the strip and this rule. */
-.status-strip {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 55;
-    height: env(safe-area-inset-top, 0px);
-    background-color: var(--hero-bg-2);
-    pointer-events: none;
-}
-
 /* ─── The "no connection" bar ───────────────────────────────────── */
 /* Below the toast (200) and above everything else: a message about a lasting
    state shouldn't cover a message about what just happened. */
