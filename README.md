@@ -30,7 +30,7 @@ SmartFin/
 │   ├── wording.py              # Hebrew counts, percentages that sum to 100, day labels, month names
 │   ├── logs.py                 # logging setup
 │   ├── supabase_config.py      # data layer: queries, auth, analytics, recurring engine
-│   └── supabase/migrations/    # source of truth for the database schema (66 migrations)
+│   └── supabase/migrations/    # source of truth for the database schema (67 migrations)
 ├── frontend/
 │   ├── templates/              # base, index, month, months, settings, projects,
 │   │                           # project_detail, project_edit, login, onboarding,
@@ -187,6 +187,7 @@ flask --app backend.app run --port 8080
 | `RESEND_API_KEY`, `OWNER_NOTIFY_EMAIL` | an email to the site owner when a family finishes onboarding or someone joins one (family name, member count, and the name, email and phone of whoever registered or joined). Without both, nothing is sent |
 | `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | phone notifications. The key is generated once (`backend.push.generate_vapid_keys`); the public half is derived from it. Without it the Settings toggle is hidden and nothing is sent |
 | `PUSH_CRON_SECRET` | must match the `push_cron_secret` Vault secret; guards `/internal/push/daily` and the `push_daily` RPC |
+| `LOGIN_LOOKUP_SECRET` | must match the `login_lookup_secret` Vault secret. Signing in with a phone number needs it: the `email_for_phone` RPC returns nothing without it, so the anon key alone can't be used to collect users' emails. Without it, phone sign-in fails (email sign-in still works) |
 | `LOG_LEVEL` | `INFO` by default |
 | `CSP_REPORT_ONLY` | set while tightening the Content-Security-Policy, so violations are reported instead of blocking |
 

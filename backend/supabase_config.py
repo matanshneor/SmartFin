@@ -299,12 +299,22 @@ def _invalidate_family_cache(family_id: str):
 def get_email_by_phone(normalized_phone: str):
     """מוצא את המייל המשויך למספר טלפון מנורמל (ספרות בלבד), עוד לפני
     שהמשתמש מחובר — דרך פונקציית ה-DB email_for_phone (SECURITY DEFINER,
-    זמינה ל-anon). מחזיר None אם לא נמצא."""
+    זמינה ל-anon). מחזיר None אם לא נמצא.
+
+    הפונקציה במסד מחזירה מייל רק עם ‎LOGIN_LOOKUP_SECRET‎ (מתן, 10.11.2026):
+    בלעדיו, כל מי שמחזיק את מפתח ה-anon היה יכול לאסוף את המיילים של
+    המשתמשים לפי טלפון. בלי הסוד אין טעם לשאול — והתחברות בטלפון לא תעבוד,
+    אז זה נרשם כשגיאה ולא נבלע."""
     client = get_client()
     if not client or not normalized_phone:
         return None
+    secret = os.environ.get("LOGIN_LOOKUP_SECRET", "")
+    if not secret:
+        logger.error("get_email_by_phone: LOGIN_LOOKUP_SECRET חסר — התחברות בטלפון לא תעבוד")
+        return None
     try:
-        result = client.rpc("email_for_phone", {"p_phone": normalized_phone}).execute()
+        result = client.rpc("email_for_phone",
+                            {"p_phone": normalized_phone, "p_secret": secret}).execute()
         return result.data or None
     except Exception:
         logger.exception("get_email_by_phone")
