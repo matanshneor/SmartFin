@@ -1,7 +1,8 @@
 const SF_VIEW = window.sfData('sf-view-data');
 
-/* ═══ הגרף ═══  (ראו chart-setup.js)
- * בלוק נפרד מ"הצג עוד" שלמטה: כשהספרייה לא נטענת, הכפתור עדיין עובד. */
+/* ═══ The chart ═══  (see chart-setup.js)
+ * A block separate from "show more" below: when the library doesn't load, the
+ * button still works. */
 (function () {
 if (!window.sfCharts.ready) return;
 
@@ -9,32 +10,38 @@ const TEXT_MUTED = window.sfCharts.muted;
 const GRID_LINE  = window.sfCharts.grid;
 
 const trendData = SF_VIEW.trend;
-// הטווח של שני הגרפים — 3 / 6 / 12 חודשים (רעיון 24). כל גרף רושם כאן איך
-// הוא מתעדכן, והכפתורים קוראים לכולם.
+// The range of both charts: 3 / 6 / 12 months (idea 24). Each chart registers
+// here how it updates, and the buttons call all of them.
+
 let RANGE = 6;
 const rangeListeners = [];
 const SHORT_MONTHS = ['', 'ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
 
-// ── השוואת חודשים ──
+// ── Month comparison ──
+
 if (trendData.length > 0) {
-    let last6 = trendData.slice(-RANGE);      // השם נשאר מימי "6 חודשים"; זה הטווח שנבחר
+    let last6 = trendData.slice(-RANGE);      // the name is left over from the "6 months" days; this is the chosen range
     const ctx = document.getElementById('compareChart');
     if (ctx) {
         const compareChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                // שמות מקוצרים מתחת לעמודות: בגופן 13 המלאים נדבקו זה לזה
-                // ("אוגוסטספטמבר"). השם המלא — בחלונית כשנוגעים בעמודה.
+                // Short names under the bars: at font size 13 the full ones
+                // stuck together ("אוגוסטספטמבר"). The full name is in the
+                // tooltip when a bar is tapped.
+
                 labels: last6.map(d => SHORT_MONTHS[d.month] || d.month_name),
-                // בסדר הפוך: Chart.js מסדר את העמודות בכל חודש משמאל לימין, וכך
-                // ההכנסות יוצאות מימין — כמו במקרא ובקריאה בעברית
+                // In reverse order: Chart.js lays out the bars in each month
+                // left to right, and this way income comes out on the right, as
+                // in the legend and in Hebrew reading
+
                 datasets: [
                     {
                         label:           'חיסכון',
                         data:            last6.map(d => d.savings),
                         backgroundColor: 'rgba(166,124,0,0.9)',
                         borderRadius:    5,
-                        categoryPercentage: 0.86,   // עמודות רחבות, פחות רווח בין החודשים
+                        categoryPercentage: 0.86,   // wide bars, less space between months
                         barPercentage:      0.92,
                     },
                     {
@@ -42,7 +49,7 @@ if (trendData.length > 0) {
                         data:            last6.map(d => d.expense),
                         backgroundColor: 'rgba(160,69,69,0.9)',
                         borderRadius:    5,
-                        categoryPercentage: 0.86,   // עמודות רחבות, פחות רווח בין החודשים
+                        categoryPercentage: 0.86,   // wide bars, less space between months
                         barPercentage:      0.92,
                     },
                     {
@@ -50,7 +57,7 @@ if (trendData.length > 0) {
                         data:            last6.map(d => d.income),
                         backgroundColor: 'rgba(61,107,84,0.9)',
                         borderRadius:    5,
-                        categoryPercentage: 0.86,   // עמודות רחבות, פחות רווח בין החודשים
+                        categoryPercentage: 0.86,   // wide bars, less space between months
                         barPercentage:      0.92,
                     }
                 ]
@@ -58,9 +65,11 @@ if (trendData.length > 0) {
             options: {
                 responsive:          true,
                 maintainAspectRatio: false,
-                // נגיעה בחודש בגרף פותחת אותו, כמו שורה בטבלה (מתן, 30.9 — רעיון 10).
-                // לפי העמודה כולה ולא רק העמודה שנפגעה: חיסכון של ₪0 אין בו
-                // מה לפגוע, והאצבע רחבה מעמודה אחת
+                // Tapping a month in the chart opens it, like a table row (Matan,
+                // 30.9, idea 10). By the whole column and not just the bar that
+                // was hit: ₪0 savings has nothing to hit, and a finger is wider
+                // than one bar
+
                 onClick: function (evt, _els, chart) {
                     const hit = chart.getElementsAtEventForMode(evt, 'index', { intersect: false }, true);
                     if (!hit.length) return;
@@ -83,11 +92,14 @@ if (trendData.length > 0) {
                         }
                     }
                 },
-                // מימין לשמאל (מתן, 30.9): החודש הישן בימין והחדש בשמאל, כמו
-                // שקוראים בעברית, והסולם של הסכומים בצד ימין
+                // Right to left (Matan, 30.9): the old month on the right and the
+                // new on the left, as Hebrew reads, and the amount scale on the
+                // right side
+
                 scales: {
                     x: { reverse: true, grid: { display: false },
-                         // שמות ישרים ולא מוטים — המוטה נחתך בקצה
+                         // Straight names, not slanted: slanted ones get cut at the edge
+
                          ticks: { font: { size: 13 }, maxRotation: 0, autoSkip: false } },
                     y: {
                         position: 'right',
@@ -108,13 +120,15 @@ if (trendData.length > 0) {
     }
 }
 
-// ── לפי קטגוריה (מתן, 30.9) ──
-// אותם חודשים כמו הגרף שמעל, מימין לשמאל כמו הוא. הסכום מעל כל עמודה, קו
-// מקווקו בגובה הממוצע, והחודש הנוכחי בהיר יותר — הוא עוד לא נגמר.
+// ── By category (Matan, 30.9) ──
+// The same months as the chart above, right to left like it. The amount above
+// each bar, a dashed line at the average, and the current month lighter: it
+// isn't over yet.
+
 const catTrend = SF_VIEW.cat_trend;
 const catCanvas = document.getElementById('categoryChart');
 if (catTrend && catTrend.categories.length && catCanvas) {
-    const allMonths = catTrend.months;              // 12; מוצגים האחרונים לפי הטווח
+    const allMonths = catTrend.months;              // 12; the last ones are shown by the range
     let months = allMonths.slice(-RANGE);
     const money = v => '₪' + window.sfMoney(Math.round(v));
     const isNow = months.length && (function () {
@@ -126,9 +140,10 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         return months.map((m, i) => (isNow && i === months.length - 1) ? BAR_NOW : BAR);
     }
 
-    /* הקטגוריה בטווח שנבחר: הערכים והעסקאות של החודשים המוצגים, והממוצע
-     * והחודש הכי יקר מחושבים מחדש — מהחודשים שנגמרו, כמו ב-‎category_trend‎
-     * בשרת (החודש הנוכחי עוד לא נגמר והיה מוריד את הממוצע). */
+    /* The category in the chosen range: the values and transactions of the months
+     * shown, and the average and the most expensive month recomputed from the
+     * finished months, as in `category_trend` on the server (the current month
+     * isn't over yet and would pull the average down). */
     function inRange(c) {
         const n = months.length, off = allMonths.length - n;
         const values = c.values.slice(off), items = (c.items || []).slice(off);
@@ -146,7 +161,9 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         };
     }
 
-    // הסכום מעל כל עמודה — בלי תוסף: שורה אחת שמציירת אחרי העמודות
+    // The amount above each bar, without a plugin: one line that draws after
+    // the bars
+
     const valuesOnTop = {
         id: 'sfValuesOnTop',
         afterDatasetsDraw: function (chart) {
@@ -181,8 +198,9 @@ if (catTrend && catTrend.categories.length && catCanvas) {
             layout: { padding: { top: 20 } },
             plugins: {
                 legend: { display: false },
-                // בלי תווית צפה (מתן, 1.10): הסכום כבר כתוב מעל העמודה,
-                // ונגיעה בעמודה פותחת את החלון.
+                // No floating label (Matan, 1.10): the amount is already written
+                // above the bar, and tapping the bar opens the sheet.
+
                 tooltip: { enabled: false },
             },
             scales: {
@@ -194,7 +212,9 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         plugins: [valuesOnTop],
     });
 
-    // ── נגיעה בעמודה של חודש: חלון עם ההוצאות של הקטגוריה באותו חודש (מתן, 30.9) ──
+    // ── Tapping a month's bar: a sheet with the category's expenses in that
+    // month (Matan, 30.9) ──
+
     let sheet = null;
     function closeSheet() {
         if (sheet) { sheet.remove(); sheet = null; }
@@ -245,7 +265,9 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         actions.className = 'edit-actions';
         const link = document.createElement('a');
         link.className = 'btn-sm btn-ghost';
-        // לראש העמוד, לא לפירוט (מתן, 1.10): שם הוא נפתח חתוך מלמעלה
+        // To the top of the page, not the breakdown (Matan, 1.10): there it
+        // opened cut off at the top
+
         link.href = '/month?year=' + m.year + '&month=' + m.month;
         link.textContent = 'לעמוד החודש';
         const close = document.createElement('button');
@@ -260,7 +282,9 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         document.body.appendChild(sheet);
         close.focus({ preventScroll: true });
     }
-    // לפי העמודה כולה, כמו בגרף שמעל — גם חודש בלי הוצאה נפתח ואומר את זה
+    // By the whole column, like in the chart above: a month with no expense
+    // opens too and says so
+
     chart.options.onClick = function (evt) {
         const hit = chart.getElementsAtEventForMode(evt, 'index', { intersect: false }, true);
         if (hit.length) openMonth(hit[0].index);
@@ -278,22 +302,26 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         const c = inRange(catTrend.categories.find(x => x.key === key) || catTrend.categories[0]);
         current = c;
         chart.data.datasets[0].data = c.values;
-        // קו הממוצע לכל רוחב הגרף; בלי חודש שנגמר — אין ממוצע
+        // The average line across the whole chart width; without a finished
+        // month there is no average
+
         chart.data.datasets[1].data = c.avg == null ? [] : c.values.map(() => c.avg);
         chart.options.scales.y.suggestedMax = Math.max.apply(null, c.values) * 1.12;
         chart.update();
         const cell = (label, value) => '<div><span>' + label + '</span><b>' + value + '</b></div>';
         stats.innerHTML =
             cell('ממוצע לחודש', c.avg == null ? '—' : '<span class="num">' + money(c.avg) + '</span>') +
-            // "החודש הכי יקר - יולי" (מתן, 1.10)
+            // "החודש הכי יקר - יולי" (Matan, 1.10)
+
             cell('החודש הכי יקר' + (c.max_label ? ' <span class="nowrap">- ' + c.max_label + '</span>' : ''),
                  c.max_label ? '<span class="num">' + money(c.max) + '</span>' : '—') +
             (c.current == null ? '' : cell('החודש', '<span class="num">' + money(c.current) + '</span>'));
     }
-    // הגעה מקטגוריה בעמוד החודש (‎?cat=<id>‎, רעיון 23): היא הבחורה. קטגוריה
-    // שאין לה היסטוריה כאן — נשארים על הראשונה.
+    // Arriving from a category on the month page (`?cat=<id>`, idea 23): it is
+    // the selected one. A category with no history here: stay on the first.
+
     let wanted = null;
-    try { wanted = new URLSearchParams(location.search).get('cat'); } catch (err) { /* דפדפן ישן */ }
+    try { wanted = new URLSearchParams(location.search).get('cat'); } catch (err) { /* old browser */ }
     const fromMonth = wanted && catTrend.categories.some(x => x.key === wanted) ? wanted : null;
     show(fromMonth || catTrend.categories[0].key);
     rangeListeners.push(function () {
@@ -324,18 +352,22 @@ if (catTrend && catTrend.categories.length && catCanvas) {
 
 
 
-// ── הוצאות לפי בן משפחה לאורך החודשים (מתן, 3.10 — רעיון 15) ──
-// עמודה לכל בן משפחה בכל חודש, בצבע הקבוע שלו; אותו טווח כמו שאר הגרפים.
-// מתחת — ממוצע חודשי לכל אחד, מהחודשים שנגמרו (כמו בגרף הקטגוריה).
+// ── Expenses by family member over the months (Matan, 3.10, idea 15) ──
+// A bar per family member per month, in their fixed colour; the same range as
+// the other charts. Below, a monthly average for each, from the finished months
+// (as in the category chart).
+
 const memberSeries = SF_VIEW.members;
 const memberCanvas = document.getElementById('memberTrendChart');
 if (memberSeries && memberSeries.length > 1 && memberCanvas && SF_VIEW.cat_trend) {
-    const allM = SF_VIEW.cat_trend.months;            // אותם 12 חודשים שנשלחו
+    const allM = SF_VIEW.cat_trend.months;            // the same 12 months that were sent
     const avgsEl = document.getElementById('memberTrendAvgs');
     const shownMonths = () => allM.slice(-RANGE);
     const off = () => allM.length - shownMonths().length;
     function datasets() {
-        // בסדר הפוך: בכל חודש Chart.js מסדר משמאל לימין, וכך הראשון ברשימה יוצא מימין
+        // In reverse order: within each month Chart.js lays out left to right,
+        // so the first in the list comes out on the right
+
         return memberSeries.slice().reverse().map(m => ({
             label: m.name, data: m.values.slice(off()), backgroundColor: m.color,
             borderRadius: 4, categoryPercentage: 0.86, barPercentage: 0.9,
@@ -387,7 +419,8 @@ if (memberSeries && memberSeries.length > 1 && memberCanvas && SF_VIEW.cat_trend
         averages();
     });
 }
-// ── כפתורי הטווח ──
+// ── The range buttons ──
+
 document.addEventListener('click', function (e) {
     const btn = e.target.closest && e.target.closest('.range-chip');
     if (!btn) return;
@@ -404,11 +437,13 @@ document.addEventListener('click', function (e) {
 })();
 
 
-/* ═══ האינטראקטיביות של העמוד ═══ */
+/* ═══ The page's interactivity ═══ */
 (function () {
 
-// לחיצה בכל מקום בשורה פותחת את החודש. הקישור עצמו (שם החודש) הוא מה
-// שמקלדת וקורא מסך פוגשים; השורה רק מגדילה את אזור הלחיצה לאצבע.
+// A tap anywhere on the row opens the month. The link itself (the month name) is
+// what the keyboard and screen reader meet; the row only enlarges the tap area
+// for a finger.
+
 document.addEventListener('click', function (e) {
     const row = e.target.closest('.months-table tr.month-row[data-href]');
     if (!row || e.target.closest('a')) return;

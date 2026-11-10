@@ -1,11 +1,12 @@
-/* צפייה בקבלה בתוך האפליקציה (מתן, 12.10).
+/* Viewing a receipt inside the app (Matan, 12.10).
  *
- * אייקון הקבלה הוא ‎<a href="/receipts/<id>" target="_blank">‎ — ובאפליקציה
- * המותקנת הוא הוציא לספארי. עכשיו נגיעה פותחת את התמונה כאן, על מסך כהה:
- * נגיעה בתמונה מגדילה (ושוב — מקטינה), ✕, Escape או החלקה למטה סוגרים.
- * הקישור עצמו נשאר: לחיצה עם Cmd/Ctrl, לחיצה ארוכה ו"פתיחה בלשונית חדשה"
- * עובדים כמו קודם, ואם התמונה לא נטענה — יש קישור לפתיחה רגילה.
- * (בלי ‎window.open‎ מ-JS — iOS חוסם אותו; ראו ‎test_receipt_viewing‎.) */
+ * The receipt icon is `<a href="/receipts/<id>" target="_blank">`, and in the
+ * installed app it sent you out to Safari. Now a tap opens the image here, on a
+ * dark screen: tapping the image zooms in (and again, out), ✕, Escape or a
+ * swipe down close it. The link itself stays: Cmd/Ctrl-click, long press and
+ * "open in new tab" work as before, and if the image didn't load there is a
+ * link to open it normally.
+ * (No `window.open` from JS: iOS blocks it; see `test_receipt_viewing`.) */
 (function () {
     'use strict';
     let box = null, img = null, fail = null, failLink = null, lastFocus = null, startY = null;
@@ -61,9 +62,11 @@
     }
 
     document.addEventListener('click', function (e) {
-        // הסמל בשורה הוא ‎<span data-href>‎ ולא קישור (מתן, 13.10): הוא יושב בתוך כפתור
-        // העריכה, וקישור בתוך כפתור הוא מקום ש-VoiceOver לא מגיע אליו. לקורא המסך
-        // יש את "צפייה בקבלה" בחלון העריכה.
+        // The icon in the row is a `<span data-href>` and not a link (Matan,
+        // 13.10): it sits inside the edit button, and a link inside a button is a
+        // place VoiceOver doesn't reach. The screen reader has "view receipt" in
+        // the edit sheet.
+
         const a = e.target.closest && e.target.closest('.receipt-badge, a.tx-receipt-link');
         if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
         e.preventDefault();

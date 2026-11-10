@@ -1,17 +1,19 @@
 const SF_VIEW = window.sfData('sf-view-data');
 
 
-// מרכוז החודש הנוכחי ברצועה. ה"מגנט" עצמו כולו CSS — כאן רק ממקמים את
-// נקודת ההתחלה. גם אחרי רענון רך (חזרה לאפליקציה, הוספת עסקה): הוא מחליף
-// את ה-hero ברצועה חדשה שעומדת בהתחלה — מתן (1.10) ראה יולי-אוגוסט
-// כשהחודש הנוכחי היה אוקטובר.
+// Centring the current month in the strip. The "magnet" itself is all CSS; here
+// we only place the starting point. Also after a soft refresh (returning to the
+// app, adding a transaction): it replaces the hero with a new strip that sits at
+// the start; Matan (1.10) saw July-August when the current month was October.
+
 (function () {
 function centerStrip() {
     const strip = document.getElementById('monthStrip');
     if (!strip) return;
     const active = strip.querySelector('.month-chip.is-current');
     if (!active) return;
-    // ללא אנימציה — קפיצה לגלילה חלקה בטעינת עמוד נראית כמו תקלה
+    // No animation: a jump to smooth scrolling on page load looks like a glitch
+
     const prev = strip.style.scrollBehavior;
     strip.style.scrollBehavior = 'auto';
     strip.scrollLeft += active.getBoundingClientRect().left + active.offsetWidth / 2
@@ -23,17 +25,20 @@ window.addEventListener('sf:refreshed', centerStrip);
 })();
 
 
-/* ═══ האינטראקטיביות של העמוד ═══
+/* ═══ The page's interactivity ═══
  *
- * בלוק נפרד מהגרפים, ולפניהם, בכוונה: כל מה שכאן חייב לעבוד גם כשאין
- * Chart.js. עד עכשיו הכול ישב יחד, והשורה הראשונה של הגרפים הפילה את
- * השאר — כולל בחודש ריק, שבו התבנית בכלל לא טוענת את הספרייה.
+ * A block separate from the charts, and before them, on purpose: everything
+ * here must work even without Chart.js. Until now it all sat together, and the
+ * first chart line took down the rest, including in an empty month, where the
+ * template doesn't even load the library.
  */
 (function () {
 
-// ── הרחבת קטגוריה: הצגת כל העסקאות שלה בחודש ──
-/* קטגוריה אחת פתוחה בכל פעם (מתן, 13.10): פתיחה של אחת סוגרת מיד את
- * האחרות — בלי תנועה, ובלי שהשורה שנגעו בה תקפוץ על המסך כשמה שמעליה מתקצר. */
+// ── Expanding a category: showing all its transactions in the month ──
+
+/* One category open at a time (Matan, 13.10): opening one closes the others
+ * immediately, with no motion, and without the tapped row jumping on screen as
+ * what is above it shrinks. */
 function closeOtherCategories(trigger, wrap) {
     const before = wrap.getBoundingClientRect().top;
     document.querySelectorAll('.legend-item.clickable[aria-expanded="true"]').forEach(function (other) {
@@ -52,7 +57,9 @@ function closeOtherCategories(trigger, wrap) {
 function toggleExpand(trigger) {
     const wrap = trigger.closest('.legend-item-wrap');
     if (!wrap) return;
-    // המצב לפי ‎aria-expanded‎ ולא לפי המחלקה: בסגירה המחלקה נשארת עד סוף ההחלקה
+    // State by `aria-expanded` and not the class: on close the class stays
+    // until the slide ends
+
     const isOpen = trigger.getAttribute('aria-expanded') !== 'true';
     if (isOpen) closeOtherCategories(trigger, wrap);
     trigger.setAttribute('aria-expanded', isOpen);
@@ -70,35 +77,42 @@ document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const trigger = e.target.closest('.legend-item.clickable');
     if (trigger) { e.preventDefault(); toggleExpand(trigger); }
-    // ‎.zero-toggle‎ מסומן ‎role="button" tabindex="0"‎, אבל טופל ב-‎click‎
-    // בלבד — ואלמנט שאינו ‎<button>‎ לא מייצר click מ-Enter. שלוש תחנות
-    // Tab בכל עמוד חודש הכריזו על עצמן ככפתור ולא עשו כלום, ומשתמשי
-    // מקלדת פשוט לא יכלו להגיע לקטגוריות המוסתרות.
+    // `.zero-toggle` is marked `role="button" tabindex="0"`, but was handled on
+    // `click` only, and an element that isn't a `<button>` doesn't produce a
+    // click from Enter. Three Tab stops on every month page announced themselves
+    // as buttons and did nothing, and keyboard users simply couldn't reach the
+    // hidden categories.
+
     const zero = e.target.closest('.zero-toggle');
     if (zero) { e.preventDefault(); zero.click(); }
 });
 
-// ── הצגת/הסתרת קטגוריות ללא פעילות ──
+// ── Showing/hiding categories with no activity ──
+
 document.addEventListener('click', function (e) {
     const toggle = e.target.closest('.zero-toggle');
     if (!toggle) return;
     const shown = toggle.parentElement.classList.toggle('show-zeros');
     toggle.classList.toggle('open', shown);
-    // קורא מסך לא רואה את החץ שמתהפך — צריך לשמוע "מורחב"/"מכווץ"
+    // A screen reader doesn't see the arrow flip: it needs to hear
+    // "expanded"/"collapsed"
+
     toggle.setAttribute('aria-expanded', String(shown));
 });
 
 
-// ── מהריבועים (וכרטיסי הבית) אל הפירוט: גלילה והבהוב ──
-// ‎:target‎ לא מתעדכן ב-‎replaceState‎, אז ההבהוב במחלקה. הגעה מהבית היא
-// ניווט רגיל עם ‎#‎ — הדפדפן גולל בעצמו, ורק ההבהוב נוסף כאן.
+// ── From the tiles (and the home cards) to the breakdown: scroll and flash ──
+// `:target` doesn't update on `replaceState`, so the flash is a class. Arriving
+// from home is ordinary navigation with `#`: the browser scrolls by itself, and
+// only the flash is added here.
+
 const BREAKDOWNS = ['income-breakdown', 'expense-breakdown', 'savings-breakdown'];
 
 function flashBreakdown(id) {
     const el = document.getElementById(id);
     if (!el) return null;
     el.classList.remove('flash');
-    void el.offsetWidth;                  // מאתחל את האנימציה גם בלחיצה חוזרת
+    void el.offsetWidth;                  // restarts the animation on a repeated tap too
     el.classList.add('flash');
     return el;
 }
@@ -108,25 +122,30 @@ document.addEventListener('click', function (e) {
     if (!link) return;
     const id = (link.getAttribute('href') || '').slice(1);
     const el = flashBreakdown(id);
-    if (!el) return;                      // אין פירוט — הקישור מתנהג כרגיל
+    if (!el) return;                      // no breakdown: the link behaves as usual
     e.preventDefault();
     const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
-    try { history.replaceState(null, '', '#' + id); } catch (err) { /* לא קריטי */ }
+    try { history.replaceState(null, '', '#' + id); } catch (err) { /* not critical */ }
 });
 
-// הגנה על ‎location‎: שורה ברמת הקובץ שזורקת מפילה את כל month.js — גרפים,
-// מקרא, פתיחת קטגוריות (כך בדיוק נפל core.js פעם על sessionStorage)
+// Guarding `location`: a file-level line that throws takes down all of
+// month.js: charts, legend, opening categories (exactly how core.js once fell
+// over sessionStorage)
+
 try {
     const arrived = window.location.hash.slice(1);
     if (BREAKDOWNS.includes(arrived)) flashBreakdown(arrived);
     else if (arrived.indexOf('cat-') === 0) showCategory(arrived);
-} catch (err) { /* בלי הבהוב — לא בלי העמוד */ }
+} catch (err) { /* without the flash, not without the page */ }
 
-// ── מהתראה בבית אל היעד שלה (מתן, 11.10) ──
-// התראה על קטגוריה (‎#cat-<id>‎) פותחת את הקטגוריה בפירוט ההוצאות — עם
-// העסקאות שלה — ומבהבת אותה. ההגעה מהבית היא ניווט רגיל עם ‎#‎.
-// קטגוריה שלא נמצאה (נמחקה בינתיים) נופלת לפירוט ההוצאות כולו.
+// ── From a home alert to its target (Matan, 11.10) ──
+// An alert about a category (`#cat-<id>`) opens the category in the expense
+// breakdown, with its transactions, and flashes it. Arriving from home is
+// ordinary navigation with `#`.
+// A category not found (deleted meanwhile) falls back to the whole expense
+// breakdown.
+
 function showCategory(id) {
     const wrap = document.getElementById(id);
     if (!wrap) {
@@ -143,14 +162,17 @@ function showCategory(id) {
     return wrap;
 }
 
-// ── חיפוש/סינון ברשימת "כל העסקאות" (client-side) ──
+// ── Search/filter in the "all transactions" list (client-side) ──
 //
-// בהאצלה מ-document ולא בהאזנה ישירה, ובלי לשמור את השורות מראש:
-// רענון רך מחליף את ‎main‎ כולו, וכל הפניה שנתפסה בטעינה מצביעה אחר כך
-// על אלמנטים מנותקים. החיפוש פשוט הפסיק להגיב, בלי שום סימן.
-// החיפוש והסינון לפי סוג (מתן, 30.9) פועלים יחד: שורה מוצגת רק אם היא
-// מתאימה לשניהם. הסוג הפעיל נקרא מהכפתור עצמו ולא נשמר במשתנה — מאותה
-// סיבה: אחרי רענון רך הכפתורים חדשים, וחוזרים ל"הכל".
+// Delegated from document rather than listening directly, and without storing
+// the rows upfront: a soft refresh replaces the whole `main`, and every
+// reference captured on load then points at detached elements. The search just
+// stopped responding, with no sign at all.
+// Search and the type filter (Matan, 30.9) work together: a row is shown only
+// if it matches both. The active type is read from the button itself and not
+// kept in a variable, for the same reason: after a soft refresh the buttons are
+// new, and it goes back to "all".
+
 function filterAllTx() {
     const rows = document.querySelectorAll('#txScreen .tx-screen-list .cat-tx-row');
     const input = document.getElementById('txSearch');
@@ -158,7 +180,8 @@ function filterAllTx() {
     const count = document.querySelector('.all-tx-count');
     const activeChip = document.querySelector('.tx-type-chip.active');
     const type = activeChip ? activeChip.dataset.type : '';
-    // הקטגוריות שנבחרו בשורה הפתוחה (ריק = "כל ההוצאות")
+    // The categories chosen in the open row (empty = "all expenses")
+
     const cats = new Set();
     document.querySelectorAll('.tx-cat-chips:not([hidden]) .tx-cat-chip.active').forEach(function (c) {
         if (c.dataset.cat) cats.add(c.dataset.cat);
@@ -166,7 +189,8 @@ function filterAllTx() {
     const q = input ? input.value.trim().toLowerCase() : '';
     let shown = 0, sum = 0;
     rows.forEach(function (row) {
-        // גם שם הקטגוריה והפרויקט (מתן, 5.10): "סופר" מוצא את "רמי לוי"
+        // The category and project name too (Matan, 5.10): "סופר" finds "רמי לוי"
+
         const desc = ((row.querySelector('.cat-tx-desc') || {}).textContent || '')
                    + ' ' + (row.dataset.search || '');
         const match = (!q || desc.toLowerCase().indexOf(q) !== -1)
@@ -178,21 +202,27 @@ function filterAllTx() {
     const filtering = q || type || cats.size;
     txState = { q: input ? input.value : '', type: type, cats: Array.from(cats) };
     if (emptyMsg) emptyMsg.style.display = (filtering && shown === 0) ? 'block' : 'none';
-    // כשנבחרו קטגוריות — גם כמה יצא עליהן ("5 · ₪1,070")
+    // When categories are chosen, also how much went on them ("5 · ₪1,070")
+
     if (count) count.textContent = !filtering ? count.dataset.total
         : (cats.size ? shown + ' · ₪' + window.sfMoney(Math.round(sum)) : shown);
 }
 
-// ── המסך של כל העסקאות (מתן, 5.10) ──
-// בתצוגה המקדימה 5 האחרונות; הרשימה המלאה, עם החיפוש והסינון, במסך משלה.
-// ‎#all-tx‎ בכתובת: כפתור החזרה של הטלפון סוגר את המסך ולא יוצא מהחודש.
-// עריכה מתוך המסך מרעננת את ‎main‎ (רענון רך) — והמסך החדש מגיע סגור, עם
-// חיפוש ריק. אז הוא נפתח מחדש עם מה שהיה בו (‎txState‎).
+// ── The all-transactions screen (Matan, 5.10) ──
+// The preview shows the last 5; the full list, with search and filter, on its
+// own screen. `#all-tx` in the URL: the phone's back button closes the screen
+// and doesn't leave the month.
+// Editing from the screen refreshes `main` (soft refresh), and the new screen
+// arrives closed, with an empty search. So it is reopened with what was in it
+// (`txState`).
+
 let txState = null;
 
-// ── מיון "כל העסקאות": תאריך / סכום (מתן, 12.10) ──
-// הסדר המקורי (לפי תאריך, מהשרת) נשמר על כל שורה בפעם הראשונה, וחוזרים אליו.
-// הסינון והחיפוש ממשיכים לעבוד — הם מסתירים שורות, לא מזיזים.
+// ── Sorting "all transactions": date / amount (Matan, 12.10) ──
+// The original order (by date, from the server) is stored on each row the first
+// time, and returned to. Filtering and search keep working: they hide rows,
+// they don't move them.
+
 function sortAllTx(by) {
     const list = document.querySelector('#txScreen .tx-screen-list');
     if (!list) return;
@@ -215,9 +245,11 @@ document.addEventListener('click', function (e) {
 
 function txScreen() { return document.getElementById('txScreen'); }
 
-// המסך עובר אל ‎body‎ ברגע הפתיחה. בתוך הכרטיס ‎position: fixed‎ לא מכסה את
-// המסך — לכרטיסים יש אנימציית כניסה עם ‎transform‎, וזה הופך אותם לנקודת
-// הייחוס. המסך נכלא בתוך הכרטיס, והכותרת הדביקה של החודש ישבה מעליו.
+// The screen moves to `body` at the moment it opens. Inside the card,
+// `position: fixed` doesn't cover the screen: the cards have an entrance
+// animation with `transform`, which makes them the containing block. The screen
+// was trapped inside the card, and the month's sticky header sat above it.
+
 function openTxScreen(push) {
     const screen = txScreen();
     if (!screen) return;
@@ -225,7 +257,7 @@ function openTxScreen(push) {
     screen.hidden = false;
     document.body.classList.add('tx-screen-open');
     if (push) {
-        try { history.pushState({ sfTxScreen: true }, '', '#all-tx'); } catch (e) { /* לא קריטי */ }
+        try { history.pushState({ sfTxScreen: true }, '', '#all-tx'); } catch (e) { /* not critical */ }
     }
 }
 
@@ -234,13 +266,13 @@ function hideTxScreen() {
     if (screen) screen.hidden = true;
     document.body.classList.remove('tx-screen-open');
     txState = null;
-    sortAllTx('date');                  // המיון לא נשמר — בפתיחה הבאה שוב לפי תאריך
+    sortAllTx('date');                  // the sort isn't kept: next time it opens by date again
 }
 
 function closeTxScreen() {
-    if (history.state && history.state.sfTxScreen) { history.back(); return; }   // popstate מסתיר
+    if (history.state && history.state.sfTxScreen) { history.back(); return; }   // popstate hides it
     hideTxScreen();
-    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* לא קריטי */ }
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* not critical */ }
 }
 
 function restoreTxState() {
@@ -276,7 +308,9 @@ window.addEventListener('popstate', function () {
     if (location.hash === '#all-tx') openTxScreen(false); else hideTxScreen();
 });
 window.addEventListener('sf:refreshed', function () {
-    // הרענון הביא מסך חדש בתוך ‎main‎; העותק הישן שהועבר ל-‎body‎ מיותר
+    // The refresh brought a new screen inside `main`; the old copy moved to
+    // `body` is redundant
+
     document.querySelectorAll('body > #txScreen').forEach(function (old) {
         if (old !== document.querySelector('main #txScreen')) old.remove();
     });
@@ -288,7 +322,7 @@ window.addEventListener('sf:refreshed', function () {
 });
 try {
     if (location.hash === '#all-tx') openTxScreen(false);
-} catch (err) { /* בלי פתיחה אוטומטית — לא בלי העמוד */ }
+} catch (err) { /* without auto-open, not without the page */ }
 
 function pressChip(chip, on) {
     chip.classList.toggle('active', on);
@@ -304,7 +338,8 @@ document.addEventListener('click', function (e) {
     const typeChip = e.target.closest('.tx-type-chip');
     const catChip = e.target.closest('.tx-cat-chip');
     if (typeChip) {
-        // סוג חדש: פותחים את שורת הקטגוריות שלו, וכל שורה חוזרת ל"כל ה…"
+        // A new type: open its category row, and every row goes back to "all …"
+
         document.querySelectorAll('.tx-type-chip').forEach(function (c) { pressChip(c, c === typeChip); });
         document.querySelectorAll('.tx-cat-chips').forEach(function (rowEl) {
             rowEl.hidden = rowEl.dataset.forType !== typeChip.dataset.type;
@@ -314,10 +349,12 @@ document.addEventListener('click', function (e) {
         const group = catChip.closest('.tx-cat-chips');
         const allChip = group.querySelector('.tx-cat-chip[data-cat=""]');
         if (!catChip.dataset.cat) {
-            // "כל ההוצאות" — מבטל את כל הבחירות
+            // "All expenses": clears every selection
+
             group.querySelectorAll('.tx-cat-chip').forEach(function (c) { pressChip(c, c === allChip); });
         } else {
-            // קטגוריה: נגיעה מוסיפה, נגיעה נוספת מורידה
+            // A category: a tap adds, another tap removes
+
             pressChip(catChip, !catChip.classList.contains('active'));
             const any = group.querySelector('.tx-cat-chip.active:not([data-cat=""])');
             pressChip(allChip, !any);
@@ -331,12 +368,13 @@ document.addEventListener('click', function (e) {
 })();
 
 
-/* ═══ הגרפים ═══  (ראו chart-setup.js)
+/* ═══ The charts ═══  (see chart-setup.js)
  *
- * נצבעים מחדש אחרי רענון רך. ‎softReload‎ מחליף את ‎main‎ כולו, כלומר
- * כל ה-canvas מוחלפים — ומופעי Chart.js הישנים נשארו מחוברים לאלמנטים
- * מנותקים בזמן שהחדשים לא צוירו מעולם. התוצאה על המסך הייתה תוויות
- * מרכז מרחפות מעל ריבועים ריקים, שנראית כמו קריסה של העמוד.
+ * Redrawn after a soft refresh. `softReload` replaces the whole `main`, i.e.
+ * every canvas is replaced, and the old Chart.js instances stayed attached to
+ * detached elements while the new ones were never drawn. The result on screen
+ * was centre labels floating over empty squares, which looks like the page
+ * crashed.
  */
 (function () {
 if (!window.sfCharts.ready) return;
@@ -347,9 +385,10 @@ const GRID_LINE = window.sfCharts.grid;
 let drawn = [];
 const calmMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* נגיעה בפלח (מתן, 12.10): אותה שורה שמתחת לעיגול — נפתחת עם העסקאות שלה,
- * מהבהבת וגוללת לאמצע המסך. פרויקט — כניסה לעמוד שלו. הסדר של הפלחים הוא
- * סדר השורות (אותה רשימה מהשרת). */
+/* Tapping a slice (Matan, 12.10): the same row under the ring opens with its
+ * transactions, flashes and scrolls to the middle of the screen. A project:
+ * opens its page. The order of the slices is the order of the rows (the same
+ * list from the server). */
 function openSlice(cardId, els) {
     if (!els || !els.length) return;
     const card = document.getElementById(cardId);
@@ -358,7 +397,7 @@ function openSlice(cardId, els) {
     if (!wrap) return;
     const trigger = wrap.querySelector('.legend-item.clickable');
     if (trigger && trigger.tagName === 'A') { window.location.href = trigger.href; return; }
-    if (trigger && trigger.getAttribute('aria-expanded') !== 'true') trigger.click();   // toggleExpand בבלוק אחר — כאן לא מוגדרת
+    if (trigger && trigger.getAttribute('aria-expanded') !== 'true') trigger.click();   // toggleExpand is in another block; not defined here
     wrap.classList.remove('flash');
     void wrap.offsetWidth;
     wrap.classList.add('flash');
@@ -367,19 +406,24 @@ function openSlice(cardId, els) {
 }
 
 function paint() {
-// מופעים קודמים נהרסים לפני הציור: ‎new Chart‎ על canvas תפוס זורק.
+// Previous instances are destroyed before drawing: `new Chart` on a canvas in
+// use throws.
+
 drawn.forEach(function (c) { try { c.destroy(); } catch (e) {} });
 drawn = [];
 
-// נתוני התצוגה מגיעים מאי-נתונים ב-HTML, ואותו HTML הוחלף — אז
-// קוראים אותו מחדש ולא מסתמכים על מה שנקרא בטעינה.
+// The display data comes from data islands in the HTML, and that HTML was
+// replaced, so it is read again rather than relying on what was read on load.
+
 const view = window.sfData('sf-view-data');
 const SF_VIEW = view;
 
-// ── 2. הוצאות לפי קטגוריה ──
-// צבע קבוע לכל קטגוריה (‎color_idx‎ מהשרת — המקום שלה ברשימת הקטגוריות, מתן
-// 12.10), ובמעבר חודש העיגול "זורם": נוצר עם הערכים של החודש הקודם לכל
-// קטגוריה, ואז מתעדכן לחדשים — הפלחים גדלים וקטנים במקום להצטייר מאפס.
+// ── 2. Expenses by category ──
+// A fixed colour per category (`color_idx` from the server: its place in the
+// category list, Matan 12.10), and when switching months the ring "flows": it
+// is created with the previous month's values per category, then updated to the
+// new ones, so the slices grow and shrink instead of being drawn from zero.
+
 const expenseData = SF_VIEW.expense;
 if (expenseData.length > 0) {
     const ctx = document.getElementById('expenseChart');
@@ -406,7 +450,9 @@ if (expenseData.length > 0) {
             options: {
                 cutout: '70%',
                 animation: morph ? false : undefined,
-                // במקום הבועה השחורה — הנגיעה פותחת את השורה של הקטגוריה (מתן, 12.10)
+                // Instead of the black tooltip, the tap opens the category's row
+                // (Matan, 12.10)
+
                 plugins: { tooltip: { enabled: false } },
                 onClick: (evt, els) => openSlice('expense-breakdown', els),
             }
@@ -423,8 +469,9 @@ if (expenseData.length > 0) {
     }
 }
 
-// ── 4. הכנסות — אותו גרף עגול כמו ההוצאות (מתן, 30.9). לחיסכון אין גרף ──
-// הצבעים מהשרת: בן המשפחה, או אפור ל"הכנסות נוספות".
+// ── 4. Income: the same ring as expenses (Matan, 30.9). Savings has no chart ──
+// The colours come from the server: the family member, or grey for "other income".
+
 [['incomeChart', SF_VIEW.income || [], 'color']]
 .forEach(function (spec) {
     const ctx = document.getElementById(spec[0]);
@@ -452,7 +499,9 @@ if (expenseData.length > 0) {
     }));
 });
 
-// ── 5. חלוקה בין בני המשפחה — גרף נפרד לכל סוג שהמשפחה הפעילה בו שיוך ──
+// ── 5. Split between family members: a separate chart for every type the
+// family turned attribution on for ──
+
 SF_VIEW.members.forEach(function (mb) {
     const ctx = document.getElementById('membersChart-' + mb.type);
     if (!ctx || !mb.rows.length) return;
@@ -463,7 +512,9 @@ SF_VIEW.members.forEach(function (mb) {
             datasets: [{
                 label:           mb.label,
                 data:            mb.rows.map(m => m.expense),
-                // צבע קבוע לכל בן משפחה — זהה לצבע תג-השם שלו (ראה app.py)
+                // A fixed colour per family member, identical to their name-tag
+                // colour (see app.py)
+
                 backgroundColor: mb.rows.map(m => m.color),
                 borderRadius:    6,
                 maxBarThickness: 64,
@@ -494,19 +545,22 @@ SF_VIEW.members.forEach(function (mb) {
 
 paint();
 
-// רענון רך החליף את ‎main‎ — ה-canvas שעליהם ציירנו כבר לא במסמך.
+// A soft refresh replaced `main`: the canvases we drew on are no longer in the document.
+
 window.addEventListener('sf:refreshed', paint);
 
 })();
 
 
 
-/* ═══ כותרת שנשארת למעלה בגלילה (מתן, 30.9 — סבב 6, פריט 12) ═══
+/* ═══ A header that stays at the top while scrolling (Matan, 30.9, round 6,
+ * item 12) ═══
  *
- * כשהמאזן החודשי יוצא מהמסך, בראש המסך מופיעה שורה דקה: שם החודש והמאזן.
- * נגיעה בה מחזירה לראש העמוד. נבנית מחדש אחרי רענון רך — אז הערכים חדשים.
- * הסכום נקרא מ-‎data-countup‎ ולא מהטקסט: באמצע אנימציית הספירה הטקסט הוא
- * מספר ביניים. */
+ * When the monthly balance leaves the screen, a thin row appears at the top: the
+ * month name and the balance. Tapping it returns to the top of the page. Rebuilt
+ * after a soft refresh, so the values are fresh. The amount is read from
+ * `data-countup` and not the text: mid count-up the text is an intermediate
+ * number. */
 (function () {
     let bar = null, observer = null;
 
@@ -542,7 +596,9 @@ window.addEventListener('sf:refreshed', paint);
         v.textContent = 'מאזן ' + value;
         bar.append(t, v);
         observer = new IntersectionObserver(function (entries) {
-            // מופיעה רק כשהמאזן יצא **למעלה** — לא כשהוא עוד לא הגיע למסך
+            // Appears only when the balance left **upwards**, not when it
+            // hasn't reached the screen yet
+
             const e = entries[0];
             bar.hidden = e.isIntersecting || e.boundingClientRect.top > 0;
         });
@@ -553,12 +609,13 @@ window.addEventListener('sf:refreshed', paint);
 })();
 
 
-/* ═══ קביעת תקציבים — חלון אחד לכל הקטגוריות (מתן, 30.9) ═══
+/* ═══ Setting budgets: one sheet for all categories (Matan, 30.9) ═══
  *
- * במקום "קביעת תקציב לקטגוריה" אחרי כל שורה, ששלח להגדרות. כל קטגוריית
- * הוצאה עם כמה יצא עליה החודש ושדה לתקציב החודשי; ריק = בלי תקציב. שמירה
- * אחת שולחת רק מה שהשתנה. הנתונים נקראים ב**פתיחה** (‎sf-budgets‎ בתוך
- * ‎main‎) — אחרי רענון רך הם כבר החדשים. */
+ * Instead of "set a budget for the category" after every row, which sent you to
+ * settings. Every expense category with how much went on it this month and a
+ * field for the monthly budget; empty = no budget. One save sends only what
+ * changed. The data is read on **open** (`sf-budgets` inside `main`), so after a
+ * soft refresh it is already the new data. */
 (function () {
     let sheet = null;
 
@@ -600,7 +657,7 @@ window.addEventListener('sf:refreshed', paint);
             input.step = '1';
             input.placeholder = 'אין';
             input.value = r.budget ? Math.round(r.budget) : '';
-            input.defaultValue = input.value;               // "שמירה" כבוי עד ששינו (מתן, 13.10)
+            input.defaultValue = input.value;               // "save" is disabled until something changes (Matan, 13.10)
             input.dataset.cat = r.category_id;
             input.dataset.old = r.budget ? String(Math.round(r.budget)) : '';
             input.dataset.alert = r.budget_alert === false ? 'false' : 'true';
@@ -667,8 +724,10 @@ window.addEventListener('sf:refreshed', paint);
     }
 
     function closeBudgets() {
-        // קודם ‎hidden‎ — החלון יורד באותו מסלול שעלה (style.css, ‎.color-sheet‎) —
-        // ורק אחרי התנועה יוצא מהעמוד. ‎sheet‎ מתאפס מיד: פתיחה חדשה בונה חלון חדש.
+        // First `hidden`: the sheet slides down the same path it came up
+        // (style.css, `.color-sheet`), and only after the motion leaves the page.
+        // `sheet` is reset right away: a new open builds a new sheet.
+
         if (sheet) {
             const gone = sheet;
             sheet = null;
@@ -695,31 +754,36 @@ window.addEventListener('sf:refreshed', paint);
 })();
 
 
-/* ═══ דפדוף בין חודשים (מתן, 3.10 — רעיון 35; מחדש 11.10) ═══
+/* ═══ Paging between months (Matan, 3.10, idea 35; redone 11.10) ═══
  *
- * החלקה הצידה בכל מקום בעמוד מדפדפת חודש. עד 11.10 זה עבד רק על המאזן
- * והריבועים, ובשאר העמוד הטלפון פירש את ההחלקה כ"אחורה" — מתן: "הוא חוזר
- * לעמוד הבית". והמעבר היה טעינת עמוד מלאה, לא חלקה.
+ * A sideways swipe anywhere on the page pages a month. Until 11.10 this worked
+ * only on the balance and the tiles, and on the rest of the page the phone read
+ * the swipe as "back" (Matan: "it goes back to the home page"). And the switch
+ * was a full page load, not smooth.
  *
- * עכשיו התוכן זז עם האצבע; בשחרור החודש הנוכחי יוצא לצד אחד והחדש נכנס
- * מהצד השני — בלי טעינת עמוד (‎window.softNavigate‎). החודש החדש נמשך כבר
- * כשההחלקה מתחילה, כך שבשחרור הוא בדרך כלל כבר כאן. גם החצים ורצועת
- * החודשים עוברים באותה אנימציה.
+ * Now the content moves with the finger; on release the current month leaves
+ * to one side and the new one enters from the other, with no page load
+ * (`window.softNavigate`). The new month is fetched as soon as the swipe starts,
+ * so on release it is usually already here. The arrows and the month strip use
+ * the same animation too.
  *
- * כמו בכרטיס "השבוע": הזמן זורם מימין לשמאל, אז גרירה שמאלה = החודש הקודם,
- * ימינה = הבא. לא מחליקים מתוך מה שיש לו החלקה משלו: שורות עסקה (עריכה
- * ומחיקה), רצועת החודשים ושורות קטגוריות שנגללות הצידה. נגיעה צמודה לקצה
- * המסך נשארת של הטלפון ("אחורה" של המערכת). */
+ * As in the "this week" card: time flows right to left, so dragging left = the
+ * previous month, right = the next. No swiping from what has its own swipe:
+ * transaction rows (edit and delete), the month strip and category rows that
+ * scroll sideways. A touch right at the edge of the screen stays the phone's
+ * (the system's "back"). */
 (function () {
-    // מה זז עם האצבע: ראש העמוד בלי הרקע הכהה, וכל התוכן
+    // What moves with the finger: the top of the page without the dark
+    // background, and all the content
+
     const SLIDE = 'header.page-hero .hero-top, header.page-hero .month-strip, '
                 + 'header.page-hero .month-net, header.page-hero .kpi-chips, main.main-content';
     const OWN_SWIPE = '.transaction-item, .cat-tx-row, .recurring-row, .month-strip, .tx-cat-chips, '
                     + '.range-chips, input, textarea, select, button.swipe-action, .tx-screen';
     const OPEN_WINDOWS = '.modal-overlay.open, .confirm-overlay.open, .search-screen:not([hidden]), '
                        + '.icon-picker:not([hidden]), .color-sheet:not([hidden]), .tx-screen.open';
-    const EDGE = 22;          // ליד הקצה — ההחלקה של המערכת
-    const GO_DIST = 60;       // לאן התנועה מכוונת (מרחק + תנופה) — מעבר לזה עוברים חודש
+    const EDGE = 22;          // near the edge: the system's swipe
+    const GO_DIST = 60;       // where the motion is aimed (distance + momentum); past this, switch month
     const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let sx = null, sy = 0, axis = null, pending = null, busy = false, samples = [];
@@ -729,7 +793,9 @@ window.addEventListener('sf:refreshed', paint);
     function link(isOlder) {
         return document.querySelector('.stats-nav-btn[aria-label="' + (isOlder ? 'חודש קודם' : 'חודש הבא') + '"]');
     }
-    // התוכן במרחק ‎v‎ מהמקום, ונחלש מעט ככל שהוא מתרחק — רמז שעוד רגע מתחלף
+    // The content `v` away from its place, fading slightly as it moves further:
+    // a hint that it is about to switch
+
     function place(v) {
         x = v;
         const fade = v ? String(Math.max(0.6, 1 - Math.abs(v) / (window.innerWidth * 1.6))) : '';
@@ -752,7 +818,9 @@ window.addEventListener('sf:refreshed', paint);
         }
         return pending.html;
     }
-    // חזרה למקום בקפיץ שממשיך את מהירות האצבע (כמו שורות העסקה והחלון)
+    // Back into place on a spring that continues the finger's velocity (like
+    // the transaction rows and the sheet)
+
     function settle(v) {
         if (stopSpring) { stopSpring(); stopSpring = null; }
         if (calm || !x) { place(0); return; }
@@ -760,13 +828,14 @@ window.addEventListener('sf:refreshed', paint);
                                      function () { stopSpring = null; place(0); });
     }
 
-    /* המעבר עצמו — מההחלקה, מהחצים ומהרצועה. ‎fromX‎/‎v‎: איפה התוכן עומד
-     * ובאיזו מהירות האצבע עזבה — היציאה ממשיכה את התנועה בלי תפר. */
+    /* The switch itself: from the swipe, the arrows and the strip. `fromX`/`v`:
+     * where the content stands and how fast the finger left: the exit
+     * continues the motion seamlessly. */
     function go(url, isOlder, fromX, v) {
         if (busy) return;
         busy = true;
         if (stopSpring) { stopSpring(); stopSpring = null; }
-        const dir = isOlder ? -1 : 1;           // שמאלה = קודם (הזמן זורם מימין לשמאל)
+        const dir = isOlder ? -1 : 1;           // left = previous (time flows right to left)
         const w = window.innerWidth;
         const html = prefetch(url);
         const out = parts();
@@ -799,7 +868,8 @@ window.addEventListener('sf:refreshed', paint);
             .then(function () { busy = false; pending = null; },
                   function () { busy = false; pending = null; });
     }
-    // לבדיקות ולמי שרוצה לדפדף מקוד
+    // For tests and for anyone who wants to page from code
+
     window.sfGoMonth = go;
 
     document.addEventListener('touchstart', function (e) {
@@ -809,8 +879,8 @@ window.addEventListener('sf:refreshed', paint);
         if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
         if (e.target.closest && e.target.closest(OWN_SWIPE)) return;
         if (document.querySelector(OPEN_WINDOWS)) return;
-        if (!document.querySelector('.stats-nav-btn')) return;   // לא בעמוד החודש
-        if (stopSpring) { stopSpring(); stopSpring = null; }   // תפיסה באמצע החזרה
+        if (!document.querySelector('.stats-nav-btn')) return;   // not on the month page
+        if (stopSpring) { stopSpring(); stopSpring = null; }   // caught in the middle of returning
         sx = t.clientX - x; sy = t.clientY; axis = x ? 'x' : null;
         samples = [{ t: e.timeStamp, p: t.clientX }];
     }, { passive: true });
@@ -823,14 +893,15 @@ window.addEventListener('sf:refreshed', paint);
             if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
             axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
             if (axis !== 'x') { sx = null; return; }
-            sx += dx > 0 ? 8 : -8;              // בלי קפיצה של 8 הפיקסלים של ההחלטה
+            sx += dx > 0 ? 8 : -8;              // without the 8-pixel jump of the decision
             const target = link(dx < 0);
             if (target) prefetch(target.href);
         }
-        e.preventDefault();                     // המסך לא נגלל כל עוד מדפדפים
+        e.preventDefault();                     // the screen doesn't scroll while paging
         samples.push({ t: e.timeStamp, p: t.clientX });
         if (samples.length > 6) samples.shift();
-        // אחד לאחד עם האצבע — בזמן אמת
+        // One to one with the finger: in real time
+
         place(t.clientX - sx);
     }, { passive: false });
 
@@ -839,8 +910,10 @@ window.addEventListener('sf:refreshed', paint);
         sx = null;
         if (axis !== 'x') return;
         axis = null;
-        // לפי **לאן התנועה הולכת** (כמו "השבוע"): הנפה קצרה ומהירה מספיקה,
-        // וגרירה לצד אחד שחוזרת בהנפה לצד השני — התחרטות
+        // By **where the motion is heading** (like "this week"): a short fast
+        // flick is enough, and a drag to one side that flicks back to the other
+        // is changing your mind
+
         const v = window.sfVelocity(samples, e.timeStamp);
         const aim = x + window.sfProject(v, 0.99);
         const isOlder = aim < 0;
@@ -857,8 +930,10 @@ window.addEventListener('sf:refreshed', paint);
         sx = null; axis = null;
     }, { passive: true });
 
-    // החצים, רצועת החודשים ו"חזרה לחודש הנוכחי" — אותו מעבר חלק. הכיוון
-    // לפי התאריך שבכתובת: חודש מוקדם יותר נכנס מאותו צד כמו בהחלקה.
+    // The arrows, the month strip and "back to the current month": the same
+    // smooth switch. The direction is by the date in the URL: an earlier month
+    // enters from the same side as in a swipe.
+
     function ym(href) {
         try {
             const u = new URL(href, location.href);
@@ -870,12 +945,14 @@ window.addEventListener('sf:refreshed', paint);
         const a = e.target.closest && e.target.closest('a.stats-nav-btn, a.month-chip, a.back-to-current');
         if (!a || e.metaKey || e.ctrlKey || e.shiftKey || busy) return;
         e.preventDefault();
-        if (a.classList.contains('is-current')) return;          // החודש שכבר מוצג
+        if (a.classList.contains('is-current')) return;          // the month already shown
         let isOlder;
         if (a.classList.contains('stats-nav-btn')) isOlder = a.getAttribute('aria-label') === 'חודש קודם';
         else if (a.classList.contains('back-to-current')) isOlder = a.dataset.older === 'true';
         else {
-            // ברצועה: מול החודש שמוצג עכשיו (‎/month‎ בלי פרמטרים הוא הנוכחי)
+            // In the strip: against the month shown now (`/month` with no
+            // parameters is the current one)
+
             const cur = document.querySelector('.month-chip.is-current');
             const here = cur ? ym(cur.href) : null, there = ym(a.href);
             isOlder = here !== null && there !== null && there < here;
@@ -883,6 +960,8 @@ window.addEventListener('sf:refreshed', paint);
         go(a.href, isOlder);
     });
 
-    // חזרה עם "אחורה" — הדפדפן משחזר את העמוד כמו שהיה, כולל ההזזה
+    // Going back with "back": the browser restores the page as it was,
+    // including the offset
+
     window.addEventListener('pageshow', function () { place(0); busy = false; });
 })();

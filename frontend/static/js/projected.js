@@ -1,6 +1,7 @@
-/* מופע צפוי בחודש עתידי (מתן, 1.11): לחיצה שואלת מה לעשות —
- * "דלג על החודש הזה" (רק התאריך הזה לא יירשם; "בטל" בהודעה מחזיר אותו),
- * או "עריכת הסדרה" — העסקה הקבועה עצמה בהגדרות, וכל החודשים מתעדכנים. */
+/* A projected occurrence in a future month (Matan, 1.11): a tap asks what to
+ * do: "skip this month" (only this date won't be recorded; "undo" in the toast
+ * brings it back), or "edit the series": the recurring transaction itself in
+ * settings, and every month updates. */
 (function () {
     'use strict';
 
@@ -28,15 +29,19 @@
             cancelText:  'עריכת העסקה הקבועה',
             danger:      false,
         }).then(function (skip) {
-            if (skip === null) return;                       // נסגר בלי בחירה
+            if (skip === null) return;                       // closed without a choice
             if (!skip) {
                 location.href = '/settings?series=' + encodeURIComponent(row.dataset.templateId);
                 return;
             }
             send(row, true).then(function () {
-                // הסיכומים בראש העמוד מחושבים בשרת — טוענים מחדש אחרי ההודעה
+                // The totals at the top of the page are computed on the server:
+                // reload after the toast
+
                 const reload = setTimeout(function () { location.reload(); }, 3500);
-                // אותו מופע מופיע גם בפירוט הקטגוריה וגם ב"כל העסקאות"
+                // The same occurrence appears both in the category breakdown and
+                // in "all transactions"
+
                 document.querySelectorAll('.cat-tx-row.is-projected').forEach(function (r) {
                     if (r.dataset.templateId === row.dataset.templateId && r.dataset.date === row.dataset.date) r.style.display = 'none';
                 });

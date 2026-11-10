@@ -82,7 +82,7 @@ def test_the_field_is_text_with_a_number_keyboard_and_no_cents_placeholder():
     tx = _read(_JS / "transactions.js")
     assert "const AMOUNT_PLACEHOLDER_DEFAULT = '0';" in tx
     assert "const amount = amountValue();" in tx                # השליחה בלי פסיקים
-    assert "formatAmount(false);        // ערך שנכתב מקוד" in tx  # עריכה וסריקה
+    assert "formatAmount(false);        // a value written by code" in tx  # עריכה וסריקה
 
 
 # ─── עריכה ──────────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ def test_every_password_page_loads_the_eye():
 
 def test_logging_out_asks_first():
     settings = _read(_JS / "settings.js")
-    block = settings[settings.index("// ── אישור לפני התנתקות"):]
+    block = settings[settings.index("// ── Confirmation before signing out"):]
     assert "window.appConfirm(" in block and "form.submit();" in block
     assert 'method="POST" action="{{ url_for(\'logout\') }}"' in _read(_T / "settings.html")
 

@@ -1,13 +1,14 @@
-/* בחירת אייקון מתוך רשת (מתן, 30.9 — סבב 6, פריט 8).
+/* Picking an icon from a grid (Matan, 30.9, round 6, item 8).
  *
- * כל ‎.emoji-input‎ באפליקציה: קטגוריות, פרויקטים, קטגוריות של פרויקט,
- * והאשף. נגיעה בשדה פותחת רשת אייקונים לפי נושאים במקום מקלדת — עד היום
- * צריך היה לפתוח את מקלדת האימוג'י, לחפש ולהדביק, ורוב האנשים השאירו 🏷.
- * "אימוג'י אחר" מחזיר את המקלדת לשדה הזה.
+ * Every `.emoji-input` in the app: categories, projects, project categories,
+ * and the wizard. Tapping the field opens a grid of icons by topic instead of a
+ * keyboard: until now you had to open the emoji keyboard, search and paste, and
+ * most people left 🏷. "Another emoji" brings the keyboard back to that field.
  *
- * ובנוסף: כשכותבים שם ("דלק"), השדה שלידו מקבל הצעה (⛽) — כל עוד לא נבחר
- * בו אייקון ביד. השדות מוגבלים לשני תווים (UTF-16), אז ‎U+FE0F‎ רק אחרי תו בודד (‎✈️‎),
- * לא אחרי אימוג'י שכבר תופס שניים (‎🛡‎ ולא ‎🛡️‎). */
+ * And also: when typing a name ("דלק"), the field next to it gets a suggestion
+ * (⛽), as long as no icon was picked in it by hand. The fields are limited to
+ * two characters (UTF-16), so `U+FE0F` only after a single character (`✈️`),
+ * not after an emoji that already takes two (`🛡` and not `🛡️`). */
 (function () {
     const GROUPS = [
         ['אוכל',    ['🛒', '🍽', '☕', '🍕', '🥖', '🍷', '🥗', '🍔']],
@@ -21,7 +22,8 @@
         ['תקשורת',  ['📱', '🌐', '💻', '📡', '📰', '✉️', '🔌', '🛡']],
         ['נסיעות',  ['✈️', '🧳', '🏨', '🗺', '⛺', '🚢', '🌍', '🎫']],
     ];
-    // שם ← אייקון. לפי הסדר: הביטוי הראשון שמופיע בשם קובע
+    // name → icon. In order: the first expression that appears in the name decides
+
     const SUGGEST = [
         ['סופר', '🛒'], ['מכולת', '🛒'], ['קניות לבית', '🛒'], ['מסעד', '🍽'], ['אוכל בחוץ', '🍽'],
         ['קפה', '☕'], ['פיצה', '🍕'], ['דלק', '⛽'], ['רכב', '🚗'], ['טסט', '🚗'], ['מוסך', '🔧'],
@@ -40,7 +42,8 @@
         ['בונוס', '💰'], ['השקע', '📈'], ['מניות', '📈'], ['פנסיה', '🏦'], ['השתלמות', '🏦'],
         ['חיסכון', '🏦'], ['פיקדון', '🏦'], ['תרומ', '❤️'], ['מחשב', '💻'], ['אשראי', '💳'],
     ];
-    // ברירות מחדל שאומרות "עוד לא בחרו כלום" — מותר להחליף אותן בהצעה
+    // Defaults that say "nothing picked yet": they may be replaced by a suggestion
+
     const PLACEHOLDERS = ['', '🏷', '🎯', '📦'];
 
     let sheet = null, target = null;
@@ -130,28 +133,32 @@
     function choose(icon) {
         if (target) {
             target.value = icon;
-            target.dataset.autoIcon = '0';          // נבחר ביד — ההצעה לא דורסת
+            target.dataset.autoIcon = '0';          // picked by hand: the suggestion doesn't overwrite
             target.dispatchEvent(new Event('input', { bubbles: true }));
         }
         close();
     }
 
-    // נגיעה בשדה: הרשת במקום המקלדת. ‎pointerdown‎ עם ‎preventDefault‎ כדי שהמקלדת
-    // לא תקפוץ לרגע מתחת לרשת. מי שבחר "אימוג'י אחר" — מקלדת רגילה בשדה הזה.
+    // Tapping the field: the grid instead of the keyboard. `pointerdown` with
+    // `preventDefault` so the keyboard doesn't pop up for a moment under the grid.
+    // Whoever chose "another emoji" gets the regular keyboard in that field.
+
     document.addEventListener('pointerdown', function (e) {
         const input = e.target.closest && e.target.closest('input.emoji-input');
         if (!input || input.dataset.freeTyping) return;
         e.preventDefault();
         open(input);
     });
-    // מקלדת: Enter או רווח בשדה פותחים את הרשת
+    // Keyboard: Enter or space in the field opens the grid
+
     document.addEventListener('keydown', function (e) {
         const input = e.target.closest && e.target.closest('input.emoji-input');
         if (!input || input.dataset.freeTyping) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(input); }
     });
 
-    // הצעה לפי השם: שדה טקסט באותה שורה כמו שדה האייקון
+    // A suggestion by name: a text field on the same row as the icon field
+
     function suggest(name) {
         const n = (name || '').trim();
         if (!n) return null;
@@ -171,5 +178,5 @@
         if (s) { icon.value = s; icon.dataset.autoIcon = '1'; }
     });
 
-    window.sfIconSuggest = suggest;     // לבדיקות
+    window.sfIconSuggest = suggest;     // for tests
 })();

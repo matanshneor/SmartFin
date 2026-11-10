@@ -1,6 +1,7 @@
-/* "2026 שלכם" — מסך הסיכום השנתי (מתן, 1.11). נפתח בלחיצה על כל כפתור עם
- * ‎data-year-recap="<שנה>"‎, ורק מי שלחץ רואה אותו. ההשוואה לשנה הקודמת מגיעה
- * מהשרת רק כשהשנה הקודמת מלאה — אחרת פשוט אין אותה. */
+/* "Your 2026": the yearly summary screen (Matan, 1.11). Opens on tapping any
+ * button with `data-year-recap="<year>"`, and only whoever tapped sees it. The
+ * comparison with the previous year comes from the server only when the
+ * previous year is full; otherwise it simply isn't there. */
 (function () {
     'use strict';
     const overlay = document.getElementById('yearRecap');
@@ -15,13 +16,16 @@
     function section(title, inner) {
         return '<section class="yr-card"><h3 class="yr-card-title">' + title + '</h3>' + inner + '</section>';
     }
-    // בלי אימוג'י בשורות (מתן, 1.11)
+    // No emoji in the rows (Matan, 1.11)
+
     function line(html) {
         return '<li>' + html + '</li>';
     }
 
     function render(d) {
-        // במהלך השנה — בקרה, "2026 עד עכשיו"; בסוף השנה — "2026 שלכם" (מתן, 1.11)
+        // During the year, a checkpoint, "2026 עד עכשיו"; at the end of the
+        // year, "2026 שלכם" (Matan, 1.11)
+
         const now = new Date();
         document.getElementById('yrKicker').textContent = d.partial ? 'איפה אתם עומדים השנה' : 'הסיכום השנתי';
         document.getElementById('yrTitle').textContent = d.year + (d.partial ? ' עד עכשיו' : ' שלכם');
@@ -34,7 +38,8 @@
             + '</div>';
         if (d.savings_rate) html += '<p class="yr-rate">חסכתם <b>' + d.savings_rate + '%</b> מההכנסות</p>';
 
-        // החודשים — עמודת הוצאות לכל חודש, והקיצוניים מסומנים
+        // The months: an expense bar per month, with the extremes marked
+
         const max = Math.max.apply(null, d.months.map(m => m.expense)) || 1;
         let bars = '<div class="yr-bars" aria-hidden="true" style="grid-template-columns:repeat(' + d.through + ',1fr)">';
         d.months.filter(m => m.month <= d.through).forEach(function (m) {

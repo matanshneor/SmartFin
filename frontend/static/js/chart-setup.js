@@ -1,45 +1,57 @@
-/* הגדרות הגרפים — ומה קורה כשהספרייה לא נטענה.
+/* Chart settings, and what happens when the library didn't load.
  *
- * אותן שמונה שורות של Chart.defaults הועתקו לשלושה קבצים, ובכל אחד
- * מהם הן ישבו בראש הבלוק שהחזיק גם את כל השאר: פתיחת קטגוריה, חיפוש
- * בעסקאות, מקש Enter/Escape. אם Chart.js לא הגיע — חוסם, רשת גרועה,
- * קובץ פגום במטמון, או פשוט עמוד שלא טוען אותה כי אין מה לצייר —
- * השורה הראשונה זרקה ReferenceError וכל השאר לא רץ מעולם. המשתמש
- * ראה עמוד שנראה תקין לגמרי ופשוט לא הגיב ללחיצות, וזה הבלבול הגרוע
- * ביותר: אין מה לדווח עליו.
+ * The same eight lines of Chart.defaults were copied into three files, and in
+ * each of them they sat at the top of the block that also held everything
+ * else: opening a category, searching transactions, the Enter/Escape keys. If
+ * Chart.js didn't arrive (a blocker, a bad network, a corrupt cached file, or
+ * just a page that doesn't load it because there is nothing to draw), the
+ * first line threw a ReferenceError and the rest never ran. The user saw a
+ * page that looked perfectly fine and simply didn't respond to taps, and that
+ * is the worst kind of confusion: there is nothing to report.
  *
- * עכשיו ‎window.sfCharts.ready‎ אומר אם יש ספרייה. קוד הגרפים נכנס
- * מאחורי הדגל, שאר העמוד לא. גרף הוא ממילא קישוט על מספרים שכבר
- * כתובים בעמוד — הוא לא מקור האמת של אף סכום.
+ * Now `window.sfCharts.ready` says whether there is a library. The chart code
+ * goes behind the flag, the rest of the page doesn't. A chart is decoration on
+ * numbers already written on the page anyway; it is not the source of truth for
+ * any amount.
  */
 window.sfCharts = (function () {
-    // צבעים שנבדלים זה מזה גם בגוון וגם בבהירות (מתן, 18.10): בסט הקודם
-    // ירוק-כהה מול טורקיז, סגול מול סגול-ורוד ושני כחולים כמעט התמזגו.
-    // כל צבע נשאר באותו מקום ובאותה משפחה, כך שקטגוריה לא "קופצת" לצבע זר.
+    // Colours that differ from each other in both hue and lightness (Matan,
+    // 18.10): in the previous set dark green vs turquoise, purple vs pink-purple
+    // and two blues almost merged. Each colour stayed in the same place and the
+    // same family, so a category doesn't "jump" to a foreign colour.
+
     var COLORS = [
         '#A67C00', '#2E8B6E', '#B83A4B', '#1F5F6B',
         '#7B4FB8', '#4CB3C9', '#7A4E2D', '#E58FB0',
-        // 12 ולא 8 (מתן, 12.10): התשיעית יצאה בצבע של הראשונה. ‎CHART_COLORS‎ ב-app.py
+        // 12 and not 8 (Matan, 12.10): the ninth came out in the first one's
+        // colour. `CHART_COLORS` in app.py
+
         '#9AAE3C', '#E07A2E', '#3B6FB6', '#8C857D'
     ];
-    // מהעיצוב הפעיל ולא קבועים: במצב כהה (סבב 6, פריט 4) אפור כהה על רקע
-    // כהה לא נקרא, וקווי רשת בצבע הדיו נעלמים
+    // From the active theme, not constants: in dark mode (round 6, item 4)
+    // dark grey on a dark background isn't readable, and grid lines in the ink
+    // colour disappear
+
     var dark  = document.documentElement.getAttribute('data-theme') === 'dark';
     var MUTED = dark ? '#A69D8C' : '#78716C';
     var GRID  = dark ? 'rgba(255,244,214,0.08)' : 'rgba(28,25,23,0.07)';
-    // צבע הכרטיס — הקו שמפריד בין פלחי הדונאט
+    // The card colour: the line separating the donut slices
+
     var SURFACE = dark ? '#211B12' : '#FFFFFF';
 
-    // צבעי הגרפים זמינים גם ל-CSS: חלק מהמקראות מרונדרות בשרת, והנקודה
-    // לצד כל קטגוריה נצבעת מהמשתנים האלה. לכן זה קורה גם בלי ספרייה —
-    // אחרת מקרא שלם היה מאבד את הצבעים שלו על לא עוול בכפו.
+    // Chart colours are available to CSS too: some legends are rendered on the
+    // server, and the dot next to each category is coloured from these
+    // variables. So this happens even without the library; otherwise a whole
+    // legend would lose its colours through no fault of its own.
+
     COLORS.forEach(function (c, i) {
         document.documentElement.style.setProperty('--chart-color-' + i, c);
     });
 
     if (typeof Chart === 'undefined') {
-        // במקום קנבס ריק שנראה כמו תקלה — משפט שמסביר, ומבהיר
-        // שהמספרים עצמם בסדר.
+        // Instead of an empty canvas that looks like a failure: a sentence that
+        // explains, and makes clear the numbers themselves are fine.
+
         document.querySelectorAll('.doughnut-wrap, .line-chart-wrap').forEach(function (wrap) {
             var canvas = wrap.querySelector('canvas');
             if (!canvas) return;
@@ -50,8 +62,10 @@ window.sfCharts = (function () {
                 '<p>הגרף לא נטען</p>' +
                 '<p>המספרים עצמם מעודכנים ונכונים. רענון העמוד בדרך כלל פותר.</p>';
             canvas.replaceWith(note);
-            // המספר שבמרכז הדונאט ממוקם אבסולוטית מעל הקנבס; בלי
-            // הקנבס אין לו גובה להתמקם בתוכו, והוא היה נופל על הטקסט
+            // The number in the middle of the donut is positioned absolutely
+            // over the canvas; without the canvas it has no height to sit in,
+            // and it would fall onto the text
+
             wrap.classList.add('chart-unavailable');
         });
         return { ready: false, colors: COLORS, muted: MUTED, grid: GRID, surface: SURFACE };

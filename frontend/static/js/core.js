@@ -1,9 +1,10 @@
-// עזרי-ליבה משותפים לכל העמודים: בריחת HTML, טוסט ודיאלוג אישור.
-// הועבר מתוך base.html כדי שהדפדפן יוכל לשמור אותו במטמון בין עמודים,
-// וכדי לאפשר CSP קפדני שחוסם קוד inline.
-// קריאת "אי נתונים" — בלוק <script type="application/json"> שהשרת מרנדר.
-// נקרא לפי דרישה ולא פעם אחת מראש, כי כל עמוד מוסיף אי משלו אחרי core.js
-// וקריאה מוקדמת לא הייתה רואה אותו.
+// Core helpers shared by every page: HTML escaping, toast and confirm dialog.
+// Moved out of base.html so the browser can cache it between pages, and to
+// allow a strict CSP that blocks inline code.
+// Reading a "data island": a <script type="application/json"> block the server
+// renders. Read on demand and not once upfront, because each page adds its own
+// island after core.js and an early read wouldn't see it.
+
 window.sfData = function (id) {
     const el = document.getElementById(id);
     if (!el) return {};
@@ -15,13 +16,16 @@ window.sfData = function (id) {
     }
 };
 
-// הנתונים הגלובליים מ-base.html זמינים מיד — האי שלהם מופיע לפני הקובץ הזה.
+// The global data from base.html is available right away: its island appears
+// before this file.
+
 window.SF_PAGE_DATA = window.sfData('sf-page-data');
 
-/* סכום כסף לתצוגה — אותו כלל כמו ‎format_money‎ בשרת (backend/money.py):
- * אגורות רק כשיש. ‎12.5 → "12.50"‎, ‎180 → "180"‎. בלי ₪ ובלי סימן.
- * ‎withCents‎ כופה שתי ספרות — לאנימציה שמסתיימת בסכום עם אגורות, כדי
- * שהספרות לא יקפצו מ-"12" ל-"12.50" בפריים האחרון. */
+/* A money amount for display: the same rule as `format_money` on the server
+ * (backend/money.py): agorot only when present. `12.5 → "12.50"`, `180 → "180"`.
+ * No ₪ and no sign. `withCents` forces two digits, for an animation that ends
+ * on an amount with agorot, so the digits don't jump from "12" to "12.50" on
+ * the last frame. */
 window.sfMoney = function (value, withCents) {
     const amount = Math.round((Number(value) || 0) * 100) / 100;
     const cents = withCents || amount !== Math.round(amount);
@@ -31,23 +35,26 @@ window.sfMoney = function (value, withCents) {
     });
 };
 
-/* הודעה להצגה אחרי טעינה מלאה של הדף ("העסקה נוספה").
+/* A message to show after a full page load ("העסקה נוספה").
  *
- * ‎sessionStorage‎ זורק בדפדפן שחוסם אחסון (מצב פרטי מחמיר, Lockdown).
- * הקריאה הזאת ישבה בלי הגנה בתוך ‎.then‎ של שמירה שכבר הצליחה — והחריגה
- * נפלה ל-‎.catch‎ של הרשת: המשתמש ראה "שגיאת רשת", הכפתור השתחרר, והוא
- * לחץ שוב ויצר עותק. בלי אחסון מוותרים על ההודעה, לא על הטעינה. */
-/* "מספר + שם עצם" — אותו כלל כמו ‎count_of‎ ב-backend/wording.py:
- * ‎sfCount(1, 'עסקה אחת', 'עסקאות')‎ → "עסקה אחת", ‎sfCount(3, …)‎ → "3 עסקאות". */
+ * `sessionStorage` throws in a browser that blocks storage (strict private
+ * mode, Lockdown). This call sat unguarded inside the `.then` of a save that
+ * had already succeeded, and the exception fell into the network `.catch`: the
+ * user saw "network error", the button was released, and they tapped again and
+ * created a copy. Without storage we give up the message, not the reload. */
+/* "Number + noun": the same rule as `count_of` in backend/wording.py:
+ * `sfCount(1, 'עסקה אחת', 'עסקאות')` → "עסקה אחת", `sfCount(3, …)` → "3 עסקאות". */
 window.sfCount = function (n, one, many) {
     n = parseInt(n, 10) || 0;
     return n === 1 ? one : n + ' ' + many;
 };
 
-/* כפתור שמירה דולק רק כשמשהו השתנה (מתן, 13.10 — "בכל המקומות שאפשר לשמור").
- * הכיתוב לא משתנה; רק כבוי או פעיל. "השתנה" = שונה מהערך השמור, ‎defaultValue‎
- * / ‎defaultChecked‎ של כל שדה בטופס — כך גם "ביטול" והחזרה לערך המקורי מכבים.
- * ‎commit()‎ אחרי שמירה מוצלחת: הערכים החדשים הם עכשיו השמורים. */
+/* A save button is enabled only when something changed (Matan, 13.10: "everywhere
+ * something can be saved"). The label doesn't change; only disabled or
+ * enabled. "Changed" = different from the saved value, each field's
+ * `defaultValue` / `defaultChecked` in the form, so "cancel" and going back to
+ * the original value disable it too. `commit()` after a successful save: the
+ * new values are now the saved ones. */
 window.sfSaveWhenChanged = function (scope, button) {
     if (!scope || !button) return null;
     function changed() {
@@ -75,28 +82,35 @@ window.sfSaveWhenChanged = function (scope, button) {
 };
 
 window.sfToastAfterReload = function (message) {
-    try { sessionStorage.setItem('sf_toast', message); } catch (e) { /* בלי הודעה, לא בלי טעינה */ }
+    try { sessionStorage.setItem('sf_toast', message); } catch (e) { /* without the message, not without the reload */ }
 };
 
-// בריחת HTML — כל ערך שהמשתמש הזין (שם קטגוריה/פרויקט/אייקון/תיאור)
-// חייב לעבור דרך זה לפני הזרקה ל-innerHTML, אחרת שם עם תגית זדונית
-// שיצר בן משפחה אחד ירוץ אצל כולם (XSS). זמין גלובלית לכל העמודים.
+// HTML escaping: every value the user entered (category/project name, icon,
+// description) must go through this before being injected into innerHTML;
+// otherwise a name with a malicious tag created by one family member runs for
+// everyone (XSS). Available globally to every page.
+
 window.escapeHtml = function (s) {
     return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 };
 
-// ── משוב חושי על עסקה שנכנסה: צליל עדין + נקישה ──
-// הצליל מסונתז בזמן אמת (בלי קובץ שמע, בלי בקשת רשת): שני טונים עולים
-// קצרים. הרטט מנוסה בשתי דרכים כי אין אחת שעובדת בכל מקום —
-// navigator.vibrate באנדרואיד, ומתג switch נסתר שמפעיל את ה-haptic של iOS.
-// אין שום דרך לדעת אם המכשיר מושתק, אז לא מנסים: iOS פשוט יבלע את הצליל.
-/* ── תנועה פיזיקלית, משותפת לחלון, לשורות ולכרטיס "השבוע" (מתן, 7.10 — בנוסח אפל) ── */
+// ── Sensory feedback for a transaction that went in: a soft sound + a tap ──
+// The sound is synthesised in real time (no audio file, no network request):
+// two short rising tones. Vibration is tried two ways because no single one
+// works everywhere: navigator.vibrate on Android, and a hidden switch toggle
+// that triggers iOS haptics. There is no way to know whether the device is
+// muted, so we don't try: iOS will just swallow the sound.
 
-// קפיץ במונחים של אפל: ‎response‎ — כמה מהר מגיעים (שניות), ‎damping‎ — 1
-// בלי קפיצה, פחות מ-1 קופץ קצת מעבר. מתחיל מהמקום ומהמהירות הנוכחיים,
-// אז אין תפר בין האצבע לתנועה. מחזיר פונקציה שעוצרת אותו באמצע.
+/* ── Physical motion, shared by the sheet, the rows and the "this week" card
+ * (Matan, 7.10, Apple-style) ── */
+
+// A spring in Apple's terms: `response` is how fast it arrives (seconds),
+// `damping` 1 is no bounce, below 1 overshoots a little. Starts from the current
+// position and velocity, so there is no seam between the finger and the motion.
+// Returns a function that stops it midway.
+
 window.sfSpring = function (from, to, v0, response, damping, paint, done, until) {
     const k = Math.pow(2 * Math.PI / response, 2), c = 4 * Math.PI * damping / response;
     let x = from, v = v0, last = performance.now(), raf;
@@ -114,19 +128,22 @@ window.sfSpring = function (from, to, v0, response, damping, paint, done, until)
     return function () { cancelAnimationFrame(raf); };
 };
 
-// לאן הייתה מגיעה תנועה במהירות הזו אילו המשיכה לדעוך. ‎0.998‎ — כמו
-// גלילה; ‎0.99‎ — קצר יותר, למרחקים קטנים כמו שורה.
+// Where a motion at this velocity would end up if it kept decaying. `0.998`:
+// like scrolling; `0.99`: shorter, for small distances like a row.
+
 window.sfProject = function (v, rate) {
     rate = rate || 0.998;
     return (v / 1000) * rate / (1 - rate);
 };
 
-// מעבר לגבול — כל פיקסל נוסף זז פחות (כמו בקצה של רשימה באייפון)
+// Past the boundary: every extra pixel moves less (like the edge of a list on iPhone)
+
 window.sfRubber = function (over, dim) { return (over * dim * 0.55) / (dim + 0.55 * Math.abs(over)); };
 
-// מהירות (px/s) מ-‎100ms‎ האחרונות של הגרירה, לא מכולה. לפחות פריים
-// אחד: הדפדפן מאחד תנועות מהירות, ושתי דגימות באותה אלפית שנייה נתנו
-// מהירות אפס — והנפה חזקה לא עשתה כלום.
+// Velocity (px/s) from the last `100ms` of the drag, not the whole of it. At
+// least one frame: the browser coalesces fast moves, and two samples in the same
+// millisecond gave zero velocity, so a strong fling did nothing.
+
 window.sfVelocity = function (samples, now) {
     const end = samples[samples.length - 1];
     let first = end;
@@ -134,14 +151,16 @@ window.sfVelocity = function (samples, now) {
     return (end.p - first.p) / Math.max(end.t - first.t, 16) * 1000;
 };
 
-/* אזור שנפתח ונסגר בהחלקה של הגובה ולא בקפיצה (מתן, 7.10 — סבב תנועה, סעיף 5).
- * ‎apply(open)‎ עושה את ההחלפה עצמה (מחלקה) — בפתיחה מיד ואז מגדלים מ-0, בסגירה
- * מכווצים ורק בסוף מחליפים. לחיצה באמצע — ממשיכים מהגובה שעל המסך עכשיו.
- * ‎animate‎ ולא CSS, ולכן תנועה מופחתת נבדקת כאן: הכלל הכללי לא חל עליו. */
+/* An area that opens and closes by sliding its height rather than jumping
+ * (Matan, 7.10, motion round, item 5). `apply(open)` does the switch itself (a
+ * class): on open right away and then grow from 0, on close shrink and only
+ * switch at the end. A tap midway continues from the height currently on screen.
+ * `animate` and not CSS, so reduced motion is checked here: the general rule
+ * doesn't apply to it. */
 window.sfReveal = function (body, open, apply) {
     const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (calm || !body || !body.animate) { apply(open); return; }
-    const from = body.sfAnim ? body.offsetHeight : null;     // באמצע תנועה קודמת
+    const from = body.sfAnim ? body.offsetHeight : null;     // in the middle of a previous motion
     if (body.sfAnim) { body.sfAnim.cancel(); body.sfAnim = null; }
     if (open) apply(true);
     const cs = getComputedStyle(body);
@@ -164,33 +183,41 @@ window.sfReveal = function (body, open, apply) {
     };
 };
 
-// משוב בשמירה: רטט קצר בלבד (מתן, 11.10). עד אז נשמע גם צליל של שני
-// טונים, עם מתג כיבוי בהגדרות — ומתג נדרש רק בגלל הצליל: באפליקציה
-// שמשתמשים בה בקופה בסופר, צליל הוא מה שגורם להסיר אותה. רטט שקט, אז
-// הוא לא צריך הגדרה.
+// Feedback on save: a short vibration only (Matan, 11.10). Until then there was
+// also a two-tone sound, with an off switch in settings, and a switch was needed
+// only because of the sound: in an app used at the supermarket checkout, a sound
+// is what makes people uninstall it. A vibration is silent, so it needs no setting.
+
 window.appFeedback = function () {
-    // רטט — אנדרואיד בלבד. באייפון אין navigator.vibrate, ושינוי מתג
-    // מקוד לא מפעיל את ה-Taptic (נבדק): שם הנקישה מגיעה מהמגע עצמו
-    // בכפתור השמירה, שהוא <label> של מתג switch נסתר.
+    // Vibration: Android only. iPhone has no navigator.vibrate, and toggling a
+    // switch from code doesn't trigger the Taptic engine (tested): there the tap
+    // comes from the touch itself on the save button, which is the <label> of a
+    // hidden switch.
+
     try {
         if (navigator.vibrate) navigator.vibrate([12, 40, 22]);
-    } catch (err) { /* אין רטט — ממשיכים */ }
+    } catch (err) { /* no vibration: carry on */ }
 };
 
-// ── מערכת משוב גלובלית: toast + דיאלוג אישור ──
+// ── Global feedback system: toast + confirm dialog ──
+
 (function () {
     const toast = document.getElementById('appToast');
     let toastTimer = null;
     let toastHide = null;
 
-    // האם הפעולה האחרונה הייתה במקלדת — כדי להעביר את המיקוד ל"בטל" רק
-    // למי שמנווט במקלדת, ולא לקפוץ למי שנגע במסך
+    // Whether the last action was on the keyboard, to move focus to "undo" only
+    // for someone navigating by keyboard, and not jump for someone who touched
+    // the screen
+
     let lastInputWasKeyboard = false;
     document.addEventListener('keydown', function () { lastInputWasKeyboard = true; }, true);
     document.addEventListener('pointerdown', function () { lastInputWasKeyboard = false; }, true);
 
-    // "בטל" לא נעלם מתחת לאצבע או למיקוד: 6 שניות לא מספיקות למי שהגיע
-    // אליו במקלדת או מתלבט עם העכבר מעליו
+    // "Undo" doesn't vanish under the finger or the focus: 6 seconds isn't
+    // enough for someone who reached it by keyboard or is hesitating with the
+    // mouse over it
+
     function holdToast() { clearTimeout(toastTimer); }
     function releaseToast() {
         clearTimeout(toastTimer);
@@ -201,8 +228,10 @@ window.appFeedback = function () {
     toast.addEventListener('focusin', holdToast);
     toast.addEventListener('focusout', releaseToast);
 
-    // action = { label, onClick } — כפתור פעולה אופציונלי (למשל "בטל" למחיקה).
-    // כשמוצג כפתור, הטוסט נשאר 6 שניות כדי לתת זמן להגיב.
+    // action = { label, onClick }: an optional action button (e.g. "undo" for a
+    // delete). When a button is shown, the toast stays 6 seconds to give time to
+    // react.
+
     window.showToast = function (msg, type, action) {
         toast.innerHTML = '';
         const span = document.createElement('span');
@@ -211,7 +240,8 @@ window.appFeedback = function () {
         toast.appendChild(span);
         toast.classList.toggle('error', type === 'error');
         clearTimeout(toastTimer);
-        // הודעה ארוכה ("העסקה נוספה. עברתם את התקציב של…") צריכה זמן לקריאה
+        // A long message ("העסקה נוספה. עברתם את התקציב של…") needs time to read
+
         let duration = msg.length > 40 ? 4500 : 2600;
         if (action) {
             const btn = document.createElement('button');
@@ -229,22 +259,27 @@ window.appFeedback = function () {
         toast.classList.add('show');
         toastHide = function () { toast.classList.remove('show'); toastHide = null; };
         toastTimer = setTimeout(toastHide, duration);
-        // מי שמחק במקלדת איבד את המיקוד יחד עם השורה; "בטל" הוא המקום
-        // הטבעי שלו עכשיו — אחרת הוא צריך לעבור את כל העמוד ב-Tab ב-6 שניות
+        // Someone who deleted by keyboard lost focus along with the row; "undo"
+        // is its natural place now, otherwise they would have to Tab through the
+        // whole page in 6 seconds
+
         const actionBtn = toast.querySelector('.toast-action');
         if (actionBtn && lastInputWasKeyboard) actionBtn.focus({ preventScroll: true });
     };
 
-    // הודעה שנשמרה לפני רענון דף — מוצגת עכשיו
-    // גישה לאחסון יכולה לזרוק — גלישה פרטית, אחסון חסום, או סביבה
-    // שאין בה אותו בכלל. השורה הזאת רצה בטעינת הקובץ, אז חריגה כאן
-    // הפילה את **כל** core.js: אין toast, אין דיאלוג אישור, אין רענון
-    // רך. תופעת לוואי מועילה: ככה זה התגלה, כשהבדיקות רצו ב-node 22.
+    // A message saved before a page reload is shown now.
+    // Access to storage can throw: private browsing, blocked storage, or an
+    // environment without it at all. This line runs when the file loads, so an
+    // exception here took down **all** of core.js: no toast, no confirm dialog,
+    // no soft refresh. A useful side effect: that is how it was found, when the
+    // tests ran on node 22.
+
     let pending = null;
     try {
         pending = sessionStorage.getItem('sf_toast');
-    } catch (e) { /* אין אחסון — ההודעה הדחויה פשוט לא תוצג */ }
-    // הודעה מהשרת (‎_notice.html‎) — למשל "המשפחה שלך השתנתה"
+    } catch (e) { /* no storage: the deferred message just won't be shown */ }
+    // A message from the server (`_notice.html`), e.g. "your family changed"
+
     const noticeEl = document.getElementById('sfNotice');
     if (!pending && noticeEl) {
         try { pending = JSON.parse(noticeEl.textContent); } catch (e) {}
@@ -265,28 +300,31 @@ window.appFeedback = function () {
     let confirmLastFocused = null;
 
     function closeConfirm(result) {
-        // עם ‎choices‎ האישור מחזיר את מה שנבחר ולא ‎true‎
+        // With `choices`, confirming returns what was chosen and not `true`
+
         if (result === true && withChoice) result = choiceEl.value;
         overlay.classList.remove('open');
         if (resolver) { resolver(result); resolver = null; }
         if (confirmLastFocused) { confirmLastFocused.focus(); confirmLastFocused = null; }
     }
 
-    /* שלוש תוצאות ולא שתיים:
-     *   true  — נבחר כפתור האישור
-     *   false — נבחר כפתור הביטול
-     *   null  — נסיגה: Escape, ✕, או לחיצה מחוץ לדיאלוג
+    /* Three outcomes, not two:
+     *   true  : the confirm button was chosen
+     *   false : the cancel button was chosen
+     *   null  : a retreat: Escape, ✕, or a tap outside the dialog
      *
-     * ההבחנה נחוצה כשיש שתי שאלות ברצף. במחיקת פרויקט, השאלה השנייה היא
-     * "מה לעשות עם העסקאות" — ובריחה ממנה פורשה כ"השאר אותן", כך שהפרויקט
-     * נמחק בכל זאת. מי שנבהל ולחץ מחוץ לדיאלוג התכוון לסגת, ולפרויקט אין
-     * ביטול-מחיקה.
+     * The distinction is needed when there are two questions in a row. When
+     * deleting a project, the second question is "what to do with the
+     * transactions", and escaping from it was read as "keep them", so the
+     * project was deleted anyway. Whoever panicked and tapped outside the
+     * dialog meant to back out, and a project has no undo-delete.
      *
-     * ‎null‎ נבחר במכוון כי הוא falsy: כל הקוראים הקיימים בודקים ‎if (!ok)‎
-     * וממשיכים לעבוד בלי שינוי. מי שצריך את ההבחנה בודק ‎=== null‎.
+     * `null` was chosen on purpose because it is falsy: every existing caller
+     * checks `if (!ok)` and keeps working unchanged. Whoever needs the
+     * distinction checks `=== null`.
      *
-     * ‎opts.choices‎ (‏[{value, label}]) מוסיף רשימה לבחירה מתחת להודעה, ואז
-     * האישור מחזיר את ה-‎value‎ שנבחר במקום ‎true‎. */
+     * `opts.choices` ([{value, label}]) adds a list to choose from under the
+     * message, and then confirming returns the chosen `value` instead of `true`. */
     window.appConfirm = function (opts) {
         withChoice = !!(opts.choices && opts.choices.length);
         choiceEl.hidden = !withChoice;
@@ -301,36 +339,43 @@ window.appFeedback = function () {
         msgEl.textContent    = opts.message || '';
         yesBtn.textContent   = opts.confirmText || 'מחיקה';
         noBtn.textContent    = opts.cancelText || 'ביטול';
-        // ברירת מחדל: פעולה הרסנית (אדום) — מתאים ל-99% מהשימושים הקיימים
-        // (מחיקה). opts.danger === false מציג כפתור ניטרלי לפעולות רגילות.
+        // Default: a destructive action (red), right for 99% of existing uses
+        // (deletion). opts.danger === false shows a neutral button for ordinary
+        // actions.
+
         yesBtn.classList.toggle('confirm-yes-neutral', opts.danger === false);
         confirmLastFocused = document.activeElement;
         overlay.classList.add('open');
-        // בפריים הבא: הדיאלוג מוסתר ב-visibility כשהוא סגור, ואי אפשר
-        // למקד אלמנט בתוך אב מוסתר
+        // On the next frame: the dialog is hidden with visibility when closed,
+        // and an element inside a hidden parent can't be focused
+
         requestAnimationFrame(function () {
-            noBtn.focus(); // ברירת מחדל בטוחה — לא הכפתור ההרסני
+            noBtn.focus(); // a safe default: not the destructive button
         });
         return new Promise(function (resolve) { resolver = resolve; });
     };
 
-    /* מחיקת קטגוריה — משותף להגדרות ולעמוד הפרויקט.
+    /* Deleting a category: shared by settings and the project page.
      *
-     * אין עסקה בלי קטגוריה: קודם שואלים את השרת כמה עסקאות יש בה ולאן
-     * אפשר להעביר אותן, ואז שואלים את המשתמש באותו דיאלוג. השרת אוכף את
-     * אותו כלל בעצמו (409 בלי יעד), כך שהשאלה כאן היא נוחות ולא ההגנה.
+     * No transaction without a category: first ask the server how many
+     * transactions it has and where they can be moved, then ask the user in the
+     * same dialog. The server enforces the same rule itself (409 without a
+     * target), so the question here is a convenience, not the protection.
      *
-     * ‎sfAskCategoryDeletion‎ רק שואלת: ‎Promise‎ של ‎{target, count}‎ (‎target‎
-     * ‎null‎ כשאין עסקאות), או ‎null‎ כשבוטל/נחסם. עמוד עריכת הפרויקט מוחק רק
-     * בשמירה (מתן, 9.10), ולכן הוא שואל עכשיו ומוחק אחר כך. ‎adjust‎ — אופציונלי,
-     * מתקן את רשימת היעדים לפי שינויים שעוד לא נשמרו. */
+     * `sfAskCategoryDeletion` only asks: a `Promise` of `{target, count}`
+     * (`target` is `null` when there are no transactions), or `null` when
+     * cancelled/blocked. The project edit page deletes only on save (Matan,
+     * 9.10), so it asks now and deletes later. `adjust` (optional) fixes the
+     * target list according to changes not yet saved. */
     let deletingCategory = false;
     function catJson(r) {
         return r.json().catch(function () { return {}; })
             .then(function (d) { return { ok: r.ok, d: d }; });
     }
     window.sfAskCategoryDeletion = function (baseUrl, name, adjust) {
-        // נגיעה כפולה ב-✕ פתחה שתי שאלות ברצף, והתשובה לראשונה נבלעה בשנייה
+        // A double tap on ✕ opened two questions in a row, and the answer to
+        // the first was swallowed by the second
+
         if (deletingCategory) return Promise.resolve(null);
         deletingCategory = true;
         let usage = null;
@@ -373,7 +418,8 @@ window.appFeedback = function () {
         });
     };
 
-    /* שואל ומוחק מיד (הגדרות). ‎Promise‎ של ‎true‎ כשהקטגוריה נמחקה. */
+    /* Asks and deletes right away (settings). A `Promise` of `true` when the
+ * category was deleted. */
     window.sfDeleteCategory = function (baseUrl, name) {
         return window.sfAskCategoryDeletion(baseUrl, name).then(function (choice) {
             if (!choice) return false;
@@ -398,12 +444,13 @@ window.appFeedback = function () {
     yesBtn.addEventListener('click', function () { closeConfirm(true); });
     noBtn.addEventListener('click', function () { closeConfirm(false); });
     overlay.addEventListener('click', function (e) {
-        if (e.target === overlay) closeConfirm(null);   // נסיגה, לא "לא"
+        if (e.target === overlay) closeConfirm(null);   // a retreat, not a "no"
     });
 
-    // Escape סוגר, Tab/Shift+Tab נשארים בתוך הדיאלוג
+    // Escape closes, Tab/Shift+Tab stay inside the dialog
+
     overlay.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { closeConfirm(null); return; }   // נסיגה
+        if (e.key === 'Escape') { closeConfirm(null); return; }   // retreat
         if (e.key !== 'Tab') return;
         const focusables = withChoice ? [choiceEl, yesBtn, noBtn] : [yesBtn, noBtn];
         const idx = focusables.indexOf(document.activeElement);
@@ -417,54 +464,64 @@ window.appFeedback = function () {
 
 
 
-/* ─── רענון רך ────────────────────────────────────────────────────────────────
+/* ─── Soft refresh ─────────────────────────────────────────────────────────
  *
- * כל פעולה באפליקציה הסתיימה ב-location.reload(). הוספת עסקה עלתה בערך שתי
- * שניות מהקשה עד מסך יציב: השהיה מכוונת של 380ms כדי שהצליל יסתיים, סבב
- * לשרת, ניתוח מחדש של 99KB CSS ו-77KB JS, ואז אנימציית ספירה של שנייה על
- * המספר שבדיוק רצית לראות. בדרך גם נמחקה השורה הזמנית שהקוד הספיק להציג,
- * וגם מיקום הגלילה.
+ * Every action in the app used to end with location.reload(). Adding a
+ * transaction took about two seconds from tap to a stable screen: a deliberate
+ * 380ms pause so the sound could finish, a round trip to the server, re-parsing
+ * 99KB of CSS and 77KB of JS, and then a one-second count-up animation on the
+ * very number you wanted to see. Along the way the temporary row the code had
+ * managed to show was wiped, and so was the scroll position.
  *
- * מושכים את אותה כתובת ומחליפים רק את מה שהשתנה. Jinja נשאר מקור האמת
- * היחיד — לא משכפלים כאן לוגיקת תצוגה, וזה מקור באגים שנמנע. הנפילה חזרה
- * ל-reload מלא אומרת שבמקרה הגרוע ההתנהגות זהה להיום.
+ * Fetch the same URL and replace only what changed. Jinja stays the single
+ * source of truth: no display logic is duplicated here, and that is a source of
+ * bugs avoided. Falling back to a full reload means that in the worst case the
+ * behaviour is identical to today.
  *
- * האנימציות לא רצות שוב בכוונה: ספירה מ-0 אחרי עדכון גורמת למספר
- * "לקפוץ אחורה" מול העיניים, וה-HTML הטרי ממילא מכיל כבר את הערך הסופי.
+ * The animations don't run again, on purpose: counting up from 0 after an
+ * update makes the number "jump backwards" before your eyes, and the fresh HTML
+ * already contains the final value anyway.
  */
-/* אזורי העמוד שהרענון הרך מחליף.
+/* The page areas the soft refresh replaces.
  *
- * ה-hero הוא **אח** של ‎main‎ ב-base.html, לא בן — אז רענון שהחליף רק
- * את ‎main‎ השאיר את "נשאר בעו״ש החודש" תקוע אחרי כל הוספה ועריכה.
- * זה המספר שכל האפליקציה קיימת בשבילו.
+ * The hero is a **sibling** of `main` in base.html, not a child, so a refresh
+ * that replaced only `main` left "left in the account this month" stuck after
+ * every add and edit. That is the number the whole app exists for.
  *
- * ולמשפחה חדשה זה היה גרוע במיוחד: ה-hero מציג "לחצו על + כדי להוסיף
- * את העסקה הראשונה שלכם ולראות כאן את היתרה שלכם", והמשפט הזה נשאר
- * על המסך מעל העסקה שהרגע נוספה. */
+ * And for a new family it was especially bad: the hero shows "tap + to add your
+ * first transaction and see your balance here", and that sentence stayed on
+ * screen above the transaction just added. */
 const SF_RELOAD_REGIONS = ['header.page-hero', 'main.main-content'];
 
-/* ‎pendingToast‎: הודעה שהקורא מתכוון להציג אחרי הרענון. אם הרענון הרך לא
- * מתאפשר ונופלים לרענון מלא, היא נשמרת כדי שתוצג אחרי הטעינה ולא תאבד —
- * ואז ההבטחה מחזירה ‎'reloaded'‎, כדי שהקורא לא יציג אותה פעמיים. */
-/* מחליף את אזורי העמוד בתוכן מ-HTML שכבר נמשך. מחזיר ‎'full'‎ כשאי אפשר
- * להחליף בבטחה (חסר אזור, או גרפים בלי הספרייה) — והקורא נופל לטעינה מלאה. */
+/* `pendingToast`: a message the caller intends to show after the refresh. If
+ * the soft refresh isn't possible and we fall back to a full reload, it is
+ * saved so it is shown after the load and not lost, and then the promise
+ * returns `'reloaded'`, so the caller doesn't show it twice. */
+/* Replaces the page areas with content from HTML already fetched. Returns
+ * `'full'` when it can't be replaced safely (a missing area, or charts without
+ * the library), and the caller falls back to a full load. */
 function sfApplyHtml(html, regions) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
-    // חודש שהיה ריק לא טוען את ספריית הגרפים (70KB שאין מה לצייר
-    // בהם). אחרי העסקה הראשונה ה-HTML החדש כבר מביא גרפים — ובלי
-    // הספרייה הם נשארו ריבועים ריקים. פעם אחת בחודש: רענון מלא.
+    // A month that was empty doesn't load the chart library (70KB with nothing
+    // to draw). After the first transaction the new HTML already brings charts,
+    // and without the library they stayed empty squares. Once a month: a full
+    // reload.
+
     if (typeof window.Chart === 'undefined' && doc.querySelector('main canvas')) return 'full';
 
-    // כל האזורים נאספים לפני שנוגעים באחד מהם: החלפה חלקית —
-    // hero חדש מעל גוף ישן — גרועה מרענון מלא.
+    // All areas are collected before touching any of them: a partial swap (a
+    // new hero over an old body) is worse than a full reload.
+
     const pairs = regions.map(function (sel) {
         return [document.querySelector(sel), doc.querySelector(sel)];
     });
     if (pairs.some(p => !p[0] || !p[1])) return 'full';
 
-    // אלמנטים שמחזיקים מצב משלהם (‎data-sf-keep‎ — באנר ההתקנה) עוברים
-    // כמו שהם אל התוכן החדש, במקום להתחלף בעותק ריק מהשרת
+    // Elements that hold their own state (`data-sf-keep`, the install banner)
+    // move as they are into the new content, instead of being swapped for an
+    // empty copy from the server
+
     const keep = [];
     pairs.forEach(function (pair) {
         if (pair[0].querySelectorAll) {
@@ -479,15 +536,17 @@ function sfApplyHtml(html, regions) {
         if (fresh && fresh !== el) fresh.replaceWith(el);
     });
 
-    // בלוקי הנתונים של העמוד (‎sf-view-data‎ וכו') יושבים ב-‎{% block
-    // scripts %}‎ — מחוץ לאזורים שהוחלפו. בלי זה הגרפים והמקרא של עמוד
-    // החודש צוירו מחדש מהמספרים הישנים, מתחת לכרטיסים שכבר התעדכנו.
+    // The page's data blocks (`sf-view-data` etc.) sit in `{% block scripts %}`,
+    // outside the swapped areas. Without this the month page's charts and legend
+    // were redrawn from the old numbers, under cards that had already updated.
+
     doc.querySelectorAll('script[type="application/json"][id]').forEach(function (fresh) {
         const current = document.getElementById(fresh.id);
         if (current && current.tagName === 'SCRIPT') current.textContent = fresh.textContent;
     });
     if (doc.title) document.title = doc.title;
-    // מודיעים למי שצריך לחבר את עצמו מחדש (אנימציות, גרפים)
+    // Notify whoever needs to reconnect themselves (animations, charts)
+
     window.dispatchEvent(new CustomEvent('sf:refreshed'));
     return 'ok';
 }
@@ -497,9 +556,13 @@ function sfFetchPage(url) {
         headers: { 'X-Requested-With': 'sf-soft-reload' },
         credentials: 'same-origin',
     }).then(function (r) {
-        // 401 כבר מטופל ב-auth-guard; כל דבר אחר — נופלים לטעינה מלאה
+        // 401 is already handled in auth-guard; anything else falls back to a
+        // full load
+
         if (!r.ok) throw new Error('soft load got ' + r.status);
-        // הופנה (למשל למסך הנעילה, מתן 13.10) — לא להדביק אותו בתוך העמוד
+        // Redirected (e.g. to the lock screen, Matan 13.10): don't paste it
+        // inside the page
+
         if (r.redirected) throw new Error('soft load redirected');
         return r.text();
     });
@@ -519,11 +582,12 @@ window.softReload = function (selector, pendingToast) {
         .catch(fullReload);
 };
 
-/* מעבר לכתובת אחרת בלי טעינה מלאה — מעבר בין חודשים (מתן, 11.10). אותו
- * מנגנון כמו הרענון הרך, עם כתובת אחרת. ‎html‎: תוכן שכבר נמשך מראש (בזמן
- * ההחלקה), כדי לא לחכות לשרת פעם שנייה. הכתובת מוחלפת (‎replaceState‎) ולא
- * נוספת להיסטוריה: דפדוף בין חודשים הוא לא "עמוד חדש", ו"אחורה" יוצא מהחודש
- * ולא עובר אחד-אחד על כל החודשים שדפדפו בהם. */
+/* Moving to another URL without a full load: moving between months (Matan,
+ * 11.10). The same mechanism as the soft refresh, with a different URL. `html`:
+ * content already fetched ahead of time (during the swipe), so we don't wait
+ * for the server a second time. The URL is replaced (`replaceState`) and not
+ * added to history: paging between months isn't a "new page", and "back"
+ * leaves the month rather than stepping one by one through every month paged. */
 window.softNavigate = function (url, html) {
     function fullLoad() {
         window.location.href = url;
@@ -532,7 +596,7 @@ window.softNavigate = function (url, html) {
     return Promise.resolve(html || sfFetchPage(url))
         .then(function (text) {
             if (sfApplyHtml(text, SF_RELOAD_REGIONS) === 'full') return fullLoad();
-            try { history.replaceState(null, '', url); } catch (e) { /* לא קריטי */ }
+            try { history.replaceState(null, '', url); } catch (e) { /* not critical */ }
             return 'swapped';
         })
         .catch(fullLoad);
@@ -540,9 +604,10 @@ window.softNavigate = function (url, html) {
 window.sfFetchPage = sfFetchPage;
 
 
-// ── "הפרויקט הסתיים" / "פתיחה מחדש" (מתן, 30.9 — סבב 6, פריט 3) ──
-// הכפתור בתחתית עמוד הפרויקט ובפס של פרויקט שהסתיים. סיום שואל קודם; החזרה לא —
-// היא לא מסתירה כלום.
+// ── "Project finished" / "reopen" (Matan, 30.9, round 6, item 3) ──
+// The button at the bottom of the project page and in the bar of a finished
+// project. Finishing asks first; reopening doesn't, since it hides nothing.
+
 document.addEventListener('click', function (e) {
     const btn = e.target.closest && e.target.closest('[data-archive-project]');
     if (!btn || btn.disabled) return;
@@ -571,7 +636,7 @@ document.addEventListener('click', function (e) {
                 try {
                     window.sfToastAfterReload(archived ? 'הפרויקט סומן כפרויקט שהסתיים'
                                                        : 'הפרויקט נפתח מחדש');
-                } catch (err) { /* בלי טוסט — לא בלי הרענון */ }
+                } catch (err) { /* without the toast, not without the refresh */ }
                 window.location.reload();
             })
             .catch(function (err) {
@@ -583,14 +648,17 @@ document.addEventListener('click', function (e) {
 });
 
 
-// ── מעבר בין הלשוניות לא נכנס להיסטוריה (מתן, 11.10) ──
-// "כשאני גולל את כל העמוד, הוא מעביר לי בין עמודים". באייפון החלקה מהקצה
-// היא "אחורה" של המערכת, ואי אפשר לכבות אותה מהאתר — וכל לחיצה על הסרגל
-// הוסיפה עמוד להיסטוריה, אז גלילה שהתחילה ליד הקצה החזירה לעמוד הקודם.
-// הלשוניות מחליפות זו את זו (‎location.replace‎) כמו באפליקציה: אין לאן
-// לחזור. כניסה לפרויקט מהרשימה כן נכנסת להיסטוריה — "אחורה" ממנו לרשימה.
-// על ‎window‎ ולא על ‎document‎: רץ אחרי מי שכבר טיפל בלחיצה (מעבר חודש
-// חלק ב-‎month.js‎ עוצר אותה בעצמו).
+// ── Switching tabs doesn't go into history (Matan, 11.10) ──
+// "When I scroll the whole page, it moves me between pages". On iPhone a swipe
+// from the edge is the system's "back", and a website can't turn it off; every
+// tap on the tab bar added a page to history, so a scroll that started near the
+// edge went back to the previous page.
+// The tabs replace each other (`location.replace`) like in an app: there is
+// nowhere to go back to. Opening a project from the list does go into history:
+// "back" from it returns to the list.
+// On `window` and not `document`: runs after anyone who already handled the
+// tap (smooth month switching in `month.js` stops it itself).
+
 (function () {
     const TABS = ['/', '/month', '/months', '/projects', '/settings'];
     window.addEventListener('click', function (e) {
@@ -600,7 +668,8 @@ document.addEventListener('click', function (e) {
         let url;
         try { url = new URL(a.href, location.href); } catch (err) { return; }
         if (url.origin !== location.origin || TABS.indexOf(url.pathname) === -1) return;
-        // קישור לעוגן באותו עמוד — הדפדפן יגלול; לא טוענים מחדש
+        // A link to an anchor on the same page: the browser scrolls; no reload
+
         if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
         e.preventDefault();
         location.replace(url.href);
@@ -608,8 +677,10 @@ document.addEventListener('click', function (e) {
 })();
 
 
-// ── "השבוע" בדף הבית: נגיעה ביום מציגה את העסקאות שלו (מתן, 30.9) ──
-// בהאצלה — הכרטיס מתחלף ברענון רך
+// ── "This week" on the home page: tapping a day shows its transactions
+// (Matan, 30.9) ──
+// Delegated, since the card is replaced on a soft refresh
+
 document.addEventListener('click', function (e) {
     const btn = e.target.closest && e.target.closest('.week-day');
     if (!btn || btn.disabled) return;
@@ -625,16 +696,19 @@ document.addEventListener('click', function (e) {
 });
 
 
-// ── "השבוע": דפדוף לשבועות קודמים — חצים והחלקה (מתן, 2.10) ──
-// השרת מחזיר את הכרטיס כולו מאותה תבנית שדף הבית מרנדר; מחליפים אותו במקום.
-// בהאצלה — רענון רך מחזיר את הכרטיס לשבוע הנוכחי, וזה בסדר.
+// ── "This week": paging to earlier weeks, arrows and swipe (Matan, 2.10) ──
+// The server returns the whole card from the same template the home page
+// renders; it is swapped in place.
+// Delegated: a soft refresh returns the card to the current week, and that's fine.
+
 (function () {
     let loading = false;
 
     const calmMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // השבוע הבא נמשך כבר כשההחלקה מתחילה (מתן, 11.10 — "בזמן אמת"), אז
-    // בשחרור הוא בדרך כלל כבר כאן. בקשה אחת לכל שבוע.
+    // The next week is fetched as soon as the swipe starts (Matan, 11.10: "in
+    // real time"), so on release it is usually already here. One request per week.
+
     let pending = null;
     function fetchWeek(offset) {
         if (!pending || pending.offset !== offset) {
@@ -649,9 +723,11 @@ document.addEventListener('click', function (e) {
         return pending.req;
     }
 
-    // ‎dir‎: לאיזה צד הכרטיס יוצא בהחלקה (‎-1‎ שמאלה, ‎1‎ ימינה); בחצים — בלי.
-    // ‎fromX‎/‎v‎: איפה הכרטיס עומד ובאיזו מהירות האצבע עזבה — היציאה ממשיכה
-    // את התנועה בלי תפר.
+    // `dir`: which side the card exits to on a swipe (`-1` left, `1` right);
+    // none for the arrows.
+    // `fromX`/`v`: where the card stands and how fast the finger left: the exit
+    // continues the motion seamlessly.
+
     function goToWeek(card, offset, focusSel, dir, fromX, v) {
         if (loading || offset < 0) return;
         loading = true;
@@ -678,13 +754,16 @@ document.addEventListener('click', function (e) {
                 card.replaceWith(fresh);
                 pending = null;
                 if (dir && fresh.animate) {
-                    // הכרטיס החדש נכנס מהצד השני ונעצר בקפיץ רך
+                    // The new card enters from the other side and stops on a soft spring
+
                     const w = fresh.offsetWidth;
                     fresh.animate([{ transform: 'translateX(' + (-dir * w * 0.35) + 'px)', opacity: 0 },
                                    { transform: 'translateX(0)', opacity: 1 }],
                                   { duration: 280, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
                 }
-                // המיקוד נשאר על החץ שנלחץ — מקלדת וקורא מסך לא "נופלים" לראש העמוד
+                // Focus stays on the arrow that was pressed: keyboard and screen
+                // reader don't "fall" to the top of the page
+
                 const again = focusSel && fresh.querySelector(focusSel);
                 if (again && !again.disabled) again.focus({ preventScroll: true });
             })
@@ -706,28 +785,34 @@ document.addEventListener('click', function (e) {
                  older ? '.week-nav-btn[aria-label="שבוע קודם"]' : '.week-nav-btn[aria-label="שבוע הבא"]');
     });
 
-    // "הוספת הוצאה" בשבוע ריק — אותו חלון של כפתור ה-+ (מתן, 18.10)
+    // "Add an expense" on an empty week: the same sheet as the + button (Matan, 18.10)
+
     document.addEventListener('click', function (e) {
         if (!(e.target.closest && e.target.closest('.week-empty-add'))) return;
         const fab = document.getElementById('fabBtn');
         if (fab) fab.click();
     });
 
-    // החלקה: בעברית הזמן זורם מימין לשמאל (ראשון בימין), אז השבוע הקודם
-    // "נמצא" מימין — גרירה שמאלה מביאה אותו, וגרירה ימינה חוזרת קדימה.
+    // Swipe: in Hebrew time flows right to left (Sunday on the right), so the
+    // previous week "is" to the right: dragging left brings it, and dragging
+    // right goes forward again.
     //
-    // נעילת כיוון (מתן, 2.10: "שאם אני גולל שם, זה לא יגלול לי את המסך"):
-    // אחרי 8px מחליטים פעם אחת אם זו תנועה הצידה או גלילה. הצידה — המסך
-    // ננעל עד שהאצבע עוזבת, והכרטיס זז איתה. גלילה — לא נוגעים בכלום.
+    // Direction lock (Matan, 2.10: "so that if I scroll there, it doesn't scroll
+    // the screen"): after 8px decide once whether this is a sideways move or a
+    // scroll. Sideways: the screen is locked until the finger lifts, and the card
+    // moves with it. Scroll: touch nothing.
+
     let sx = null, sy = 0, axis = null, drag = null, x = 0, stopSpring = null;
-    let samples = [];                  // מיקום וזמן, למהירות בעזיבה
+    let samples = [];                  // position and time, for the release velocity
 
     function canGo(card, older) {
         const b = card.querySelector('.week-nav-btn[aria-label="' + (older ? 'שבוע קודם' : 'שבוע הבא') + '"]');
         return !!(b && !b.disabled);
     }
     function placeCard(card, v) { x = v; card.style.transform = v ? 'translateX(' + v + 'px)' : ''; }
-    // חזרה למקום בקפיץ שממשיך את מהירות האצבע — לא מעבר קבוע של 0.2 שניות
+    // Back into place on a spring that continues the finger's velocity, not a
+    // fixed 0.2-second transition
+
     function settle(card, v) {
         if (stopSpring) { stopSpring(); stopSpring = null; }
         card.style.transition = '';
@@ -739,7 +824,7 @@ document.addEventListener('click', function (e) {
     document.addEventListener('touchstart', function (e) {
         const card = e.target.closest && e.target.closest('.week-card');
         if (!card || loading || e.touches.length !== 1) { sx = null; return; }
-        if (stopSpring) { stopSpring(); stopSpring = null; }   // תפיסה באמצע החזרה
+        if (stopSpring) { stopSpring(); stopSpring = null; }   // caught in the middle of returning
         sx = e.touches[0].clientX - x; sy = e.touches[0].clientY;
         axis = null; drag = card;
         samples = [{ t: e.timeStamp, p: e.touches[0].clientX }];
@@ -752,16 +837,19 @@ document.addEventListener('click', function (e) {
             if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
             axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
             if (axis === 'x') {
-                sx += dx > 0 ? 8 : -8;            // בלי קפיצה של 8 הפיקסלים של ההחלטה
-                // השבוע שלשם מושכים כבר נטען
+                sx += dx > 0 ? 8 : -8;            // without the 8-pixel jump of the decision
+                // The week before last is already being fetched
+
                 const older = dx < 0;
                 if (canGo(drag, older)) fetchWeek(Number(drag.dataset.offset) + (older ? 1 : -1));
             }
         }
         if (axis !== 'x') return;
-        e.preventDefault();                       // המסך לא זז כל עוד מחליקים הצידה
-        // הכרטיס זז עם האצבע אחד לאחד (מתן, 11.10 — עד אז בחצי מהמהירות).
-        // לכיוון שאי אפשר ללכת אליו (אין שבוע הבא) — התנגדות שגדלה בהדרגה.
+        e.preventDefault();                       // the screen doesn't move while swiping sideways
+        // The card moves with the finger one to one (Matan, 11.10; until then at
+        // half speed). Towards a direction it can't go (no next week): resistance
+        // that grows gradually.
+
         const raw = e.touches[0].clientX - sx;
         drag.style.transition = '';
         placeCard(drag, canGo(drag, raw < 0) ? raw : window.sfRubber(raw, drag.offsetWidth));
@@ -776,12 +864,16 @@ document.addEventListener('click', function (e) {
         const wasX = axis === 'x';
         sx = null; drag = null; axis = null;
         if (!wasX) return;
-        // לפי **לאן התנועה הולכת** ולא רק כמה זזה (מתן, 7.10 — בנוסח אפל):
-        // הנפה קצרה ומהירה מעבירה שבוע, וגרירה ארוכה שחוזרת לאחור — לא
+        // By **where the motion is heading** and not just how far it moved
+        // (Matan, 7.10, Apple-style): a short fast flick moves a week, and a long
+        // drag that comes back doesn't
+
         const v = window.sfVelocity(samples, e.timeStamp);
         const aim = dx + window.sfProject(v, 0.99);
         const older = aim < 0;
-        // גרירה לצד אחד והנפה חזרה לצד השני — התחרטות, לא בקשה לשבוע ההפוך
+        // A drag to one side and a flick back to the other: changing your mind,
+        // not a request for the opposite week
+
         if (Math.abs(aim) < 50 || (aim < 0) !== (dx < 0) || !canGo(card, older)) { settle(card, v); return; }
         const offset = Number(card.dataset.offset);
         x = 0;
@@ -795,14 +887,16 @@ document.addEventListener('click', function (e) {
 })();
 
 
-// ── "הבנתי" על התראה בבית (מתן, 12.10) ──
-// ✕ מסתיר עד סוף החודש, בטלפון הזה. נשמר לפי מפתח שכולל את החודש ואת הטקסט:
-// חודש חדש — הכל חוזר; חריגה שגדלה — טקסט אחר, אז היא חוזרת. בהאצלה, ואחרי
-// כל רענון רך — ההתראות מתחלפות.
+// ── "Got it" on a home-page alert (Matan, 12.10) ──
+// ✕ hides it until the end of the month, on this phone. Stored by a key that
+// includes the month and the text: a new month brings everything back; an
+// overage that grew has different text, so it comes back. Delegated, since the
+// alerts are swapped after every soft refresh.
+
 (function () {
     const KEY = 'sf_dismissed_alerts';
     function loadDismissed() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
-    function saveDismissed(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-40))); } catch (e) { /* אין אחסון */ } }
+    function saveDismissed(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-40))); } catch (e) { /* no storage */ } }
     function applyDismissed() {
         const gone = loadDismissed();
         document.querySelectorAll('.alert-wrap[data-alert-key]').forEach(function (w) {
@@ -826,7 +920,8 @@ document.addEventListener('click', function (e) {
 })();
 
 
-// ── "הפרויקט הסתיים?" — "לא עכשיו" מסתיר לחודש (מתן, 12.10) ──
+// ── "Project finished?": "not now" hides it for a month (Matan, 12.10) ──
+
 (function () {
     const KEY = 'sf_quiet_later';
     const MONTH = 30 * 24 * 3600 * 1000;
@@ -844,7 +939,7 @@ document.addEventListener('click', function (e) {
         const banner = btn.closest('[data-project-quiet]');
         const later = loadQuiet();
         later[banner.dataset.projectQuiet] = Date.now();
-        try { localStorage.setItem(KEY, JSON.stringify(later)); } catch (err) { /* אין אחסון */ }
+        try { localStorage.setItem(KEY, JSON.stringify(later)); } catch (err) { /* no storage */ }
         applyQuiet();
     });
     applyQuiet();
@@ -852,7 +947,8 @@ document.addEventListener('click', function (e) {
 })();
 
 
-// ── "הצמדה לבית" בעמוד הפרויקט (מתן, 12.10) ──
+// ── "Pin to home" on the project page (Matan, 12.10) ──
+
 document.addEventListener('click', function (e) {
     const btn = e.target.closest && e.target.closest('[data-pin-project]');
     if (!btn || btn.disabled) return;

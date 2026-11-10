@@ -1,5 +1,6 @@
-/* מסך "פרויקט חדש" (‎/projects/new‎) — מסך משלו מאז 5.10, ולא טופס שנפתח
- * בתוך רשימת הפרויקטים. אחרי היצירה — ישר לתוך הפרויקט החדש. */
+/* The "new project" screen (`/projects/new`): its own screen since 5.10, not a
+ * form opening inside the project list. After creating, straight into the new
+ * project. */
 (function () {
 const form      = document.getElementById('newProjectForm');
 const errorEl   = document.getElementById('newProjectError');
@@ -55,9 +56,11 @@ form.addEventListener('submit', function (e) {
     .catch(function () { submitBtn.disabled = false; errorEl.textContent = window.sfNetError(); });
 });
 
-// המחיקה עברה לתוך הפרויקט (project-edit.js).
+// Deletion moved into the project (project-edit.js).
 //
-// היא ישבה כאן כ-✕ ליד כל שורה ברשימה — הפעולה הבלתי הפיכה ביותר
-// בעמוד, במרחק נגיעה אחת מהשם ובלי שום הקשר על מה עומד להימחק. מי
-// שנמצא **בתוך** הפרויקט כבר ראה את הסכומים ואת העסקאות.
+// It sat here as a ✕ next to every row in the list: the most irreversible
+// action on the page, one tap away from the name and with no context about what
+// is about to be deleted. Someone **inside** the project has already seen the
+// amounts and the transactions.
+
 })();

@@ -1,16 +1,16 @@
-/* כתובת הקשר, מורכבת בדפדפן.
+/* The contact address, assembled in the browser.
  *
- * העמודים המשפטיים פתוחים לכל האינטרנט ומסומנים לאינדוקס, וזה בדיוק
- * מה שבוטים סורקים: הם מחפשים ‎mailto:‎ ומחרוזות עם ‎@‎. כתובת שיושבת
- * שם כטקסט גלוי נקצרת תוך ימים.
+ * The legal pages are open to the whole internet and marked for indexing, and
+ * that is exactly what bots crawl: they look for `mailto:` and strings with
+ * `@`. An address sitting there as plain text gets harvested within days.
  *
- * ההרכבה כאן שומרת על מה שחשוב: הכתובת היא טקסט אמיתי ב-DOM, אז
- * קורא מסך מקריא אותה, אפשר לסמן ולהעתיק, והקישור עובד. סורק שלא
- * מריץ JavaScript — והרוב לא — לא רואה כלום.
+ * Assembling it here keeps what matters: the address is real text in the DOM,
+ * so a screen reader reads it, it can be selected and copied, and the link
+ * works. A crawler that doesn't run JavaScript (most don't) sees nothing.
  *
- * ל-‎<noscript>‎ יש ניסוח קריא לבני אדם, כדי שגם בלי JavaScript אפשר
- * יהיה ליצור קשר. זו לא הגנה מושלמת, והיא לא אמורה להיות: המטרה היא
- * לחסום קציר אוטומטי, לא אדם שמחפש.
+ * `<noscript>` has a human-readable phrasing, so contact is possible without
+ * JavaScript too. This isn't perfect protection, and it isn't meant to be: the
+ * goal is to block automated harvesting, not a person looking.
  */
 (function () {
     document.querySelectorAll('[data-contact]').forEach(function (el) {

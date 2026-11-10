@@ -1,14 +1,16 @@
-/* סשן שפג: מזוהה פעם אחת, לא בארבעים מקומות.
+/* An expired session: detected once, not in forty places.
  *
- * כשה-session נגמר, כל קריאה לשרת חזרה עד היום כדף ההתחברות עם קוד 200,
- * כי fetch עוקב אחרי הפניות בשקט. כל אחת מ-40 הקריאות באפליקציה עשתה
- * r.json() על HTML, נכשלה, ונפלה ל-catch שאומר "שגיאת רשת — נסה שוב".
- * המשתמש היה מנסה שוב ומקבל בדיוק אותו דבר, לנצח, בלי שום רמז שהפתרון
- * הוא להתחבר מחדש. השרת מחזיר עכשיו 401 אמיתי, וכאן מזהים אותו.
+ * When the session ended, every call to the server used to come back as the
+ * sign-in page with status 200, because fetch follows redirects silently. Each
+ * of the app's 40 calls did r.json() on HTML, failed, and fell into a catch
+ * saying "network error, try again". The user would retry and get exactly the
+ * same, forever, with no hint that the fix is to sign in again. The server now
+ * returns a real 401, and it is detected here.
  *
- * עוטף את fetch עצמו ולא מוסיף עוזר שצריך לקרוא לו: כך גם קריאה שתיכתב
- * מחר מכוסה בלי לזכור. קובץ נפרד ובלי תלויות, כי הוא נטען גם בעמודים
- * העצמאיים (onboarding) שלא טוענים את core.js.
+ * Wraps fetch itself rather than adding a helper that has to be called: that
+ * way a call written tomorrow is covered without anyone remembering. A separate
+ * file with no dependencies, because it is also loaded on the standalone pages
+ * (onboarding) that don't load core.js.
  */
 (function () {
     if (!window.fetch) return;
@@ -17,7 +19,9 @@
     let handling = false;
 
     function isOurs(input) {
-        // רק בקשות לשרת שלנו — 401 משירות חיצוני לא אמור לנתק אף אחד
+        // Only requests to our server: a 401 from an external service shouldn't
+        // sign anyone out
+
         const url = (typeof input === 'string') ? input : (input && input.url) || '';
         return url.startsWith('/') || url.startsWith(window.location.origin);
     }
@@ -29,7 +33,9 @@
                 if (window.showToast) {
                     window.showToast('ההתחברות הסתיימה — מעבירים להתחברות', 'error');
                 }
-                // שהות קצרה כדי שההודעה תיקרא; בלעדיה המסך פשוט מתחלף
+                // A short pause so the message can be read; without it the
+                // screen just switches
+
                 setTimeout(function () { window.location.href = '/login'; }, 1400);
             }
             return response;

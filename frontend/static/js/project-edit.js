@@ -1,15 +1,18 @@
 const SF_VIEW = window.sfData('sf-view-data');
 
-/* ═══ עריכת פרויקט — הכל נשמר בבת אחת (מתן, 9.10) ═══
+/* ═══ Editing a project: everything is saved at once (Matan, 9.10) ═══
  *
- * עד עכשיו רק הפרטים חיכו לכפתור; קטגוריה שנוספה, שונתה או נמחקה, ושינוי
- * בעלות, נשלחו לשרת ברגע הנגיעה — ו"ביטול" לא ביטל אותם. עכשיו כל שינוי
- * נרשם כאן ומסומן על המסך, ונשלח רק ב"שמירת השינויים". "ביטול" באמת מבטל.
+ * Until now only the details waited for the button; a category added, renamed
+ * or deleted, and an ownership change, were sent to the server the moment they
+ * were tapped, and "cancel" didn't cancel them. Now every change is recorded
+ * here and marked on screen, and sent only on "save changes". "Cancel" really
+ * cancels.
  *
- * בשמירה הסדר קבוע: פרטים, בעלות, קטגוריות חדשות, שינויי שם, מחיקות.
- * חדשות לפני מחיקות — כדי שעסקאות של קטגוריה שנמחקת יוכלו לעבור לקטגוריה
- * שנוספה באותה עריכה. שלב שנכשל עוצר את השאר; מה שכבר נשמר יוצא מהרשימה,
- * ו"שמירה" שנייה ממשיכה מאותה נקודה. */
+ * On save the order is fixed: details, ownership, new categories, renames,
+ * deletions. New ones before deletions, so the transactions of a category being
+ * deleted can move to a category added in the same edit. A failed step stops
+ * the rest; whatever was already saved leaves the list, and a second "save"
+ * continues from the same point. */
 (function () {
 const projectId = document.getElementById('projectCategoriesArea').dataset.projectId;
 const detailUrl = SF_VIEW.detailUrl;
@@ -50,7 +53,8 @@ function call(method, url, body) {
     });
 }
 
-// ── בעלות: נרשמת עכשיו, נשלחת בשמירה ──
+// ── Ownership: recorded now, sent on save ──
+
 const shareBtn   = document.getElementById('shareProjectBtn');
 const unshareBtn = document.getElementById('unshareProjectBtn');
 const ownershipNote = document.getElementById('ownershipPending');
@@ -87,8 +91,10 @@ if (shareBtn) {
 if (unshareBtn) {
     unshareBtn.addEventListener('click', function () {
         if (ownership) { ownership = null; showOwnership(); return; }
-        // "אור רשם כאן 10 עסקאות" — מחושב בשרת. הפרויקט יוסתר מהם, כולל מה
-        // שהם עצמם רשמו בו, אז זה נאמר לפני ולא מתגלה אחרי.
+        // "אור רשם כאן 10 עסקאות": computed on the server. The project will be
+        // hidden from them, including what they themselves recorded in it, so it
+        // is said before and not discovered after.
+
         const others = unshareBtn.dataset.othersNote;
         window.appConfirm({
             title: 'להחזיר את הפרויקט להיות אישי?',
@@ -107,11 +113,12 @@ if (unshareBtn) {
     });
 }
 
-// ── קטגוריות הפרויקט ──
+// ── The project's categories ──
 //
-// כל קטגוריה ברשימה אחת: ‎{id, type, name, icon, origName, origIcon, isNew,
-// deleted}‎. ‎deleted‎ הוא ‎{target}‎ — לאן יעברו העסקאות (‎null‎ כשאין).
-// לחדשה יש מזהה זמני עד השמירה.
+// Every category in one list: `{id, type, name, icon, origName, origIcon, isNew,
+// deleted}`. `deleted` is `{target}`: where the transactions will move (`null`
+// when there are none). A new one has a temporary id until saved.
+
 const catTabs   = document.querySelectorAll('.project-cat-tabs .toggle-btn');
 const catList   = document.getElementById('projectCatList');
 const addForm   = document.getElementById('addProjectCatForm');
@@ -171,7 +178,9 @@ function rowHTML(c) {
     `;
 }
 
-// "שמירת השינויים" דולק רק כשמשהו השתנה — פרטים, בעלות או קטגוריות (מתן, 13.10)
+// "Save changes" is enabled only when something changed: details, ownership or
+// categories (Matan, 13.10)
+
 function syncSave() { saveBtn.disabled = !isDirty(); }
 editForm.addEventListener('input', syncSave);
 editForm.addEventListener('change', syncSave);
@@ -250,8 +259,9 @@ addForm.addEventListener('submit', function (e) {
     render();
 });
 
-// קטגוריה שעסקאות של קטגוריה אחרת אמורות לעבור אליה לא נמחקת — אחרת
-// בשמירה הן היו עוברות אליה ואז נשארות בלי יעד
+// A category that another category's transactions are meant to move to isn't
+// deleted; otherwise on save they would move to it and then be left with no target
+
 function pendingTargetOf(id) {
     return cats.find(function (c) { return c.deleted && c.deleted.target === id; });
 }
@@ -266,13 +276,15 @@ document.addEventListener('click', function (e) {
         window.showToast('העסקאות של "' + source.name + '" עוברות לכאן. בטלו קודם את המחיקה שלה.', 'error');
         return;
     }
-    if (c.isNew) {          // עוד לא נשמרה — פשוט יוצאת מהרשימה
+    if (c.isNew) {          // not saved yet: it simply leaves the list
         cats = cats.filter(function (x) { return x !== c; });
         render();
         return;
     }
-    // השרת יודע כמה עסקאות יש בה; את היעדים מתקנים לפי מה שעוד לא נשמר:
-    // בלי קטגוריות שסומנו למחיקה, עם השמות החדשים, ועם החדשות שנוספו
+    // The server knows how many transactions it has; the targets are corrected
+    // by what isn't saved yet: without categories marked for deletion, with the
+    // new names, and with the new ones added
+
     window.sfAskCategoryDeletion('/api/projects/' + projectId + '/categories/' + c.id, c.name,
         function (usage) {
             const alternatives = live(c.type)
@@ -302,7 +314,8 @@ document.addEventListener('click', function (e) {
     if (c) { c.deleted = null; render(); }
 });
 
-// ── שינוי שם/אייקון בתוך השורה — "אישור" מעדכן את הרשימה, לא את השרת ──
+// ── Rename/re-icon inside the row: "confirm" updates the list, not the server ──
+
 document.addEventListener('click', function (e) {
     const btn = e.target.closest('.edit-cat-btn');
     if (!btn) return;
@@ -346,7 +359,8 @@ document.addEventListener('click', function (e) {
     render();
 });
 
-// ── שמירה ──
+// ── Saving ──
+
 function saveSteps() {
     const steps = [];
     const name = fields.name.value.trim();
@@ -433,7 +447,8 @@ editForm.addEventListener('submit', function (e) {
     });
 });
 
-// ── יציאה בלי לשמור ──
+// ── Leaving without saving ──
+
 window.addEventListener('beforeunload', function (e) {
     if (leaving || !isDirty()) return;
     e.preventDefault();

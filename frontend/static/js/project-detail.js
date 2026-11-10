@@ -1,12 +1,16 @@
 const SF_VIEW = window.sfData('sf-view-data');
 
-/* ═══ האינטראקטיביות של העמוד ═══
- * לפני הגרפים ובנפרד מהם: פתיחת קטגוריה חייבת לעבוד גם בלי Chart.js. */
+/* ═══ The page's interactivity ═══
+ * Before the charts and separate from them: opening a category must work even
+ * without Chart.js. */
 (function () {
 
-// ── הרחבת קטגוריה: הצגת כל העסקאות שלה בפרויקט (כמו בעמוד החודש) ──
-/* קטגוריה אחת פתוחה בכל פעם (מתן, 13.10): פתיחה של אחת סוגרת מיד את
- * האחרות — בלי תנועה, ובלי שהשורה שנגעו בה תקפוץ על המסך כשמה שמעליה מתקצר. */
+// ── Expanding a category: showing all its transactions in the project (like
+// the month page) ──
+
+/* One category open at a time (Matan, 13.10): opening one closes the others
+ * immediately, with no motion, and without the tapped row jumping on screen as
+ * what is above it shrinks. */
 function closeOtherCategories(trigger, wrap) {
     const before = wrap.getBoundingClientRect().top;
     document.querySelectorAll('.legend-item.clickable[aria-expanded="true"]').forEach(function (other) {
@@ -25,7 +29,9 @@ function closeOtherCategories(trigger, wrap) {
 function toggleExpand(trigger) {
     const wrap = trigger.closest('.legend-item-wrap');
     if (!wrap) return;
-    // המצב לפי ‎aria-expanded‎ ולא לפי המחלקה: בסגירה המחלקה נשארת עד סוף ההחלקה
+    // State by `aria-expanded` and not the class: on close the class stays
+    // until the slide ends
+
     const isOpen = trigger.getAttribute('aria-expanded') !== 'true';
     if (isOpen) closeOtherCategories(trigger, wrap);
     trigger.setAttribute('aria-expanded', isOpen);
@@ -48,7 +54,7 @@ document.addEventListener('keydown', function (e) {
 })();
 
 
-/* ═══ הגרפים ═══  (ראו chart-setup.js) */
+/* ═══ The charts ═══  (see chart-setup.js) */
 (function () {
 if (!window.sfCharts.ready) return;
 
@@ -87,8 +93,9 @@ const breakdown = SF_VIEW.breakdown;
 });
 })();
 
-/* "הצג את כל העסקאות" — בבלוק משלו ולא בתוך הגרפים: הבלוק שלהם יוצא מוקדם
- * כשאין Chart.js, והכפתור היה מת יחד איתו. בהאצלה, כי רענון רך מחליף אותו. */
+/* "Show all transactions": in its own block and not inside the charts: their
+ * block returns early when there is no Chart.js, and the button died with it.
+ * Delegated, because a soft refresh replaces it. */
 (function () {
 document.addEventListener('click', function (e) {
     const btn = e.target.closest('#showAllProjectTx');
@@ -101,11 +108,13 @@ document.addEventListener('click', function (e) {
 });
 })();
 
-/* ═══ מחיקת הפרויקט ═══ (עברה מעמוד העריכה לתחתית עמוד הפרויקט — מתן, 9.10)
+/* ═══ Deleting the project ═══ (moved from the edit page to the bottom of the
+ * project page, Matan 9.10)
  *
- * **אין כאן ‎appConfirm‎**: האזור נפתח, מראה כמה עסקאות ובכמה כסף עומדים
- * על הפרק, ומבקש בחירה מפורשת. דיאלוג נוסף מעל זה היה שאלה שנייה על מה
- * שכבר מוצג במלואו. בהאצלה — רענון רך מחליף את העמוד אחרי הוספת עסקה. */
+ * **No `appConfirm` here**: the area opens, shows how many transactions and
+ * how much money are at stake, and asks for an explicit choice. Another dialog
+ * on top would be a second question about what is already fully shown.
+ * Delegated: a soft refresh replaces the page after a transaction is added. */
 (function () {
 function parts() {
     return {
@@ -120,7 +129,8 @@ document.addEventListener('click', function (e) {
     if (!p.form) return;
 
     if (e.target.closest('#toggleDeleteProjectBtn')) {
-        // ‎visible‎ ולא ‎open‎ — זה הקלאס ש-‎.password-form‎ כבר משתמש בו
+        // `visible` and not `open`: the class `.password-form` already uses
+
         const open = p.form.classList.toggle('visible');
         p.toggle.setAttribute('aria-expanded', String(open));
         return;
@@ -146,14 +156,15 @@ document.addEventListener('click', function (e) {
             go.disabled = false;
             return;
         }
-        // ‎deleted‎ הוא מספר העסקאות שנמחקו בפועל — השרת מחזיר אותו
-        // כדי שלא נצטרך להבטיח מספר שלא נבדק.
+        // `deleted` is the number of transactions actually deleted: the server
+        // returns it so we don't have to promise a number that wasn't checked.
+
         const wiped = res.d.deleted || 0;
         try {
             window.sfToastAfterReload(wiped
                 ? 'הפרויקט נמחק, ואיתו ' + window.sfCount(wiped, 'עסקה אחת', 'עסקאות')
                 : 'הפרויקט נמחק');
-        } catch (err) { /* אין אחסון — נוותר על הטוסט, לא על הניווט */ }
+        } catch (err) { /* no storage: give up the toast, not the navigation */ }
         window.location.href = '/projects';
     })
     .catch(function () {

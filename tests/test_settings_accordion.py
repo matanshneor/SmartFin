@@ -16,7 +16,7 @@ _HTML = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
 def _accordion(clicks):
     """מריץ ב-node את קוד האקורדיון האמיתי על ארבע תיבות מדומות.
     מחזיר, אחרי כל לחיצה, אילו תיבות פתוחות ואם הייתה גלילה."""
-    code = _JS[_JS.index("// ── אקורדיון"):_JS.index("// ── טאבים")]
+    code = _JS[_JS.index("// ── Accordion"):_JS.index("// ── Category type tabs")]
     harness = """
     const scrolled = [];
     function box(i) {

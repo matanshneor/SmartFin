@@ -1,16 +1,20 @@
-/* התראות לטלפון — מופעלות כברירת מחדל (מתן, 1.11).
+/* Phone notifications: on by default (Matan, 1.11).
  *
- * "שההתראות יהיו מופעלות לכולם ויהיה אפשר לבטל". הדפדפן לא מאפשר להירשם
- * להתראות בלי לחיצה של המשתמש על "אפשר" בחלון שלו — זו לא החלטה שלנו. אז
- * הכי קרוב שאפשר:
- *   · מי שכבר אישר בעבר — נרשם אוטומטית, בשקט, בכל מכשיר שנכנס ממנו.
- *   · מי שעוד לא נשאל — פס קטן מעל התפריט התחתון, פעם אחת: "הפעלה". לחיצה
- *     אחת, והחלון של הטלפון. ✕ — לא נשאלים שוב במכשיר הזה ("שלא יציק
- *     להם כל שבוע", מתן 1.11). אפשר תמיד להפעיל בהגדרות ← התראות.
- *   · מי שכיבה בהגדרות — לא נשאל ולא נרשם שוב במכשיר הזה.
- * באייפון זה עובד רק מהאפליקציה המותקנת — מחוץ לה אין שם התראות בכלל.
+ * "Notifications should be on for everyone and possible to turn off". The
+ * browser doesn't allow subscribing to notifications without the user tapping
+ * "allow" in its own prompt; that isn't our decision. So the closest possible:
+ *   · Whoever already allowed in the past: subscribed automatically, silently,
+ *     on every device they come in from.
+ *   · Whoever hasn't been asked yet: a small bar above the bottom menu, once:
+ *     "turn on". One tap, and the phone's prompt. ✕: not asked again on this
+ *     device ("so it doesn't nag them every week", Matan 1.11). It can always
+ *     be turned on in settings → notifications.
+ *   · Whoever turned it off in settings: not asked and not subscribed again on
+ *     this device.
+ * On iPhone this works only from the installed app: outside it there are no
+ * notifications at all.
  *
- * ‎window.sfPush‎ — גם המתג בהגדרות עובד דרך כאן. */
+ * `window.sfPush`: the switch in settings works through here too. */
 (function () {
     'use strict';
     const key = (window.SF_PAGE_DATA || {}).pushKey;
@@ -24,7 +28,7 @@
 
     function store(name, value) {
         try { if (value === null) localStorage.removeItem(name); else localStorage.setItem(name, value); }
-        catch (e) { /* בלי זיכרון — לכל היותר נשאל שוב */ }
+        catch (e) { /* without memory: at worst we ask again */ }
     }
     function read(name) {
         try { return localStorage.getItem(name); } catch (e) { return null; }
@@ -45,8 +49,9 @@
     }
     function registration() { return navigator.serviceWorker.ready; }
 
-    /* ‎'on'‎ — רשום; ‎'off'‎ — לא; ‎'blocked'‎ — חסום בהגדרות הטלפון;
-     * ‎'unsupported'‎ — אין כאן התראות (באייפון: לא מהאפליקציה המותקנת). */
+    /* `'on'`: subscribed; `'off'`: not; `'blocked'`: blocked in the phone's
+     * settings; `'unsupported'`: no notifications here (on iPhone: not from the
+     * installed app). */
     function state() {
         if (!supported) return Promise.resolve('unsupported');
         if (Notification.permission === 'denied') return Promise.resolve('blocked');
@@ -60,7 +65,7 @@
         }).then(function (sub) { return post('/api/push/subscribe', sub.toJSON()); });
     }
 
-    /* חייב לרוץ מתוך לחיצה — אחרת ספארי לא מציג את חלון האישור */
+    /* must run from a tap; otherwise Safari doesn't show the permission prompt */
     function enable() {
         store(OFF, null);
         return Notification.requestPermission().then(function (perm) {
@@ -84,20 +89,23 @@
 
     if (!supported || read(OFF) === '1') return;
 
-    // כבר אישרו בעבר: נרשמים בשקט (ומוודאים שהשרת יודע — פעם בכניסה)
+    // Already allowed in the past: subscribe silently (and make sure the server
+    // knows, once per visit)
+
     if (Notification.permission === 'granted') {
         let told = false;
         try { told = sessionStorage.getItem('sf_push_told') === '1'; } catch (e) { /* */ }
         if (!told) {
             registration().then(subscribe).then(function () {
                 try { sessionStorage.setItem('sf_push_told', '1'); } catch (e) { /* */ }
-            }).catch(function () { /* בכניסה הבאה */ });
+            }).catch(function () { /* on the next visit */ });
         }
         return;
     }
     if (Notification.permission !== 'default') return;
 
-    // עוד לא נשאלו: הפס, אם אין כרגע את הפס של "הוסיפו למסך הבית"
+    // Not asked yet: the bar, unless the "add to home screen" bar is showing now
+
     const bar = document.getElementById('pushBar');
     if (!bar || document.body.classList.contains('has-install-bar')) return;
     if (read(ASKED) === '1') return;

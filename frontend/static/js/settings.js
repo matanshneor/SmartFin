@@ -1,7 +1,8 @@
 (function () {
 
-// ── אקורדיון: פתיחה/סגירה של קבוצות ──
-// תיבה אחת פתוחה בכל רגע (מתן, 1.10): פתיחה סוגרת את מה שהיה פתוח.
+// ── Accordion: opening/closing groups ──
+// One box open at any moment (Matan, 1.10): opening one closes whatever was open.
+
 const settingsHeaders = document.querySelectorAll('.settings-group-header');
 settingsHeaders.forEach(function (header) {
     header.addEventListener('click', function () {
@@ -17,16 +18,20 @@ settingsHeaders.forEach(function (header) {
             other.setAttribute('aria-expanded', 'false');
             if (otherGroup.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING) closedAbove = true;
         });
-        // תיבה פתוחה מעליה נסגרה — העמוד קפץ והתיבה החדשה ברחה למעלה.
+        // An open box above it closed: the page jumped and the new box escaped upwards.
+
         if (closedAbove) group.scrollIntoView({ block: 'start', behavior: 'smooth' });
-        // נפתחת בהחלקה (סבב תנועה, 7.10). רק הפתיחה: הקבוצה שנסגרת למעלה
-        // נסגרת מיד, אחרת הגלילה אל החדשה מחושבת כשהעמוד עוד זז
+        // Opens with a slide (motion round, 7.10). Only the opening: the group
+        // closing above closes right away, otherwise the scroll to the new one is
+        // calculated while the page is still moving
+
         const body = group.querySelector && group.querySelector('.settings-group-body');
         if (body && window.sfReveal) window.sfReveal(body, true, function () {});
     });
 });
 
-// ── טאבים של סוגי קטגוריות ──
+// ── Category type tabs ──
+
 const catTabs   = document.querySelectorAll('.cat-type-tabs .toggle-btn');
 const catPanels = document.querySelectorAll('.cat-tab-panel');
 const newCatType = document.getElementById('newCatType');
@@ -45,7 +50,8 @@ catTabs.forEach(function (btn) {
     });
 });
 
-// ── מצב ניהול קטגוריות: חושף עריכה/מחיקה/הוספה ──
+// ── Category management mode: reveals edit/delete/add ──
+
 const manageBtn = document.getElementById('manageCatsBtn');
 const catsArea  = document.getElementById('categoriesArea');
 
@@ -75,7 +81,7 @@ if (cancelBtn) {
     cancelBtn.addEventListener('click', function () {
         nameEdit.classList.remove('visible');
         nameInput.value = nameDisplay.textContent;
-        nameEdit.dispatchEvent(new Event('input'));      // "שמירה" חוזר לכבוי
+        nameEdit.dispatchEvent(new Event('input'));      // "save" goes back to disabled
     });
 }
 
@@ -94,8 +100,10 @@ if (saveBtn) {
             saveBtn.disabled = false;
             if (d.status === 'ok') {
                 nameDisplay.textContent = newName;
-                nameInput.defaultValue = newName;           // השם השמור — "שמירה" כבוי עד שינוי הבא
-                // גם השם בראש העמוד — בלי זה הוא נשאר הישן עד רענון
+                nameInput.defaultValue = newName;           // the saved name: "save" is disabled until the next change
+                // The name at the top of the page too; without this it stays the
+                // old one until a refresh
+
                 document.querySelectorAll('.settings-family-name').forEach(el => { el.textContent = newName; });
                 nameEdit.classList.remove('visible');
             } else {
@@ -113,7 +121,8 @@ if (saveBtn) {
 const copyBtn    = document.getElementById('copyCodeBtn');
 const inviteCode = document.getElementById('inviteCode');
 
-// "שליחה" כשאפשר לשתף, "העתקה" כשלא (מחשב)
+// "send" when sharing is possible, "copy" when not (desktop)
+
 const SHARE_LABEL = navigator.share ? 'שליחה' : 'העתקה';
 if (copyBtn && inviteCode) {
     copyBtn.textContent = SHARE_LABEL;
@@ -121,19 +130,21 @@ if (copyBtn && inviteCode) {
         const famEl = document.getElementById('familyNameInput');
         const msg = window.sfInviteMessage(inviteCode.textContent.trim(),
                                            famEl && famEl.value.trim());
-        // בטלפון — חלון השיתוף של המערכת (וואטסאפ ישירות), כמו בכניסה הראשונה
-        // (‎welcome-invite.js‎; מתן, 12.10). במחשב, או אם השיתוף נכשל — העתקה.
+        // On a phone, the system share sheet (WhatsApp directly), as on the first
+        // visit (`welcome-invite.js`; Matan, 12.10). On desktop, or if sharing
+        // failed, copy.
+
         const copy = function () {
             window.copyToClipboard(msg, inviteCode)
                 .then(function (copied) {
-                    if (!copied) return;      // הודעה כבר הוצגה, והקוד מסומן
+                    if (!copied) return;      // a message was already shown, and the code is selected
                     copyBtn.textContent = '✓ הועתקה הזמנה';
                     setTimeout(function () { copyBtn.textContent = SHARE_LABEL; }, 2000);
                 });
         };
         if (navigator.share) {
             navigator.share({ text: msg }).catch(function (err) {
-                if (err && err.name === 'AbortError') return;     // סגרו את חלון השיתוף
+                if (err && err.name === 'AbortError') return;     // the share sheet was closed
                 copy();
             });
             return;
@@ -143,8 +154,9 @@ if (copyBtn && inviteCode) {
 }
 
 // ── Join another family ──
-// עד היום רגע ההרשמה היה ההזדמנות היחידה להזין קוד, ומי שנרשם לפני
-// שקיבל אותו נשאר תקוע במשפחה משלו בלי דרך חזרה.
+// Until now the moment of signup was the only chance to enter a code, and whoever
+// signed up before getting one was stuck in a family of their own with no way back.
+
 const joinBtn   = document.getElementById('joinFamilyBtn');
 const joinInput = document.getElementById('joinCodeInput');
 const joinError = document.getElementById('joinFamilyError');
@@ -171,22 +183,27 @@ if (joinBtn && joinInput) {
 
         send(false)
             .then(function (res) {
-                // 409 = למשפחה הנוכחית יש תנועות, והמעבר ינתק אותן.
-                // מאשרים מפורשות עם המספר לפני שממשיכים.
+                // 409 = the current family has transactions, and moving will cut
+                // them off. Confirm explicitly with the number before continuing.
+
                 if (res.status === 409 && res.data.needs_confirm) {
                     const n = res.data.transaction_count;
-                    // n יכול להיות null כשספירת התנועות עצמה נכשלה. עדיין
-                    // מבקשים אישור — דילוג עליו בגלל תקלה הוא בדיוק האובדן
-                    // שהוא קיים כדי למנוע — רק בלי להמציא מספר.
+                    // n can be null when counting the transactions itself failed.
+                    // Confirmation is still asked for (skipping it because of a
+                    // failure is exactly the loss it exists to prevent), just
+                    // without making up a number.
+
                     const howMany = (typeof n === 'number')
                         ? `יש ${n} עסקאות`
                         : 'יש עסקאות קיימות';
-                    // ‎appConfirm‎ ולא ‎confirm‎ המקומי. זו הייתה הקריאה
-                    // היחידה בכל האפליקציה לדיאלוג של הדפדפן — ודווקא על
-                    // השאלה המסוכנת ביותר במוצר. ב-PWA מותקן הוא מרונדר
-                    // עם שם המארח מעליו ("smartfin… אומר"), משמאל לימין
-                    // ובלי שום עיצוב: הרגע שבו האפליקציה נראית הכי פחות
-                    // כמו עצמה הוא הרגע שבו המשתמש הכי צריך לבטוח בה.
+                    // `appConfirm` and not the native `confirm`. This was the
+                    // only call in the whole app to the browser's dialog, and on
+                    // the most dangerous question in the product. In an installed
+                    // PWA it is rendered with the host name above it ("smartfin…
+                    // says"), left to right and with no styling at all: the moment
+                    // the app looks least like itself is the moment the user most
+                    // needs to trust it.
+
                     return window.appConfirm({
                         title: 'לעבור למשפחה אחרת?',
                         message: `למשפחה הנוכחית שלכם ${howMany}. מעבר למשפחה אחרת ` +
@@ -218,12 +235,16 @@ if (joinBtn && joinInput) {
     });
 }
 
-// הסרת עסקה קבועה עברה ל-transactions.js: אותה רשימה מוצגת גם בעמוד
-// החודש, ו-settings.js לא נטען שם. עותק שני היה הופך כל תיקון לשניים.
+// Removing a recurring transaction moved to transactions.js: the same list is
+// shown on the month page too, and settings.js isn't loaded there. A second copy
+// would turn every fix into two.
 
-// ── סדר קטגוריות (▲▼) ──
-/* שם ואייקון בשורת קטגוריה — דרך ‎textContent‎ ומאפיינים, לא דרך HTML.
- * משותף לשינוי שם ולשורה חדשה שנבנית מה-‎<template>‎ של התבנית. */
+
+// ── Category order (▲▼) ──
+
+/* Name and icon in a category row, through `textContent` and attributes, not
+ * HTML. Shared by renaming and by a new row built from the template's
+ * `<template>`. */
 function applyCategoryName(row, name, icon) {
     row.dataset.name = name;
     row.dataset.icon = icon;
@@ -261,7 +282,7 @@ function persistCategoryOrder(panel) {
     .then(r => r.json())
     .then(function (d) {
         if (d.error) { window.showToast('שמירת הסדר נכשלה', 'error'); return; }
-        forgetCategories();                 // הסדר קובע גם את הסדר ב-+
+        forgetCategories();                 // the order also decides the order in +
     })
     .catch(function () { window.showToast(window.sfNetError(), 'error'); });
 }
@@ -285,9 +306,11 @@ document.addEventListener('click', function (e) {
     persistCategoryOrder(panel);
 });
 
-// ── גרירה לסידור (מתן, 30.9 — סבב 6, פריט 5) ──
-// מהידית בלבד. השורה עוברת מקום ברגע שמרכז האצבע חוצה את אמצע השכנה, והסדר
-// נשמר פעם אחת בשחרור — אותה שמירה כמו החצים, שנשארים למקלדת ולקורא מסך.
+// ── Drag to reorder (Matan, 30.9, round 6, item 5) ──
+// From the handle only. The row moves the moment the finger's centre crosses the
+// middle of its neighbour, and the order is saved once on release: the same save
+// as the arrows, which stay for keyboard and screen reader.
+
 document.addEventListener('pointerdown', function (e) {
     const handle = e.target.closest('.cat-drag-handle');
     if (!handle) return;
@@ -297,9 +320,10 @@ document.addEventListener('pointerdown', function (e) {
     e.preventDefault();
     const before = Array.from(panel.querySelectorAll(':scope > .category-row')).map(r => r.dataset.id).join();
     row.classList.add('dragging');
-    // ההאזנה על document ולא על הידית: הזזת השורה ב-DOM משחררת את
-    // ‎setPointerCapture‎, והגרירה נעצרה אחרי צעד אחד — ובלי ‎pointerup‎
-    // הסדר גם לא נשמר
+    // Listening on document and not the handle: moving the row in the DOM
+    // releases `setPointerCapture`, and the drag stopped after one step; and
+    // without `pointerup` the order wasn't saved either
+
     const id = e.pointerId;
 
     function move(ev) {
@@ -356,7 +380,9 @@ document.addEventListener('click', function (e) {
             </div>
         </div>
     `;
-    // ערכי המשתמש נכתבים דרך .value (לא אינטרפולציה) — בטוח מ-attribute-XSS
+    // User values are written through .value (not interpolation): safe from
+    // attribute XSS
+
     row.querySelector('.cat-edit-icon').value = origIcon;
     row.querySelector('.cat-edit-name').value = origName;
     row.querySelector('.cat-edit-icon').defaultValue = origIcon;
@@ -392,9 +418,11 @@ document.addEventListener('click', function (e) {
     .then(function (d) {
         if (d.error) { window.showToast(d.error, 'error'); saveEditBtn.disabled = false; return; }
         row.classList.remove('editing');
-        // השורה המקורית חוזרת במלואה — עם בקרת התקציב ובלי ✕ למי שאינו
-        // מנהל — ורק השם והאייקון מתעדכנים. קודם היא נבנתה מחדש מ-
-        // ‎catRowInnerHTML‎, שאין בו תקציב, ו"קביעת תקציב" נעלם עד רענון.
+        // The original row comes back whole (with the budget control and
+        // without ✕ for non-managers), and only the name and icon update. Before,
+        // it was rebuilt from `catRowInnerHTML`, which has no budget, and "set a
+        // budget" vanished until a refresh.
+
         row.innerHTML = row.dataset.origHtml;
         delete row.dataset.origHtml;
         applyCategoryName(row, name, icon);
@@ -415,7 +443,9 @@ document.addEventListener('click', function (e) {
     const panel = row.closest('.cat-tab-panel');
 
     const catName = (row.querySelector('.cat-row-name') || {}).textContent || '';
-    // שואל לאן להעביר את העסקאות, מוחק ומודיע — ראו ‎sfDeleteCategory‎ ב-core.js
+    // Asks where to move the transactions, deletes and notifies; see
+    // `sfDeleteCategory` in core.js
+
     window.sfDeleteCategory('/api/categories/' + id, catName.trim()).then(function (deleted) {
         if (!deleted) return;
         row.style.opacity = '0';
@@ -427,9 +457,11 @@ document.addEventListener('click', function (e) {
     });
 });
 
-// ── החזרת קטגוריות ברירת המחדל (מתן, 31.10) ──
-// קודם שואלים את השרת מה חסר, ומציגים את זה בשמות באישור — "נוסיף 3
-// קטגוריות" לבד לא אומר למשתמש אם זה מה שהוא חיפש. רק הוספה, אף פעם לא מחיקה.
+// ── Restoring the default categories (Matan, 31.10) ──
+// First ask the server what is missing, and show it by name in the
+// confirmation: "we'll add 3 categories" alone doesn't tell the user whether it
+// is what they were looking for. Only adding, never deleting.
+
 const restoreBtn = document.getElementById('restoreDefaultCatsBtn');
 if (restoreBtn) {
     restoreBtn.addEventListener('click', function () {
@@ -470,7 +502,8 @@ if (restoreBtn) {
     });
 }
 
-// ── Add category (הסוג נקבע לפי הטאב הפעיל) ──
+// ── Add category (the type is set by the active tab) ──
+
 const addForm  = document.getElementById('addCatForm');
 const addError = document.getElementById('addCatError');
 
@@ -504,8 +537,10 @@ if (addForm) {
             const list    = document.getElementById(listMap[type]);
             const tpl     = document.getElementById('newCategoryRow-' + type);
             if (list && tpl) {
-                // אותה שורה בדיוק כמו בטעינה (המאקרו ‎category_row‎ בתבנית),
-                // כולל בקרת התקציב — ולא גרסה שנבנתה כאן בנפרד
+                // Exactly the same row as on load (the `category_row` macro in
+                // the template), including the budget control, and not a version
+                // built here separately
+
                 const li = tpl.content.querySelector('.category-row').cloneNode(true);
                 li.dataset.id = cat.id;
                 li.querySelectorAll('[data-id]').forEach(function (el) { el.dataset.id = cat.id; });
@@ -543,7 +578,8 @@ if (cancelProfileBtn) {
     cancelProfileBtn.addEventListener('click', function () {
         profileEdit.classList.remove('visible');
         profileError.textContent = '';
-        // "ביטול" באמת מבטל — חזרה לשמור, ו"שמירה" כבוי (מתן, 13.10)
+        // "Cancel" really cancels: back to saved, and "save" disabled (Matan, 13.10)
+
         profileEdit.querySelectorAll('input').forEach(function (el) { el.value = el.defaultValue; });
         profileEdit.dispatchEvent(new Event('input'));
     });
@@ -568,17 +604,22 @@ function submitProfile(workplaceScope) {
         saveProfileBtn.disabled = false;
         if (d.error) { profileError.textContent = d.error; return; }
         accountNameDisplay.textContent = d.full_name;
-        // והשורה שלי ברשימת בני המשפחה
+        // And my row in the family member list
+
         document.querySelectorAll('[data-my-name]').forEach(function (el) { el.textContent = d.full_name; });
-        // גם בראש העמוד — בלי זה הוא נשאר הישן עד רענון (מתן, 1.10)
+        // At the top of the page too; without this it stays the old one until a
+        // refresh (Matan, 1.10)
+
         const heroName = document.getElementById('heroProfileName');
         if (heroName) heroName.textContent = d.full_name;
 
         const workplaceDisplay = document.getElementById('accountWorkplaceDisplay');
         workplaceDisplay.textContent = d.workplace || '';
         workplaceDisplay.style.display = d.workplace ? '' : 'none';
-        // הערך השמור הוא עכשיו נקודת ההשוואה. בלי זה "שינית את מקום העבודה"
-        // נשאל שוב בכל שמירה הבאה של הפרופיל, גם כשלא נגעו בו.
+        // The saved value is now the comparison point. Without this "you changed
+        // the workplace" was asked again on every following profile save, even
+        // when it wasn't touched.
+
         document.getElementById('editWorkplace').defaultValue = d.workplace || '';
         document.getElementById('editFirstName').defaultValue = document.getElementById('editFirstName').value;
         document.getElementById('editLastName').defaultValue = document.getElementById('editLastName').value;
@@ -605,8 +646,10 @@ if (saveProfileBtn) {
             return;
         }
 
-        // מקום עבודה השתנה — שואלים אם להחיל גם על היסטוריית משכורות
-        // או רק מהחודש הנוכחי ואילך (ראה update_workplace_history בשרת)
+        // The workplace changed: ask whether to apply it to the salary history
+        // too or only from the current month on (see update_workplace_history on
+        // the server)
+
         const workplaceChanged = workplace !== workplaceInput.defaultValue.trim();
         if (workplaceChanged) {
             window.appConfirm({
@@ -616,8 +659,9 @@ if (saveProfileBtn) {
                 cancelText: 'רק מהחודש הזה',
                 danger: false,
             }).then(function (updateAll) {
-                // ‎null‎ = נסיגה (Escape, לחיצה בחוץ): לא שומרים כלום. עד היום
-                // זה נשמר כ"רק מהחודש הזה" — בחירה שאף אחד לא עשה.
+                // `null` = retreat (Escape, a tap outside): save nothing. Until now
+                // it was saved as "only from this month", a choice nobody made.
+
                 if (updateAll === null) return;
                 submitProfile(updateAll ? 'all' : 'future');
             });
@@ -706,7 +750,8 @@ if (changePasswordBtn) {
     });
 }
 
-// ── מייל וטלפון בתיבת "חשבון" (מתן, 1.10) ──
+// ── Email and phone in the "account" box (Matan, 1.10) ──
+
 function toggleForm(btnId, formId, onClose) {
     const btn = document.getElementById(btnId);
     const form = document.getElementById(formId);
@@ -716,7 +761,8 @@ function toggleForm(btnId, formId, onClose) {
     });
 }
 
-// עזיבה/הצטרפות — חלונית אחת (מתן, 11.10)
+// Leaving/joining: one panel (Matan, 11.10)
+
 (function () {
     const btn  = document.getElementById('toggleFamilyMoveBtn');
     const form = document.getElementById('familyMoveForm');
@@ -805,7 +851,8 @@ if (savePhoneBtn) {
             if (d.error) { err.textContent = d.error; return; }
             document.getElementById('accountPhoneValue').textContent = d.phone;
             phoneInput.defaultValue = d.phone;
-            // גם השורה שלי ב"המשפחה שלי"
+            // My row in "my family" too
+
             const row = document.getElementById('accountPhoneDisplay');
             if (row) { row.textContent = d.phone; row.style.display = ''; }
             closePhoneForm();
@@ -818,7 +865,8 @@ if (savePhoneBtn) {
     });
 }
 
-// ── איפוס חשבון: מחיקת כל העסקאות (החשבון נשמר) ──
+// ── Account reset: deleting all transactions (the account is kept) ──
+
 const toggleResetBtn  = document.getElementById('toggleResetAccountBtn');
 const resetForm       = document.getElementById('resetAccountForm');
 const cancelResetBtn  = document.getElementById('cancelResetAccountBtn');
@@ -827,8 +875,10 @@ const resetPwInput    = document.getElementById('resetAccountPassword');
 const resetError      = document.getElementById('resetAccountError');
 const scopeFamilyBtn  = document.getElementById('resetScopeFamily');
 const scopeMineBtn    = document.getElementById('resetScopeMine');
-// מי שאינו מנהל המשפחה לא מקבל את הכפתור "כל עסקאות המשפחה" בכלל,
-// אז ברירת המחדל נגזרת ממה שקיים על המסך ולא מקובעת ל-'family'.
+// Someone who isn't the family manager doesn't get the "all family
+// transactions" button at all, so the default is derived from what exists on the
+// screen and not fixed to 'family'.
+
 let resetScope = scopeFamilyBtn ? 'family' : 'mine';
 
 if (toggleResetBtn) {
@@ -855,8 +905,10 @@ if (toggleResetBtn) {
             resetError.textContent = 'נא להזין את הסיסמה הנוכחית';
             return;
         }
-        // מספר הוא מה שגורם לעצור, לא המשפט "פעולה סופית". הספירה
-        // מגיעה מהשרת עם העמוד; אם היא לא הצליחה, לא ממציאים מספר.
+        // A number is what makes people stop, not the sentence "a final action".
+        // The count comes from the server with the page; if it failed, no number
+        // is made up.
+
         const txCount = parseInt((resetForm.dataset.txCount || ''), 10);
         const count   = (resetScope === 'family' && !isNaN(txCount))
             ? ' ' + window.sfCount(txCount, 'עסקה אחת תימחק.', 'עסקאות יימחקו.')
@@ -896,7 +948,8 @@ if (toggleResetBtn) {
     });
 }
 
-// ── מחיקת חשבון לצמיתות ──
+// ── Permanently deleting the account ──
+
 const toggleDeleteBtn  = document.getElementById('toggleDeleteAccountBtn');
 const deleteForm       = document.getElementById('deleteAccountForm');
 const cancelDeleteBtn  = document.getElementById('cancelDeleteAccountBtn');
@@ -954,24 +1007,26 @@ if (toggleDeleteBtn) {
 
 })();
 
-/* ‎savePrefs‎ יושב כאן, ברמת הקובץ, ולא בתוך אחד הבלוקים.
+/* `savePrefs` sits here, at file level, and not inside one of the blocks.
  *
- * הוא היה מוגדר בתוך הבלוק של "העדפות משפחה", וקוד תקציבי הקטגוריות
- * יושב בבלוק אחר לגמרי — שני תחומים נפרדים. כלומר כל ניסיון לשמור
- * תקציב זרק ‎ReferenceError: savePrefs is not defined‎, בתוך ‎setTimeout‎
- * שאף אחד לא צופה בו: בלי הודעה, בלי שגיאה על המסך, בלי כלום. שדה
- * התקציב פשוט לא עשה שום דבר, אף פעם.
+ * It used to be defined inside the "family settings" block, and the category
+ * budget code sits in a completely different block: two separate scopes. So
+ * every attempt to save a budget threw `ReferenceError: savePrefs is not
+ * defined`, inside a `setTimeout` nobody watches: no message, no error on
+ * screen, nothing. The budget field simply never did anything.
  *
- * הבדיקות לא תפסו את זה כי הן חיפשו את המחרוזת ‎savePrefs({ limits:‎
- * בקוד המקור — והיא הייתה שם. נוכחות בטקסט אינה נגישות בתחום.
+ * The tests didn't catch it because they searched for the string
+ * `savePrefs({ limits:` in the source, and it was there. Presence in the text
+ * isn't reachability in scope.
  */
-/* ‎revert‎ הוא הלב כאן. המתג מתהפך בעצמו בלחיצה, לפני שהשרת בכלל נשאל.
- * כשהשמירה נכשלה הוצגה הודעה אדומה ל-2.6 שניות — והמתג נשאר במצב החדש.
- * המשתמש ראה הבהוב, המסך הראה "מופעל", והוא ניווט משם בביטחון שזה נשמר.
- * ברענון הבא זה חזר לאחור, בלי שום קשר גלוי למה שקרה.
+/* `revert` is the heart here. The switch flips by itself on tap, before the
+ * server is even asked. When the save failed a red message was shown for 2.6
+ * seconds, and the switch stayed in the new state. The user saw a flash, the
+ * screen showed "on", and they navigated away confident it was saved. On the
+ * next refresh it went back, with no visible link to what happened.
  *
- * מסך שמראה מצב שלא נשמר גרוע מהודעת שגיאה: הוא לא רק לא מודיע, הוא
- * מבטיח. */
+ * A screen showing a state that wasn't saved is worse than an error message:
+ * it doesn't just fail to tell, it promises. */
 function savePrefs(patch, revert) {
     function failed(message) {
         if (revert) revert();
@@ -991,7 +1046,9 @@ function savePrefs(patch, revert) {
             failed(res.data.error || 'שמירת ההעדפות נכשלה');
             return;
         }
-        // המודאל הגלובלי קורא מכאן — בורר "של מי?" מתעדכן בלי רענון
+        // The global modal reads from here: the "whose?" picker updates without
+        // a refresh
+
         window.SF_ATTRIBUTION = res.data.settings.owner_attribution;
         window.showToast('ההעדפות נשמרו');
     })
@@ -999,9 +1056,11 @@ function savePrefs(patch, revert) {
 }
 
 
-// ── שיוך עסקאות: שמירה מיידית של כל שינוי ──
-// התראות על חריגות ו"מקום עבודה על שורות משכורת" ירדו מכאן (מתן, 11.10):
-// מי שרוצה התראות קובע תקציב לקטגוריה, ומקום העבודה מוצג תמיד.
+// ── Transaction attribution: every change is saved immediately ──
+// Overage alerts and "workplace on salary rows" were removed from here (Matan,
+// 11.10): whoever wants alerts sets a budget for a category, and the workplace is
+// always shown.
+
 (function () {
 const attrSwitches = document.querySelectorAll('[data-pref-type]');
 
@@ -1015,23 +1074,26 @@ attrSwitches.forEach(function (sw) {
 });
 })();
 
-/* ─── ניהול חברי המשפחה ──────────────────────────────────────────────────────
+/* ─── Managing family members ──────────────────────────────────────────────
  *
- * עד עכשיו מי שהצטרף למשפחה — בטעות, או עם קוד שדלף בוואטסאפ — נשאר בה
- * לתמיד: אין הסרה, אין עזיבה, והקוד נוצר פעם אחת ואי אפשר לשנותו.
+ * Until now whoever joined the family (by mistake, or with a code leaked on
+ * WhatsApp) stayed in it forever: no removal, no leaving, and the code was
+ * created once and couldn't be changed.
  */
 (function () {
     const KEEP  = 'keep';
     const WIPE  = 'delete';
 
-    /* הבחירה על העסקאות נשאלת ולא מוכרעת בשקט. הכסף יצא מהתקציב המשותף,
-     * אז "להשאיר" שומר את הסיכומים החודשיים נכונים והעסקאות מוצגות
-     * כ"משותפות"; "למחוק" משנה למפרע כל חודש שבו הן מופיעות.
+    /* The choice about the transactions is asked, not decided silently. The money
+     * left the shared budget, so "keep" keeps the monthly totals right and the
+     * transactions are shown as "shared"; "delete" retroactively changes every
+     * month they appear in.
      *
-     * המחיקה היא דווקא כפתור האישור, וזה מכוון: appConfirm מחזיר false גם
-     * על Escape, על לחיצה מחוץ לדיאלוג ועל ✕. אילו "להשאיר" היה האישור,
-     * כל בריחה מהדיאלוג הייתה מוחקת עסקאות — בדיוק הבאג שקיים היום
-     * במחיקת פרויקט. כך כל דרך יציאה מגיעה לאפשרות הבטוחה. */
+     * Deleting is the confirm button, and that is deliberate: appConfirm returns
+     * false on Escape, on a tap outside the dialog and on ✕ as well. If "keep"
+     * were the confirm, every escape from the dialog would delete transactions:
+     * exactly the bug that exists today when deleting a project. This way every
+     * way out reaches the safe option. */
     function askAboutTransactions(title, message) {
         return window.appConfirm({
             title: title,
@@ -1039,7 +1101,7 @@ attrSwitches.forEach(function (sw) {
             confirmText: 'למחוק אותן',
             cancelText:  'להשאיר כמשותפות',
         }).then(function (wipe) {
-            if (wipe === null) return null;   // נסיגה — לא מסירים כלל
+            if (wipe === null) return null;   // retreat: don't remove at all
             return wipe ? WIPE : KEEP;
         });
     }
@@ -1054,15 +1116,19 @@ attrSwitches.forEach(function (sw) {
         });
     }
 
-    /* פרויקטים אישיים של מי שיוצא. עד היום הם נעלמו: רשומים על מי שכבר
-     * לא במשפחה, אז מוסתרים מכולם, והכסף שבהם לא נספר בשום מקום.
+    /* Personal projects of whoever leaves. Until now they vanished: recorded
+     * under someone no longer in the family, so hidden from everyone, and the
+     * money in them counted nowhere.
      *
-     * נשאל רק מי שעוזב בעצמו — אלה הפרויקטים שלו. כשהמנהל מסיר, הם נמחקים
-     * תמיד (החלטת מתן), והחלון הראשון אומר את זה מראש. השאלה מגיעה מהשרת
-     * (409 עם המספר), כי רק המסד יודע אם יש כאלה.
+     * Only someone leaving by themselves is asked: these are their projects.
+     * When the manager removes someone, they are always deleted (Matan's
+     * decision), and the first sheet says so upfront. The question comes from
+     * the server (409 with the number), because only the database knows whether
+     * there are any.
      *
-     * כמו ב-askAboutTransactions: המחיקה היא כפתור האישור, ונסיגה (Escape,
-     * לחיצה בחוץ) מבטלת את כל הפעולה. "להשאיר כמשותפים" לא מאבד כלום. */
+     * As in askAboutTransactions: deleting is the confirm button, and a retreat
+     * (Escape, a tap outside) cancels the whole action. "Keep as shared" loses
+     * nothing. */
     function askAboutProjects(title, count) {
         const what = count === 1 ? 'פרויקט אישי אחד' : count + ' פרויקטים אישיים';
         return window.appConfirm({
@@ -1077,8 +1143,10 @@ attrSwitches.forEach(function (sw) {
         });
     }
 
-    // שולח; ואם השרת עונה שיש פרויקטים שמחכים להחלטה — שואל ושולח שוב.
-    // ‎null‎ = המשתמש נסוג בשאלה, ושום דבר לא נשלח.
+    // Sends; and if the server answers that projects are awaiting a decision,
+    // asks and sends again.
+    // `null` = the user backed out of the question, and nothing was sent.
+
     function sendDeparture(url, method, body, projectsTitle) {
         return send(url, method, body).then(function (res) {
             if (res.ok || !res.data || !res.data.needs_choice) return res;
@@ -1090,9 +1158,11 @@ attrSwitches.forEach(function (sw) {
         });
     }
 
-    // ── הסרת בן משפחה (מנהל בלבד, מתחת ל"אפשרויות מתקדמות") ──
-    // שלוש שאלות לפני שמשהו קורה: אזהרה, מה לעשות עם העסקאות, ואישור אחרון.
-    // נסיגה בכל אחת מהן — שום דבר לא נשלח.
+    // ── Removing a family member (manager only, under "advanced options") ──
+    // Three questions before anything happens: a warning, what to do with the
+    // transactions, and a final confirmation. A retreat at any of them: nothing
+    // is sent.
+
     const removeBtn    = document.getElementById('removeMemberBtn');
     const removeSelect = document.getElementById('removeMemberSelect');
     if (removeBtn && removeSelect) {
@@ -1105,7 +1175,8 @@ attrSwitches.forEach(function (sw) {
 
             window.appConfirm({
                 title: 'להסיר את ' + name + ' מהמשפחה?',
-                // בלי זכר ונקבה (מתן, 1.10) — זו יכולה להיות אור
+                // Gender-neutral (Matan, 1.10): this could be Or
+
                 message: 'הגישה של ' + name + ' לתקציב המשפחתי תיפסק מיד, ותיפתח משפחה '
                        + 'חדשה וריקה. אפשר לצרף שוב בקוד הזמנה.\n\n'
                        + 'פרויקטים אישיים של ' + name + ', אם יש, יימחקו יחד עם העסקאות שבהם.',
@@ -1146,7 +1217,8 @@ attrSwitches.forEach(function (sw) {
         });
     }
 
-    // ── עזיבת המשפחה ──
+    // ── Leaving the family ──
+
     const leaveBtn = document.getElementById('leaveFamilyBtn');
     if (leaveBtn) {
         leaveBtn.addEventListener('click', function () {
@@ -1182,7 +1254,8 @@ attrSwitches.forEach(function (sw) {
         });
     }
 
-    // ── החלפת קוד ההזמנה ──
+    // ── Replacing the invite code ──
+
     const rotateBtn = document.getElementById('rotateCodeBtn');
     if (rotateBtn) {
         rotateBtn.addEventListener('click', function () {
@@ -1213,15 +1286,15 @@ attrSwitches.forEach(function (sw) {
 })();
 
 
-/* ─── תקציב יעד לקטגוריה ─────────────────────────────────────────────────────
+/* ─── A target budget per category ─────────────────────────────────────────
  *
- * שתי החלטות נפרדות, בכוונה: האם יש תקציב, ואם כן — האם להתריע. יש
- * משפחות שרוצות לראות "₪1,800 מתוך ₪2,000" על המסך בלי שהאפליקציה
- * תנדנד להן על זה.
+ * Two separate decisions, on purpose: whether there is a budget, and if so,
+ * whether to alert. Some families want to see "₪1,800 of ₪2,000" on screen
+ * without the app nagging them about it.
  *
- * הפס שכבר קיים בעמוד החודש מודד כמה הקטגוריה מתוך סך ההוצאות ("מכולת
- * היא 35% מההוצאות"). תקציב מודד מול ההחלטה של המשפחה — וזו השאלה
- * שבאמת שואלים.
+ * The bar already on the month page measures the category's share of total
+ * expenses ("groceries are 35% of expenses"). A budget measures against the
+ * family's decision, and that is the question people really ask.
  */
 (function () {
 
@@ -1236,18 +1309,20 @@ attrSwitches.forEach(function (sw) {
         return (raw && isFinite(num) && num > 0) ? num : null;
     }
 
-    /* כפתור השמירה פעיל רק כשיש מה לשמור. כפתור שנראה זמין ולא עושה
-     * כלום מלמד להתעלם ממנו. */
+    /* The save button is enabled only when there is something to save. A button
+     * that looks available and does nothing teaches people to ignore it. */
     function syncButton(wrap) {
         const btn = wrap.querySelector('.budget-save');
         if (btn) btn.disabled = amountOf(wrap) === null;
     }
 
-    /* ‎alert‎ לא נשלח יותר, והשרת קובע ‎True‎ כברירת מחדל.
+    /* `alert` is no longer sent, and the server defaults to `True`.
      *
-     * הייתה כאן תיבה שנייה, "התרע בחריגה", כהחלטה נפרדת מ"יש תקציב".
-     * בפועל זו הבחנה בלי הבדל: מי שטרח להגדיר תקציב רוצה לדעת כשחרג
-     * ממנו — אחרת הוא רק מספר על המסך. פחות שאלות, אותה תוצאה. */
+     * There used to be a second checkbox here, "alert on overage", as a decision
+     * separate from "has a budget". In practice it was a distinction without a
+     * difference: whoever bothered to set a budget wants to know when they went
+     * over it; otherwise it is just a number on the screen. Fewer questions, the
+     * same result. */
     function save(id, revert) {
         const wrap = fieldsFor(id);
         if (!wrap) return;
@@ -1266,9 +1341,11 @@ attrSwitches.forEach(function (sw) {
         if (box.checked) {
             syncButton(wrap);
             wrap.querySelector('.budget-amount').focus();
-            return;                 // אין מה לשמור עד שיוזן סכום ויילחץ "שמור"
+            return;                 // nothing to save until an amount is entered and "save" is tapped
         }
-        // כיבוי הוא פעולה חד-משמעית — אין מה להקליד, אז נשמר מיד
+        // Turning off is an unambiguous action: nothing to type, so it is saved
+        // immediately
+
         const was = true;
         save(box.dataset.id, function () {
             box.checked = was;
@@ -1287,15 +1364,18 @@ attrSwitches.forEach(function (sw) {
         btn.disabled = true;
         const label = btn.textContent;
         btn.textContent = 'שומר…';
-        save(btn.dataset.id, function () { /* השגיאה מוצגת ב-toast */ });
-        // ‎savePrefs‎ לא מחזיר הבטחה, אז משחררים אחרי שהבקשה יצאה
+        save(btn.dataset.id, function () { /* the error is shown in a toast */ });
+        // `savePrefs` doesn't return a promise, so release after the request
+        // went out
+
         setTimeout(function () {
             btn.textContent = label;
             syncButton(btn.closest('.cat-budget-edit'));
         }, 700);
     });
 
-    // Enter בשדה הסכום = לחיצה על "שמור"
+    // Enter in the amount field = tapping "save"
+
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter') return;
         const amount = e.target.closest('.budget-amount');
@@ -1307,7 +1387,8 @@ attrSwitches.forEach(function (sw) {
 })();
 
 
-// ── התראות: מתג כן/לא (מתן, 1.11) — הלוגיקה ב-‎js/push.js‎ ──
+// ── Notifications: an on/off switch (Matan, 1.11); the logic is in `js/push.js` ──
+
 (function () {
     const toggle = document.getElementById('pushToggle');
     const status = document.getElementById('pushStatus');
@@ -1336,9 +1417,11 @@ attrSwitches.forEach(function (sw) {
 })();
 
 
-// ── תצוגה: בהיר / כהה (מתן, 30.9 — סבב 6, פריט 4) ──
-// נשמר בטלפון בלבד. ‎data-theme‎ על ‎<html>‎ מחליף את כל הצבעים מיד — בלי
-// רענון; את השאר (גרפים) theme.js קובע בטעינה הבאה של כל עמוד.
+// ── Appearance: light / dark (Matan, 30.9, round 6, item 4) ──
+// Kept on the phone only. `data-theme` on `<html>` swaps every colour right away,
+// with no refresh; the rest (charts) is set by theme.js on the next load of each
+// page.
+
 (function () {
     const buttons = document.querySelectorAll('.theme-choice');
     if (!buttons.length) return;
@@ -1355,14 +1438,15 @@ attrSwitches.forEach(function (sw) {
             const theme = b.dataset.themeChoice;
             if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
             else document.documentElement.removeAttribute('data-theme');
-            try { localStorage.setItem('sf_theme', theme); } catch (e) { /* לא נזכר — רק לעמוד הזה */ }
+            try { localStorage.setItem('sf_theme', theme); } catch (e) { /* not remembered: for this page only */ }
             show(theme);
         });
     });
 })();
 
 
-// ── גודל טקסט (מתן, 30.9 — סבב 6, פריט 9) ──
+// ── Text size (Matan, 30.9, round 6, item 9) ──
+
 (function () {
     const buttons = document.querySelectorAll('.text-size-choice');
     if (!buttons.length) return;
@@ -1379,20 +1463,24 @@ attrSwitches.forEach(function (sw) {
             const size = b.dataset.size;
             if (size === 'normal') document.documentElement.removeAttribute('data-text-size');
             else document.documentElement.setAttribute('data-text-size', size);
-            try { localStorage.setItem('sf_text_size', size); } catch (e) { /* רק לעמוד הזה */ }
+            try { localStorage.setItem('sf_text_size', size); } catch (e) { /* for this page only */ }
             show(size);
         });
     });
 })();
 
 
-// ── בחירת צבע לבן משפחה (מתן, 30.9 — סבב 6, פריט 13) ──
-// כפתור "בחירת צבע" בשורה שלי פותח חלון; כל צבע מראה את תג השם שלי בצבע הזה.
+// ── Picking a colour for a family member (Matan, 30.9, round 6, item 13) ──
+// The "pick a colour" button on my row opens a sheet; each colour shows my name
+// tag in that colour.
+
 (function () {
     const openBtn = document.getElementById('memberColorOpen');
     const sheet   = document.getElementById('memberColorSheet');
     if (!openBtn || !sheet) return;
-    // לראש העמוד: בתוך קבוצת ההגדרות ‎position: fixed‎ נכלא מתחת לתפריט התחתון
+    // To the top of the page: inside the settings group `position: fixed` is
+    // trapped under the bottom menu
+
     document.body.appendChild(sheet);
     function close() { sheet.hidden = true; openBtn.focus({ preventScroll: true }); }
     openBtn.addEventListener('click', function () {
@@ -1416,7 +1504,7 @@ attrSwitches.forEach(function (sw) {
             .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
             .then(function (res) {
                 if (!res.ok) { btn.disabled = false; window.showToast(res.d.error || 'שמירת הצבע נכשלה', 'error'); return; }
-                try { window.sfToastAfterReload('הצבע נשמר'); } catch (err) { /* בלי טוסט */ }
+                try { window.sfToastAfterReload('הצבע נשמר'); } catch (err) { /* without a toast */ }
                 window.location.reload();
             })
             .catch(function () { btn.disabled = false; window.showToast(window.sfNetError(), 'error'); });
@@ -1425,16 +1513,19 @@ attrSwitches.forEach(function (sw) {
 
 
 
-// ── הגעה מקישור הזמנה (‎/join/<code>‎ ← ‎/settings?join=…‎, רעיון 43) ──
-// פותחים את "המשפחה שלי" וממלאים את הקוד. לא מצטרפים מעצמנו: מעבר
-// משפחה הוא החלטה, והכפתור "הצטרפות" שואל לפני שהוא מנתק מהמשפחה הנוכחית.
+// ── Arriving from an invite link (`/join/<code>` → `/settings?join=…`, idea 43) ──
+// Open "my family" and fill in the code. Don't join by ourselves: switching
+// family is a decision, and the "join" button asks before cutting off from the
+// current family.
+
 (function () {
     let code = null;
     try { code = new URLSearchParams(location.search).get('join'); } catch (err) { return; }
     const input = document.getElementById('joinCodeInput');
     if (!code || !input) return;
     input.value = code.replace(/[^A-Za-z0-9]/g, '').slice(0, 12).toUpperCase();
-    // הקוד יושב בחלונית "עזיבה/הצטרפות" — פותחים אותה
+    // The code sits in the "leave/join" panel: open it
+
     const moveForm = document.getElementById('familyMoveForm');
     if (moveForm && !moveForm.classList.contains('visible')) {
         moveForm.classList.add('visible');
@@ -1453,9 +1544,12 @@ attrSwitches.forEach(function (sw) {
     });
 })();
 
-// ── "/settings?series=<id>" — מ"חלק מעסקה קבועה" בחלון העריכה (מתן, 12.10) ──
-// פותחים את "עסקאות קבועות", גוללים לסדרה, ופותחים אותה לעריכה — אותה לחיצה
-// כמו על השורה עצמה (‎transactions.js‎). הפרמטר יורד מהכתובת: רענון לא פותח שוב.
+// ── "/settings?series=<id>": from "part of a recurring transaction" in the edit
+// sheet (Matan, 12.10) ──
+// Open "recurring transactions", scroll to the series, and open it for editing:
+// the same tap as on the row itself (`transactions.js`). The parameter is removed
+// from the URL: a refresh doesn't open it again.
+
 (function () {
     let id;
     try { id = new URLSearchParams(location.search).get('series'); } catch (e) { return; }
@@ -1469,7 +1563,9 @@ attrSwitches.forEach(function (sw) {
         const header = group.querySelector('.settings-group-header');
         if (header) header.click();
     }
-    // אחרי ‎load‎: ‎transactions.js‎ (שפותח את חלון העריכה) נטען אחרי הקובץ הזה
+    // After `load`: `transactions.js` (which opens the edit sheet) loads after
+    // this file
+
     const open = function () {
         row.scrollIntoView({ block: 'center' });
         row.click();
@@ -1478,9 +1574,11 @@ attrSwitches.forEach(function (sw) {
     else window.addEventListener('load', function () { requestAnimationFrame(open); });
 })();
 
-// ── אישור לפני התנתקות (מתן, 12.10) ──
-// "התנתקות" בתחתית ההגדרות ניתקה בנגיעה אחת. הטופס נשאר POST (הגנה מאתר אחר
-// — ראו ההערה בתבנית); רק השליחה מחכה לאישור.
+// ── Confirmation before signing out (Matan, 12.10) ──
+// "Sign out" at the bottom of settings signed out with one tap. The form stays
+// POST (protection from another site; see the note in the template); only the
+// submission waits for confirmation.
+
 (function () {
     const form = document.querySelector('form.logout-form');
     if (!form) return;
@@ -1503,9 +1601,11 @@ attrSwitches.forEach(function (sw) {
 })();
 
 
-// ── "שמירה" דולק רק כשמשהו השתנה (מתן, 13.10) ──
-// בכל טופס עריכה בהגדרות: כבוי כשהכול כמו השמור, דולק כששינו משהו. הכיתוב
-// לא משתנה. ראו ‎sfSaveWhenChanged‎ ב-core.js.
+// ── "Save" is enabled only when something changed (Matan, 13.10) ──
+// In every edit form in settings: disabled when everything matches the saved
+// state, enabled when something changed. The label doesn't change. See
+// `sfSaveWhenChanged` in core.js.
+
 (function () {
     if (!window.sfSaveWhenChanged) return;
     [['familyNameEdit', 'saveFamilyNameBtn'], ['profileEdit', 'saveProfileBtn'],

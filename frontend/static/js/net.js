@@ -1,49 +1,57 @@
-/* מצב אופליין: להגיד לפני, לא אחרי.
+/* Offline mode: say it before, not after.
  *
- * עד היום לא היה באפליקציה שום מושג שאין רשת. מישהו בחניון תת-קרקעי
- * הקליד עסקה, לחץ שמור, וקיבל "שגיאת רשת — נסה שוב" — אותה הודעה
- * שמוצגת גם כשהשרת נפל וגם כשיש באג. הוא ניסה שוב, קיבל את אותו דבר,
- * ולא היה שום רמז שהבעיה היא בו ולא בנו, ושהפתרון הוא לצאת מהחניון.
+ * Until now the app had no notion of there being no network. Someone in an
+ * underground car park typed a transaction, tapped save, and got "network
+ * error, try again": the same message shown when the server is down and when
+ * there is a bug. They tried again, got the same, and there was no hint that
+ * the problem was on their side and not ours, and that the fix is to leave the
+ * car park.
  *
- * שתי שכבות, שתיהן קטנות:
- *   · פס עליון שמופיע כשאין חיבור — כדי שההפתעה תגיע לפני ההקלדה.
- *   · הודעת שגיאה שיודעת להבדיל בין "אין רשת" ל"משהו השתבש".
+ * Two layers, both small:
+ *   · A top bar that appears when there is no connection, so the surprise
+ *     arrives before the typing.
+ *   · An error message that can tell "no network" from "something went wrong".
  *
- * מה שאין כאן במכוון: תור שמסנכרן עסקאות כשהרשת חוזרת. זו מערכת
- * סנכרון שלמה — כפילויות, קונפליקטים, ועסקאות שנרשמות שעות אחרי
- * שהמשתמש שכח מהן. באפליקציה כספית זה גרוע מהבעיה שהוא פותר.
+ * Deliberately not here: a queue that syncs transactions when the network
+ * returns. That is a whole sync system (duplicates, conflicts, and
+ * transactions recorded hours after the user forgot about them). In a money
+ * app it is worse than the problem it solves.
  *
- * בלי תלויות, כי הוא נטען גם בעמודים העצמאיים (התחברות, איפוס סיסמה,
- * onboarding) שלא טוענים את core.js.
+ * No dependencies, because it is also loaded on the standalone pages (sign-in,
+ * password reset, onboarding) that don't load core.js.
  */
 (function () {
     var GENERIC = 'שגיאת רשת — נסו שוב';
     var OFFLINE = 'אין חיבור לאינטרנט — נסו שוב כשהחיבור יחזור';
 
-    /* מסתמכים רק על הכיוון האמין.
+    /* Rely only on the reliable direction.
      *
-     * ‎navigator.onLine === true‎ אומר רק שיש ממשק רשת פעיל — הוא מחזיר
-     * true גם כשמחוברים לראוטר בלי אינטרנט, אז אי אפשר להסיק ממנו
-     * שהכול בסדר. ‎false‎, לעומת זאת, אמין: הדפדפן יודע בוודאות שאין
-     * חיבור. לכן הוא מוסיף מידע כשהוא שלילי, ולא גורע כשהוא חיובי. */
+     * `navigator.onLine === true` only says there is an active network
+     * interface: it returns true even when connected to a router with no
+     * internet, so nothing can be concluded from it about everything being
+     * fine. `false`, by contrast, is reliable: the browser knows for sure there
+     * is no connection. So it adds information when negative, and takes none
+     * away when positive. */
     function definitelyOffline() {
         return navigator.onLine === false;
     }
 
-    /* ההודעה שכל מקומות הכישלון ברשת מציגים. פונקציה ולא מחרוזת כי
-     * התשובה תלויה במצב ברגע הכישלון, לא ברגע טעינת הקובץ. */
+    /* The message every network-failure spot shows. A function and not a string
+     * because the answer depends on the state at the moment of failure, not at
+     * the moment the file loaded. */
     window.sfNetError = function () {
         return definitelyOffline() ? OFFLINE : GENERIC;
     };
 
-    /* רשימה מהשרת (קטגוריות, בני משפחה, פרויקטים) — או שגיאה. אף פעם לא
-     * משהו באמצע.
+    /* A list from the server (categories, family members, projects), or an
+     * error. Never something in between.
      *
-     * ‎fetch().then(r => r.json())‎ לא בודק את הסטטוס: תשובת 500 או 429
-     * היא ‎{error: …}‎ — והיא נשמרה במטמון כאילו היא הרשימה. מאותו רגע כל
-     * לחיצה על + נפלה על ‎.filter‎ של אובייקט והציגה "שגיאת רשת", גם אחרי
-     * שהשרת התאושש, כי המטמון כבר "מלא". דחייה כאן לא נשמרת בשום מטמון,
-     * אז הלחיצה הבאה מנסה שוב. */
+     * `fetch().then(r => r.json())` doesn't check the status: a 500 or 429
+     * response is `{error: …}`, and it was cached as if it were the list. From
+     * that moment every tap on + fell on `.filter` of an object and showed
+     * "network error", even after the server recovered, because the cache was
+     * already "full". A rejection here isn't stored in any cache, so the next
+     * tap tries again. */
     window.sfFetchList = function (url) {
         return fetch(url).then(function (r) {
             return r.json().catch(function () { return null; }).then(function (data) {
@@ -61,8 +69,9 @@
         if (!banner) {
             banner = document.createElement('div');
             banner.className = 'net-banner';
-            // status ולא alert: זו הודעת מצב, לא משהו שצריך לקטוע בשבילו
-            // את מה שקורא המסך מקריא כרגע
+            // status and not alert: this is a status message, not something to
+            // interrupt what the screen reader is currently reading for
+
             banner.setAttribute('role', 'status');
             banner.textContent =
                 'אין חיבור לאינטרנט. מה שהקלדתם נשאר על המסך — נסו שוב כשהחיבור יחזור.';
@@ -80,6 +89,8 @@
     window.addEventListener('offline', showBanner);
     window.addEventListener('online', hideBanner);
 
-    // מי שפתח את האפליקציה כשכבר אין חיבור לא מקבל אירוע — רק מצב
+    // Someone who opened the app when there was already no connection gets no
+    // event, only a state
+
     if (definitelyOffline()) showBanner();
 })();

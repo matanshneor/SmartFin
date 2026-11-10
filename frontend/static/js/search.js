@@ -1,8 +1,10 @@
-/* חיפוש בכל החודשים — הזכוכית המגדלת בדף הבית (מתן, 30.9 — סבב 6, פריט 2).
+/* Search across all months: the magnifying glass on the home page (Matan, 30.9,
+ * round 6, item 2).
  *
- * התוצאות הן ‎.cat-tx-row‎ עם אותם ‎data-*‎ כמו בעמוד החודש, ולכן נגיעה בהן
- * פותחת עריכה דרך ‎transactions.js‎ בלי קוד נוסף. הכפתור יושב ב-hero,
- * שמתחלף ברענון רך — ההאזנה בהאצלה מ-document. */
+ * The results are `.cat-tx-row` with the same `data-*` as on the month page, so
+ * tapping them opens editing through `transactions.js` with no extra code. The
+ * button sits in the hero, which is replaced on a soft refresh: the listener is
+ * delegated from document. */
 (function () {
     const screen  = document.getElementById('searchScreen');
     if (!screen) return;
@@ -66,7 +68,8 @@
         summary.textContent = (data.count === 1 ? 'נמצאה עסקה אחת' : 'נמצאו ' + data.count + ' עסקאות')
             + (parts.length ? ' · ' + parts.join(' · ') : '')
             + (data.truncated ? ' · מוצגות 100 האחרונות' : '');
-        // קבוצה לכל חודש, מהחדש לישן — השרת כבר ממיין
+        // A group per month, newest first: the server already sorts
+
         let list = null, key = null;
         data.results.forEach(function (tx) {
             const k = tx.date.slice(0, 7);
@@ -110,10 +113,13 @@
         timer = setTimeout(run, 300);
     });
     document.addEventListener('keydown', function (e) {
-        // Escape סוגר את החיפוש — אלא אם חלון העריכה פתוח מעליו
+        // Escape closes the search, unless the edit sheet is open above it
+
         if (e.key === 'Escape' && !screen.hidden
             && !document.querySelector('.modal-overlay.open')) close();
     });
-    // אחרי עריכה או מחיקה מתוך התוצאות — מחפשים שוב, כדי שלא יוצגו ערכים ישנים
+    // After editing or deleting from the results, search again so old values
+    // aren't shown
+
     window.addEventListener('sf:refreshed', function () { if (!screen.hidden) run(); });
 })();

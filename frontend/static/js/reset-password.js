@@ -1,5 +1,7 @@
 (function () {
-    // הטוקן מגיע מהמייל של Supabase ב-fragment: #access_token=...&type=recovery
+    // The token arrives from Supabase's email in the fragment:
+    // #access_token=...&type=recovery
+
     const params      = new URLSearchParams(window.location.hash.slice(1));
     const accessToken = params.get('access_token');
     const form        = document.getElementById('resetForm');

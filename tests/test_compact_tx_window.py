@@ -20,7 +20,7 @@ def test_the_home_page_edits_in_the_same_window():
     assert "openInlineEditor" not in _JS and "buildInlineEditor" not in _JS
     index = (_ROOT / "frontend/templates/index.html").read_text(encoding="utf-8")
     assert "tx-editor" not in index
-    click = _JS[_JS.index("// ── פתיחת עריכה בלחיצה על עסקה קיימת"):][:900]
+    click = _JS[_JS.index("// ── Opening an edit by tapping an existing transaction"):][:900]
     assert "openEditModal(buildTxFromRow(row), row);" in click
 
 

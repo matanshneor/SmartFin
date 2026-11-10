@@ -1,16 +1,18 @@
-/* שלד טעינה (מתן, 30.9 — סבב 6, פריט 14).
+/* A loading skeleton (Matan, 30.9, round 6, item 14).
  *
- * המעבר בין העמודים הוא טעינה מלאה. ברשת איטית (רכבת, מעלית) הלחיצה לא
- * עשתה שום דבר נראה עד שהעמוד הבא הגיע — ולא היה ברור אם היא נקלטה. עכשיו,
- * אם אחרי רבע שנייה עוד לא עזבנו, מופיע שלד בצורת העמוד שאליו הולכים.
- * ברשת מהירה הוא לא מופיע בכלל — שלא יהבהב סתם.
+ * Moving between pages is a full load. On a slow network (train, lift) the tap
+ * did nothing visible until the next page arrived, and it wasn't clear whether
+ * it registered. Now, if after a quarter of a second we haven't left yet, a
+ * skeleton in the shape of the destination page appears. On a fast network it
+ * doesn't appear at all, so it doesn't flash for nothing.
  *
- * זה לא מאיץ כלום. זה אומר "קיבלתי, בדרך". */
+ * It doesn't speed anything up. It says "got it, on the way". */
 (function () {
     const DELAY = 250;
     let timer = null, overlay = null;
 
-    // הצורה לפי העמוד: [כמה ריבועים בשורה העליונה, ואחריהם גבהים של כרטיסים]
+    // The shape per page: [how many tiles in the top row, then card heights]
+
     const SHAPES = {
         '/':         { chips: 3, blocks: [110, 64, 64, 64] },
         '/month':    { chips: 3, blocks: [230, 230, 120] },
@@ -58,17 +60,20 @@
         if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
         const url = new URL(a.href, location.href);
         if (url.origin !== location.origin) return;
-        if (url.pathname === location.pathname && url.search === location.search) return;   // רק עוגן באותו עמוד
+        if (url.pathname === location.pathname && url.search === location.search) return;   // only an anchor on the same page
         const shape = SHAPES[url.pathname] || (url.pathname.indexOf('/projects/') === 0 ? SHAPES['/month'] : null);
         if (!shape) return;
         hide();
         timer = setTimeout(function () {
-            // קוד אחר ביטל את המעבר אחרי שקיבלנו את הלחיצה — אין לאן לחכות,
-            // ושלד שהיה מופיע כאן לא היה נעלם לעולם
+            // Other code cancelled the navigation after we got the tap: nothing to
+            // wait for, and a skeleton shown here would never go away
+
             if (e.defaultPrevented) return;
             overlay = build(shape);
             document.body.appendChild(overlay);
-            // הלשונית שנלחצה בתפריט התחתון כבר מסומנת — "קיבלתי, בדרך לשם"
+            // The tapped tab in the bottom menu is already marked: "got it, on
+            // the way there"
+
             if (a.closest('.bottom-nav')) {
                 a.closest('.bottom-nav').querySelectorAll('.nav-item').forEach(function (n) {
                     n.classList.toggle('active', n === a);
@@ -76,7 +81,9 @@
             }
         }, DELAY);
     });
-    // חזרה אחורה מהמטמון של הדפדפן — העמוד חוזר כמו שהיה, עם השלד מעליו
+    // Going back from the browser's cache: the page comes back as it was, with
+    // the skeleton on top
+
     window.addEventListener('pageshow', hide);
     window.addEventListener('pagehide', function () { clearTimeout(timer); });
 })();

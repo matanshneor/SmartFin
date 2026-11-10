@@ -1,4 +1,5 @@
-// עמוד עצמאי (לא יורש מ-base.html) — escapeHtml מקומי
+// A standalone page (doesn't inherit from base.html): a local escapeHtml
+
 window.escapeHtml = window.escapeHtml || function (s) {
     return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -10,17 +11,21 @@ window.escapeHtml = window.escapeHtml || function (s) {
                        3: document.getElementById('step3') };
     const dots     = { 1: document.getElementById('dotStep1'), 2: document.getElementById('dotStep2'),
                        3: document.getElementById('dotStep3') };
-    // מסך ההזמנה אינו שלב באשף אלא מה שמוצג אחריו — ראו את ההערה
-    // בתבנית: קוד הזמנה לפני שהמשפחה מוגדרת שלח אנשים חזרה לאשף.
+    // The invite screen isn't a wizard step but what is shown after it; see the
+    // note in the template: an invite code before the family is set up sent
+    // people back to the wizard.
+
     const stepInvite = document.getElementById('stepInvite');
 
     const step0    = document.getElementById('step0');
     const stepJoin = document.getElementById('stepJoin');
     const dotsBar  = document.getElementById('onboardingDots');
 
-    // מסך ההמתנה, וכפתור הרענון שלו. הוא חייב להיקשר **לפני** היציאה
-    // המוקדמת שלמטה — הוא האלמנט היחיד שקיים במסך הזה, ובלי זה הוא
-    // מת: ה-CSP חוסם ‎onclick‎, ובמסך אין שום דבר אחר ללחוץ עליו.
+    // The waiting screen, and its refresh button. It must be bound **before**
+    // the early return below: it is the only element on this screen, and
+    // without this it is dead: the CSP blocks `onclick`, and there is nothing
+    // else on the screen to tap.
+
     const waitingRefreshBtn = document.getElementById('waitingRefreshBtn');
     if (waitingRefreshBtn) {
         waitingRefreshBtn.addEventListener('click', function () {
@@ -28,16 +33,20 @@ window.escapeHtml = window.escapeHtml || function (s) {
         });
     }
 
-    // מסך "הצטרפתם בהצלחה" מוגש במקום האשף כולו, ואין בו אף אחד
-    // מהאלמנטים שלמטה. בלי היציאה הזאת הקובץ נופל על הראשון שחסר,
-    // ואיתו כל מה שאחריו — בדיוק כמו שקרה ב-core.js.
+    // The "joined successfully" screen is served instead of the whole wizard,
+    // and has none of the elements below. Without this return the file falls
+    // over on the first missing one, and everything after it with it, exactly
+    // as happened in core.js.
+
     if (!step0) return;
 
-    /* מעבר בין מסכים — הבא נכנס מהצד, לפי כיוון הקריאה (מתן, 7.10 — סבב תנועה,
-     * סעיף 4). בעברית "קדימה" הוא שמאלה: הבא מגיע משמאל, וחזרה — מימין.
-     * קודם המסך התחלף בבת אחת, ולא היה ברור אם התקדמתם או חזרתם.
-     * ‎here‎ — איפה אנחנו בסדר: בחירה 0, הצטרפות 1, שלבים 1–3, הזמנה 4.
-     * ‎animate‎ ולא CSS — הכלל הכללי של תנועה מופחתת לא חל עליו, ולכן הבדיקה כאן. */
+    /* Moving between screens: the next one slides in from the side, by reading
+     * direction (Matan, 7.10, motion round, item 4). In Hebrew "forward" is to
+     * the left: the next comes from the left, and back from the right. Before,
+     * the screen switched all at once, and it wasn't clear whether you moved
+     * forward or back. `here`: where we are in the order: choice 0, join 1,
+     * steps 1–3, invite 4. `animate` and not CSS: the general reduced-motion
+     * rule doesn't apply to it, hence the check here. */
     let here = 0;
     const calm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     function enter(el, at) {
@@ -73,7 +82,8 @@ window.escapeHtml = window.escapeHtml || function (s) {
         enter(which === 'join' ? stepJoin : step0, which === 'join' ? 1 : 0);
     }
 
-    // ─── המזלג: משפחה חדשה או הצטרפות ───────────────────────────────────
+    // ─── The fork: a new family or joining ──────────────────────────────
+
     document.getElementById('chooseCreateBtn').addEventListener('click', () => goToStep(1));
     document.getElementById('chooseJoinBtn').addEventListener('click', function () {
         showChoice('join');
@@ -86,8 +96,9 @@ window.escapeHtml = window.escapeHtml || function (s) {
     const joinPreview = document.getElementById('joinPreview');
     let previewTimer  = null;
 
-    // תצוגה מקדימה חיה: המשתמש רואה לאיזו משפחה הוא עומד להצטרף לפני
-    // שהוא מאשר, כדי שקוד שגוי ייתפס כאן ולא אחרי מעשה.
+    // A live preview: the user sees which family they are about to join before
+    // confirming, so a wrong code is caught here and not after the fact.
+
     joinInput.addEventListener('input', function () {
         const code = joinInput.value.trim();
         joinPreview.textContent = '';
@@ -107,7 +118,7 @@ window.escapeHtml = window.escapeHtml || function (s) {
                         joinPreview.classList.add('field-hint-bad');
                     }
                 })
-                .catch(function () { /* התצוגה המקדימה היא נוחות בלבד — שקט בכשל */ });
+                .catch(function () { /* the preview is only a convenience: silent on failure */ });
         }, 350);
     });
 
@@ -134,7 +145,9 @@ window.escapeHtml = window.escapeHtml || function (s) {
                 btn.textContent = 'הצטרפות';
                 return;
             }
-            // מצטרף לא עובר onboarding — הקטגוריות של המשפחה כבר קיימות
+            // A joiner doesn't go through onboarding: the family's categories
+            // already exist
+
             window.location.href = '/';
         })
         .catch(function () {
@@ -145,7 +158,9 @@ window.escapeHtml = window.escapeHtml || function (s) {
     });
 
     document.getElementById('finishOnboardingBtn').addEventListener('click', function () {
-        // ‎welcome=1‎ — דף הבית מסביר בפעם הראשונה איך מצרפים בן משפחה
+        // `welcome=1`: the home page explains the first time how to add a
+        // family member
+
         window.location.href = '/?welcome=1';
     });
 
@@ -168,7 +183,7 @@ window.escapeHtml = window.escapeHtml || function (s) {
         const msg = window.sfInviteMessage(el.textContent.trim(),
                                            famEl && famEl.value.trim());
         window.copyToClipboard(msg, el).then(function (copied) {
-            if (!copied) return;          // הודעה כבר הוצגה, והקוד מסומן
+            if (!copied) return;          // a message was already shown, and the code is marked
             btn.textContent = '✓ הועתקה הזמנה';
             setTimeout(function () { btn.textContent = 'העתקת ההזמנה'; }, 1800);
         });
@@ -186,8 +201,10 @@ window.escapeHtml = window.escapeHtml || function (s) {
         });
     });
 
-    // "נבחרו 12 מתוך 14" מעל כל רשת — כך שמי שלוחץ כדי "לבחור" רואה מיד
-    // שהמספר יורד, ולא מגלה את זה רק אחרי ההרשמה (מתן, 31.10)
+    // "12 of 14 selected" above each grid, so whoever taps to "select" sees
+    // right away that the number goes down, and doesn't discover it only after
+    // signing up (Matan, 31.10)
+
     function updateCount(type) {
         const grid = document.querySelector('.onboarding-cat-grid[data-grid-type="' + type + '"]');
         const label = document.querySelector('.onboarding-cat-count[data-count-type="' + type + '"]');
@@ -276,8 +293,10 @@ window.escapeHtml = window.escapeHtml || function (s) {
                 btn.textContent = 'סיום והתחלה';
                 return;
             }
-            // כאן, ורק כאן, המשפחה מוגדרת: יש לה שם, קטגוריות ושיוך.
-            // עכשיו יש טעם להזמין — הקוד מוצג אחרי הסיום, לא באמצע.
+            // Here, and only here, the family is set up: it has a name,
+            // categories and attribution. Now inviting makes sense: the code is
+            // shown after finishing, not midway.
+
             [1, 2, 3].forEach(function (i) { steps[i].style.display = 'none'; });
             dotsBar.style.display = 'none';
             stepInvite.style.display = 'block';

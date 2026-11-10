@@ -1,11 +1,13 @@
-/* "מה חדש" אחרי עדכון, ו"אור במשפחה!" (מתן, 12.10).
+/* "What's new" after an update, and "Or is in the family!" (Matan, 12.10).
  *
- * מה חדש: חלון קטן, פעם אחת לכל גרסה, בכניסה הראשונה לבית אחרי העדכון. את
- * השורות כותבים כאן, בכל עדכון שמשתמשים ירגישו — ומעלים את ‎VERSION‎. משפחה
- * חדשה לגמרי לא רואה (אין לה "לפני") — רק נרשם שראתה.
+ * What's new: a small sheet, once per version, on the first visit to home
+ * after the update. The lines are written here, on every update users will
+ * notice, and `VERSION` is bumped. A brand-new family doesn't see it (it has no
+ * "before"); it is only recorded as seen.
  *
- * בן משפחה הצטרף: כרטיס בבית, פעם אחת, למי שכבר היה במשפחה. בפעם הראשונה
- * בטלפון הזה רק זוכרים מי במשפחה, בלי כרטיס — אחרת כולם "חדשים". */
+ * A family member joined: a card on home, once, for whoever was already in the
+ * family. The first time on this phone we only remember who is in the family,
+ * with no card; otherwise everyone is "new". */
 (function () {
     'use strict';
     const VERSION = '2026-10-13';
@@ -15,7 +17,7 @@
     ];
 
     function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-    function set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* אין אחסון */ } }
+    function set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* no storage */ } }
 
     const page = document.getElementById('sfHomeInfo');
     if (!page) return;
@@ -59,7 +61,8 @@
         requestAnimationFrame(function () { ok.focus(); });
     }
 
-    // ── מה חדש ──
+    // ── What's new ──
+
     const seen = get('sf_whats_new');
     if (page.dataset.newFamily === 'true') set('sf_whats_new', VERSION);
     else if (seen !== VERSION) {
@@ -67,14 +70,15 @@
         sheet('מה חדש ב-SmartFin', NEWS, 'יופי, הבנתי');
     }
 
-    // ── בן משפחה הצטרף ──
+    // ── A family member joined ──
+
     let members = [];
     try { members = JSON.parse(page.dataset.members || '[]'); } catch (e) { members = []; }
     const key = 'sf_known_members_' + (page.dataset.family || '');
     const known = get(key);
     const ids = members.map(function (m) { return m.id; });
     set(key, JSON.stringify(ids));
-    if (known === null) return;                      // פעם ראשונה בטלפון הזה
+    if (known === null) return;                      // first time on this phone
     let before = [];
     try { before = JSON.parse(known) || []; } catch (e) { before = []; }
     const joined = members.filter(function (m) { return m.id !== page.dataset.me && before.indexOf(m.id) === -1; });

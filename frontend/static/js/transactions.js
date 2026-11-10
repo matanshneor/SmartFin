@@ -1,4 +1,6 @@
-// הליבה של הזנת עסקאות: המודאל, כפתור ה-FAB, סריקת קבלה, עריכה ומחיקה.
+// The core of entering transactions: the modal, the FAB button, receipt
+// scanning, editing and deleting.
+
 (function () {
     const overlay      = document.getElementById('modalOverlay');
     const fabBtn       = document.getElementById('fabBtn');
@@ -37,44 +39,57 @@
     const txDescription = document.getElementById('txDescription');
     const modalTitle   = document.getElementById('modalTitle');
 
-    // שם פעולה ולא ציווי, כמו רוב הכפתורים באפליקציה ("פתיחת חשבון",
-    // "יצירת פרויקט חדש", "הצטרפות"). זה גם עוקף את שאלת היחיד/רבים:
-    // הטקסט שסביב מדבר ברבים ("לחצו", "הזינו"), וכפתור בציווי יחיד-זכר
-    // לידו קרא כמו שני כותבים שונים.
+    // An action noun and not an imperative, like most buttons in the app ("פתיחת
+    // חשבון", "יצירת פרויקט חדש", "הצטרפות"). It also sidesteps the singular/plural
+    // question: the text around it speaks in the plural ("לחצו", "הזינו"), and a
+    // masculine-singular imperative button next to it read like two different
+    // writers.
+
     const TYPE_LABELS = { expense: 'הוספת הוצאה', income: 'הוספת הכנסה', savings: 'הוספת חיסכון' };
-    // העדפות המשפחה: לאילו סוגי עסקאות מוצג בורר "של מי?"
-    // (על window כדי שעמוד ההגדרות יעדכן את המודאל מיד עם שינוי העדפה)
+    // The family settings: for which transaction types the "whose?" picker is
+    // shown (on window so the settings page updates the modal right away when a
+    // setting changes)
+
     window.SF_ATTRIBUTION = window.SF_PAGE_DATA.attribution || {};
     const OWNER_LABELS = { expense: 'של מי ההוצאה?', income: 'של מי ההכנסה?', savings: 'של מי החיסכון?' };
 
     let currentType   = 'expense';
     let editId        = null;   // null = adding a new transaction, otherwise editing this id
-    let editingRecurringParentId = null; // אם עורכים מופע שנוצר מתבנית קבועה — מזהה התבנית
-    // נפתח מ"עסקאות קבועות" בהגדרות: השינוי חל מהחודש הנוכחי (מתן, 2.10)
+    let editingRecurringParentId = null; // when editing an occurrence created from a recurring template: the template id
+    // Opened from "recurring transactions" in settings: the change applies from
+    // the current month (Matan, 2.10)
+
     let editingSeries = false;
-    let editingOriginal = null;          // העסקה כמו שהייתה לפני העריכה — ל"בטל" (סבב 6, פריט 10)
-    let originalAmount = null;  // הסכום שנטען לעריכה, להשוואה לזיהוי "שיניתם את הסכום"
+    let editingOriginal = null;          // the transaction as it was before the edit, for "undo" (round 6, item 10)
+    let originalAmount = null;  // the amount loaded for editing, to compare for "you changed the amount"
     let categoriesCache = null;
 
-    /* סריקת קבלה לוקחת כמה שניות, ובזמן הזה אפשר לסגור את הטופס ולפתוח עסקה
-     * אחרת. התשובה נכתבה לטופס שפתוח **בזמן שהיא חוזרת** — כלומר לתוך עסקה
-     * קיימת שנפתחה לתיקון: סכום, תיאור, תאריך וקטגוריה הוחלפו, והקבלה הוצמדה.
+    /* Receipt scanning takes a few seconds, and meanwhile the form can be closed
+     * and another transaction opened. The response was written into whichever
+     * form was open **when it came back**, i.e. into an existing transaction
+     * opened for a fix: amount, description, date and category were replaced,
+     * and the receipt attached.
      *
-     * ‎scanSeq‎ עולה בכל סריקה ובכל סגירה/פתיחה של הטופס; תשובה שהמספר שלה
-     * כבר לא הנוכחי לא נוגעת בכלום. ‎claimedReceipt‎ הוא הקבלה ששמירה כבר
-     * לקחה — כדי שסגירת החלון אחרי "שמור" (שבדף הבית קורית לפני שהשרת ענה)
-     * לא תמחק אותה. */
+     * `scanSeq` goes up on every scan and every close/open of the form; a
+     * response whose number is no longer current touches nothing.
+     * `claimedReceipt` is the receipt a save already took, so closing the sheet
+     * after "save" (which on the home page happens before the server answered)
+     * doesn't delete it. */
     let scanSeq = 0;
     let claimedReceipt = null;
 
-    /* בדף הבית החלון נסגר ב"שמור" לפני שהשרת ענה, כדי שההוספה תרגיש מיידית.
-     * מי שמוסיף כמה עסקאות ברצף כבר פותח + ומקליד את הבאה כשהתשובה חוזרת —
-     * והיא סגרה את החלון **שלו**, ומה שהקליד נמחק. ‎formSeq‎ עולה בכל פתיחה
-     * של הטופס; שמירה שהטופס שלה כבר הוחלף לא נוגעת בטופס הנוכחי. */
+    /* On the home page the sheet closes on "save" before the server answered, so
+     * adding feels instant. Someone adding several transactions in a row is
+     * already opening + and typing the next when the response comes back, and
+     * it closed **their** sheet, and what they typed was wiped. `formSeq` goes up
+     * on every open of the form; a save whose form was already replaced doesn't
+     * touch the current form. */
     let formSeq = 0;
 
-    // תמונה שהועלתה לסריקה ולא נשמרה עם עסקה. השרת מוחק רק מה שאף עסקה
-    // לא מצביעה עליו; כשל כאן לא מעניין את המשתמש — הכי גרוע, נשאר קובץ.
+    // An image uploaded for scanning and not saved with a transaction. The
+    // server deletes only what no transaction points at; a failure here doesn't
+    // concern the user: at worst a file is left.
+
     function discardReceipt(path) {
         if (!path || path === claimedReceipt) return;
         fetch('/api/receipts/discard', {
@@ -85,11 +100,12 @@
     }
     let membersCache  = null;
     let projectsCache = null;
-    let projectCategoriesCache = {}; // מפתח: "<projectId>:<type>"
-    let categoryGridIsProject = false; // האם רשת הקטגוריות הנוכחית מציגה קטגוריות פרויקט או משפחה
+    let projectCategoriesCache = {}; // key: "<projectId>:<type>"
+    let categoryGridIsProject = false; // whether the current category grid shows project or family categories
 
-    // תאריך לפי השעון המקומי (לא UTC) עם היסט אופציונלי בימים — אחרת בין
-    // חצות ל~03:00 בישראל היה יוצא תאריך של אתמול.
+    // A date by the local clock (not UTC) with an optional offset in days;
+    // otherwise between midnight and ~03:00 in Israel it came out as yesterday.
+
     function dateStr(offsetDays) {
         const d = new Date();
         if (offsetDays) d.setDate(d.getDate() + offsetDays);
@@ -97,8 +113,10 @@
     }
     function todayStr() { return dateStr(0); }
 
-    // תאריך ההתחלה של עסקה חדשה: היום — או, בעמוד של חודש אחר, אותו יום
-    // בתוך החודש ההוא (ה-31 בפברואר נקצץ לסוף החודש). ראו month.html.
+    // The start date of a new transaction: today, or, on another month's page,
+    // the same day within that month (February 31st is clamped to the month's
+    // end). See month.html.
+
     function defaultTxDate() {
         const main = document.querySelector('main[data-default-month]');
         const ym = main && main.dataset.defaultMonth;
@@ -109,10 +127,14 @@
         return ym + '-' + String(day).padStart(2, '0');
     }
 
-    // צ'יפים "היום"/"אתמול" — קיצור לבחירת התאריך הנפוץ בלי בורר
-    // ‎.date-quick-chips‎ ולא כל ‎.date-chip‎: כפתורי הסינון בעמוד החודש לובשים
-    // את אותו עיצוב, ולחיצה עליהם שינתה את התאריך בטופס וסימנה אותם כפעילים
-    // ‎.is-edit‎ על החלון: בעריכה אין היום/אתמול/שלשום — רק התאריך (מתן, 5.10)
+    // "Today"/"yesterday" chips: a shortcut for picking the common date without a
+    // picker.
+    // `.date-quick-chips` and not every `.date-chip`: the filter buttons on the
+    // month page wear the same style, and tapping them changed the date in the
+    // form and marked them active.
+    // `.is-edit` on the sheet: when editing there is no today/yesterday/day
+    // before, only the date (Matan, 5.10)
+
     const modalSheetEl = overlay.querySelector('.modal-sheet');
     const datePick     = document.querySelector('.date-pick');
     const datePickText = document.getElementById('datePickText');
@@ -130,22 +152,28 @@
             const on = ds === txDate.value;
             chip.classList.toggle('active', on);
             quick = quick || on;
-            // התאריך עצמו מתחת ל"היום"/"אתמול" — לא צריך לחשוב מה התאריך (מתן, 1.11)
+            // The date itself under "today"/"yesterday": no need to think what
+            // the date is (Matan, 1.11)
+
             const sub = chip.querySelector('.date-sub');
             if (sub) sub.textContent = parseInt(ds.slice(8, 10), 10) + '.' + parseInt(ds.slice(5, 7), 10);
         });
         if (!datePickText) return;
         const d = /^\d{4}-\d{2}-\d{2}$/.test(txDate.value) ? new Date(txDate.value + 'T00:00:00') : null;
         const editing = modalSheetEl && modalSheetEl.classList.contains('is-edit');
-        // בעריכה — התאריך המלא. בהוספה — "אחר", או התאריך עצמו כשנבחר כזה
+        // When editing, the full date. When adding, "other", or the date itself
+        // when one was picked
+
         datePickText.textContent = !d ? (editing ? 'תאריך אחר' : 'אחר')
             : editing ? HE_LONG_DATE.format(d)
             : quick ? 'אחר' : d.getDate() + '.' + (d.getMonth() + 1);
         if (datePick) datePick.classList.toggle('active', !editing && !!d && !quick);
     }
-    // במחשב נגיעה בשדה השקוף לא פותחת את הבורר (רק החץ שלו) — פותחים ידנית
+    // On desktop, tapping the transparent field doesn't open the picker (only
+    // its arrow): open it by hand
+
     txDate.addEventListener('click', function () {
-        try { if (txDate.showPicker) txDate.showPicker(); } catch (e) { /* הבורר הרגיל */ }
+        try { if (txDate.showPicker) txDate.showPicker(); } catch (e) { /* the regular picker */ }
     });
     document.querySelectorAll('.date-quick-chips .date-chip').forEach(function (chip) {
         chip.addEventListener('click', function () {
@@ -155,11 +183,13 @@
     });
     txDate.addEventListener('change', syncDateChips);
 
-    /* ההגדרות ועמוד עריכת הפרויקט משנים קטגוריות בלי לעזוב את העמוד. המטמון
-     * כאן לא ידע על זה: קטגוריה שנוספה לא הופיעה ב-+, ושנמחקה — הופיעה,
-     * ונכשלה בשמירה. */
-    // מה שהעמוד כבר שלף בשרת מגיע בתוכו (‎client_lists‎ ב-app.py) — בלי
-    // שתי בקשות נוספות בכל עמוד (מתן, 13.10)
+    /* Settings and the project edit page change categories without leaving the
+     * page. The cache here didn't know about it: a category added didn't appear
+     * in +, and one deleted did appear, and failed on save. */
+    // What the page already fetched on the server arrives inside it
+    // (`client_lists` in app.py), with no two extra requests on every page
+    // (Matan, 13.10)
+
     const pageLists = (window.SF_PAGE_DATA && window.SF_PAGE_DATA.lists) || {};
     if (Array.isArray(pageLists.categories)) categoriesCache = pageLists.categories;
     if (Array.isArray(pageLists.members)) membersCache = pageLists.members;
@@ -183,7 +213,9 @@
 
     function loadProjects() {
         if (projectsCache) return Promise.resolve(projectsCache);
-        // גם פרויקטים שהסתיימו, מסומנים — עסקה ישנה בהם שנערכת נשארת בהם
+        // Finished projects too, marked: an old transaction in one that is
+        // being edited stays in it
+
         return window.sfFetchList('/api/projects?include_archived=1')
             .then(function (projects) { projectsCache = projects; return projects; });
     }
@@ -195,18 +227,23 @@
             .then(function (cats) { projectCategoriesCache[key] = cats; return cats; });
     }
 
-    // מקור הקטגוריות תלוי בבחירת פרויקט: אם נבחר פרויקט — הקטגוריות הייעודיות
-    // שלו; אחרת — קטגוריות המשפחה הרגילות לפי סוג העסקה הנוכחי.
+    // The category source depends on the project choice: if a project is chosen,
+    // its own categories; otherwise the family's regular categories for the
+    // current transaction type.
+
     function refreshCategoryGrid(selectedId, keepOriginal) {
         const projectId = txProject.value;
-        // מאיפה הקטגוריות — הבחירה בפרויקט יושבת רחוק מתחת
+        // Where the categories come from: the project choice sits far below
+
         const chosen = projectId && txProject.options[txProject.selectedIndex];
         categoryLabel.textContent = chosen ? 'קטגוריה בפרויקט "' + chosen.textContent + '"' : 'קטגוריה';
         if (projectId) {
             const forType = currentType;
             loadProjectCategories(projectId, forType).then(function (cats) {
-                // אם המשתמש החליף פרויקט/סוג בזמן הטעינה — לא לדרוס את הרשת
-                // עם תוצאה של בקשה ישנה (מירוץ out-of-order).
+                // If the user switched project/type during loading, don't
+                // overwrite the grid with the result of an old request
+                // (out-of-order race).
+
                 if (txProject.value !== projectId || currentType !== forType) return;
                 renderCategoryGrid(cats, selectedId, true, keepOriginal);
             });
@@ -219,9 +256,11 @@
     function renderCategoryGrid(cats, selectedId, isProject, keepOriginal) {
         categoryGridIsProject = isProject;
         categoryGrid.innerHTML = '';
-        // הקטגוריה הנוכחית לא ברשת (של סוג שהפרויקט כבר לא עוקב אחריו):
-        // כפתור משלה, בחור — במקום לבחור בשבילו את הראשונה. "ללא קטגוריה"
-        // כבר לא אפשרות: אין עסקה בלי קטגוריה (test_category_required).
+        // The current category isn't in the grid (of a type the project no
+        // longer tracks): a button of its own, selected, instead of choosing the
+        // first one for it. "Uncategorised" is no longer an option: no transaction
+        // without a category (test_category_required).
+
         const keepCurrent = keepOriginal && !!selectedId && !cats.some(c => c.id === selectedId);
         if (keepCurrent) {
             cats = [{ id: selectedId, type: currentType, icon: '•',
@@ -235,7 +274,9 @@
                 : 'אין עדיין קטגוריות במחלקה הזאת — אפשר להוסיף בהגדרות';
             categoryGrid.appendChild(empty);
         }
-        // הסדר נקבע בשרת (sort_order) — כולל מיקום "אחר", שניתן להזזה בהגדרות
+        // The order is set on the server (sort_order), including where "אחר"
+        // goes, which can be moved in settings
+
         cats.forEach(function (cat) {
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -247,8 +288,9 @@
             btn.setAttribute('aria-checked', 'false');
             categoryGrid.appendChild(btn);
         });
-        // ברירת מחדל: בהכנסה נבחרת "משכורת" אם קיימת (בלי תלות בסדר
-        // התצוגה); בכל שאר המצבים — הקטגוריה הראשונה.
+        // Default: for income, "משכורת" is chosen if it exists (regardless of
+        // display order); in every other case, the first category.
+
         let fallbackBtn = categoryGrid.querySelector('.cat-btn');
         if (!selectedId && currentType === 'income') {
             const salary = cats.find(c => c.name && c.name.indexOf('משכורת') !== -1);
@@ -269,11 +311,15 @@
     }
 
     function buildOwnerToggle(selectedOwner, keepOriginal) {
-        // "משותפת" ראשונה ברשימה כדי שתופיע מימין (RTL: הפריט הראשון ב-DOM מוצג בצד ימין)
+        // "Shared" first in the list so it appears on the right (RTL: the first
+        // item in the DOM is shown on the right side)
+
         const options = [{ value: 'shared', label: 'משותפת' }]
             .concat((membersCache || []).map(m => ({ value: m.id, label: m.name })));
-        // מי שעבר למשפחה אחרת כבר לא ברשימה — ובלי זה העסקה שלו הפכה
-        // ל"משותפת" בכל עריכה. השרת מקבל בעלים שלא השתנה.
+        // Someone who moved to another family is no longer in the list, and
+        // without this their transaction became "shared" on every edit. The
+        // server accepts an owner that didn't change.
+
         if (keepOriginal && selectedOwner && !options.some(o => o.value === selectedOwner)) {
             options.push({ value: selectedOwner, label: 'בן משפחה לשעבר' });
         }
@@ -288,8 +334,9 @@
             btn.setAttribute('aria-checked', 'false');
             ownerToggle.appendChild(btn);
         });
-        // ברירת מחדל: "משותפת" (רלוונטי כשמוסיפים עסקה חדשה ואין עדיין
-        // שיוך קיים לשמר) — לא בן המשפחה הראשון ברשימה
+        // Default: "shared" (relevant when adding a new transaction with no
+        // existing attribution to keep), not the first family member in the list
+
         const toSelect = (selectedOwner && ownerToggle.querySelector(`[data-value="${selectedOwner}"]`))
             || ownerToggle.querySelector('[data-value="shared"]')
             || ownerToggle.querySelector('.owner-btn');
@@ -302,21 +349,25 @@
 
     function buildProjectSelect(selectedProjectId, keepOriginal) {
         const trackKey = { expense: 'track_expense', income: 'track_income', savings: 'track_savings' }[currentType];
-        // פרויקט שהפסיק לעקוב אחרי הסוג לא מוצע לעסקה חדשה — אבל עסקה שכבר
-        // בו נשארת בו. אחרת עריכת הסכום שלה הוציאה אותה אל הוצאות הבית.
-        // פרויקט שהסתיים לא מוצע לעסקה חדשה — רק עסקה שכבר בו נשארת בו
+        // A project that stopped tracking the type isn't offered for a new
+        // transaction, but a transaction already in it stays in it. Otherwise
+        // editing its amount moved it out to household expenses.
+        // A finished project isn't offered for a new transaction; only a
+        // transaction already in it stays in it
+
         const projects = (projectsCache || []).filter(p => (p[trackKey] && !p.archived)
             || (keepOriginal && p.id === selectedProjectId));
 
-        // השדה מוסתר כשאין לאן לשייך.
+        // The field is hidden when there is nothing to attach to.
         //
-        // הוא ישב במקום ה**שני** במודאל, מיד אחרי הסכום, ומשפחה בלי
-        // פרויקטים ראתה תפריט נפתח עם אפשרות אחת: "ללא". זו הפעולה
-        // שאדם עושה הכי הרבה באפליקציה, והשדה הראשון שהוא פוגש בה היה
-        // שדה שלא רלוונטי לו.
+        // It sat in **second** place in the modal, right after the amount, and a
+        // family with no projects saw a dropdown with one option: "none". This is
+        // the action people do most in the app, and the first field they met in
+        // it was a field irrelevant to them.
         //
-        // בורר "של מי?" ממש מתחתיו כבר עושה בדיוק את זה (ראו ‎ownerGroup‎
-        // ב-‎setType‎) — הדפוס היה קיים ולא הוחל כאן.
+        // The "whose?" picker right below already does exactly this (see
+        // `ownerGroup` in `setType`): the pattern existed and wasn't applied here.
+
         projectGroup.style.display = projects.length ? '' : 'none';
         if (!projects.length) { txProject.value = ''; return; }
 
@@ -326,22 +377,25 @@
     }
 
     let modalLastFocused = null;
-    let resetSheetDrag = function () {};   // נקבע עם המשיכה לסגירה, למטה
+    let resetSheetDrag = function () {};   // set with the pull-to-close, below
 
     function openModal() {
         resetSheetDrag();
         loadDescriptions();
         hideSuggest();
         modalLastFocused = document.activeElement;
-        if (typeof syncInstallments === 'function') syncInstallments();   // תשלומים — רק בהוספת הוצאה
+        if (typeof syncInstallments === 'function') syncInstallments();   // installments: only when adding an expense
         overlay.classList.add('open');
         document.body.style.overflow = 'hidden';
-        // בפריים הבא: המודאל מוסתר ב-visibility כשהוא סגור (כדי שלא יהיה
-        // ב-tab order ובקורא המסך), ואי אפשר למקד אלמנט בתוך אב מוסתר.
-        // המיקוד באותו פריים שבו נוספה המחלקה היה נבלע בשקט.
-        // בטלפון — בלי מקלדת בפתיחה (מתן, 12.10: "המקלדת מסתירה את כל החלון").
-        // רואים קודם את כל החלון, ונוגעים בסכום כשרוצים. המיקוד עובר לחלון
-        // עצמו, כדי שקורא מסך ו-Tab יתחילו ממנו ולא מ-+ שמאחוריו.
+        // On the next frame: the modal is hidden with visibility when closed (so
+        // it isn't in the tab order or the screen reader), and an element inside
+        // a hidden parent can't be focused. Focus on the same frame the class was
+        // added was silently swallowed.
+        // On a phone, no keyboard on open (Matan, 12.10: "the keyboard hides the
+        // whole sheet"). See the whole sheet first, and tap the amount when ready.
+        // Focus moves to the sheet itself, so the screen reader and Tab start
+        // from it and not from the + behind it.
+
         requestAnimationFrame(function () {
             if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
                 modalSheetEl.focus({ preventScroll: true });
@@ -351,13 +405,17 @@
         });
     }
 
-    // כל האלמנטים הניתנים למיקוד בתוך המודאל הפתוח כרגע — מחושב כל פעם
-    // מחדש כי התוכן (שדות, כפתור מחיקה) משתנה בין הוספה לעריכה
+    // Every focusable element inside the currently open modal, recomputed each
+    // time because the content (fields, delete button) changes between adding
+    // and editing
+
     function getModalFocusables() {
         return Array.prototype.slice.call(
-            // [tabindex] נכלל כי כפתור השמירה הוא <label role="button">;
-            // tabindex="-1"/aria-hidden מסוננים כדי שמלכודת הפוקוס לא תנחת
-            // על הפקדים הנסתרים (מתג ה-haptic, כפתור ה-submit לגיבוי)
+            // [tabindex] is included because the save button is a
+            // <label role="button">; tabindex="-1"/aria-hidden are filtered out so
+            // the focus trap doesn't land on the hidden controls (the haptic
+            // switch, the backup submit button)
+
             overlay.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')
         ).filter(function (el) {
             return el.offsetParent !== null
@@ -367,13 +425,17 @@
         });
     }
 
-    /* הסכום במרכז, וה-₪ צמוד אליו (מתן, 11.10): השדה ברוחב של מה שכתוב בו.
-     * ‎field-sizing‎ עוד לא בכל הדפדפנים — אז ברוחב בתווים, אחרי כל שינוי. הטקסט
-     * מיושר לצד ה-₪, כך שהמקום העודף (הנקודה צרה מתו) נשאר בצד השני. */
-    /* ── פסיקים בסכום בזמן ההקלדה (מתן, 12.10: "48000" — קל לפספס אפס) ──
-     * השדה טקסט; הערך המספרי תמיד דרך ‎amountValue()‎. ‎formatAmount‎ משאיר
-     * ספרות ונקודה אחת, עד שתי ספרות
-     * אחרי הנקודה, ומכניס פסיקי אלפים — ושומר את הסמן אחרי אותה ספרה. */
+    /* The amount in the centre, with the ₪ next to it (Matan, 11.10): the field is
+     * as wide as what is written in it. `field-sizing` isn't in every browser yet,
+     * so width in characters, after every change. The text is aligned to the ₪
+     * side, so the extra space (a period is narrower than a character) stays on
+     * the other side. */
+    /* ── Commas in the amount while typing (Matan, 12.10: "48000": easy to miss a
+     * zero) ──
+     * The field is text; the numeric value always goes through `amountValue()`.
+     * `formatAmount` keeps digits and one period, up to two digits after the
+     * period, and inserts thousands separators, keeping the caret after the same
+     * digit. */
     function amountValue() {
         return parseFloat(String(txAmount.value).replace(/,/g, ''));
     }
@@ -383,7 +445,8 @@
     function formatAmount(keepCaret) {
         const raw = String(txAmount.value);
         const caret = keepCaret ? txAmount.selectionStart : null;
-        // כמה "תווים משמעותיים" (ספרה / נקודה) יש לפני הסמן
+        // How many "significant characters" (digit / period) are before the caret
+
         const before = caret == null ? 0 : raw.slice(0, caret).replace(/[^\d.]/g, '').length;
         let clean = raw.replace(/[^\d.]/g, '');
         const dot = clean.indexOf('.');
@@ -396,12 +459,12 @@
         if (caret != null) {
             let seen = 0, pos = 0;
             while (pos < out.length && seen < before) { if (/[\d.]/.test(out[pos])) seen++; pos++; }
-            try { txAmount.setSelectionRange(pos, pos); } catch (e) { /* לא ממוקד */ }
+            try { txAmount.setSelectionRange(pos, pos); } catch (e) { /* not focused */ }
         }
     }
 
     function fitAmount() {
-        formatAmount(false);        // ערך שנכתב מקוד (עריכה, סריקה) — גם הוא עם פסיקים
+        formatAmount(false);        // a value written by code (edit, scan) gets commas too
         const text = txAmount.value || txAmount.placeholder || '0';
         txAmount.style.width = (text.length + 0.3) + 'ch';
     }
@@ -433,12 +496,13 @@
     });
 
     function resetScanUI() {
-        // ‎txReceiptPath‎ **חייב** להתאפס כאן ולא רק ב-‎resetForm‎.
-        // ‎closeModal‎ קורא לכאן בלבד, ו-‎resetForm‎ רץ רק מ-‎openAddModal‎ —
-        // אז סריקה שננטשה (✕ במקום שמירה) השאירה את הנתיב בשדה, והעריכה
-        // הבאה של **עסקה קיימת** שלחה אותו וקיבלה קבלה של מישהו אחר.
-        // גרוע מזה: שתי שורות שמצביעות על אותו קובץ, ומחיקת אחת מוחקת
-        // את הקובץ של השנייה.
+        // `txReceiptPath` **must** be reset here and not only in `resetForm`.
+        // `closeModal` calls only here, and `resetForm` runs only from
+        // `openAddModal`, so an abandoned scan (✕ instead of save) left the path
+        // in the field, and the next edit of an **existing transaction** sent it
+        // and got someone else's receipt. Worse: two rows pointing at the same
+        // file, and deleting one deletes the other's file.
+
         txReceiptPath.value = '';
         scanWrapper.classList.remove('active');
         scanBtn.disabled = false;
@@ -457,8 +521,8 @@
     function closeModal() {
         overlay.classList.remove('open');
         document.body.style.overflow = '';
-        scanSeq++;                              // סריקה שעוד רצה — כבר לא של אף טופס
-        discardReceipt(txReceiptPath.value);    // נסרקה ולא נשמרה
+        scanSeq++;                              // a scan still running: no longer any form's
+        discardReceipt(txReceiptPath.value);    // scanned and not saved
         resetScanUI();
         formError.textContent = '';
         if (modalLastFocused) { modalLastFocused.focus(); modalLastFocused = null; }
@@ -477,9 +541,10 @@
         if (typeof syncInstallments === 'function') requestAnimationFrame(syncInstallments);
     }
 
-    /* ── "שמירת השינויים" רק כשמשהו השתנה (מתן, 12.10) ──
-     * צילום של הטופס ברגע שהעריכה נפתחה; כל עוד הטופס זהה לו — הכפתור אפור
-     * (אותו כיתוב), ולחיצה לא שומרת. חזרה לערך המקורי — שוב אפור. */
+    /* ── "Save changes" only when something changed (Matan, 12.10) ──
+     * A snapshot of the form at the moment editing opened; as long as the form
+     * matches it, the button is grey (same label), and a tap doesn't save. Going
+     * back to the original value: grey again. */
     let editSnapshot = null;
     function formSnapshot() {
         return JSON.stringify([amountValue() || 0, currentType, txCategory.value, txProjectCategory.value,
@@ -496,16 +561,20 @@
         submitBtn.classList.toggle('is-unchanged', same);
         if (same) submitBtn.setAttribute('aria-disabled', 'true');
         else submitBtn.removeAttribute('aria-disabled');
-        // אותו כיתוב תמיד — רק כבוי או פעיל (מתן, 13.10: "שלא יהיה רשום אין שינויים")
+        // Always the same label, only disabled or enabled (Matan, 13.10: "don't
+        // have it say no changes")
+
         if (editId) { submitLabel.textContent = 'שמירת השינויים'; return; }
         submitLabel.textContent = TYPE_LABELS[currentType];
     }
 
-    /* ‎keepOriginal‎: מילוי ראשון של טופס עריכה. ערך שכבר רשום על העסקה נשמר
-     * גם כשהוא לא ברשימת האפשרויות — עסקה בלי קטגוריה, של מי שעבר למשפחה
-     * אחרת, או בפרויקט שהפסיק לעקוב אחרי הסוג. עד היום הטופס בחר במקומו
-     * (הקטגוריה הראשונה, "משותפת", "ללא"), ושמירה של שינוי בסכום שינתה גם
-     * אותם, בשקט. כשהמשתמש מחליף סוג בעצמו — ‎keepOriginal‎ כבוי. */
+    /* `keepOriginal`: the first fill of an edit form. A value already on the
+     * transaction is kept even when it isn't in the list of options: a
+     * transaction without a category, of someone who moved to another family, or
+     * in a project that stopped tracking the type. Until now the form chose for
+     * it (the first category, "shared", "none"), and saving a change to the
+     * amount silently changed them too. When the user switches type themselves,
+     * `keepOriginal` is off. */
     function setType(type, selectedCategoryId, selectedOwner, selectedProjectId, keepOriginal) {
         currentType = type;
         toggleExp.classList.toggle('active', type === 'expense');
@@ -520,22 +589,29 @@
         modalSheet.classList.toggle('savings-mode', type === 'savings');
         buildProjectSelect(selectedProjectId, keepOriginal);
         refreshCategoryGrid(selectedCategoryId, keepOriginal);
-        // בורר "של מי?" מופיע רק בסוגים שהמשפחה הפעילה בהם שיוך (העדפות משפחה),
-        // ולא כשבמשפחה אדם אחד (מתן, 5.10). אז הוא רק מוסתר: הבחירה נבנית
-        // ונשלחת כמו תמיד — בלעדיה השרת היה רושם על המחובר עסקה שהייתה משותפת.
+        // The "whose?" picker appears only for types the family turned
+        // attribution on for (family settings), and not when the family is one
+        // person (Matan, 5.10). Then it is only hidden: the choice is built and
+        // sent as always; without it the server would record a transaction that
+        // was shared under the signed-in user.
+
         const hasOwner = !!window.SF_ATTRIBUTION[type];
         ownerGroup.style.display = (hasOwner && !window.SF_PAGE_DATA.singleMember) ? '' : 'none';
         if (hasOwner) {
             document.getElementById('ownerLabel').textContent = OWNER_LABELS[type];
             buildOwnerToggle(selectedOwner, keepOriginal);
         }
-        // סריקת קבלה קיימת רק בהוספת הוצאה חדשה — לא בעריכה ולא בהכנסה/חיסכון
+        // Receipt scanning exists only when adding a new expense: not when
+        // editing and not for income/savings
+
         scanBtn.style.display = (!editId && type === 'expense') ? '' : 'none';
         updateSubmitLabel();
     }
 
-    // מציג משוב טעינה עדין על האלמנט שפתח את המודאל (FAB/שורת עסקה) —
-    // בלי זה, בחיבור איטי נראה כאילו הלחיצה לא הגיבה עד שהמודאל נפתח
+    // Shows soft loading feedback on the element that opened the modal (FAB /
+    // transaction row); without this, on a slow connection it looks as if the
+    // tap didn't respond until the modal opened
+
     function withLoadingTrigger(el, promise) {
         if (el) el.classList.add('is-loading-trigger');
         return promise.finally(function () {
@@ -543,9 +619,10 @@
         });
     }
 
-    /* נועל את תיבת "עסקה קבועה" על מופע שכבר שייך לסדרה, ומסביר למה.
-     * בלי זה הסימון נראה זמין לגמרי, והלחיצה עליו — קריאה סבירה של
-     * "שיהיה קבוע מעכשיו" — הייתה מייצרת סדרה כפולה. */
+    /* Locks the "recurring transaction" checkbox on an occurrence that already
+     * belongs to a series, and explains why. Without this the checkbox looks
+     * fully available, and ticking it (a reasonable reading of "make it
+     * recurring from now on") would create a duplicate series. */
     function setRecurringLock(locked) {
         recurringCb.disabled = locked;
         const group = recurringCb.closest('.recurring-group');
@@ -563,8 +640,10 @@
         }
     }
 
-    // ‎presetType‎: סוג שהחלון נפתח עליו — "+ הוספה" בשורה ריקה בעמוד החודש
-    // (מתן, 11.10). מה-FAB מגיע כאן אירוע הלחיצה, ולכן רק מחרוזת נחשבת.
+    // `presetType`: a type the sheet opens on: "+ add" on an empty row on the
+    // month page (Matan, 11.10). From the FAB the tap event arrives here, so only
+    // a string counts.
+
     function openAddModal(presetType) {
         const preset = typeof presetType === 'string' ? presetType : null;
         editSnapshot = null;
@@ -574,7 +653,7 @@
         if (receiptLink) receiptLink.hidden = true;
         scanSeq++;
         formSeq++;
-        setSubmitBusy(false);                   // טופס חדש לא "באמצע שמירה" — ראו ‎finish‎
+        setSubmitBusy(false);                   // a new form isn't "mid-save"; see `finish`
         editId = null;
         editingRecurringParentId = null;
         editingSeries = false;
@@ -588,9 +667,11 @@
         const mySeq = formSeq;
         withLoadingTrigger(fabBtn, Promise.all([loadCategories(), loadMembers(), loadProjects()]))
             .then(function () {
-                if (mySeq !== formSeq) return;      // נלחצה בינתיים עסקה — היא קובעת
-                // בעמוד פרויקט: הפרויקט כבר בחור, והסוג הוא סוג שהוא עוקב
-                // אחריו — פרויקט של הכנסות בלבד לא נפתח על "הוצאה" (רעיון 8)
+                if (mySeq !== formSeq) return;      // a transaction was tapped meanwhile: it decides
+                // On a project page: the project is already selected, and the
+                // type is one it tracks: an income-only project doesn't open on
+                // "expense" (idea 8)
+
                 const here = document.getElementById('sfPageProject');
                 const project = here && (projectsCache || [])
                     .find(function (p) { return p.id === here.dataset.projectId && !p.archived; });
@@ -605,7 +686,8 @@
             });
     }
 
-    // ── "הוזנה ע״י אור · אתמול 18:32" בתחתית חלון העריכה (מתן, 3.10) ──
+    // ── "הוזנה ע״י אור · אתמול 18:32" at the bottom of the edit sheet (Matan, 3.10) ──
+
     const enteredMeta = document.getElementById('txEnteredMeta');
     function loadEnteredMeta(id) {
         if (!enteredMeta) return;
@@ -615,35 +697,41 @@
         fetch('/api/transactions/' + encodeURIComponent(id) + '/meta', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
-                // בינתיים נפתח טופס אחר — השורה לא שלו
+                // Another form opened meanwhile: the line isn't its
+
                 if (mySeq !== formSeq || !d || !d.text) return;
                 enteredMeta.textContent = d.text;
                 enteredMeta.hidden = false;
             })
-            .catch(function () { /* שורת מידע — בלעדיה החלון עובד כרגיל */ });
+            .catch(function () { /* an info line: without it the sheet works as usual */ });
     }
 
     function openEditModal(tx, triggerEl) {
         scanSeq++;
         formSeq++;
-        setSubmitBusy(false);                   // טופס חדש לא "באמצע שמירה" — ראו ‎finish‎
-        txReceiptPath.value = '';               // לא יורשים קבלה מטופס קודם
+        setSubmitBusy(false);                   // a new form isn't "mid-save"; see `finish`
+        txReceiptPath.value = '';               // don't inherit a receipt from a previous form
         editId = tx.id;
         editingRecurringParentId = tx.recurringParentId || null;
         editingSeries = !!(triggerEl && triggerEl.closest && triggerEl.closest('#recurringList'));
-        // מתוך "עסקאות קבועות" הכפתור עוצר את הסדרה ולא מוחק שורה — ראו
-        // ‎deleteBtn‎ למטה. השם אומר מה הוא עושה.
+        // From "recurring transactions" the button stops the series and doesn't
+        // delete a row; see `deleteBtn` below. The name says what it does.
+
         deleteBtn.textContent = editingSeries ? 'הסרת העסקה הקבועה' : 'מחיקת העסקה';
-        // עסקה קבועה — בלי "שכפול" (מתן, 12.10): היא כבר נרשמת מעצמה כל חודש.
-        // גם התבנית (מההגדרות) וגם מופע של סדרה.
+        // A recurring transaction has no "duplicate" (Matan, 12.10): it already
+        // records itself every month. Both the template (from settings) and an
+        // occurrence of a series.
+
         duplicateBtn.hidden = !!(tx.isRecurring || tx.recurringParentId || editingSeries);
-        // "חלק מסדרה" — במופע בלבד, לא בתבנית עצמה
+        // "Part of a series": on an occurrence only, not on the template itself
+
         const seriesLink = document.getElementById('txSeriesLink');
         if (seriesLink) {
             seriesLink.hidden = !(tx.recurringParentId && !editingSeries);
             if (tx.recurringParentId) seriesLink.href = '/settings?series=' + encodeURIComponent(tx.recurringParentId);
         }
-        // הקבלה של השורה — אם יש (‎.receipt-badge‎ בתוכה)
+        // The row's receipt, if any (`.receipt-badge` inside it)
+
         const receiptLink = document.getElementById('txReceiptLink');
         if (receiptLink) {
             const row = triggerEl && triggerEl.closest && triggerEl.closest('[data-id]');
@@ -659,10 +747,11 @@
         loadEnteredMeta(tx.id);
         formError.textContent = '';
 
-        /* הלחיצה האחרונה קובעת. הטופס מתמלא רק כשהרשימות מגיעות, ו-‎editId‎
-         * נקבע כבר עכשיו — אז לחיצה על א' ומיד על ב' ברשת איטית מילאה את
-         * הטופס בנתונים של א' ושמרה אותם על ב'. ועסקה ומיד + מילאה את טופס
-         * "עסקה חדשה" בנתונים שלה — ושמירה יצרה עותק. */
+        /* The last tap decides. The form fills only when the lists arrive, and
+         * `editId` is set right away, so tapping A and immediately B on a slow
+         * network filled the form with A's data and saved it onto B. And a
+         * transaction then immediately + filled the "new transaction" form with
+         * its data, and saving created a copy. */
         const mySeq = formSeq;
         withLoadingTrigger(triggerEl, Promise.all([loadCategories(), loadMembers(), loadProjects()]))
             .then(function () {
@@ -681,9 +770,11 @@
                     txFrequency.value = tx.recurringFrequency || 'monthly_1';
                     txEndDate.value   = tx.recurringEndDate || '';
                 }
-                // מופע שכבר נוצר מסדרה: סימון "קבועה" עליו היה מייצר
-                // תבנית שנייה שרצה במקביל לראשונה. השרת חוסם את זה
-                // ממילא — כאן פשוט לא מציעים פעולה שתיכשל.
+                // An occurrence already created from a series: marking it
+                // "recurring" would create a second template running alongside
+                // the first. The server blocks it anyway; here we just don't
+                // offer an action that would fail.
+
                 setRecurringLock(!!tx.recurringParentId);
                 editSnapshot = formSnapshot();
                 updateSubmitLabel();
@@ -695,23 +786,28 @@
     }
 
     fabBtn.addEventListener('click', openAddModal);
-    // "+ הוספה" בשורה ריקה בעמוד החודש — החלון נפתח על הסוג של השורה. בהאצלה
-    // מ-document: רענון רך מחליף את השורה.
+    // "+ add" on an empty row on the month page: the sheet opens on the row's
+    // type. Delegated from document: a soft refresh replaces the row.
+
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('[data-add-type]');
         if (btn) openAddModal(btn.dataset.addType);
     });
 
-    // חימום המטמון בדף הבית: הקטגוריות ובני המשפחה נמשכים ברקע אחרי
-    // שהדף התייצב, כדי שגם הפתיחה הראשונה של כרטיסייה תהיה מיידית.
+    // Warming the cache on the home page: the categories and family members are
+    // fetched in the background after the page settled, so even the first open
+    // of the sheet is instant.
+
     if (document.querySelector('.transactions-list')) {
         const warm = function () { loadCategories(); loadMembers(); };
         if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 2500 });
         else setTimeout(warm, 1200);
     }
 
-    // פתיחה אוטומטית של מודל ההוספה דרך קיצור ה-PWA "הוסף עסקה" (‎/?add=1‎).
-    // מנקים את הפרמטר מה-URL כדי שרענון לא יפתח שוב את המודל.
+    // Auto-opening the add modal through the PWA shortcut "add transaction"
+    // (`/?add=1`). The parameter is removed from the URL so a refresh doesn't
+    // open the modal again.
+
     if (new URLSearchParams(window.location.search).get('add') === '1') {
         history.replaceState(null, '', window.location.pathname);
         openAddModal();
@@ -722,7 +818,8 @@
         if (e.target === overlay) closeModal();
     });
 
-    // Escape סוגר את המודאל, Tab/Shift+Tab נשארים בתוכו (focus trap)
+    // Escape closes the modal, Tab/Shift+Tab stay inside it (focus trap)
+
     overlay.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { closeModal(); return; }
         if (e.key !== 'Tab') return;
@@ -739,25 +836,28 @@
         }
     });
 
-    // תנועה פיזיקלית משותפת — ב-core.js
+    // Shared physical motion: in core.js
+
     const sfSpring = window.sfSpring, sfProject = window.sfProject,
           sfRubber = window.sfRubber, sfVelocity = window.sfVelocity;
 
-    /* ── משיכה למטה סוגרת את החלון (מתן, 7.10 — עיצוב בנוסח אפל, סעיף 1) ──
+    /* ── Pulling down closes the sheet (Matan, 7.10, Apple-style design, item 1) ──
      *
-     * הידית שבראש החלון לא עשתה כלום, ובאייפון כל חלון כזה נסגר במשיכה.
-     * החלון זז עם האצבע אחד-לאחד. בעזיבה ההחלטה לפי **לאן התנועה הולכת**
-     * ולא רק איפה היא נעצרה: המהירות מוטלת קדימה (הנוסחה של אפל לגלילה),
-     * אז הנפה קצרה ומהירה סוגרת, וגרירה ארוכה ואיטית שחוזרת למעלה — לא.
-     * למעלה מהמקום הוא מתנגד בהדרגה במקום להיעצר בבת אחת.
+     * The grabber at the top of the sheet did nothing, and on iPhone every such
+     * sheet closes with a pull. The sheet moves with the finger one to one. On
+     * release the decision is by **where the motion is heading** and not only
+     * where it stopped: the velocity is projected forward (Apple's scrolling
+     * formula), so a short fast flick closes, and a long slow drag that comes
+     * back up doesn't. Above its place it resists gradually instead of stopping
+     * all at once.
      *
-     * האנימציה אחרי העזיבה היא קפיץ שממשיך במהירות של האצבע, בלי תפר
-     * בין הגרירה לתנועה. ונגיעה בחלון באמצע החזרה תופסת אותו מהמקום שבו
-     * הוא באמת נמצא. */
+     * The animation after release is a spring continuing at the finger's
+     * velocity, with no seam between the drag and the motion. And touching the
+     * sheet mid-return catches it from where it really is. */
     (function () {
         const sheet = modalSheetEl;
         if (!sheet) return;
-        const SCRIM = 0.6;                       // השקיפות של הרקע הכהה, כמו ב-‎.modal-overlay‎
+        const SCRIM = 0.6;                       // the dark backdrop's opacity, as in `.modal-overlay`
         const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         let y = 0, anim = null, cleanup = 0, g = null;
 
@@ -776,7 +876,9 @@
             if (anim) { anim(); anim = null; }
             clearTimeout(cleanup); cleanup = 0;
         }
-        // חלון שנפתח מחדש מתחיל נקי, גם אם הסגירה הקודמת עוד לא סיימה לנקות
+        // A sheet reopened starts clean, even if the previous close hasn't
+        // finished cleaning up
+
         resetSheetDrag = function () { stop(); clearInline(); };
 
         function spring(to, v0, response, damping, done, until) {
@@ -793,13 +895,15 @@
             const h = sheet.offsetHeight;
             function offScreen() {
                 closeModal();
-                // הרקע דוהה עכשיו; החלון כבר מחוץ למסך. אחרי הדעיכה מחזירים
-                // אותו בשקט למצב הסגור של ה-CSS, בלי שתיראה תנועה.
+                // The backdrop fades now; the sheet is already off screen. After
+                // the fade, quietly put it back into the CSS closed state, with no
+                // visible motion.
+
                 cleanup = setTimeout(function () {
                     cleanup = 0;
                     clearInline();
                     sheet.style.transition = 'none';
-                    void sheet.offsetHeight;          // נקבע בלי מעבר, ורק אז המעבר חוזר
+                    void sheet.offsetHeight;          // set without a transition, and only then the transition returns
                     sheet.style.transition = '';
                 }, 300);
             }
@@ -813,7 +917,8 @@
             const t = e.touches[0];
             g = { x0: t.clientX, y0: t.clientY, from: 0, axis: null, samples: [] };
             if (anim) {
-                // תפיסה באמצע תנועה: ממשיכים מהמקום שבו החלון באמת נמצא
+                // Caught mid-motion: continue from where the sheet really is
+
                 stop();
                 g.axis = 'y';
                 g.from = y;
@@ -828,19 +933,22 @@
             const dx = t.clientX - g.x0, dy = t.clientY - g.y0;
             if (!g.axis) {
                 if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-                // הצידה (פסי הקטגוריות), או גלילה של תוכן החלון שעוד יש לאן
-                // לגלול — זו גלילה רגילה, לא משיכה. למטה — רק מראש התוכן;
-                // למעלה — רק כשהתוכן כבר בסופו: אז החלון נמתח למעלה בהתנגדות
-                // וחוזר כמו קפיץ (מתן, 11.10 — עד אז לא זז בכלל).
+                // Sideways (the category strips), or scrolling the sheet's
+                // content that still has somewhere to scroll: ordinary scrolling,
+                // not a pull. Down: only from the top of the content; up: only when
+                // the content is already at its end: then the sheet stretches up
+                // with resistance and springs back (Matan, 11.10; until then it
+                // didn't move at all).
+
                 const atEnd = sheet.scrollTop + sheet.clientHeight >= sheet.scrollHeight - 1;
                 if (Math.abs(dx) > Math.abs(dy) || (dy > 0 && sheet.scrollTop > 0) || (dy < 0 && !atEnd)) {
                     g = null; return;
                 }
                 g.axis = 'y';
-                g.y0 += dy > 0 ? 8 : -8;            // בלי קפיצה של 8 הפיקסלים של ההחלטה
+                g.y0 += dy > 0 ? 8 : -8;            // without the 8-pixel jump of the decision
                 sheet.style.transition = 'none';
             }
-            e.preventDefault();                    // החלון זז, לא התוכן שבתוכו
+            e.preventDefault();                    // the sheet moves, not the content inside it
             const raw = g.from + t.clientY - g.y0;
             paint(raw >= 0 ? raw : sfRubber(raw, sheet.offsetHeight));
             g.samples.push({ t: e.timeStamp, p: t.clientY });
@@ -863,8 +971,9 @@
         overlay.addEventListener('touchcancel', function (e) { release(e, true); }, { passive: true });
     })();
 
-    // החלפת סוג שומרת את הפרויקט שנבחר, אם הוא עוקב גם אחרי הסוג החדש
-    // (‎buildProjectSelect‎ מוריד אותו אם לא). קודם כל החלפה איפסה אותו.
+    // Switching type keeps the chosen project, if it tracks the new type too
+    // (`buildProjectSelect` drops it if not). Before, every switch reset it.
+
     toggleExp.addEventListener('click', () => setType('expense', undefined, undefined, txProject.value));
     toggleInc.addEventListener('click', () => setType('income', undefined, undefined, txProject.value));
     toggleSav.addEventListener('click', () => setType('savings', undefined, undefined, txProject.value));
@@ -901,10 +1010,13 @@
         }
     });
 
-    // שינוי בחירת הפרויקט מרענן את מקור הקטגוריות (קטגוריות הפרויקט או המשפחה)
-    // השדה בתחתית הטופס, והקטגוריות מעליו מתחלפות לקטגוריות הפרויקט — אז
-    // לוקחים את המשתמש אליהן, במקום להשאיר אותו עם קטגוריה של הבית שכבר
-    // לא מסומנת ורשת חדשה שהוא לא רואה
+    // Changing the project choice refreshes the category source (project or
+    // family categories).
+    // The field is at the bottom of the form, and the categories above it switch
+    // to the project's categories, so take the user to them, instead of leaving
+    // them with a household category no longer selected and a new grid they
+    // don't see
+
     txProject.addEventListener('change', function () {
         refreshCategoryGrid();
         const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -920,10 +1032,12 @@
         if (this.checked && instCb && instCb.checked) { instCb.checked = false; syncInstallments(); }
     });
 
-    // ── תשלומים (מתן, 12.10) ──
-    // הסכום הוא המחיר המלא; השרת מחלק (‎db.installment_plan‎) — אותו חישוב
-    // כאן רק כדי להראות מראש: "₪400 בחודש · עד ספטמבר 2027". תשלומים ועסקה
-    // קבועה לא יחד — תשלומים הם כבר עסקה קבועה עם סוף.
+    // ── Installments (Matan, 12.10) ──
+    // The amount is the full price; the server splits it (`db.installment_plan`):
+    // the same calculation here only to show in advance: "₪400 a month · until
+    // September 2027". Installments and a recurring transaction not together:
+    // installments already are a recurring transaction with an end.
+
     const instGroup = document.getElementById('installmentsGroup');
     const instCb    = document.getElementById('txInstallments');
     const instCount = document.getElementById('txInstallmentCount');
@@ -937,7 +1051,8 @@
     }
     function syncInstallments() {
         if (!instGroup) return;
-        // רק בהוספת הוצאה
+        // Only when adding an expense
+
         instGroup.hidden = !!editId || currentType !== 'expense';
         if (instGroup.hidden && instCb.checked) instCb.checked = false;
         instFields.hidden = !instCb.checked;
@@ -962,15 +1077,17 @@
         });
     }
 
-    // ── סריקת קבלה: לחיצה פותחת מצלמה/בחירת קובץ ──
+    // ── Receipt scanning: a tap opens the camera/file picker ──
+
     scanBtn.addEventListener('click', function () {
         receiptInput.click();
     });
 
-    // דוחסים בצד הלקוח לפני ההעלאה — קובץ קטן יותר, זול יותר, מהיר יותר.
-    // WebP באיכות 80% נותן קובץ הרבה יותר קטן מ-JPEG; דפדפנים ישנים
-    // שאינם תומכים ב-toBlob('image/webp') מחזירים blob ריק — נופלים
-    // אז חזרה ל-JPEG באותה איכות.
+    // Compress on the client before uploading: a smaller file is cheaper and
+    // faster. WebP at 80% quality gives a much smaller file than JPEG; old
+    // browsers that don't support toBlob('image/webp') return an empty blob, and
+    // then fall back to JPEG at the same quality.
+
     function compressImage(file) {
         return new Promise(function (resolve) {
             const img = new Image();
@@ -1007,8 +1124,9 @@
         const file = this.files[0];
         if (!file) return;
 
-        // מציגים תצוגה מקדימה מיידית ו"מפענח נתונים…" בשדות — בלי לחסום
-        // את הטופס: המשתמש יכול להמשיך להקליד ידנית תוך כדי שהשרת עובד
+        // Show an instant preview and "reading data…" in the fields, without
+        // blocking the form: the user can keep typing by hand while the server works
+
         scannerThumbnail.src = URL.createObjectURL(file);
         scanWrapper.classList.add('active');
         scanBtn.disabled = true;
@@ -1026,13 +1144,15 @@
         })
         .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
         .then(function (result) {
-            // הטופס נסגר או הוחלף בזמן הפענוח: לא נוגעים בו — גם לא ב-UI של
-            // הסריקה שלו — והתמונה שהועלתה נמחקת.
+            // The form was closed or replaced during reading: don't touch it (not
+            // even its scan UI), and the uploaded image is deleted.
+
             if (mySeq !== scanSeq) {
                 if (result.ok && result.data) discardReceipt(result.data.receipt_path);
                 return;
             }
-            // סריקה שנייה באותו טופס: הקבלה הקודמת כבר לא תישמר
+            // A second scan in the same form: the previous receipt won't be saved
+
             const previous = txReceiptPath.value;
             resetScanUI();
             if (!result.ok || result.data.error) {
@@ -1055,8 +1175,10 @@
                 }
             }
             scanBtn.querySelector('.scan-btn-text').textContent = '✓ סריקה הושלמה';
-            // "מהקבלה" (מתן, 12.10): מסגרת זהב לרגע על מה שהסריקה מילאה, ותווית
-            // ליד הסכום — כך ברור מה לבדוק. נעלם כשמשנים את השדה.
+            // "From the receipt" (Matan, 12.10): a brief gold frame on what the
+            // scan filled, and a label next to the amount, so it is clear what to
+            // check. Goes away when the field is changed.
+
             markFromReceipt([txAmount, data.merchant && txDescription, data.date && document.querySelector('#modalOverlay .date-pick')]);
             window.showToast('הנתונים פוענחו מהקבלה — בדקו את מה שמסומן');
         })
@@ -1068,15 +1190,19 @@
     });
 
     // Submit → POST (add) or PUT (edit)
-    // בונה שורת "עסקה אחרונה" זמנית לדף הבית — לפני שהשרת בכלל ענה. משפרת
-    // תחושת מהירות בהוספה בלבד (לא בעריכה): הפרטים המדויקים (שיוך צבעוני
-    // וכו') יגיעו עם הרענון המלא שקורה בהצלחה בכל מקרה, אז לא מדובר בעדכון
-    // state אמיתי — רק תצוגה מקדימה חלקית ומהירה.
+    // Builds a temporary "recent transaction" row on the home page, before the
+    // server even answered. Improves the feeling of speed when adding only (not
+    // editing): the exact details (coloured attribution etc.) arrive with the
+    // full refresh that happens on success anyway, so this isn't a real state
+    // update, just a fast partial preview.
+
     function buildPlaceholderTxRow(amount) {
         const li = document.createElement('li');
-        // בלי data-id: משאיר את השורה הזמנית לא-אינטרקטיבית (לא ניתנת
-        // ללחיצה/swipe) כל עוד היא לא הפכה לעסקה אמיתית עם id מהשרת —
-        // מונע ניסיון עריכה/מחיקה על "pending" שלא קיים ב-DB
+        // No data-id: keeps the temporary row non-interactive (not tappable or
+        // swipeable) as long as it hasn't become a real transaction with an id
+        // from the server: prevents an edit/delete attempt on a "pending" that
+        // doesn't exist in the DB
+
         li.className = 'transaction-item tx-pending';
 
         const activeCatBtn = categoryGrid.querySelector('.cat-btn.active');
@@ -1097,7 +1223,8 @@
                 '<div class="tx-side"><p class="tx-amount ' + currentType + '"></p></div>' +
             '</div>';
         li.querySelector('.tx-name').textContent = name;
-        // היום בתוך השורה, כמו בשורות מהשרת (מתן, 30.9)
+        // The day inside the row, as in rows from the server (Matan, 30.9)
+
         const day = txDate.value === todayStr() ? 'היום'
                   : txDate.value === dateStr(-1) ? 'אתמול'
                   : (txDate.value || '').slice(8, 10).replace(/^0/, '') + '.' + (txDate.value || '').slice(5, 7).replace(/^0/, '');
@@ -1106,17 +1233,19 @@
         return li;
     }
 
-    // ניקוי סימון-שגיאה של שדה הסכום ברגע שמתקנים אותו (נגישות)
+    // Clearing the amount field's error mark the moment it is fixed (accessibility)
+
     txAmount.addEventListener('input', function () {
         txAmount.removeAttribute('aria-invalid');
         formatAmount(true);
         fitAmount();
-        if (typeof syncInstallments === 'function') syncInstallments();   // "₪400 בחודש"
+        if (typeof syncInstallments === 'function') syncInstallments();   // "₪400 a month"
     });
 
-    // כפתור השמירה הוא <label>, לא <button> — ראה ההערה ליד הסימון.
-    // המחיר: אין disabled אמיתי, אז חוסמים לחיצה כפולה בדגל, ואת
-    // הכיבוי החזותי עושים במחלקה.
+    // The save button is a <label>, not a <button>; see the note next to the
+    // markup. The cost: no real disabled, so double taps are blocked with a
+    // flag, and the visual disabling is done with a class.
+
     let isSubmitting = false;
 
     function setSubmitBusy(busy) {
@@ -1125,10 +1254,12 @@
         submitBtn.setAttribute('aria-disabled', busy ? 'true' : 'false');
     }
 
-    // ── "בטל" אחרי עריכה (מתן, 30.9 — סבב 6, פריט 10) ──
-    // הביטול הוא עריכה נוספת עם הערכים הקודמים, ועם ‎if_match‎ — מה שהעריכה
-    // שלנו השאירה. אם מישהו שינה את העסקה מאז, השרת מחזיר 409 ולא דורס.
-    // נשמר ב-sessionStorage כי רוב העמודים מתרעננים ברענון מלא אחרי עריכה.
+    // ── "Undo" after an edit (Matan, 30.9, round 6, item 10) ──
+    // Undo is another edit with the previous values, and with `if_match`: what
+    // our edit left. If someone changed the transaction since, the server
+    // returns 409 and doesn't overwrite.
+    // Kept in sessionStorage because most pages do a full reload after an edit.
+
     const UNDO_KEY = 'sf_undo_edit';
     function undoSpec(before, after, message) {
         return {
@@ -1185,32 +1316,37 @@
         if (!spec || !spec.id) return;
         window.showToast(spec.message, undefined, { label: 'ביטול', onClick: function () { runUndo(spec); } });
     }
-    showPendingUndo();          // אחרי רענון מלא — ההודעה עם "בטל" מחכה כאן
+    showPendingUndo();          // after a full reload, the message with "undo" waits here
 
     function requestSubmit() {
         if (typeof txForm.requestSubmit === 'function') txForm.requestSubmit();
         else txForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
     }
 
-    // מגע בכפתור מחליף את המתג (וזה מה שמפיק את הנקישה ב-iOS) — ומכאן
-    // ממשיכים לשליחה הרגילה. השליחה תלויה בשינוי המתג ולא בלחיצה עצמה,
-    // כי על תווית אין אירוע "לחיצה" שאפשר לסמוך עליו בכל הדפדפנים.
+    // Touching the button toggles the switch (that is what produces the tap on
+    // iOS), and from there we continue to the ordinary submit. The submit
+    // depends on the switch changing and not the tap itself, because a label has
+    // no "click" event that can be relied on in every browser.
+
     const hapticSubmit = document.getElementById('hapticSubmit');
     if (hapticSubmit) {
         hapticSubmit.addEventListener('change', function () { requestSubmit(); });
     }
 
-    // מקלדת: תווית עם role="button" לא נשלחת מעצמה ב-Enter/רווח
+    // Keyboard: a label with role="button" isn't submitted by itself on Enter/space
+
     submitBtn.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
         requestSubmit();
     });
 
-    // ── לפני שמירה של עסקה חדשה: כפילות? סכום חריג? (מתן, 30.9 — סבב 6, 6–7) ──
-    // שאלות ולא חסימות. תקלה ברשת כאן לא עוצרת שמירה — עדיף לשמור בלי
-    // אזהרה. אחרי אישור השליחה רצה שוב, ו-‎precheckPassed‎ מדלג על הבדיקה
-    // לאותם נתונים בדיוק.
+    // ── Before saving a new transaction: a duplicate? an unusual amount? (Matan,
+    // 30.9, round 6, 6–7) ──
+    // Questions, not blocks. A network failure here doesn't stop a save: better
+    // to save without a warning. After confirming, the submit runs again, and
+    // `precheckPassed` skips the check for exactly the same data.
+
     let precheckPassed = null;
     function precheckKey(p) {
         return [formSeq, p.amount, p.type, p.category_id, p.project_category_id, p.date].join('|');
@@ -1271,8 +1407,10 @@
             });
     }
 
-    // כל שינוי בטופס — גם בכפתורים (סוג, קטגוריה, תאריך, של מי) שמעדכנים שדה
-    // נסתר בלחיצה — מעדכן את הכפתור. בפריים הבא: אחרי שהמטפל של הכפתור רץ.
+    // Every change in the form (including the buttons for type, category, date,
+    // whose, which update a hidden field on tap) updates the button. On the next
+    // frame: after the button's handler has run.
+
     ['input', 'change', 'click'].forEach(function (ev) {
         txForm.addEventListener(ev, function () {
             if (editId) requestAnimationFrame(updateSubmitLabel);
@@ -1282,7 +1420,7 @@
     txForm.addEventListener('submit', function (e) {
         e.preventDefault();
         if (isSubmitting) return;
-        if (isUnchanged()) return;              // הכפתור כבוי — אין מה לשמור
+        if (isUnchanged()) return;              // the button is disabled: nothing to save
         formError.textContent = '';
         txAmount.removeAttribute('aria-invalid');
 
@@ -1295,7 +1433,9 @@
             return;
         }
 
-        // השרת דוחה בלי קטגוריה בכל מקרה; כאן רק אומרים את זה לפני הבקשה
+        // The server rejects a missing category anyway; here we just say so
+        // before the request
+
         if (!(txProject.value ? txProjectCategory.value : txCategory.value)) {
             formError.textContent = 'נא לבחור קטגוריה';
             return;
@@ -1319,7 +1459,7 @@
             const n = installmentCount();
             if (!n) { formError.textContent = 'מספר התשלומים — בין 2 ל-60'; instCount.focus(); return; }
             payload.installments = n;
-            payload.is_recurring = false;          // השרת הופך לקבועה עם סוף
+            payload.is_recurring = false;          // the server turns it into a recurring transaction with an end
             payload.recurring_frequency = null;
             payload.recurring_end_date = null;
         }
@@ -1330,11 +1470,13 @@
             setSubmitBusy(true);
             submitLabel.textContent = 'בודק…';
             runPrecheck(payload).then(function (ok) {
-                if (mySeq !== formSeq) return;          // הטופס התחלף בינתיים
+                if (mySeq !== formSeq) return;          // the form was replaced meanwhile
                 setSubmitBusy(false);
                 updateSubmitLabel();
-                // הטופס נסגר בזמן "בודק…" — המשתמש ויתר. בלי זה העסקה נשמרה בכל
-                // זאת, ועם קבלה שהסגירה כבר מחקה.
+                // The form was closed during "checking…": the user gave up.
+                // Without this the transaction was saved anyway, with a receipt
+                // the close had already deleted.
+
                 if (!overlay.classList.contains('open')) return;
                 if (!ok) return;
                 precheckPassed = key;
@@ -1346,36 +1488,48 @@
 
         setSubmitBusy(true);
         submitLabel.textContent = 'שומר…';
-        // מעכשיו הקבלה שייכת לשמירה הזאת — ראו ‎claimedReceipt‎. כל כשל למטה
-        // משחרר אותה, כדי שסגירה בלי ניסיון נוסף כן תמחק אותה.
+        // From now on the receipt belongs to this save; see `claimedReceipt`.
+        // Any failure below releases it, so closing without retrying does
+        // delete it.
+
         claimedReceipt = payload.receipt_path;
 
-        // מה ששייך לשמירה **הזאת**, ולא למה שפתוח כשהתשובה חוזרת
+        // What belongs to **this** save, not to whatever is open when the
+        // response comes back
+
         const myForm   = formSeq;
         const myEditId = editId;
         const myOriginal = editId ? editingOriginal : null;
         const mySeries = !!(editId && editingSeries);
         const myLabel  = '₪' + amount + (payload.description ? ' (' + payload.description + ')' : '');
-        // האם הטופס של השמירה הזאת כבר לא על המסך — כי נפתח טופס אחר מאז
+        // Whether this save's form is no longer on screen, because another form
+        // opened since
+
         function formWasReplaced() { return formSeq !== myForm; }
 
-        // UI אופטימי: רק בהוספה חדשה (לא עריכה) ורק בדף הבית — שם יש רשימת
-        // "עסקאות אחרונות" מוכרת שאפשר להוסיף לה שורה זמנית מיד, לפני
-        // שהשרת בכלל ענה. שאר הדף (כרטיסי סיכום, גרפים) ממשיך להתעדכן
-        // רק ברענון המלא שקורה בהצלחה ממילא.
-        // עסקה שמשויכת לפרויקט לא מוצגת בדף הבית כלל, אז אין לה שורה
-        // זמנית — אחרת הייתה מהבהבת לרגע ונעלמת ברענון
+        // Optimistic UI: only for a new add (not edit) and only on the home page,
+        // where there is a known "recent transactions" list a temporary row can
+        // be added to right away, before the server even answered. The rest of
+        // the page (summary cards, charts) keeps updating only with the full
+        // refresh that happens on success anyway.
+        // A transaction attached to a project isn't shown on the home page at
+        // all, so it gets no temporary row; otherwise it would flash for a
+        // moment and vanish on refresh
+
         let placeholderRow = null;
         if (!editId && !txProject.value && window.location.pathname === '/') {
             const list = document.querySelector('.transactions-list');
-            // ‎closeModal‎ חייב להיות **בתוך** התנאי. בדשבורד ריק אין
-            // רשימה בכלל (התבנית מרנדרת אותה רק כשיש עסקאות), אז לא
-            // נוצרה שורה זמנית — אבל החלון נסגר בכל זאת, וכל הודעת
-            // שגיאה נכתבה לתוך חלון סגור שזה עתה נוקה. העסקה הראשונה
-            // בחיים של המשתמש נכשלה בלי שום סימן על המסך.
+            // `closeModal` must be **inside** the condition. On an empty
+            // dashboard there is no list at all (the template renders it only
+            // when there are transactions), so no temporary row was created, but
+            // the sheet closed anyway, and every error message was written into
+            // a closed sheet that had just been cleared. The user's very first
+            // transaction failed with no sign on screen.
+
             if (list) {
                 placeholderRow = buildPlaceholderTxRow(amount);
-                // בראש הרשימה — הרשימה בסדר ההזנה, החדשה למעלה
+                // At the top of the list: the list is in entry order, newest on top
+
                 list.insertBefore(placeholderRow, list.firstChild);
                 closeModal();
                 setSubmitBusy(false);
@@ -1383,16 +1537,20 @@
             }
         }
 
-        // הסגירה האופטימית ניקתה את שדה הקבלה (‎closeModal‎ → ‎resetScanUI‎), אז
-        // בפתיחה מחדש אחרי כשל היא חוזרת — אחרת הניסיון הבא נשמר בלעדיה.
+        // The optimistic close cleared the receipt field (`closeModal` →
+        // `resetScanUI`), so on reopening after a failure it comes back;
+        // otherwise the next attempt is saved without it.
+
         function reopenAfterFailure() {
             openModal();
             txReceiptPath.value = payload.receipt_path || '';
         }
 
-        // השמירה נכשלה אחרי שכבר פתחו טופס חדש: לא פותחים עליו את הישן ולא
-        // כותבים לתוכו שגיאה — אומרים איזו עסקה לא נשמרה, כדי שאפשר יהיה
-        // להקליד אותה שוב. הקבלה שלה כבר לא תישמר.
+        // The save failed after a new form was already opened: don't open the
+        // old one over it and don't write an error into it; say which
+        // transaction wasn't saved, so it can be typed again. Its receipt won't
+        // be saved anymore.
+
         function failedBehindAnotherForm(reason) {
             claimedReceipt = null;
             discardReceipt(payload.receipt_path);
@@ -1409,10 +1567,12 @@
                 headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify(payload),
             }).then(function (r) {
-                // תשובה שאינה JSON — דף שגיאה של השרת או של Railway (502/504,
-                // פריסה באמצע) — הפכה ל"שגיאת רשת — נסה שוב". אבל הבקשה כבר
-                // הגיעה לשרת, וייתכן שהשמירה נכתבה לפני שהוא נפל: "נסה שוב"
-                // יצר עותק. אז אומרים את מה שידוע באמת.
+                // A non-JSON response (an error page from the server or Railway:
+                // 502/504, a deploy midway) turned into "network error, try
+                // again". But the request had already reached the server, and the
+                // save may have been written before it fell over: "try again"
+                // created a copy. So say what is really known.
+
                 return r.json().then(
                     function (d) { return { code: r.status, d: d }; },
                     function () {
@@ -1425,8 +1585,10 @@
 
         send(false)
         .then(function (res) {
-            // סדרה קבועה שתייצר עשרות שורות אחורה — כמעט תמיד טעות
-            // הקלדה בתאריך. השרת עונה 409 עם המספר האמיתי, ושואלים.
+            // A recurring series that would create dozens of rows back is almost
+            // always a date typo. The server answers 409 with the real number,
+            // and we ask.
+
             if (res.code === 409 && res.d.needs_confirm) {
                 if (placeholderRow && formWasReplaced()) {
                     placeholderRow.remove(); placeholderRow = null;
@@ -1451,7 +1613,7 @@
             return res;
         })
         .then(function (res) {
-            if (!res) return;                       // המשתמש ביטל
+            if (!res) return;                       // the user cancelled
             const data = res.d;
             if (data.error && placeholderRow && formWasReplaced()) {
                 placeholderRow.remove();
@@ -1460,12 +1622,14 @@
                 return;
             }
             if (data.error) {
-                // בכשל **שרת** החלון נשאר סגור, והשדות — שעדיין מלאים,
-                // כי ‎closeModal‎ לא מאפס אותם — הפכו לבלתי נגישים: הדרך
-                // היחידה חזרה היא ה-FAB, ו-‎openAddModal‎ מנקה אותם. הטוסט
-                // נעלם אחרי 2.6 שניות, והמשתמש הקליד הכול מחדש ונכשל שוב
-                // מאותה סיבה שכבר לא הייתה על המסך. זה אותו תיקון שנעשה
-                // לכשל רשת, בענף שפוספס.
+                // On a **server** failure the sheet stayed closed, and the fields
+                // (still filled, because `closeModal` doesn't reset them) became
+                // unreachable: the only way back is the FAB, and `openAddModal`
+                // clears them. The toast vanished after 2.6 seconds, and the user
+                // typed everything again and failed again for the same reason,
+                // which was no longer on screen. This is the same fix made for a
+                // network failure, in the branch that was missed.
+
                 if (placeholderRow) {
                     placeholderRow.remove();
                     placeholderRow = null;
@@ -1478,16 +1642,22 @@
                 return;
             }
 
-            // עסקה חדשה נכנסה — צליל ונקישה. חייב לקרות כאן, בתוך שרשרת
-            // הלחיצה של המשתמש, כי iOS מאפשר שמע רק מתוך אינטראקציה.
+            // A new transaction went in: a sound and a tap. Must happen here,
+            // within the user's tap chain, because iOS allows audio only from an
+            // interaction.
+
             const isNew = !myEditId;
             if (isNew) window.appFeedback();
 
-            // מה שפעולת-המשך (למטה) רוצה שהמשתמש יידע, במקום ההודעה הרגילה
+            // What a follow-up action (below) wants the user to know, instead of
+            // the usual message
+
             let followUp = null;
-            // עסקה קבועה שנערכה מההגדרות: מאיזה תאריך השינוי חל. בלי "ביטול" —
-            // הסדרה התפצלה, ואין עסקה אחת להחזיר
-            // הוצאה חדשה שחצתה את התקציב של הקטגוריה (מתן, 3.10 — רעיון 17)
+            // A recurring transaction edited from settings: from which date the
+            // change applies. No "undo": the series split, and there is no single
+            // transaction to restore.
+            // A new expense that crossed its category's budget (Matan, 3.10, idea 17)
+
             if (isNew && data.budget_note) {
                 followUp = { text: 'העסקה נוספה. ' + data.budget_note };
             }
@@ -1498,33 +1668,41 @@
             }
 
             function finish() {
-                // אם בינתיים נפתח טופס חדש — הוא של המשתמש, לא שלנו
+                // If a new form opened meanwhile, it is the user's, not ours
+
                 if (!formWasReplaced()) {
-                    // הכפתור נשאר "שומר…" אחרי הצלחה. בעמוד שמתרענן ברענון
-                    // רך (הבית) ה-JS לא נטען מחדש, אז העריכה הבאה נתקלה
-                    // בכפתור תקוע: הלחיצה לא עשתה כלום ובלי שום הודעה. מתן:
-                    // "לפעמים זה לא נותן לי ללחוץ על שמירת שינויים".
+                    // The button stayed "saving…" after success. On a page that
+                    // refreshes softly (home) the JS isn't reloaded, so the next
+                    // edit met a stuck button: the tap did nothing, with no
+                    // message at all. Matan: "sometimes it doesn't let me tap
+                    // save changes".
+
                     setSubmitBusy(false);
                     updateSubmitLabel();
                     closeModal();
                 }
-                // רענון רך: מחליף את תוכן העמוד בלי ניווט, בלי ניתוח מחדש
-                // של ה-CSS וה-JS, ובלי לאבד את מיקום הגלילה. ההשהיה של
-                // 380ms הייתה שם רק כדי שהצליל יסתיים לפני שהדף נעלם —
-                // עכשיו הוא לא נעלם, אז היא מיותרת.
+                // Soft refresh: replaces the page content with no navigation, no
+                // re-parsing of the CSS and JS, and without losing the scroll
+                // position. The 380ms pause was there only so the sound could
+                // finish before the page disappeared; now it doesn't disappear,
+                // so it is redundant.
+
                 const message = followUp ? followUp.text : (myEditId ? 'העסקה עודכנה' : 'העסקה נוספה');
-                // "בטל" אחרי עריכה — לא כשהסדרה שונתה להבא, ולא אחרי כשל
+                // "Undo" after an edit: not when the series was changed from
+                // now on, and not after a failure
+
                 const undo = (myOriginal && data.transaction && !(followUp && (followUp.series || followUp.error)))
                     ? undoSpec(myOriginal, data.transaction, message) : null;
                 if (document.querySelector('main[data-soft-reload]')) {
                     if (undo) rememberUndo(undo);
                     window.softReload(null, undo ? null : message).then(function (how) {
-                        if (how === 'reloaded') return;   // תוצג אחרי הטעינה המלאה
+                        if (how === 'reloaded') return;   // shown after the full load
                         if (undo) { showPendingUndo(); return; }
                         window.showToast(message, followUp && followUp.error ? 'error' : undefined);
                     });
                 } else {
-                    // עמוד עם גרפים או האזנות ישירות — רענון מלא, כמו קודם
+                    // A page with charts or direct listeners: a full reload, as before
+
                     if (undo) rememberUndo(undo);
                     else window.sfToastAfterReload(message);
                     setTimeout(function () { window.location.reload(); }, isNew ? 380 : 0);
@@ -1533,12 +1711,16 @@
 
             const sideEffects = [];
 
-            // סנכרון חכם: אם עורכים מופע שנוצר מעסקה קבועה ושינו את הסכום —
-            // מציעים לעדכן גם את התבנית, כדי שמופעים עתידיים ישתמשו בו
+            // Smart sync: when editing an occurrence created from a recurring
+            // transaction and the amount changed, offer to update the template
+            // too, so future occurrences use it.
             //
-            // "להבא" מפצל את הסדרה במופע הזה (ראו ‎split_recurring_series‎):
-            // החודשים הקודמים לא משתנים. שני המזהים נלכדים לפני שאלת האישור
-            // ולא נקראים אחריה: פתיחת עסקה אחרת מחליפה אותם, והשאלה מחכה למשתמש.
+            // "From now on" splits the series at this occurrence (see
+            // `split_recurring_series`): the previous months don't change. Both
+            // ids are captured before the confirmation question and not read
+            // after it: opening another transaction replaces them, and the
+            // question waits for the user.
+
             if (editingRecurringParentId && amount !== originalAmount) {
                 const templateId = editingRecurringParentId;
                 const instanceId = editId;
@@ -1566,8 +1748,11 @@
                             return r.json().then(function (d) { failed((d && d.error) || 'נסו שוב'); },
                                                  function () { failed('נסו שוב'); });
                         }, function () {
-                            // כאן כשל נבלע עד היום בשקט: המשתמש ענה "עדכן להבא",
-                            // שמע "העסקה עודכנה", והחודש הבא נוצר בסכום הישן.
+                            // Here a failure was silently swallowed until now:
+                            // the user answered "update from now on", heard "the
+                            // transaction was updated", and next month was
+                            // created at the old amount.
+
                             failed(window.sfNetError());
                         });
                     });
@@ -1586,11 +1771,13 @@
             }
             if (placeholderRow) {
                 placeholderRow.remove();
-                // החלון כבר נסגר אופטימית, אבל מה שהוקלד עדיין בשדות —
-                // ‎closeModal‎ לא מאפס אותם. פותחים אותו בחזרה במקום
-                // להשאיר את המשתמש עם הודעת שגיאה וטופס ריק: במוסך או
-                // בחניון, "נסה שוב" פירושו היה להקליד הכול מחדש, בלי
-                // רשת, בדיוק כשהוא הכי לא רוצה.
+                // The sheet was already closed optimistically, but what was
+                // typed is still in the fields (`closeModal` doesn't reset them).
+                // Reopen it instead of leaving the user with an error message and
+                // an empty form: in a garage or a car park, "try again" meant
+                // typing everything again, with no network, exactly when they
+                // least want to.
+
                 reopenAfterFailure();
             }
             formError.textContent = window.sfNetError();
@@ -1600,22 +1787,26 @@
         });
     });
 
-    // מוחק עסקה בפועל (אחרי אישור) — משמש גם את כפתור המחיקה במודאל וגם
-    // את פעולת ה-swipe על שורת עסקה, כדי לא לשכפל את אותה לוגיקה
-    // מחיקה עם אפשרות ביטול: מוחקים מיד בשרת ומסירים את השורה מה-DOM (בלי
-    // reload מיידי שמכווץ רשימות פתוחות), ומציגים טוסט "בטל" ל-6 שניות.
-    // ב"בטל" משחזרים ע"י re-POST מנתוני השורה (קבלה מצורפת, אם הייתה, לא
-    // משוחזרת). אם לא ביטלו — reload בתום החלון כדי לרענן סיכומים (יתרה/KPI).
+    // Actually deletes a transaction (after confirmation): used both by the
+    // delete button in the modal and by the swipe action on a transaction row,
+    // so the same logic isn't duplicated.
+    // Deletion with undo: delete on the server right away and remove the row
+    // from the DOM (no immediate reload that collapses open lists), and show an
+    // "undo" toast for 6 seconds. On "undo", restore by re-POSTing from the
+    // row's data (an attached receipt, if any, isn't restored). If not undone,
+    // reload at the end of the window to refresh the totals (balance/KPI).
+
     let pendingDeleteReload = null;
 
-    /* הרענון בתום חלון הביטול קיים כדי לעדכן את הסיכומים (יתרה, KPI)
-     * אחרי שהשורה הוסרה. אבל הוא היה ‎location.reload()‎ שרץ בכפייה —
-     * ואם בינתיים המשתמש פתח את המודאל והתחיל להקליד, הדף נטען מחדש
-     * באמצע מילה והכול אבד. זה בדיוק הרצף שאדם עושה: מוחק עסקה שגויה,
-     * ומיד מקליד את התיקון.
+    /* The refresh at the end of the undo window exists to update the totals
+     * (balance, KPI) after the row was removed. But it was a forced
+     * `location.reload()`, and if meanwhile the user opened the modal and
+     * started typing, the page reloaded mid-word and everything was lost. That
+     * is exactly the sequence people do: delete a wrong transaction, and
+     * immediately type the fix.
      *
-     * אז: כשמשהו פתוח לעריכה — דוחים. וכשאפשר, משתמשים ברענון הרך,
-     * שממילא לא נוגע במודאל (הוא יושב מחוץ ל-main). */
+     * So: when something is open for editing, defer. And when possible, use the
+     * soft refresh, which doesn't touch the modal anyway (it sits outside main). */
     let refreshWhenEditingEnds = false;
 
     function somethingIsBeingEdited() {
@@ -1635,24 +1826,29 @@
         }
     }
 
-    // נקרא כשהמודאל נסגר, כדי להשלים רענון שנדחה
+    // Called when the modal closes, to complete a deferred refresh
+
     function refreshIfPending() {
         if (refreshWhenEditingEnds && !somethingIsBeingEdited()) refreshAfterDelete();
     }
 
-    /* ── מחיקת עסקה ששייכת לסדרה קבועה ──
+    /* ── Deleting a transaction that belongs to a recurring series ──
      *
-     * בדיוק השאלה של יומן: "רק את זו" או "את זו וכל הבאות". אין כאן
-     * הבחנה בין "תבנית" למופע — היא פנימית לגמרי, ולמי שמוחק את שכר
-     * הדירה של מרץ לא אמור להיות אכפת אם מרץ הוא במקרה החודש שבו
-     * הסדרה נפתחה.
+     * Exactly a calendar's question: "only this one" or "this and all
+     * following". There is no distinction here between "template" and
+     * occurrence: it is entirely internal, and whoever deletes March's rent
+     * shouldn't have to care whether March happens to be the month the series
+     * was opened.
      *
-     * הבטוחה היא כפתור האישור; ההרסנית עוברת אישור שני עם המספר.
-     * נסיגה (Escape או לחיצה בחוץ) מחזירה ‎null‎ ומבטלת — בשני השלבים.
+     * The safe one is the confirm button; the destructive one goes through a
+     * second confirmation with the number. A retreat (Escape or a tap outside)
+     * returns `null` and cancels, at both stages.
      */
-    /* כל השורות של עסקה בעמוד, לא רק זו שממנה המחיקה התחילה. בעמוד החודש
-     * אותה עסקה מופיעה ב"כל העסקאות", בקטגוריה שלה ובחלוקה לפי בן משפחה —
-     * והעותקים האחרים נשארו לחיצים עד הרענון, על עסקה שכבר לא קיימת. */
+    /* Every row of a transaction on the page, not just the one the delete started
+     * from. On the month page the same transaction appears in "all
+     * transactions", in its category and in the split by family member, and the
+     * other copies stayed tappable until the refresh, on a transaction that no
+     * longer exists. */
     function removeTransactionRows(id, row) {
         if (row) leaveRow(row);
         if (!id) return;
@@ -1660,18 +1856,21 @@
             .forEach(function (el) { if (el.dataset.id === id) leaveRow(el); });
     }
 
-    /* שורה שנמחקה יוצאת בעדינות ולא נעלמת ברגע (מתן, 7.10 — סבב תנועה, סעיף 1).
+    /* A deleted row leaves gently and doesn't vanish in an instant (Matan, 7.10,
+     * motion round, item 1).
      *
-     * ‎row.remove()‎ לבד העלים אותה, וכל השורות שמתחתיה קפצו למעלה בבת אחת.
-     * עכשיו: דהייה וכיווץ קל (120ms), ואז הגובה נסגר (180ms) והשורות שמתחת
-     * עולות ברצף. גם הרווח של הרשימה (‎gap‎) נסגר — אחרת הוא קפץ בסוף.
+     * `row.remove()` alone made it disappear, and all the rows below it jumped
+     * up at once. Now: a fade and a slight shrink (120ms), then the height closes
+     * (180ms) and the rows below rise in sequence. The list's spacing (`gap`)
+     * closes too; otherwise it jumped at the end.
      *
-     * השורה מפסיקה להיות עסקה **מיד**: בלי ‎data-id‎ אי אפשר ללחוץ עליה,
-     * להחליק אותה או למצוא אותה שוב בזמן שהיא יוצאת. בתנועה מופחתת הכלל
-     * הכללי ב-style.css מאפס את כל המעברים, והשורות נסגרות מיד. */
+     * The row stops being a transaction **right away**: without `data-id` it
+     * can't be tapped, swiped or found again while it leaves. With reduced
+     * motion, the general rule in style.css zeroes all transitions, and the rows
+     * close immediately. */
     function leaveRow(el) {
         if (!el.isConnected || el.dataset.leaving) return;
-        if (el.offsetParent === null) { el.remove(); return; }   // מוסתרת — אין מה לראות
+        if (el.offsetParent === null) { el.remove(); return; }   // hidden: nothing to see
         el.dataset.leaving = '1';
         el.removeAttribute('data-id');
         el.setAttribute('aria-hidden', 'true');
@@ -1692,7 +1891,9 @@
             el.style.paddingTop = el.style.paddingBottom = '0px';
             el.style.borderTopWidth = el.style.borderBottomWidth = '0px';
             el.style.marginTop = el.style.marginBottom = '0px';
-            // הרווח שבין השורה לשכנה — נבלע בשוליים שליליים, באותו קצב
+            // The gap between the row and its neighbour: swallowed by a negative
+            // margin, at the same pace
+
             if (gap) el.style[el.nextElementSibling ? 'marginBottom' : 'marginTop'] = -gap + 'px';
         }, 120);
         setTimeout(function () { el.remove(); }, 320);
@@ -1707,7 +1908,7 @@
             cancelText:  'את זו וכל הבאות',
             danger:      false,
         }).then(function (onlyThis) {
-            if (onlyThis === null) return;                 // נסיגה
+            if (onlyThis === null) return;                 // retreat
             if (onlyThis) return sendSeriesDelete(txData, row, 'one', 1, onFail);
 
             return window.appConfirm({
@@ -1722,9 +1923,9 @@
         });
     }
 
-    /* בן משפחה אחר מחק את העסקה רגע קודם. זו לא תקלה — מה שהמשתמש ביקש
-     * כבר קרה. בלי זה הוא ראה "מחיקה נכשלה", השורה נשארה, וכל ניסיון
-     * נוסף נכשל שוב. */
+    /* Another family member deleted the transaction a moment earlier. That isn't a
+     * failure: what the user asked for already happened. Without this they saw
+     * "delete failed", the row stayed, and every further attempt failed again. */
     function alreadyGone(txData, row) {
         removeTransactionRows(txData.id, row);
         window.showToast('העסקה כבר נמחקה');
@@ -1739,8 +1940,10 @@
                 if (d === null) return alreadyGone(txData, row);
                 if (d.status !== 'ok') { if (onFail) onFail(d.error || 'המחיקה נכשלה'); return; }
                 removeTransactionRows(txData.id, row);
-                // אין כאן "בטל": שחזור של מופע בודד היה מחזיר גם את
-                // הדילוג שנרשם עליו, ושל סדרה שלמה — עשרות שורות.
+                // No "undo" here: restoring a single occurrence would also bring
+                // back the skip recorded for it, and restoring a whole series,
+                // dozens of rows.
+
                 const n = d.deleted || total;
                 window.showToast(mode === 'one'
                     ? 'העסקה נמחקה. שאר החודשים של העסקה הקבועה נשארו'
@@ -1751,16 +1954,18 @@
             .catch(function () { if (onFail) onFail(window.sfNetError()); });
     }
 
-    /* האישור שלפני המחיקה.
+    /* The confirmation before deleting.
      *
-     * לעסקה רגילה — השאלה הרגילה. לעסקה ששייכת לסדרה קבועה — **בלי
-     * שאלה כאן בכלל**, כי השרת עונה 409 ומיד אחריו נשאלת השאלה
-     * האמיתית ("רק את זו / את זו וכל הבאות").
+     * For a regular transaction, the usual question. For a transaction that
+     * belongs to a recurring series, **no question here at all**, because the
+     * server answers 409 and right after it the real question is asked ("only
+     * this one / this and all following").
      *
-     * קודם שתי השאלות הופיעו בזו אחר זו, והראשונה אמרה "הפעולה תסיר
-     * את העסקה מכל הדוחות והגרפים" — משפט שנכון לעסקה בודדת ומטעה
-     * לחלוטין כשמאחוריה סדרה שלמה. מתן ראה אותה, וכצפוי הבין שזו
-     * השאלה היחידה שתהיה. */
+     * Before, both questions appeared one after the other, and the first said
+     * "this will remove the transaction from all reports and charts": a sentence
+     * true for a single transaction and completely misleading when a whole
+     * series is behind it. Matan saw it, and as expected understood it as the
+     * only question there would be. */
     function confirmDelete(txData) {
         if (txData && (txData.isRecurring || txData.recurringParentId)) {
             return Promise.resolve(true);
@@ -1773,16 +1978,20 @@
     }
 
     function deleteWithUndo(txData, row, onFail) {
-        // תמונת הקבלה נמחקת מהאחסון יחד עם העסקה, ולכן "בטל" מחזיר את
-        // העסקה בלבד — הקובץ כבר לא קיים. זה היה קורה בשקט: המשתמש לחץ
-        // "בטל", ראה את העסקה חוזרת, והקבלה פשוט לא הייתה שם יותר.
-        // אומרים את זה מראש, ורק כשבאמת הייתה קבלה.
+        // The receipt image is deleted from storage along with the transaction,
+        // so "undo" restores only the transaction: the file no longer exists.
+        // This used to happen silently: the user tapped "undo", saw the
+        // transaction come back, and the receipt simply wasn't there anymore.
+        // Say it upfront, and only when there really was a receipt.
+
         const hadReceipt = !!(row && row.querySelector('.receipt-badge'));
         fetch('/api/transactions/' + txData.id, { method: 'DELETE' })
             .then(r => r.json().then(d => ({ code: r.status, d: d })))
             .then(function (res) {
-                // השרת מזהה שהעסקה שייכת לסדרה קבועה ומסרב למחוק בלי
-                // בחירה מפורשת — "רק את זו" או "את זו וכל הבאות".
+                // The server recognises that the transaction belongs to a
+                // recurring series and refuses to delete without an explicit
+                // choice: "only this one" or "this and all following".
+
                 if (res.code === 409 && res.d.needs_choice) {
                     return askAboutSeries(txData, row, res.d.later, onFail);
                 }
@@ -1832,8 +2041,10 @@
         .then(r => r.json())
         .then(function (data) {
             if (data.error) { window.showToast(data.error, 'error'); return; }
-            // ‎receipt_path‎ נשלח ‎null‎ במכוון: הקובץ נמחק מהאחסון ברגע
-            // המחיקה, וכתובת לקובץ שאינו קיים הייתה מייצרת תג 📎 שבור.
+            // `receipt_path` is sent as `null` on purpose: the file was deleted
+            // from storage at the moment of deletion, and a URL to a file that
+            // doesn't exist would produce a broken 📎 tag.
+
             window.sfToastAfterReload(
                 txData.hadReceipt ? 'העסקה שוחזרה — בלי הקבלה' : 'העסקה שוחזרה');
             window.location.reload();
@@ -1841,8 +2052,10 @@
         .catch(function () { window.showToast('שחזור נכשל — נסו שוב', 'error'); });
     }
 
-    // "הוסף שוב" (שכפול): הופך את מודל העריכה הפתוח למודל הוספה חדש עם
-    // אותם ערכים ותאריך היום — לרישום מהיר של קנייה חוזרת (קפה, קניות).
+    // "Add again" (duplicate): turns the open edit modal into a new add modal
+    // with the same values and today's date, for quickly recording a repeat
+    // purchase (coffee, groceries).
+
     duplicateBtn.addEventListener('click', function () {
         editId = null;
         editingRecurringParentId = null;
@@ -1852,15 +2065,19 @@
         setEditLook(false);
         editModeActions.style.display = 'none';
         if (enteredMeta) enteredMeta.hidden = true;
-        // שכפול הוא עסקה חד-פעמית — לא ממשיכים את מצב ה"קבועה"
+        // A duplicate is a one-off transaction: the "recurring" state doesn't
+        // carry over
+
         recurringCb.checked = false;
         recurFields.classList.remove('visible');
         txDate.value = todayStr();
         syncDateChips();
-        // ‎setType‎ ולא רק ‎updateSubmitLabel‎: כפתור הסריקה מוסתר במצב
-        // עריכה (‎!editId && type === 'expense'‎), ושכפול מנקה את ‎editId‎
-        // בלי לרענן אותו. השורה המשוכפלת היא הוצאה חדשה לגמרי — ובלי זה
-        // היא נפתחה בלי אפשרות לצלם קבלה, בלי שום סיבה נראית לעין.
+        // `setType` and not just `updateSubmitLabel`: the scan button is hidden
+        // in edit mode (`!editId && type === 'expense'`), and duplicating clears
+        // `editId` without refreshing it. The duplicated row is a brand new
+        // expense, and without this it opened with no way to photograph a
+        // receipt, for no visible reason.
+
         setType(currentType);
         updateSubmitLabel();
         txAmount.focus();
@@ -1870,9 +2087,11 @@
     // Delete (edit mode only)
     deleteBtn.addEventListener('click', function () {
         if (!editId) return;
-        // עסקה קבועה שנפתחה מ"עסקאות קבועות" בהגדרות: עוצרים את הסדרה, כמו
-        // ה-✕ שהיה בשורה (מתן, 11.10 — ה-✕ ירד). מחיקה רגילה כאן הייתה
-        // מוחקת את שורת התבנית — העסקה הראשונה, כסף אמיתי שכבר נרשם.
+        // A recurring transaction opened from "recurring transactions" in
+        // settings: stop the series, like the ✕ that was on the row (Matan,
+        // 11.10; the ✕ was removed). A regular delete here would delete the
+        // template row: the first transaction, real money already recorded.
+
         if (editingSeries) {
             const seriesRow = document.querySelector('#recurringList [data-id="' + editId + '"]');
             if (seriesRow && window.sfStopSeries) {
@@ -1882,8 +2101,9 @@
             return;
         }
         const row = document.querySelector('[data-id="' + editId + '"]');
-        // כשהשורה לא ברשימה (עריכה מהעמוד השני, למשל) — המודאל עצמו
-        // כבר יודע אם זו סדרה
+        // When the row isn't in the list (editing from the other page, for
+        // example), the modal itself already knows whether it is a series
+
         const txData = row ? buildTxFromRow(row)
                            : { id: editId, isRecurring: recurringCb.checked,
                                recurringParentId: editingRecurringParentId };
@@ -1896,35 +2116,41 @@
         });
     });
 
-    /* ── תג 📎 על עסקה עם קבלה מצורפת ──
-     * אין כאן קוד, וזה התיקון. הגרסה הקודמת שלפה כתובת מהשרת ב-fetch
-     * ואז קראה ל-window.open — וב-iOS זה נחסם תמיד: הדפדפן מתיר פתיחת
-     * חלון רק כתוצאה ישירה מלחיצה, וההמתנה לשרת מנתקת את הקשר. לא קרה
-     * כלום — אין חלון, אין שגיאה, אין רמז — והקבלות שנסרקו פשוט לא היו
-     * נגישות מהטלפון.
+    /* ── A 📎 tag on a transaction with an attached receipt ──
+     * There is no code here, and that is the fix. The previous version fetched a
+     * URL from the server and then called window.open, and on iOS that was
+     * always blocked: the browser allows opening a window only as a direct
+     * result of a tap, and waiting for the server breaks that link. Nothing
+     * happened (no window, no error, no hint), and scanned receipts simply
+     * weren't reachable from the phone.
      *
-     * הסמל הוא עכשיו ‎<a href="/receipts/…" target="_blank">‎, והדפדפן
-     * מנווט בעצמו. ניווט שנובע מלחיצה לא נחסם.
+     * The icon is now `<a href="/receipts/…" target="_blank">`, and the browser
+     * navigates by itself. Navigation resulting from a tap isn't blocked.
      *
-     * מה שכן חשוב: ‎.receipt-badge‎ מוחרג ממטפלי השורה למטה, אחרת לחיצה
-     * עליו הייתה פותחת גם את מודאל העריכה. */
+     * What does matter: `.receipt-badge` is excluded from the row handlers
+     * below; otherwise tapping it would also open the edit modal. */
 
-    // דגל שמונע פתיחת עריכה מה"קליק" הסינתטי שהדפדפן יורה אחרי מחוות
-    // מגע — בלי זה, swipe שגורר את השורה גם פותח בטעות את מודאל העריכה
-    // (touchend שלא קרא ל-preventDefault עדיין מייצר click עוקב)
+    // A flag preventing an edit from opening on the synthetic "click" the
+    // browser fires after a touch gesture; without it, a swipe dragging the row
+    // also opens the edit modal by mistake (a touchend that didn't call
+    // preventDefault still produces a following click)
+
     let justSwiped = false;
 
-    // בונה את אובייקט ה-tx למודאל העריכה מתוך ה-data attributes של השורה —
-    // משמש גם בלחיצה רגילה וגם בפעולת עריכה מ-swipe
-    // "87.0" מהשרת מוצג "87"; "87.5" נשאר "87.5" (מתן, 3.10)
+    // Builds the tx object for the edit modal from the row's data attributes,
+    // used both on an ordinary tap and on the edit action from a swipe.
+    // "87.0" from the server is shown as "87"; "87.5" stays "87.5" (Matan, 3.10)
+
     function plainAmount(v) {
         const n = Number(v);
         return isFinite(n) ? String(n) : v;
     }
 
-    // ── השלמה מתיאורים קודמים (מתן, 3.10 — רעיון 41) ──
-    // נטען פעם אחת לכל טעינת עמוד; עד 3 הצעות מתחת לשדה, לפי תחילת מילה.
-    // לחיצה ממלאת רק את התיאור — הקטגוריה לא נוגעת (מתן ויתר על "זכירת קטגוריה").
+    // ── Autocomplete from earlier descriptions (Matan, 3.10, idea 41) ──
+    // Loaded once per page load; up to 3 suggestions under the field, by word
+    // start. A tap fills only the description; the category isn't touched
+    // (Matan gave up on "remembering the category").
+
     const descSuggest = document.getElementById('descSuggest');
     let pastDescriptions = null;
     function loadDescriptions() {
@@ -1933,7 +2159,7 @@
         fetch('/api/descriptions', { credentials: 'same-origin' })
             .then(r => r.ok ? r.json() : { descriptions: [] })
             .then(d => { pastDescriptions = d.descriptions || []; })
-            .catch(() => { pastDescriptions = null; });   // ננסה שוב בפתיחה הבאה
+            .catch(() => { pastDescriptions = null; });   // try again on the next open
     }
     function hideSuggest() { if (descSuggest) { descSuggest.hidden = true; descSuggest.innerHTML = ''; } }
     function descMatches(q) {
@@ -1941,7 +2167,7 @@
         if (needle.length < 2 || !pastDescriptions) return [];
         return pastDescriptions.filter(function (d) {
             const low = d.toLowerCase();
-            if (low === needle) return false;                     // כבר כתוב במלואו
+            if (low === needle) return false;                     // already typed in full
             return low.split(/\s+/).some(w => w.startsWith(needle)) || low.startsWith(needle);
         }).slice(0, 3);
     }
@@ -1959,7 +2185,9 @@
             });
             descSuggest.hidden = !found.length;
         });
-        // ‎mousedown‎ ולא ‎click‎: אחרת ה-blur של השדה מסתיר את ההצעות לפני הלחיצה
+        // `mousedown` and not `click`: otherwise the field's blur hides the
+        // suggestions before the click
+
         descSuggest.addEventListener('mousedown', function (e) { e.preventDefault(); });
         descSuggest.addEventListener('click', function (e) {
             const b = e.target.closest('.desc-suggest-item');
@@ -1989,9 +2217,11 @@
         };
     }
 
-    // ── פתיחת עריכה בלחיצה על עסקה קיימת (עמוד הבית + עמוד החודש + עסקאות קבועות בהגדרות) ──
-    // אותו חלון בכל מקום. בדף הבית הייתה עד 5.10 עריכה בתוך הכרטיסייה —
-    // מתן ביקש שתיראה כמו בעמוד החודש.
+    // ── Opening an edit by tapping an existing transaction (home page + month
+    // page + recurring transactions in settings) ──
+    // The same sheet everywhere. Until 5.10 the home page edited inside the
+    // card; Matan asked for it to look like the month page.
+
     document.addEventListener('click', function (e) {
         if (justSwiped) { justSwiped = false; return; }
         if (e.target.closest('.receipt-badge, .swipe-action')) return;
@@ -2000,8 +2230,10 @@
         openEditModal(buildTxFromRow(row), row);
     });
 
-    // ── אותה פתיחת עריכה במקלדת (Enter/Space) — השורות מסומנות
-    // role="button" tabindex="0" בתבניות, בדיוק כמו .legend-item[role=button] הקיים ב-month.html ──
+    // ── The same edit opening by keyboard (Enter/Space): the rows are marked
+    // role="button" tabindex="0" in the templates, exactly like the existing
+    // .legend-item[role=button] in month.html ──
+
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         if (e.target.closest('.receipt-badge, .swipe-action')) return;
@@ -2011,19 +2243,23 @@
         openEditModal(buildTxFromRow(row), row);
     });
 
-    // ── Swipe על שורת עסקה: ימינה חושף "עריכה", שמאלה חושף "מחיקה" ──
-    // נוסף על הלחיצה הרגילה, לא מחליף אותה. עובד בכל מקום שיש בו שורת
-    // עסקה (דף הבית, עמוד החודש, עסקאות קבועות בהגדרות, עמוד פרויקט).
+    // ── Swipe on a transaction row: right reveals "edit", left reveals "delete" ──
+    // In addition to the ordinary tap, not instead of it. Works everywhere there
+    // is a transaction row (home page, month page, recurring transactions in
+    // settings, project page).
+
     (function () {
         const ROW_SELECTOR = '.transaction-item, .cat-tx-row, .recurring-row';
-        const OPEN_X = 76;    // מרחק הנעילה הפתוחה, תואם לרוחב .swipe-action
-        const THRESHOLD = 42; // לאן התנועה הולכת (מקום + תנופה) — מעבר לזה נפתחת
+        const OPEN_X = 76;    // the open lock distance, matching the width of .swipe-action
+        const THRESHOLD = 42; // where the motion is heading (position + momentum); past this it opens
         const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         let drag = null;
-        let anim = null;    // { content, cancel } — הקפיץ שרץ עכשיו, אם יש
-        let openRow = null; // השורה שכרגע פתוחה (אם יש), כדי לסגור אותה בלחיצה במקום אחר
+        let anim = null;    // { content, cancel }: the spring running now, if any
+        let openRow = null; // the row currently open (if any), to close it on a tap elsewhere
 
-        // שורת עסקה קבועה ברשימה של ההגדרות — שם "הסרה" עוצרת את הסדרה
+        // A recurring transaction row in the settings list: there "remove" stops
+        // the series
+
         function isSettingsSeriesRow(row) {
             return row.classList.contains('recurring-row');
         }
@@ -2042,8 +2278,9 @@
 
             const deleteAction = document.createElement('div');
             deleteAction.className = 'swipe-action swipe-action-delete';
-            // בהגדרות ההחלקה עוצרת את הסדרה (כמו ה-✕ שם), ולא מוחקת — אז
-            // היא גם לא נקראת "מחיקה"
+            // In settings the swipe stops the series (like the ✕ there) and
+            // doesn't delete, so it isn't called "delete" either
+
             deleteAction.textContent = isSettingsSeriesRow(row) ? '✕ הסרה' : '✕ מחיקה';
 
             row.appendChild(editAction);
@@ -2055,8 +2292,10 @@
             if (anim) { anim.cancel(); anim = null; }
         }
 
-        // מגיעים ל-‎to‎ בקפיץ שממשיך במהירות של האצבע (‎v‎, px/s). פתיחה
-        // אחרי הנפה קופצת טיפה מעבר — הייתה בה תנופה; סגירה נעצרת חלק.
+        // Reach `to` on a spring continuing at the finger's velocity (`v`, px/s).
+        // Opening after a flick overshoots a touch (it had momentum); closing
+        // stops smoothly.
+
         function settleTo(content, from, to, v) {
             stopAnim();
             if (calm) { content.style.transition = ''; content.style.transform = to ? 'translateX(' + to + 'px)' : ''; return; }
@@ -2077,14 +2316,16 @@
             if (openRow === row) openRow = null;
         }
 
-        // המבנה נבנה **בעצלתיים**, ב-‎touchstart‎ בלבד (למטה).
+        // The structure is built **lazily**, on `touchstart` only (below).
         //
-        // קודם הוא נבנה לכל שורה בטעינה: ‎ensureSwipeStructure‎ מעבירה כל
-        // ילד ל-div חדש ומוסיפה שני פאנלים, ובעמוד החודש כל עסקה מופיעה
-        // פעמיים-שלוש (פירוט לפי קטגוריה, "כל העסקאות", פירוט פרויקט).
-        // חודש של 150 עסקאות היה ~350 שורות × reparent + שלוש יצירות
-        // אלמנט, סינכרונית, בטעינת העמוד — ובלי שום צורך, כי ה-‎touchstart‎
-        // בונה את מה שנוגעים בו ממילא.
+        // Before, it was built for every row on load: `ensureSwipeStructure`
+        // moves every child into a new div and adds two panels, and on the month
+        // page every transaction appears two or three times (breakdown by
+        // category, "all transactions", project breakdown). A month of 150
+        // transactions was ~350 rows × reparent + three element creations,
+        // synchronously, on page load, and for no reason, because `touchstart`
+        // builds what is touched anyway.
+
 
         document.addEventListener('touchstart', function (e) {
             if (e.target.closest('.receipt-badge, .swipe-action')) return;
@@ -2094,9 +2335,11 @@
 
             if (drag && drag.row !== row) closeRow(drag.row);
 
-            // נגיעה בשורה שכבר פתוחה רק סוגרת אותה (כמו ברוב האפליקציות) —
-            // מונע חשבון מסובך של גרירה מתוך מצב פתוח, ומונע גם פתיחת
-            // עריכה בטעות מה-click הסינתטי שיגיע אחרי הנגיעה הזו
+            // Touching a row that is already open only closes it (as in most
+            // apps): avoids complicated dragging maths from an open state, and
+            // also prevents opening an edit by mistake from the synthetic click
+            // that will follow this touch
+
             if (row.classList.contains('swipe-open')) {
                 closeRow(row);
                 justSwiped = true;
@@ -2124,24 +2367,28 @@
             const dy = touch.clientY - drag.startY;
             if (!drag.dragging) {
                 if (Math.abs(dx) < 8) return;
-                if (Math.abs(dy) > Math.abs(dx)) { drag = null; return; } // גלילה אנכית — לא swipe
+                if (Math.abs(dy) > Math.abs(dx)) { drag = null; return; } // vertical scroll: not a swipe
                 drag.dragging = true;
-                drag.startX += dx > 0 ? 8 : -8;    // בלי קפיצה של 8 הפיקסלים של ההחלטה
-                // בלי ההשהיה של ה-CSS: השורה זזה עם האצבע, לא 0.2 שניות אחריה
+                drag.startX += dx > 0 ? 8 : -8;    // without the 8-pixel jump of the decision
+                // Without the CSS delay: the row moves with the finger, not 0.2
+                // seconds after it
+
                 if (anim && anim.content === drag.content) stopAnim();
                 drag.content.style.transition = 'none';
             }
-            // עד רוחב הכפתור — אחד לאחד; מעבר לו — התנגדות שגדלה בהדרגה,
-            // במקום קיר ב-100 פיקסלים
+            // Up to the button width, one to one; past it, resistance that grows
+            // gradually, instead of a wall at 100 pixels
+
             const raw = touch.clientX - drag.startX;
             const over = Math.abs(raw) - OPEN_X;
             drag.deltaX = over <= 0 ? raw : Math.sign(raw) * (OPEN_X + sfRubber(over, drag.row.offsetWidth));
             drag.content.style.transform = 'translateX(' + drag.deltaX + 'px)';
             drag.samples.push({ t: e.timeStamp, p: touch.clientX });
             if (drag.samples.length > 6) drag.samples.shift();
-            // העמוד לא נגלל מתחת לשורה בזמן שמחליקים אותה (מתן, 11.10 —
-            // "החלקות קלות ונוחות"). עד אז המאזין היה פסיבי, והמסך רעד למעלה
-            // ולמטה תוך כדי החלקה הצידה.
+            // The page doesn't scroll under the row while it is swiped (Matan,
+            // 11.10: "light, comfortable swipes"). Until then the listener was
+            // passive, and the screen shook up and down during a sideways swipe.
+
             if (e.cancelable) e.preventDefault();
         }, { passive: false });
 
@@ -2149,18 +2396,23 @@
             if (!drag) return;
             const { row, content, deltaX, dragging, samples } = drag;
             if (dragging) {
-                // מונע פתיחת עריכה מה-click הסינתטי שהדפדפן עשוי לירות אחרי
-                // המגע. דפדפנים בדרך כלל לא יורים click אחרי גרירה אמיתית,
-                // אז מאפסים את הדגל אחרי רגע כדי לא להשפיע על לחיצות הבאות
-                // שלא קשורות לגרירה הזו בכלל.
+                // Prevents opening an edit from the synthetic click the browser
+                // may fire after the touch. Browsers usually don't fire a click
+                // after a real drag, so the flag is reset after a moment so it
+                // doesn't affect later taps unrelated to this drag at all.
+
                 justSwiped = true;
                 setTimeout(function () { justSwiped = false; }, 400);
             }
-            // ההחלטה לפי **לאן התנועה הולכת**: הנפה קצרה ומהירה פותחת, וגרירה
-            // ארוכה שחוזרת לאחור — לא. הכיוון — של הנקודה שאליה היא מגיעה.
+            // The decision by **where the motion is heading**: a short fast flick
+            // opens, and a long drag that comes back doesn't. The direction is
+            // that of the point it ends up at.
+
             const v = dragging ? sfVelocity(samples, e.timeStamp) : 0;
             const aim = deltaX + sfProject(v, 0.99);
-            // גרירה לצד אחד והנפה חזרה לצד השני — התחרטות: נסגרת, לא נפתחת הפוך
+            // A drag to one side and a flick back to the other: changing your
+            // mind: it closes, it doesn't open the other way
+
             if (dragging && Math.abs(aim) > THRESHOLD && (aim > 0) === (deltaX > 0)) {
                 const openDir = aim > 0 ? 'right' : 'left';
                 content.dataset.openDir = openDir;
@@ -2177,21 +2429,26 @@
             drag = null;
         });
 
-        // הדפדפן לקח את המגע (גלילה, חלון מערכת) — השורה חוזרת למקום ולא נתקעת באמצע
+        // The browser took the touch (scrolling, a system sheet): the row goes
+        // back into place and doesn't get stuck midway
+
         document.addEventListener('touchcancel', function () {
             if (!drag) return;
             if (drag.dragging) closeRow(drag.row);
             drag = null;
         }, { passive: true });
 
-        // לחיצה במקום כלשהו מחוץ לשורה הפתוחה (כולל שורה אחרת) סוגרת אותה
+        // A tap anywhere outside the open row (including another row) closes it
+
         document.addEventListener('click', function (e) {
             if (openRow && e.target.closest(ROW_SELECTOR) !== openRow) {
                 closeRow(openRow);
             }
         });
 
-        // לחיצה על פאנל שנחשף — אותם flows קיימים (עריכה/מחיקה), בלי שכפול קוד
+        // A tap on a revealed panel: the same existing flows (edit/delete), with
+        // no duplicated code
+
         document.addEventListener('click', function (e) {
             const editBtn = e.target.closest('.swipe-action-edit');
             if (editBtn) {
@@ -2203,10 +2460,11 @@
             const delBtn = e.target.closest('.swipe-action-delete');
             if (delBtn) {
                 const row = delBtn.closest(ROW_SELECTOR);
-                // בהגדרות: אותה עצירת סדרה כמו ה-✕ באותה שורה. עד היום ההחלקה
-                // הלכה ל-‎DELETE /api/transactions‎ — ומחקה את העסקה הראשונה
-                // בסדרה, או את כולה, מתוך שורה שה-✕ שלה מבטיח "כל מה שכבר
-                // נרשם יישאר".
+                // In settings: the same series stop as the ✕ on the same row.
+                // Until now the swipe went to `DELETE /api/transactions` and
+                // deleted the series' first transaction, or all of it, from a row
+                // whose ✕ promises "everything already recorded will stay".
+
                 if (isSettingsSeriesRow(row)) {
                     stopSeriesFromSettings(row, function () { closeRow(row); });
                     return;
@@ -2223,9 +2481,10 @@
         });
     })();
 
-    /* עצירת סדרה מתוך "עסקאות קבועות" בהגדרות — ההחלקה וכפתור "הסרת העסקה
-     * הקבועה" בחלון העריכה (‎window.sfStopSeries‎) שניהם כאן.
-     * ‎onCancel‎: מה לעשות אם המשתמש חזר בו (ההחלקה סוגרת את השורה). */
+    /* Stopping a series from "recurring transactions" in settings: the swipe and
+     * the "remove the recurring transaction" button in the edit sheet
+     * (`window.sfStopSeries`) are both here. `onCancel`: what to do if the user
+     * changed their mind (the swipe closes the row). */
     function stopSeriesFromSettings(row, onCancel) {
         window.appConfirm({
             title: 'להסיר את העסקה הקבועה?',
@@ -2233,9 +2492,11 @@
             confirmText: 'הסרה',
         }).then(function (ok) {
             if (!ok) { if (onCancel) onCancel(); return; }
-            // ‎/api/recurring‎ ולא ‎/api/transactions‎: זה עוצר את הסדרה ולא מוחק
-            // שורה. שורת התבנית היא העסקה הראשונה בסדרה, ומחיקתה הייתה מוציאה
-            // כסף אמיתי מההיסטוריה — בדיוק מה שההודעה למעלה מבטיחה שלא יקרה.
+            // `/api/recurring` and not `/api/transactions`: this stops the series
+            // and doesn't delete a row. The template row is the series' first
+            // transaction, and deleting it would take real money out of history:
+            // exactly what the message above promises won't happen.
+
             fetch('/api/recurring/' + row.dataset.id, { method: 'DELETE' })
             .then(r => r.json())
             .then(function (d) {

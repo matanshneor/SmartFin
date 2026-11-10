@@ -1,5 +1,6 @@
-// רשת ביטחון: אם קישור שחזור סיסמה נחת כאן (fallback ל-SITE_URL),
-// מעבירים אותו לעמוד האיפוס עם הטוקן.
+// Safety net: if a password-reset link landed here (fallback to SITE_URL),
+// forward it to the reset page with the token.
+
 if (window.location.hash.includes('type=recovery')) {
     window.location.replace('/reset-password' + window.location.hash);
 }
@@ -17,9 +18,11 @@ if (window.location.hash.includes('type=recovery')) {
         tabSignup.classList.toggle('active', isSignup);
         loginPanel.style.display  = isSignup ? 'none' : 'block';
         signupPanel.style.display = isSignup ? 'block' : 'none';
-        // מסך "שכחתי סיסמה" לא נסגר כאן, אז לחיצה על לשונית אחריו הציגה
-        // טופס איפוס **מעל** טופס ההרשמה, עם שני פקדי ניווט שחלוקים על
-        // היכן המשתמש נמצא — דווקא במסלול שמגיעים אליו כבר מתוסכלים.
+        // The "forgot password" screen isn't closed here, so tapping a tab after
+        // it showed a reset form **above** the signup form, with two navigation
+        // controls disagreeing about where the user is, exactly on a path people
+        // reach already frustrated.
+
         const forgot = document.getElementById('forgotPanel');
         if (forgot) forgot.style.display = 'none';
     }
@@ -27,7 +30,8 @@ if (window.location.hash.includes('type=recovery')) {
     tabLogin.addEventListener('click', () => showTab('login'));
     tabSignup.addEventListener('click', () => showTab('signup'));
 
-    // ── שכחתי סיסמה ──
+    // ── Forgot password ──
+
     const forgotPanel = document.getElementById('forgotPanel');
     const forgotError = document.getElementById('forgotError');
     const forgotSuccess = document.getElementById('forgotSuccess');
@@ -72,12 +76,16 @@ if (window.location.hash.includes('type=recovery')) {
         .then(function (res) {
             btn.disabled = false;
             btn.textContent = 'שליחת קישור איפוס';
-            // "נשלח" הופיע גם על 422 (מייל לא תקין), על 429 ועל מגבלת 2 המיילים
-            // בשעה של Supabase — והשרת כבר ידע לומר את האמת. מי שהזין מייל
-            // שגוי חיכה למייל שלא יגיע. כשהשרת אומר שנכשל, זה מה שמוצג.
+            // "Sent" also appeared on 422 (invalid email), on 429 and on
+            // Supabase's limit of 2 emails an hour, and the server already knew
+            // how to tell the truth. Whoever entered a wrong email waited for an
+            // email that would never come. When the server says it failed, that
+            // is what is shown.
             //
-            // ההצלחה נשארת עמומה בכוונה ("אם האימייל רשום"), גם כשהוא לא
-            // רשום — אחרת הטופס הזה הוא דרך לבדוק אילו מיילים יש במערכת.
+            // Success stays vague on purpose ("if the email is registered"), even
+            // when it isn't registered; otherwise this form is a way to check
+            // which emails exist in the system.
+
             if (!res.ok) {
                 forgotError.textContent = res.data.error || 'השליחה נכשלה — נסו שוב בעוד רגע';
                 return;
@@ -93,23 +101,26 @@ if (window.location.hash.includes('type=recovery')) {
 })();
 
 
-/* נעילת שליחה כפולה בטפסי ההתחברות וההרשמה.
+/* Locking against double submission on the sign-in and signup forms.
  *
- * הטפסים האלה היו הטפסים היחידים באפליקציה בלי נעילה — בכל שאר המקומות
- * הכפתור ננעל (settings.js, onboarding.js, reset-password.js). באפליקציה
- * המותקנת בטלפון אין אפילו ספינר של דפדפן, אז אחרי הקשה המסך פשוט לא
- * מגיב בזמן שהשרת עובד, והמשתמש לוחץ שוב. יומן ההתחברויות מראה שזה קורה
- * בפועל: כמעט כל התחברות רשומה פעמיים בהפרש שנייה. הלחיצה השנייה גם
- * שורפת מהמכסה של 10 לדקה, ומי שחצה אותה נחת על דף שגיאה בלי מוצא.
+ * These were the only forms in the app without a lock: everywhere else the
+ * button is locked (settings.js, onboarding.js, reset-password.js). In the app
+ * installed on a phone there isn't even a browser spinner, so after a tap the
+ * screen just doesn't respond while the server works, and the user taps again.
+ * The sign-in log shows it happens in practice: almost every sign-in is
+ * recorded twice, a second apart. The second tap also burns into the quota of
+ * 10 a minute, and whoever crossed it landed on an error page with no way out.
  */
 (function () {
-    /* הרשמה: כל בעיה מתחת לשדה שלה, בזמן ההקלדה (מתן, 13.10).
+    /* Signup: every problem under its own field, while typing (Matan, 13.10).
      *
-     * עד עכשיו השרת החזיר שגיאה אחת בכל פעם, למעלה, ושני שדות הסיסמה
-     * התרוקנו — מי שטעה בשלושה שדות שלח ארבע פעמים והקליד את הסיסמה ארבע
-     * פעמים. הכללים זהים לאלה שבשרת (‎_EMAIL_RE‎, ‎_PHONE_RE‎ ב-app.py), שנשאר
-     * הבודק האחרון. שדה מתחיל להיבדק רק אחרי שעזבו אותו, כדי שלא יצעק "לא
-     * תקין" באמצע ההקלדה הראשונה; משם — בכל הקשה, כך שהתיקון נראה מיד. */
+     * Until now the server returned one error at a time, at the top, and both
+     * password fields were emptied: someone who got three fields wrong submitted
+     * four times and typed the password four times. The rules are identical to
+     * the server's (`_EMAIL_RE`, `_PHONE_RE` in app.py), which stays the final
+     * check. A field starts being checked only after it was left, so it doesn't
+     * shout "invalid" in the middle of first typing; from then on, on every
+     * keystroke, so the fix shows immediately. */
     const EMAIL_RE = /^[^@\s]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
     const PHONE_RE = /^0(5\d|7\d|[2-4689])\d{7}$/;
 
@@ -191,17 +202,21 @@ if (window.location.hash.includes('type=recovery')) {
         }
 
         form.addEventListener('submit', function (e) {
-            // הבדיקה בזמן ההקלדה עצרה את השליחה — הכפתור לא ננעל
+            // The live check stopped the submission: the button isn't locked
+
             if (e.defaultPrevented || btn.disabled) return;
             btn.disabled = true;
             btn.textContent = busyText;
-            // שסתום ביטחון: אם השליחה לא הובילה לניווט (נפילת רשת), הכפתור
-            // חוזר לפעולה. עדיף ניסיון חוזר מטופס מת שאי אפשר לצאת ממנו.
+            // Safety valve: if the submission didn't lead to navigation (network
+            // drop), the button works again. A retry beats a dead form you can't
+            // get out of.
+
             setTimeout(release, 12000);
         });
 
-        // חזרה לעמוד עם "אחורה" מגישה אותו מזיכרון הדפדפן, והכפתור
-        // היה חוזר נעול מהפעם הקודמת
+        // Going back to the page with "back" serves it from the browser's
+        // memory, and the button would come back locked from last time
+
         window.addEventListener('pageshow', function (e) { if (e.persisted) release(); });
     }
 

@@ -1,12 +1,12 @@
-/* ייבוא מחברת האשראי (‎/import‎, מתן 31.10).
+/* Importing from the card company (`/import`, Matan 31.10).
  *
- * ארבעה שלבים באותו עמוד: העלאה ← (קובץ לא מוכר: בחירת עמודות) ← בדיקה
- * ואישור ← סיום. השרת קורא את הקובץ ולא שומר כלום עד "ייבוא"; כאן רק
- * מציגים, נותנים לתקן קטגוריות ולבחור מה נכנס.
+ * Four steps on the same page: upload → (unknown file: pick columns) → review
+ * and confirm → done. The server reads the file and stores nothing until
+ * "import"; here we only display, let categories be fixed and choose what goes in.
  *
- * מבנים שאושרו (מה-AI או ידנית) נשמרים ב-localStorage ונשלחים עם כל
- * העלאה, כך שבפעם הבאה אותו קובץ נקרא מיד — בלי AI ובלי שאלות. אם האחסון
- * חסום, פשוט שואלים שוב. */
+ * Confirmed layouts (from the AI or by hand) are kept in localStorage and sent
+ * with every upload, so next time the same file is read right away, with no AI
+ * and no questions. If storage is blocked, we just ask again. */
 (function () {
 'use strict';
 
@@ -27,12 +27,13 @@ const commitBtn = $('importCommit');
 const commitErr = $('importCommitError');
 
 let currentFile = null;
-let candidate = null;     // מה שהשרת החזיר כשהקובץ לא זוהה
-let rows = [];            // העסקאות מהשרת, עם ‎checked‎ ו-‎category_id‎ שהמשתמש קבע
+let candidate = null;     // what the server returned when the file wasn't recognised
+let rows = [];            // the transactions from the server, with `checked` and `category_id` set by the user
 
-/* מציג שלב. ‎motion.js‎ נותן לכל ‎.chart-card‎ אנימציית כניסה בטעינה —
- * וכרטיס שהיה מוסתר באותו רגע נשאר שקוף לתמיד, כי אנימציה של אלמנט מוסתר
- * לא רצה ולא נגמרת. אז השלב שנפתח משתחרר ממנה. */
+/* Shows a step. `motion.js` gives every `.chart-card` an entrance animation on
+ * load, and a card hidden at that moment stays transparent forever, because
+ * the animation of a hidden element doesn't run and doesn't finish. So the
+ * step being opened is released from it. */
 function reveal(el) {
     el.hidden = false;
     el.classList.remove('anim-rise', 'reveal-fallback', 'reveal-scroll');
@@ -62,7 +63,7 @@ function saveLayouts(used) {
         if (i >= 0) all.splice(i, 1);
         all.unshift(layout);
     });
-    try { localStorage.setItem(LAYOUTS_KEY, JSON.stringify(all.slice(0, 20))); } catch (e) { /* בלי זיכרון — שואלים שוב */ }
+    try { localStorage.setItem(LAYOUTS_KEY, JSON.stringify(all.slice(0, 20))); } catch (e) { /* no memory: ask again */ }
 }
 
 function busy(on, label) {
@@ -72,7 +73,8 @@ function busy(on, label) {
     fileInput.disabled = on;
 }
 
-// ─── שלב 1: העלאה ────────────────────────────────────────────────────────
+// ─── Step 1: upload ─────────────────────────────────────────────────────
+
 
 function preview(mapping) {
     if (!currentFile) return;
@@ -117,7 +119,8 @@ document.querySelectorAll('[data-import-restart]').forEach(function (btn) {
     });
 });
 
-// ─── שלב 2: בחירת עמודות ─────────────────────────────────────────────────
+// ─── Step 2: picking columns ────────────────────────────────────────────
+
 
 function showMapping(res) {
     candidate = res;
@@ -161,7 +164,8 @@ $('importMapGo').addEventListener('click', function () {
     preview({ signature: candidate.signature, mapping: mapping });
 });
 
-// ─── שלב 3: בדיקה ואישור ─────────────────────────────────────────────────
+// ─── Step 3: review and confirm ─────────────────────────────────────────
+
 
 function shortDate(iso) {
     const p = iso.split('-');
@@ -179,7 +183,8 @@ function categorySelect(row) {
     sel.value = row.category_id || '';
     sel.addEventListener('change', function () {
         row.category_id = sel.value || null;
-        // אותו בית עסק בשורות אחרות בלי קטגוריה — מקבלים את אותה בחירה
+        // The same business on other rows without a category gets the same choice
+
         if (row.category_id) {
             rows.forEach(function (other) {
                 if (other !== row && other.merchant === row.merchant && !other.category_id && other._select) {
@@ -256,8 +261,10 @@ function rowElement(row, importable) {
         main.appendChild(p);
     }
 
-    // הוראת קבע (מתן, 1.11): להפוך לעסקה קבועה — מסומן מראש, כי זה בדיוק
-    // מה שהוראת קבע היא. מי שכבר יש לו סדרה לאותו בית עסק — רק אומרים.
+    // Standing order (Matan, 1.11): make it a recurring transaction, ticked in
+    // advance, because that is exactly what a standing order is. Whoever already
+    // has a series for the same business is only told.
+
     if (importable && row.recurring_offer) {
         const label = document.createElement('label');
         label.className = 'import-recurring';
@@ -377,7 +384,8 @@ commitBtn.addEventListener('click', function () {
             if (res.error) { commitErr.textContent = res.error; refresh(); return; }
             $('importDoneTitle').textContent = window.sfCount(res.created, 'עסקה אחת נוספה', 'עסקאות נוספו') +
                 (res.recurring ? ' · ' + window.sfCount(res.recurring, 'עסקה קבועה אחת', 'עסקאות קבועות') : '');
-            // החודש של רוב העסקאות — לשם "לחודש" מוביל
+            // The month of most transactions: where "to the month" leads
+
             const months = {};
             chosen.forEach(function (r) { const k = r.date.slice(0, 7); months[k] = (months[k] || 0) + 1; });
             const top = Object.keys(months).sort(function (a, b) { return months[b] - months[a]; })[0];

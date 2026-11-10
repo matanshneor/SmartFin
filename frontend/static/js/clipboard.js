@@ -1,11 +1,12 @@
-/* ההודעה שמועתקת בשיתוף קוד הזמנה.
+/* The message copied when sharing an invite code.
  *
- * עד היום הועתקו שישה תווים ותו לא. מי שקיבל "K4F2QX" בוואטסאפ קיבל
- * שישה תווים בלי שם, בלי קישור ובלי רמז מה לעשות איתם — בזמן שדף
- * הנחיתה מוכר את זה כ"מזמינים את בני הבית עם קוד בן שישה תווים".
+ * Until now six characters were copied and nothing else. Whoever got "K4F2QX"
+ * on WhatsApp got six characters with no name, no link and no hint what to do
+ * with them, while the landing page sells this as "invite your household with
+ * a six-character code".
  *
- * הקוד נשאר בשורה נפרדת ובלי סימני פיסוק צמודים, כדי שאפשר יהיה
- * לסמן אותו בלחיצה ארוכה בלי לגרור אליו נקודה. */
+ * The code stays on its own line with no punctuation attached, so it can be
+ * selected with a long press without dragging a period along. */
 window.sfInviteMessage = function (code, familyName) {
     const who = familyName ? ('\u200f"' + familyName + '"') : '\u200fהמשפחה שלנו';
     return 'הצטרפו אליי ל-SmartFin — התקציב המשותף של ' + who + '.\n\n'
@@ -13,17 +14,19 @@ window.sfInviteMessage = function (code, familyName) {
          + 'או קוד ההזמנה:\n' + code;
 };
 
-/* העתקה ללוח, עם נפילה חזרה.
+/* Copying to the clipboard, with a fallback.
  *
- * ‎navigator.clipboard‎ נכשל יותר ממה שנדמה: הרשאה שנדחתה, הקשר לא-מאובטח,
- * דפדפן-בתוך-אפליקציה (הקישור נפתח מוואטסאפ), או שהאובייקט פשוט לא קיים.
- * הקוד הקודם קרא ל-‎.then()‎ בלי ‎.catch‎, אז כישלון היה דחייה לא-מטופלת:
- * הכפתור לא השתנה, לא הופיעה הודעה, לא קרה כלום.
+ * `navigator.clipboard` fails more than it seems: a denied permission, an
+ * insecure context, an in-app browser (the link opened from WhatsApp), or the
+ * object simply doesn't exist. The previous code called `.then()` with no
+ * `.catch`, so a failure was an unhandled rejection: the button didn't change,
+ * no message appeared, nothing happened.
  *
- * וזו הפעולה שהופכת משפחה למשפחה — בלי להעביר את הקוד, אף אחד לא מצטרף.
+ * And this is the action that makes a family a family: without passing on the
+ * code, nobody joins.
  *
- * הנפילה חזרה בוחרת את הטקסט על המסך, כך שלמשתמש נשארת פעולה אחת
- * (העתק) במקום לתהות למה כלום לא קורה. */
+ * The fallback selects the text on screen, so the user is left with one action
+ * (copy) instead of wondering why nothing happens. */
 window.copyToClipboard = function (text, el) {
     function selectInstead() {
         try {

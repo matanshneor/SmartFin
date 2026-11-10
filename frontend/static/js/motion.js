@@ -1,12 +1,14 @@
-// אנימציות עדינות: ספירה עולה של מספרים, בכבוד ל-prefers-reduced-motion.
+// Gentle animations: counting numbers up, respecting prefers-reduced-motion.
+
 (function () {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    /* מה הוצג בפעם הקודמת, לכל מספר בעמוד.
+    /* What was shown last time, for every number on the page.
      *
-     * הרענון הרך מחליף את האלמנטים עצמם, אז אי אפשר לשמור את הערך
-     * עליהם — הזיכרון הזה חי מחוץ ל-DOM. המפתח נגזר מהמחלקות ומהמיקום
-     * בקבוצה, ולא ממזהה בתבנית, כדי שזה יעבוד בלי לגעת בכל מספר. */
+     * The soft refresh replaces the elements themselves, so the value can't be
+     * kept on them; this memory lives outside the DOM. The key is derived from
+     * the classes and the position within the group, not from an id in the
+     * template, so it works without touching every number. */
     const lastShown = {};
 
     function keyFor(el, seen) {
@@ -15,22 +17,26 @@
         return base + '#' + seen[base];
     }
 
-    /* Count-up: מהערך שהוצג קודם אל החדש.
+    /* Count-up: from the value shown before to the new one.
      *
-     * קודם זה תמיד רץ מ-0, וזה בזבז את כל הערך של האנימציה: אחרי
-     * הוצאה של ₪100 ראית מספר מטפס מאפס, במקום לראות את מה שבאמת
-     * קרה — שהיתרה ירדה ב-₪100. בטעינה ראשונה אין ערך קודם, ושם 0
-     * הוא הנכון: זה הרושם הראשון, לא עדכון. */
+     * It used to always run from 0, and that wasted the whole value of the
+     * animation: after a ₪100 expense you saw a number climbing from zero,
+     * instead of seeing what really happened, that the balance dropped by ₪100.
+     * On first load there is no previous value, and there 0 is right: it is the
+     * first impression, not an update. */
     function runCountUps() {
         const seen = {};
         document.querySelectorAll('[data-countup]').forEach(function (el) {
             const target = parseFloat(el.dataset.countup);
             if (isNaN(target)) return;
             const prefix = el.dataset.prefix || '';
-            // הספירה עצמה בשקלים שלמים תמיד, ורק הערך הסופי כמו שהוא — עם
-            // אגורות אם יש לו. מתן (30.9): "הכסף נספר באגורות ואז מוצג מעוגל",
-            // ו"שאנימציית הספירה תהיה בלי אגורות גם". ערכי הביניים שבורים
-            // (‎1,203.57‎), ו-‎sfMoney‎ מציג אגורות כשיש — אז הן הבהבו לאורך הספירה.
+            // The count itself always in whole shekels, and only the final value
+            // as it is, with agorot if it has them. Matan (30.9): "the money is
+            // counted in agorot and then shown rounded", and "make the count-up
+            // animation without agorot too". The intermediate values are
+            // fractional (`1,203.57`), and `sfMoney` shows agorot when present,
+            // so they flickered throughout the count.
+
             const step  = v => prefix + '₪' + window.sfMoney(Math.round(v));
             const final = prefix + '₪' + window.sfMoney(target);
 
@@ -38,9 +44,11 @@
             const prev = lastShown[key];
             lastShown[key] = { value: target, prefix: prefix };
 
-            // מאיפה מתחילים. היפוך סימן (עודף ↔ גירעון) מתחיל מ-0:
-            // המספר מוצג בערך מוחלט, ומעבר ישיר בין שני ערכים מוחלטים
-            // היה מציג סכומי ביניים עם הסימן ההפוך.
+            // Where to start from. A sign flip (surplus ↔ deficit) starts from 0:
+            // the number is shown as an absolute value, and a direct transition
+            // between two absolute values would show intermediate amounts with
+            // the opposite sign.
+
             const from = (prev && prev.prefix === prefix) ? prev.value : 0;
 
             if (reduceMotion || from === target) {
@@ -60,17 +68,19 @@
         });
     }
 
-    /* 2. כניסה של כרטיסים.
+    /* 2. Cards entering.
      *
-     * מה שעל המסך בטעינה — נכנס בהדרגה (stagger), כמו תמיד. מה שמתחתיו נכנס
-     * **עם הגלילה** (מתן, 11.10 — "שמה שנכנס יתחיל להיכנס לאט עם הגלילה"):
-     * עד אז גם הכרטיסים שמתחת למסך "נכנסו" בטעינה, כשאיש לא ראה, ובגלילה
-     * אליהם הם פשוט עמדו שם.
+     * What is on screen at load enters gradually (stagger), as always. What is
+     * below it enters **with the scroll** (Matan, 11.10: "what comes in should
+     * start coming in slowly with the scroll"): until then the cards below the
+     * screen also "entered" on load, when nobody saw, and scrolling to them they
+     * just stood there.
      *
-     * הכניסה צמודה למיקום הגלילה ולא לזמן: מהיר — מהר, איטי — לאט, עצירה —
-     * עוצרת, וגלילה חזרה מחזירה. בדפדפן שתומך (‎animation-timeline: view()‎,
-     * ספארי 26 וכרום) זה CSS בלבד, בלי JS בזמן הגלילה. בדפדפן ישן — כניסה
-     * רכה ברגע שהכרטיס מופיע (‎IntersectionObserver‎). */
+     * The entrance is tied to the scroll position and not to time: fast is fast,
+     * slow is slow, stopping stops, and scrolling back reverses. In a browser
+     * that supports it (`animation-timeline: view()`, Safari 26 and Chrome) this
+     * is CSS only, with no JS during scrolling. In an old browser: a soft
+     * entrance the moment the card appears (`IntersectionObserver`). */
     const REVEAL = '.summary-cards, .chart-card, .transaction-item, .settings-card, ' +
                    '.month-item, .alert-card, .kpi-card, .empty-state, .settings-group, ' +
                    '.empty-row, .project-tile';
@@ -104,7 +114,8 @@
         if (reduceMotion) return;
         const all = Array.prototype.slice.call(document.querySelectorAll(REVEAL));
         const below = all.filter(belowTheFold);
-        // רק מה שהיה ברשימת הכניסה המקורית ונראה עכשיו — כמו קודם
+        // Only what was in the original entrance list and is visible now, as before
+
         const items = all.filter(function (el) {
             return below.indexOf(el) === -1 && !el.matches('.settings-group, .empty-row, .project-tile');
         });
@@ -112,9 +123,11 @@
         items.forEach(function (el, i) {
             el.style.animationDelay = Math.min(i * 55, 600) + 'ms';
             el.classList.add('anim-rise');
-            // בסוף הכניסה משחררים את הכרטיס. אנימציה שנגמרה עם ‎forwards‎
-            // ממשיכה "להחזיק" את ‎transform‎, וגוברת על מה שהחלקה כותבת לו —
-            // כרטיס "השבוע" לא זז עם האצבע בהחלקה הראשונה (מתן, 11.10).
+            // At the end of the entrance, release the card. An animation that
+            // ended with `forwards` keeps "holding" `transform`, and wins over
+            // what a swipe writes to it: the "this week" card didn't move with
+            // the finger on the first swipe (Matan, 11.10).
+
             el.addEventListener('animationend', function done(e) {
                 if (e.target !== el || e.animationName !== 'rise-in') return;
                 el.removeEventListener('animationend', done);
@@ -124,7 +137,8 @@
         });
     }
 
-    // 3. פסי התקדמות נמתחים מ-0 לרוחב הסופי
+    // 3. Progress bars stretch from 0 to their final width
+
     function runBars() {
         if (reduceMotion) return;
         document.querySelectorAll('.balance-bar-fill')
@@ -146,16 +160,19 @@
         runBars();
     });
 
-    /* אחרי רענון רך המספרים הוחלפו באלמנטים חדשים, וה-count-up צריך
-     * לרוץ עליהם — דווקא אז הוא הכי שווה, כי זה הרגע שבו המשתמש מחכה
-     * לראות את המספר החדש.
+    /* After a soft refresh the numbers were replaced with new elements, and the
+     * count-up needs to run on them: that is exactly when it is worth the most,
+     * because it is the moment the user is waiting to see the new number.
      *
-     * ‎runStagger‎ במכוון לא: אנימציית כניסה שייכת לכניסה לעמוד, ולא
-     * לעדכון במקום. כל הכרטיסים נכנסים מחדש בכל הוספת עסקה זה רעש. */
+     * Deliberately not `runStagger`: an entrance animation belongs to entering
+     * the page, not to an in-place update. Every card entering again on every
+     * transaction added is noise. */
     window.addEventListener('sf:refreshed', function () {
         runCountUps();
         runBars();
-        // תוכן חדש (רענון רך, מעבר חודש) — מה שמתחת למסך נכנס עם הגלילה
+        // New content (soft refresh, month switch): what is below the screen
+        // enters with the scroll
+
         setupReveal(Array.prototype.slice.call(document.querySelectorAll(REVEAL)));
     });
 })();

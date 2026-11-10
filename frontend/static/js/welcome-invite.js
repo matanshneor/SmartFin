@@ -1,7 +1,8 @@
-/* "איך מצרפים בן משפחה" — חלון אחד, בכניסה הראשונה לבית אחרי אשף הפתיחה
- * (מתן, 5.10). השרת מרנדר אותו רק עם ‎?welcome=1‎ ורק כשאין במשפחה אף אחד
- * אחר; כאן הוא נפתח, שולח את ההזמנה, ומוריד את הפרמטר מהכתובת — כדי
- * שרענון לא יפתח אותו שוב. */
+/* "How to add a family member": one sheet, on the first visit to home after
+ * the onboarding wizard (Matan, 5.10). The server renders it only with
+ * `?welcome=1` and only when there is nobody else in the family; here it opens,
+ * sends the invite, and removes the parameter from the URL, so a refresh
+ * doesn't open it again. */
 (function () {
     const sheet = document.getElementById('welcomeInvite');
     if (!sheet) return;
@@ -20,11 +21,12 @@
 
     sendBtn.addEventListener('click', function () {
         const msg = window.sfInviteMessage(sheet.dataset.code, sheet.dataset.family);
-        // בטלפון — חלון השיתוף של המערכת (וואטסאפ ישירות). במחשב, או אם
-        // השיתוף נכשל — העתקה, כמו בהגדרות.
+        // On a phone, the system share sheet (WhatsApp directly). On desktop, or
+        // if sharing failed, copy, as in settings.
+
         if (navigator.share) {
             navigator.share({ text: msg }).then(close).catch(function (err) {
-                if (err && err.name === 'AbortError') return;     // סגרו את חלון השיתוף
+                if (err && err.name === 'AbortError') return;     // the share sheet was closed
                 copy(msg);
             });
             return;
@@ -34,7 +36,7 @@
 
     function copy(msg) {
         window.copyToClipboard(msg, document.getElementById('welcomeCode')).then(function (copied) {
-            if (!copied) return;              // הודעה כבר הוצגה, והקוד מסומן
+            if (!copied) return;              // a message was already shown, and the code is selected
             sendBtn.textContent = '✓ ההזמנה הועתקה — הדביקו אותה בוואטסאפ';
         });
     }

@@ -1,8 +1,9 @@
-/* עין להצגת הסיסמה (מתן, 12.10).
+/* An eye for showing the password (Matan, 12.10).
  *
- * כל שדה סיסמה מקבל כפתור עין בצד: לחיצה מחליפה בין נקודות לטקסט. בטלפון קל
- * לטעות באות ואי אפשר לראות איפה. ‎autocomplete‎ לא משתנה — מנהל הסיסמאות של
- * האייפון ממשיך לעבוד. כל שדה בנפרד: הצגה באחד לא מציגה את השני. */
+ * Every password field gets an eye button on the side: a tap toggles between
+ * dots and text. On a phone it is easy to mistype a letter and impossible to
+ * see where. `autocomplete` doesn't change: the iPhone's password manager keeps
+ * working. Each field separately: showing one doesn't show the other. */
 (function () {
     'use strict';
     const SVG = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" '

@@ -1,13 +1,16 @@
 const CACHE = 'smartfin-v23';
 
-// אין טעינה-מראש.
+// No precaching.
 //
-// הכתובות של הנכסים נושאות עכשיו חתימת תוכן (‎?v=…‎) שנקבעת בשרת, ורשימה
-// קבועה כאן לא יכולה לדעת אותה — היא הייתה מורידה כתובות בלי חתימה שאף
-// עמוד לא מבקש, כלומר הורדה כפולה של כל קובץ ומטמון שלא נוגעים בו לעולם.
+// Asset URLs now carry a content fingerprint (`?v=…`) set on the server, and a
+// fixed list here can't know it: it would download unfingerprinted URLs no page
+// requests, i.e. a double download of every file and a cache that is never
+// touched.
 //
-// וזה ממילא לא נחוץ יותר: כתובת חתומה מוגשת עם תוקף של שנה, אז הדפדפן
-// שומר אותה בעצמו כבר מהביקור הראשון. מה שמגיע לכאן נשמר בזמן אמת למטה.
+// And it isn't needed anymore anyway: a fingerprinted URL is served with a
+// one-year lifetime, so the browser keeps it by itself from the first visit.
+// Whatever arrives here is cached in real time below.
+
 self.addEventListener('install', function () {
     self.skipWaiting();
 });
@@ -22,17 +25,19 @@ self.addEventListener('activate', function (e) {
 });
 
 
-/* עמוד "אין חיבור". טוען את גיליון הסגנון מהמטמון — הוא כבר שם — כדי
- * שזה ייראה כמו האפליקציה ולא כמו שגיאת דפדפן. כפתור הניסיון החוזר קיים
- * כי בלעדיו הדרך היחידה קדימה היא רענון ידני, ובאפליקציה מותקנת בטלפון
- * אין כפתור רענון על המסך. */
+/* The "no connection" page. Loads the stylesheet from the cache (it is already
+ * there) so it looks like the app and not a browser error. The retry button
+ * exists because without it the only way forward is a manual refresh, and an app
+ * installed on a phone has no refresh button on screen. */
 function offlinePage() {
     return new Response(
         '<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="utf-8">' +
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">' +
         '<title>אין חיבור</title>' +
-        // מצב כהה גם כאן (סקירה של 1.10). לתשובה שנבנית כאן אין CSP, אז שורה
-        // בתוך העמוד מותרת — js/theme.js אולי לא במטמון כשאין רשת
+        // Dark mode here too (review of 1.10). The response built here has no
+        // CSP, so an inline line is allowed: js/theme.js may not be cached when
+        // there is no network
+
         '<script>try{if(localStorage.getItem("sf_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>' +
         '<link rel="stylesheet" href="/static/css/style.css"></head>' +
         '<body class="auth-body"><div class="auth-container">' +
@@ -50,17 +55,19 @@ function offlinePage() {
     );
 }
 
-/* ── טעינה מוקדמת בנגיעה (מתן, 3.10 — רעיון 29) ──
+/* ── Preloading on touch (Matan, 3.10, idea 29) ──
  *
- * הדפדפן מבקש עמוד רק כשהאצבע עוזבת את המסך. כשהיא **נוגעת** בקישור,
- * העמוד שולח לכאן הודעה, ואנחנו מתחילים להביא אותו כבר אז. אם תוך כמה
- * שניות מגיע ניווט לאותה כתובת — הוא מקבל את התשובה הזאת במקום בקשה חדשה.
+ * The browser requests a page only when the finger leaves the screen. When it
+ * **touches** a link, the page sends a message here, and we start fetching it
+ * right then. If a navigation to the same URL arrives within a few seconds, it
+ * gets this response instead of a new request.
  *
- * בזיכרון בלבד, לכמה שניות, ותשובה אחת לניווט אחד: זה לא מטמון. מה שכתוב
- * למטה ("אף עמוד מאחורי ההתחברות לא מוגש מהמטמון") נשאר נכון — מה שמוגש
- * כאן הוא תשובה שנולדה רגע לפני שלחצו, לא עמוד מלפני ימים. */
+ * In memory only, for a few seconds, and one response per navigation: this
+ * isn't a cache. What is written below ("no page behind sign-in is served from
+ * the cache") stays true: what is served here is a response born a moment
+ * before the tap, not a page from days ago. */
 const PREFETCH_TTL = 5000;
-const prefetched = new Map();     // כתובת → { at, response: Promise<Response|null> }
+const prefetched = new Map();     // URL → { at, response: Promise<Response|null> }
 
 self.addEventListener('message', function (e) {
     const data = e.data || {};
@@ -74,8 +81,10 @@ self.addEventListener('message', function (e) {
     if (prefetched.has(key)) return;
     prefetched.set(key, {
         at: now,
-        // רק תשובה תקינה של HTML, ובלי הפניה: Safari מסרב להגיש תשובה
-        // שהופנתה (למשל להתחברות, כשהסשן פג) לניווט. אז הניווט ילך לרשת.
+        // Only a valid HTML response, with no redirect: Safari refuses to serve a
+        // redirected response (e.g. to sign-in, when the session expired) to a
+        // navigation. Then the navigation goes to the network.
+
         response: fetch(url.href, { credentials: 'same-origin' })
             .then(res => (res.ok && !res.redirected &&
                           (res.headers.get('Content-Type') || '').includes('text/html')) ? res : null)
@@ -89,7 +98,7 @@ function takePrefetched(request) {
     const key = url.pathname + url.search;
     const hit = prefetched.get(key);
     if (!hit) return null;
-    prefetched.delete(key);                       // תשובה אחת לניווט אחד
+    prefetched.delete(key);                       // one response per navigation
     if (Date.now() - hit.at > PREFETCH_TTL) return null;
     return hit.response;
 }
@@ -97,9 +106,11 @@ function takePrefetched(request) {
 self.addEventListener('fetch', function (e) {
     // Only intercept same-origin GET requests
     if (e.request.method !== 'GET') {
-        // שמירה/מחיקה/הוספה הופכת כל עמוד שנטען מוקדם לישן: נגיעה ב"ביטול"
-        // ואז "שמירה" תוך 5 שניות החזירה לעמוד הפרויקט את המצב שלפני השמירה
-        // (מתן, 9.10). הכתיבה עצמה עוברת לרשת כרגיל.
+        // A save/delete/add makes every preloaded page stale: tapping "cancel"
+        // then "save" within 5 seconds returned the project page to its state
+        // before the save (Matan, 9.10). The write itself goes to the network as
+        // usual.
+
         prefetched.clear();
         return;
     }
@@ -107,22 +118,28 @@ self.addEventListener('fetch', function (e) {
 
     const url = new URL(e.request.url);
 
-    // API calls: תמיד ישירות לרשת, בלי קאש ובלי נפילה-חזרה. נתוני עסקאות/
-    // קטגוריות/פרויקטים משתנים כל הזמן — הגשה בשקט של תשובה ישנה מהקאש
-    // בזמן כשל רשת הייתה גרועה יותר מהצגת שגיאת רשת אמיתית וברורה.
+    // API calls: always straight to the network, no cache and no fallback.
+    // Transaction/category/project data changes all the time: silently serving
+    // a stale response from the cache during a network failure would be worse
+    // than showing a real, clear network error.
+
     if (url.pathname.startsWith('/api/')) {
         return;
     }
 
-    // Static assets: stale-while-revalidate — מגיש מהמטמן מיד (מהיר), אבל
-    // תמיד מושך גרסה טרייה ברקע ומעדכן את המטמן, כך ששינוי ב-CSS/JS מופיע
-    // אוטומטית ברענון הבא בלי צורך בעדכון גרסת CACHE ידני בכל פעם.
-    // רק תגובות תקינות נשמרות — לא שומרים 404/500 חולפים במטמון.
+    // Static assets: stale-while-revalidate: serves from the cache immediately
+    // (fast), but always fetches a fresh version in the background and updates
+    // the cache, so a change to CSS/JS appears automatically on the next refresh
+    // without having to bump a manual CACHE version every time.
+    // Only valid responses are cached: transient 404/500s aren't stored.
+
     if (url.pathname.startsWith('/static/')) {
-        // כתובת חתומה (‎?v=…‎) היא בהגדרה בלתי משתנה: שינוי בקובץ מייצר
-        // חתימה אחרת, כלומר כתובת אחרת. אז אם היא במטמון — זו התשובה,
-        // בלי לבדוק ברשת. כתובת בלי חתימה (למשל קובץ שנטען ידנית) ממשיכה
-        // לקבל את ההתנהגות הקודמת: מהמטמון מיד, ורענון ברקע.
+        // A fingerprinted URL (`?v=…`) is immutable by definition: a change to
+        // the file produces a different fingerprint, i.e. a different URL. So if
+        // it is in the cache, that is the answer, with no network check. A URL
+        // without a fingerprint (e.g. a file loaded by hand) keeps the previous
+        // behaviour: from the cache immediately, and a background refresh.
+
         const immutable = url.searchParams.has('v');
         e.respondWith(
             caches.open(CACHE).then(cache =>
@@ -131,10 +148,12 @@ self.addEventListener('fetch', function (e) {
                     const network = fetch(e.request).then(res => {
                         if (res.ok) cache.put(e.request, res.clone());
                         return res;
-                    // בלי רשת ובלי עותק מדויק: כל גרסה שמורה של אותו קובץ
-                    // עדיפה על כלום. מסך "אין חיבור" מבקש ‎style.css‎ בלי
-                    // ‎?v=‎ — הוא לא יודע את החתימה — והמטמון מחזיק רק כתובות
-                    // חתומות, אז המסך שנועד להיראות כמו האפליקציה הוצג כטקסט.
+                    // No network and no exact copy: any cached version of the
+                    // same file beats nothing. The "no connection" screen
+                    // requests `style.css` without `?v=` (it doesn't know the
+                    // fingerprint), and the cache holds only fingerprinted URLs,
+                    // so the screen meant to look like the app was shown as text.
+
                     }).catch(() => cached || cache.match(e.request, { ignoreSearch: true }));
                     return cached || network;
                 })
@@ -143,19 +162,23 @@ self.addEventListener('fetch', function (e) {
         return;
     }
 
-    // ── מה נשמר במטמון, ומה לעולם לא ──
+    // ── What is cached, and what never is ──
     //
-    // כל עמוד מאחורי ההתחברות מציג כסף או פרטים אישיים, ולכן אף אחד מהם
-    // לא מוגש מהמטמון. זה נראה כמו ויתור על אופליין וזה ההפך: משתמש
-    // בחיבור סלולרי גרוע קיבל מסך מלא ומעוצב עם "נשאר בעו״ש ₪1,270"
-    // מהביקור הקודם, אולי מלפני ימים. אנימציית הספירה אפילו רצה עליהם,
-    // אז הם נראו טריים. שום דבר לא סימן שזה ישן — והוא עלול לקבל החלטה
-    // כספית על סמך זה. הודעה ברורה שאין חיבור טובה ממספר שקרי.
+    // Every page behind sign-in shows money or personal details, so none of them
+    // is served from the cache. It looks like giving up on offline, and it is the
+    // opposite: a user on a poor cellular connection got a full, styled screen
+    // with "₪1,270 left in the account" from the previous visit, maybe from days
+    // ago. The count-up animation even ran on them, so they looked fresh. Nothing
+    // marked it as stale, and they could make a money decision based on it. A
+    // clear message that there is no connection beats a false number.
     //
-    // השורש וטופס ההתחברות מוחרגים מסיבה נוספת: התוכן שלהם נגזר מהעוגיות
-    // (דף נחיתה לאורח, דשבורד למחובר, המייל השמור בטופס).
+    // The root and the sign-in form are excluded for another reason: their
+    // content is derived from the cookies (landing page for a guest, dashboard
+    // for a signed-in user, the saved email in the form).
     //
-    // רק העמודים המשפטיים נשמרים — הם זהים לכולם ולא משתנים.
+    // Only the legal pages are cached: they are the same for everyone and don't
+    // change.
+
     const CACHEABLE_PAGES = ['/privacy', '/terms'];
 
     if (!CACHEABLE_PAGES.includes(url.pathname)) {
@@ -168,7 +191,8 @@ self.addEventListener('fetch', function (e) {
         return;
     }
 
-    // עמודים סטטיים: מהרשת קודם, ומהמטמון כשאין רשת
+    // Static pages: network first, and the cache when there is no network
+
     e.respondWith(
         fetch(e.request)
             .then(res => {
@@ -183,9 +207,10 @@ self.addEventListener('fetch', function (e) {
 });
 
 
-/* ── התראות לטלפון (מתן, 31.10) ──
- * השרת שולח ‎{title, body, url, tag}‎ מוצפן (‎backend/push.py‎). ‎tag‎ — התראה
- * חדשה מאותו סוג מחליפה את הקודמת במקום להיערם. */
+/* ── Phone notifications (Matan, 31.10) ──
+ * The server sends `{title, body, url, tag}` encrypted (`backend/push.py`).
+ * `tag`: a new notification of the same kind replaces the previous one instead
+ * of piling up. */
 self.addEventListener('push', function (e) {
     let data = {};
     try { data = e.data ? e.data.json() : {}; } catch (err) { data = { body: e.data && e.data.text() }; }
@@ -199,15 +224,15 @@ self.addEventListener('push', function (e) {
     }));
 });
 
-/* לחיצה: אם האפליקציה כבר פתוחה — אליה, לעמוד של ההתראה; אחרת חלון חדש.
- * רק כתובות של האתר עצמו. */
+/* A tap: if the app is already open, go to it, to the notification's page;
+ * otherwise a new window. Only URLs of the site itself. */
 self.addEventListener('notificationclick', function (e) {
     e.notification.close();
     let target = '/';
     try {
         const u = new URL((e.notification.data && e.notification.data.url) || '/', self.location.origin);
         if (u.origin === self.location.origin) target = u.pathname + u.search;
-    } catch (err) { /* ברירת מחדל — הבית */ }
+    } catch (err) { /* default: home */ }
     e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
         for (const c of list) {
             if ('focus' in c) return c.navigate(target).then(function (w) { return (w || c).focus(); });

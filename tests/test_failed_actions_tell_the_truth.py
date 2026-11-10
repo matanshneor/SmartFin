@@ -171,7 +171,7 @@ def test_dismissing_a_dialog_is_distinguishable_from_saying_no():
 def test_existing_callers_are_unaffected():
     """‎null‎ נבחר כי הוא falsy — כל ‎if (!ok) return‎ קיים ממשיך לעבוד."""
     core = _read("core.js")
-    assert "falsy" in core[core.index("שלוש תוצאות"):core.index("window.appConfirm")]
+    assert "falsy" in core[core.index("Three outcomes"):core.index("window.appConfirm")]
 
 
 # ‎projects.js‎ ירד מהרשימה: מחיקת פרויקט עברה לתוך הפרויקט עצמו, ואין
