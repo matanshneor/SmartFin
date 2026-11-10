@@ -38,7 +38,7 @@ def _signup(client, phone):
     return client.post("/signup", data={
         "first_name": "ישראל", "last_name": "ישראלי",
         "email": "israel@example.com", "phone": phone,
-        "password": "sixchars", "password_confirm": "sixchars",
+        "password": "sixchars8", "password_confirm": "sixchars8",
     })
 
 

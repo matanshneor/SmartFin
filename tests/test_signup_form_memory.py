@@ -40,7 +40,7 @@ _FORM = {
     "first_name": "ישראל", "last_name": "ישראלי",
     "email": "israel@example.com", "phone": "050-1234567",
     "invite_code": "K4F2QX",
-    "password": "sixchars", "password_confirm": "sixchars",
+    "password": "sixchars8", "password_confirm": "sixchars8",
 }
 
 
@@ -105,7 +105,7 @@ def test_the_passwords_are_never_echoed_back(anon, monkeypatch):
 
     html = _signup(anon, email="israel@gmail")
 
-    assert "sixchars" not in html
+    assert "sixchars8" not in html
 
 
 def test_a_fresh_signup_page_is_empty(anon):

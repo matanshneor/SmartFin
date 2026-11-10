@@ -38,7 +38,7 @@ def _signup(client, email, **extra):
     form = {
         "first_name": "ישראל", "last_name": "ישראלי",
         "email": email, "phone": "050-1234567",
-        "password": "sixchars", "password_confirm": "sixchars",
+        "password": "sixchars8", "password_confirm": "sixchars8",
     }
     form.update(extra)
     return client.post("/signup", data=form)

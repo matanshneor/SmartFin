@@ -1,16 +1,16 @@
-"""A new password: at least 8 characters, and not one that leaked (Matan,
+"""A new password: at least 8 characters, with letters and digits (Matan,
 10.11.2026).
 
-See backend/passwords.py. Here: the rule itself, that the password doesn't leave
-the server, that the external service doesn't block sign-up when it is down, and
-that all three places where a password is chosen (sign-up, reset, change) really
-check.
+See backend/passwords.py. Here: the rule itself, that it is the same in the
+browser and on the server, that sign-in never checks it (existing passwords keep
+working), and that all three places where a password is chosen (sign-up, reset,
+change) really check.
 """
-import hashlib
-import re
+import json
+import shutil
+import subprocess
 from pathlib import Path
 
-import httpx
 import pytest
 
 from backend import app as app_module
@@ -20,105 +20,51 @@ from backend.app import app, limiter
 pytestmark = pytest.mark.unit
 
 _ROOT = Path(__file__).resolve().parent.parent
-_LEAKED = "Password123!"          # as if leaked: set in the fake response
-_FINE = "a-fine-long-passphrase"
-# captured at import time, before conftest replaces it for every unit test
-_REAL_FETCH = passwords._fetch_range
 
-
-def _sha(pw):
-    return hashlib.sha1(pw.encode("utf-8")).hexdigest().upper()
-
-
-@pytest.fixture
-def pwned(monkeypatch):
-    """A fake service: _LEAKED leaked 42 times; _FINE appears only as a padding row."""
-    asked = []
-
-    def fake(prefix):
-        asked.append(prefix)
-        lines = ["0000000000000000000000000000000000A:3"]
-        if _sha(_LEAKED)[:5] == prefix:
-            lines.append(_sha(_LEAKED)[5:] + ":42")
-        if _sha(_FINE)[:5] == prefix:
-            lines.append(_sha(_FINE)[5:] + ":0")
-        return "\r\n".join(lines)
-    monkeypatch.setattr(passwords, "_fetch_range", fake)
-    return asked
+# (password, expected message or None)
+_CASES = [
+    ("abc123",        passwords.TOO_SHORT),   # 6: too short
+    ("abcd123",       passwords.TOO_SHORT),   # 7: one short
+    ("12345678",      passwords.NO_LETTER),   # digits only
+    ("abcdefgh",      passwords.NO_DIGIT),    # letters only
+    ("!@#$%^&*",      passwords.NO_LETTER),   # symbols only
+    ("abcdefg1",      None),                  # exactly 8, letter + digit
+    ("Dana2026",      None),
+    ("שלום1234",      None),                  # Hebrew letters count as letters
+    ("a1!b2@c3#",     None),                  # symbols are allowed, not required
+]
 
 
 # ─── The rule ────────────────────────────────────────────────────────────────
 
-def test_seven_is_too_short_eight_is_enough(pwned):
-    assert passwords.problem("1234567x"[:7]) == passwords.TOO_SHORT
-    assert passwords.problem(_FINE) is None
-    assert passwords.problem("abcdefgh") is None
+@pytest.mark.parametrize("password, message", _CASES)
+def test_the_rule(password, message):
+    assert passwords.problem(password) == message
 
 
-def test_a_leaked_password_is_refused(pwned):
-    assert passwords.problem(_LEAKED) == passwords.LEAKED
+def test_the_leaked_password_check_is_gone():
+    """Matan, 10.11: "I don't want this check". No call to an external service."""
+    source = (_ROOT / "backend/passwords.py").read_text(encoding="utf-8")
+    assert "pwnedpasswords" not in source and "httpx" not in source
+    assert not hasattr(passwords, "is_leaked")
+    privacy = (_ROOT / "frontend/templates/privacy.html").read_text(encoding="utf-8")
+    assert "Pwned" not in privacy
 
 
-def test_padding_rows_are_not_leaks(pwned):
-    """Add-Padding returns rows with count 0: they aren't real passwords."""
-    assert passwords.is_leaked(_FINE) is False
-
-
-def test_only_five_hash_characters_leave_the_server(pwned):
-    passwords.is_leaked(_LEAKED)
-    assert pwned == [_sha(_LEAKED)[:5]]
-    assert all(re.fullmatch(r"[0-9A-F]{5}", p) for p in pwned)
-
-
-def test_the_request_asks_for_padding(monkeypatch):
-    seen = {}
-
-    class _Resp:
-        text = ""
-        def raise_for_status(self):
-            pass
-
-    def fake_get(url, **kw):
-        seen["url"], seen["headers"] = url, kw.get("headers", {})
-        return _Resp()
-    monkeypatch.setattr(httpx, "get", fake_get)
-    _REAL_FETCH("ABCDE")
-    assert seen["url"] == "https://api.pwnedpasswords.com/range/ABCDE"
-    assert seen["headers"].get("Add-Padding") == "true"
+@pytest.mark.skipif(not shutil.which("node"), reason="node isn't installed")
+def test_the_browser_says_exactly_what_the_server_says():
+    """The browser check runs first; if it disagreed with the server, a password
+    could pass one and fail the other with a different message."""
+    script = (_ROOT / "frontend/static/js/password-rules.js").read_text(encoding="utf-8")
+    probe = ("var window = {};\n" + script +
+             "\nconsole.log(JSON.stringify(%s.map(window.sfPasswordProblem)));"
+             % json.dumps([p for p, _ in _CASES]))
+    out = subprocess.run(["node", "-e", probe], capture_output=True, text=True, check=True)
+    browser = json.loads(out.stdout)
+    assert browser == [m or "" for _, m in _CASES]
 
 
 # ─── Already registered (Matan, 10.11: "whoever is signed in stays signed in with their password") ──
-
-def test_sign_in_never_checks_the_password_rules(client, monkeypatch):
-    """A short or leaked password: whoever is already registered with it signs in as
-    usual, with no request to change it. The rules apply only to a **new**
-    password."""
-    def boom(*a, **k):
-        pytest.fail("sign-in checked the new-password rules")
-    monkeypatch.setattr(passwords, "is_leaked", boom)
-    monkeypatch.setattr(passwords, "problem", boom)
-    from types import SimpleNamespace
-    ok = SimpleNamespace(
-        user=SimpleNamespace(id="u1", email="old@gmail.com"),
-        session=SimpleNamespace(access_token="a", refresh_token="r", expires_at=9999999999))
-    monkeypatch.setattr(app_module.db, "sign_in", lambda e, p: (ok, None))
-    monkeypatch.setattr(app_module, "_begin_session", lambda *a: None)
-    for old_password in ("123456", _LEAKED):
-        with client.session_transaction() as s:
-            s.clear()
-        res = client.post("/login", data={"identifier": "old@gmail.com",
-                                          "password": old_password})
-        assert res.status_code == 302, res.get_data(as_text=True)
-
-
-def test_when_the_service_is_down_signup_is_not_stuck(monkeypatch):
-    def down(prefix):
-        raise httpx.ConnectTimeout("down")
-    monkeypatch.setattr(passwords, "_fetch_range", down)
-    assert passwords.problem(_LEAKED) is None
-
-
-# ─── The three places ────────────────────────────────────────────────────────
 
 @pytest.fixture
 def client():
@@ -128,46 +74,87 @@ def client():
     limiter.reset()
 
 
+def test_sign_in_never_checks_the_password_rules(client, monkeypatch):
+    """A short password, or one without digits: whoever is already registered with
+    it signs in as usual, with no request to change it. The rules apply only to a
+    **new** password."""
+    def boom(*a, **k):
+        pytest.fail("sign-in checked the new-password rules")
+    monkeypatch.setattr(passwords, "problem", boom)
+    from types import SimpleNamespace
+    ok = SimpleNamespace(
+        user=SimpleNamespace(id="u1", email="old@gmail.com"),
+        session=SimpleNamespace(access_token="a", refresh_token="r", expires_at=9999999999))
+    monkeypatch.setattr(app_module.db, "sign_in", lambda e, p: (ok, None))
+    monkeypatch.setattr(app_module, "_begin_session", lambda *a: None)
+    for old_password in ("123456", "abcdefgh"):
+        with client.session_transaction() as s:
+            s.clear()
+        res = client.post("/login", data={"identifier": "old@gmail.com",
+                                          "password": old_password})
+        assert res.status_code == 302, res.get_data(as_text=True)
+
+
+# ─── The three places ────────────────────────────────────────────────────────
+
+_BAD = [("abcd123", passwords.TOO_SHORT),
+        ("12345678", passwords.NO_LETTER),
+        ("abcdefgh", passwords.NO_DIGIT)]
+
+
 def _signup(client, password):
     return client.post("/signup", data={
         "first_name": "דנה", "last_name": "כהן", "email": "dana@gmail.com",
         "phone": "054-1234567", "password": password}).get_data(as_text=True)
 
 
-@pytest.mark.parametrize("password, message", [
-    ("seven77", passwords.TOO_SHORT),
-    (_LEAKED, passwords.LEAKED),
-])
-def test_signup_checks(client, monkeypatch, pwned, password, message):
+@pytest.mark.parametrize("password, message", _BAD)
+def test_signup_checks(client, monkeypatch, password, message):
     monkeypatch.setattr(app_module.db, "sign_up", lambda *a, **k: pytest.fail("signed up"))
     assert message in _signup(client, password)
 
 
-def test_reset_checks(client, monkeypatch, pwned):
+def test_signup_accepts_a_valid_password(client, monkeypatch):
+    called = []
+    monkeypatch.setattr(app_module.db, "sign_up",
+                        lambda *a, **k: (called.append(a), (None, "stop here"))[1])
+    _signup(client, "Dana2026")
+    assert called, "a valid password was refused"
+
+
+def test_reset_checks(client, monkeypatch):
     monkeypatch.setattr(app_module.db, "update_password", lambda *a: pytest.fail("changed"))
-    for pw, msg in (("seven77", passwords.TOO_SHORT), (_LEAKED, passwords.LEAKED)):
+    for pw, msg in _BAD:
         res = client.post("/api/auth/reset", json={
             "access_token": "t", "password": pw, "password_confirm": pw})
         assert res.status_code == 422 and res.get_json()["error"] == msg
 
 
-def test_change_in_settings_checks(client, monkeypatch, pwned):
+def test_change_in_settings_checks(client, monkeypatch):
     monkeypatch.setattr(app_module.db, "sign_in", lambda *a: pytest.fail("the current password was checked"))
     monkeypatch.setattr(app_module.db, "update_password", lambda *a: pytest.fail("changed"))
     monkeypatch.setattr(app_module.db, "set_auth_token", lambda t: None)
     with client.session_transaction() as s:
         s["user_id"], s["access_token"] = "u1", "tok"
-    for pw, needle in (("seven77", "לפחות 8 תווים"), (_LEAKED, passwords.LEAKED)):
+    for pw, msg in _BAD:
         res = client.put("/api/profile/password", json={
             "current_password": "old", "password": pw, "password_confirm": pw})
         assert res.status_code == 422, res.get_data(as_text=True)
-        assert needle in res.get_json()["error"]
+        assert res.get_json()["error"] == msg
 
 
-def test_the_forms_say_eight():
-    files = ["frontend/templates/login.html", "frontend/templates/reset_password.html",
-             "frontend/templates/settings.html", "frontend/static/js/login.js",
-             "frontend/static/js/reset-password.js", "frontend/static/js/settings.js"]
-    text = "".join((_ROOT / f).read_text(encoding="utf-8") for f in files)
+def test_the_forms_use_the_shared_rule():
+    """All three forms check through sfPasswordProblem, and each page loads it
+    before its own script."""
+    for page, script in (("login.html", "login.js"),
+                         ("reset_password.html", "reset-password.js"),
+                         ("settings.html", "settings.js")):
+        html = (_ROOT / "frontend/templates" / page).read_text(encoding="utf-8")
+        assert html.index("js/password-rules.js") < html.index(f"js/{script}'"), page
+        assert "אותיות וספרות" in html, f"{page} doesn't tell the user the rule"
+        js = (_ROOT / "frontend/static/js" / script).read_text(encoding="utf-8")
+        assert "sfPasswordProblem(" in js, script
+    text = "".join((_ROOT / f).read_text(encoding="utf-8") for f in (
+        "frontend/templates/login.html", "frontend/templates/reset_password.html",
+        "frontend/templates/settings.html"))
     assert 'minlength="6"' not in text and "לפחות 6 תווים" not in text
-    assert "v.length >= 8" in text and "password.length < 8" in text

@@ -146,7 +146,8 @@ if (window.location.hash.includes('type=recovery')) {
         },
         signup_password: function (v) {
             if (!v) return 'נא לבחור סיסמה';
-            return v.length >= 8 ? '' : (8 - v.length === 1 ? 'עוד תו אחד' : 'עוד ' + (8 - v.length) + ' תווים');
+            if (v.length < 8) return 8 - v.length === 1 ? 'עוד תו אחד' : 'עוד ' + (8 - v.length) + ' תווים';
+            return sfPasswordProblem(v);
         },
     };
 

@@ -136,10 +136,6 @@ def _unit_tests_cannot_reach_supabase(request, monkeypatch):
     import httpx
     for verb in ("request", "get", "post", "put", "patch", "delete"):
         monkeypatch.setattr(httpx, verb, lambda *a, **k: _refuse())
-    # The leaked-password check (`backend/passwords.py`) calls an external
-    # service. Default: no password leaked. `test_passwords.py` replaces this.
-    from backend import passwords
-    monkeypatch.setattr(passwords, "_fetch_range", lambda prefix: "")
     yield
 
 

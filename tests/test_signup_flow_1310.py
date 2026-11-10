@@ -24,7 +24,7 @@ def anon():
 
 def _form(**extra):
     form = {"first_name": "דנה", "last_name": "כהן", "email": "dana@gmail.com",
-            "phone": "054-1234567", "password": "sixchars"}
+            "phone": "054-1234567", "password": "sixchars8"}
     form.update(extra)
     return form
 

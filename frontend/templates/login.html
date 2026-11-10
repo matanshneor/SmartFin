@@ -173,7 +173,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="signup_password">סיסמה (לפחות 8 תווים)</label>
+                    <label class="form-label" for="signup_password">סיסמה (לפחות 8 תווים, אותיות וספרות)</label>
                     <input class="form-input" type="password" id="signup_password" name="password"
                            placeholder="••••••••" required autocomplete="new-password" minlength="8">
                     <p class="field-error" id="signup_password_error" role="alert" hidden></p>
@@ -199,6 +199,7 @@
     </div>
 
 <script src="{{ url_for('static', filename='js/net.js') }}"></script>
+<script src="{{ url_for('static', filename='js/password-rules.js') }}"></script>
 <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 <script src="{{ url_for('static', filename='js/password-eye.js') }}"></script>
 
