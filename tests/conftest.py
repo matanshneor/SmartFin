@@ -128,6 +128,10 @@ def _unit_tests_cannot_reach_supabase(request, monkeypatch):
     import httpx
     for verb in ("request", "get", "post", "put", "patch", "delete"):
         monkeypatch.setattr(httpx, verb, lambda *a, **k: _refuse())
+    # בדיקת הסיסמאות שדלפו (‎backend/passwords.py‎) פונה לשירות חיצוני.
+    # ברירת מחדל: אף סיסמה לא דלפה. ‎test_passwords.py‎ מחליפה את זה.
+    from backend import passwords
+    monkeypatch.setattr(passwords, "_fetch_range", lambda prefix: "")
     yield
 
 

@@ -135,7 +135,7 @@ if (window.location.hash.includes('type=recovery')) {
         },
         signup_password: function (v) {
             if (!v) return 'נא לבחור סיסמה';
-            return v.length >= 6 ? '' : (6 - v.length === 1 ? 'עוד תו אחד' : 'עוד ' + (6 - v.length) + ' תווים');
+            return v.length >= 8 ? '' : (8 - v.length === 1 ? 'עוד תו אחד' : 'עוד ' + (8 - v.length) + ' תווים');
         },
     };
 

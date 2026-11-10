@@ -18,8 +18,8 @@
         const password = document.getElementById('newPassword').value;
         const confirm  = document.getElementById('passwordConfirm').value;
 
-        if (password.length < 6) {
-            errorBox.textContent = 'הסיסמה חייבת להכיל לפחות 6 תווים';
+        if (password.length < 8) {
+            errorBox.textContent = 'הסיסמה חייבת להכיל לפחות 8 תווים';
             return;
         }
         if (password !== confirm) {

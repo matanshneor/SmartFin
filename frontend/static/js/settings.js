@@ -670,8 +670,8 @@ if (changePasswordBtn) {
             pwError.textContent = 'נא להזין את הסיסמה הנוכחית';
             return;
         }
-        if (password.length < 6) {
-            pwError.textContent = 'הסיסמה החדשה חייבת להכיל לפחות 6 תווים';
+        if (password.length < 8) {
+            pwError.textContent = 'הסיסמה החדשה חייבת להכיל לפחות 8 תווים';
             return;
         }
         if (password !== passwordConfirm) {

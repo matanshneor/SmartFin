@@ -23,6 +23,7 @@ from . import logs
 from . import notify
 from . import card_import
 from . import push
+from . import passwords
 
 logs.setup()
 logger = logs.get("smartfin.app")
@@ -1027,12 +1028,15 @@ def signup():
             error = "כתובת המייל אינה תקינה — בדקו שהיא מלאה, למשל israel@gmail.com"
         elif not _looks_like_phone(phone):
             error = "מספר הטלפון אינו תקין — למשל 050-1234567"
-        elif len(password) < 6:
-            error = "הסיסמה חייבת להכיל לפחות 6 תווים"
+        elif len(password) < passwords.MIN_LENGTH:
+            error = passwords.TOO_SHORT
         # "אימות סיסמה" הוסר מהטופס (מתן, 13.10 — יש עין שמראה מה הוקלד). נבדק
         # רק אם נשלח, כדי שטופס ישן שעוד פתוח בטלפון ימשיך לעבוד
         elif "password_confirm" in request.form and password != password_confirm:
             error = "הסיסמאות אינן תואמות"
+        # אחרונה: היא היחידה שפונה לשירות חיצוני, אז רק כשכל השאר תקין
+        elif passwords.is_leaked(password):
+            error = passwords.LEAKED
         else:
             name = f"{first_name} {last_name}"
             response, err = db.sign_up(email, password, name, phone)
@@ -1206,10 +1210,12 @@ def reset_password_submit():
 
     if not access_token:
         return jsonify({"error": "קישור האיפוס לא תקין או שפג תוקפו"}), 400
-    if len(password) < 6:
-        return jsonify({"error": "הסיסמה חייבת להכיל לפחות 6 תווים"}), 422
+    if len(password) < passwords.MIN_LENGTH:
+        return jsonify({"error": passwords.TOO_SHORT}), 422
     if password != password_confirm:
         return jsonify({"error": "הסיסמאות אינן תואמות"}), 422
+    if passwords.is_leaked(password):
+        return jsonify({"error": passwords.LEAKED}), 422
 
     ok, err = db.update_password(access_token, password)
     if not ok:
@@ -2637,10 +2643,12 @@ def update_password():
 
     if not current_password:
         return jsonify({"error": "נא להזין את הסיסמה הנוכחית"}), 422
-    if len(password) < 6:
-        return jsonify({"error": "הסיסמה החדשה חייבת להכיל לפחות 6 תווים"}), 422
+    if len(password) < passwords.MIN_LENGTH:
+        return jsonify({"error": f"הסיסמה החדשה חייבת להכיל לפחות {passwords.MIN_LENGTH} תווים"}), 422
     if password != password_confirm:
         return jsonify({"error": "הסיסמאות החדשות אינן תואמות"}), 422
+    if passwords.is_leaked(password):
+        return jsonify({"error": passwords.LEAKED}), 422
 
     # מוודאים שהסיסמה הנוכחית נכונה לפני שמאפשרים להחליף אותה
     _, err = db.sign_in(_current_email()[0], current_password)
