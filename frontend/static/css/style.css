@@ -3140,14 +3140,6 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .cat-row-text .cat-row-name { flex: none; }
 .cat-row-avg { font-size: 0.74rem; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 
-.cat-system-badge {
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    background: var(--color-input);
-    padding: 3px 9px;
-    border-radius: 99px;
-}
 
 .edit-cat-btn {
     position: relative;
@@ -3365,27 +3357,25 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
  *
  * `flex-wrap` on the row is what drops the block onto its own line instead of
  * squeezing it next to the name. */
-.cat-budget-edit {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 6px 0 2px;
-}
+/* Since 11.11 (design pass) the label and switch sit on the category's own row:
+   the block's children join the row, and only the amount fields wrap below. */
+.cat-budget-edit { display: contents; }
 
 .cat-budget-label {
-    font-size: 0.82rem;
-    color: var(--color-text-soft);
-    /* pushes the switch to the other end of the row, as in the rest of settings */
-    margin-inline-end: auto;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
 }
+/* While reordering, the row also carries the handle and the arrows: the word
+   goes (the switch keeps its spoken label), so the average stays on one line */
+#categoriesArea.managing .cat-budget-label { display: none; }
 
 .cat-budget-fields {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    flex-basis: 100%;
+    justify-content: flex-end;
 }
 
 /* `display: flex` beats the browser stylesheet's `[hidden]`: an author rule

@@ -133,3 +133,14 @@ def test_a_new_single_transaction_can_be_undone():
     assert "undo = { kind: 'delete', id: data.transaction.id, message: message };" in js
     assert "!payload.is_recurring && !payload.installments" in js
     assert "if (spec.kind === 'delete')" in js
+
+
+def test_a_category_is_one_row_with_its_budget_switch():
+    """The list was 5.6 screens: every category had a second line for the switch,
+    and "מובנה" twelve times. The switch stays always visible (Matan's rule), on
+    the category's own row."""
+    tpl = _tpl("settings.html")
+    assert '<span class="cat-system-badge">' not in tpl
+    assert "display: contents" in _rule(".cat-budget-edit")
+    assert "flex-basis: 100%" in _rule(".cat-budget-fields")
+    assert "#categoriesArea.managing .cat-budget-label { display: none; }" in _CSS
