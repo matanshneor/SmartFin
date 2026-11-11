@@ -48,3 +48,11 @@ def test_one_form_of_address(path):
     text = path.read_text(encoding="utf-8")
     found = [w for w in _SINGULAR if w in text]
     assert not found, f"{path.name}: {found}"
+
+
+def test_requests_say_na():
+    """"נא ל…" in every validation message, as in sixteen places already"""
+    for name in ("projects.js", "project-edit.js", "import.js"):
+        js = (_ROOT / "frontend/static/js" / name).read_text(encoding="utf-8")
+        assert "'יש לבחור" not in js and "'בחרו " not in js, name
+    assert '"יש לבחור' not in (_ROOT / "backend/app.py").read_text(encoding="utf-8")

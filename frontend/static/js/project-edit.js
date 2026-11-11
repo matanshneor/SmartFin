@@ -420,7 +420,7 @@ editForm.addEventListener('submit', function (e) {
     saveError.textContent = '';
     if (!fields.name.value.trim()) { saveError.textContent = 'נא להזין שם לפרויקט'; return; }
     if (!fields.trackExpense.checked && !fields.trackIncome.checked && !fields.trackSavings.checked) {
-        saveError.textContent = 'יש לבחור לפחות מחלקה אחת למעקב';
+        saveError.textContent = 'נא לבחור לפחות מחלקה אחת למעקב';
         return;
     }
     if (document.querySelector('.category-row.editing')) {

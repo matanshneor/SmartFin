@@ -154,10 +154,10 @@ $('importMapGo').addEventListener('click', function () {
     });
     const err = $('importMapError');
     if (mapping.date === undefined || mapping.merchant === undefined) {
-        err.textContent = 'בחרו לפחות תאריך ובית עסק'; return;
+        err.textContent = 'נא לבחור לפחות תאריך ובית עסק'; return;
     }
     if (mapping.charge === undefined && mapping.amount === undefined) {
-        err.textContent = 'בחרו את עמודת הסכום'; return;
+        err.textContent = 'נא לבחור את עמודת הסכום'; return;
     }
     const cols = Object.keys(mapping).map(function (k) { return mapping[k]; });
     if (new Set(cols).size !== cols.length) { err.textContent = 'אותה עמודה נבחרה פעמיים'; return; }
@@ -359,7 +359,7 @@ commitBtn.addEventListener('click', function () {
     const missing = chosen.filter(function (r) { return !r.category_id; });
     if (missing.length) {
         missing.forEach(function (r) { r._li.classList.add('needs-cat'); });
-        commitErr.textContent = 'חסרה קטגוריה ל' + window.sfCount(missing.length, 'עסקה אחת', 'עסקאות') + ' — בחרו, או הורידו את הסימון';
+        commitErr.textContent = 'חסרה קטגוריה ל' + window.sfCount(missing.length, 'עסקה אחת', 'עסקאות') + ' — נא לבחור קטגוריה, או להוריד את הסימון';
         missing[0]._li.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
     }

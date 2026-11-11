@@ -2237,7 +2237,7 @@ def _parse_project_body(body: dict):
     track_income  = bool(body.get("track_income", False))
     track_savings = bool(body.get("track_savings", False))
     if not (track_expense or track_income or track_savings):
-        return None, "יש לבחור לפחות מחלקה אחת למעקב"
+        return None, "נא לבחור לפחות מחלקה אחת למעקב"
 
     return {
         "name": name, "budget_target": budget_target, "description": description,
@@ -3261,7 +3261,7 @@ def _validated_frequency(body):
         return None, None
     freq = body.get("recurring_frequency")
     if freq not in _FREQUENCIES:
-        return None, "יש לבחור כל כמה זמן העסקה הקבועה נרשמת"
+        return None, "נא לבחור כל כמה זמן העסקה הקבועה נרשמת"
     return freq, None
 
 
