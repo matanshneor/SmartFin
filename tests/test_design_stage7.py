@@ -78,3 +78,18 @@ def test_home_has_no_letter_circle_and_search_sits_lower():
     assert "avatar-circle" not in tpl and "avatar-circle" not in _CSS
     assert 'id="searchOpen"' in tpl
     assert ".hero-top > .hero-actions { align-self: center; }" in _CSS
+
+
+def test_no_dark_band_under_the_last_card_and_cream_once_the_header_is_gone():
+    """Matan's iPhone, 11.11: brown under the last card, brown behind the clock"""
+    i = _CSS.index("body:has(> .page-hero) {")
+    assert "background-size: 100% calc(100% - 120px);" in _CSS[i:_CSS.index("}", i)]
+    assert "html.past-hero body:has(> .page-hero) { background-color: var(--color-bg); }" in _CSS
+    core = (_ROOT / "frontend/static/js/core.js").read_text(encoding="utf-8")
+    assert "root.classList.toggle('past-hero', next)" in core
+
+
+def test_the_menu_is_not_moved_during_the_rubber_band_pull():
+    js = (_ROOT / "frontend/static/js/pwa.js").read_text(encoding="utf-8")
+    settle = js[js.index("function settle()"):]
+    assert settle.index("if (overscrolled()) { soon(); return; }") < settle.index("sfDockOffset(")

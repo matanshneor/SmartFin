@@ -309,7 +309,17 @@ if ('serviceWorker' in navigator) {
         return a && a.matches && a.matches('input, textarea, select, [contenteditable="true"]');
     }
 
+    // Past the top or the bottom of the page (the rubber-band pull) the visible
+    // screen is pulled along with the finger: a shift measured then sent the menu
+    // off the screen until the next page (Matan's iPhone, 11.11). Measure again
+    // once the page has sprung back.
+    function overscrolled() {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        return window.scrollY < 0 || window.scrollY > max + 1;
+    }
+
     function settle() {
+        if (overscrolled()) { soon(); return; }
         const shift = (vv && !typing())
             ? window.sfDockOffset(window.innerHeight, vv.height, vv.offsetTop) : 0;
         document.querySelectorAll('.bottom-nav, .fab').forEach(function (el) {
