@@ -6003,3 +6003,18 @@ body:has(> .page-hero) {
     padding: 2px 8px;
     border-radius: var(--radius-pill);
 }
+
+/* ─── Chips: one size (design pass, stage 8, 11.11) ──────────────────
+   The tappable chips (filter by type and category, sort, range) all build on
+   .date-chip, and each variant set its own height (34, 36, ~30), padding and
+   text. Now one: 36px, the same padding and text; a 44px tap area stays
+   where it was given (`.range-chip::before`). Chosen: also bold, so the state
+   isn't carried by colour alone. The sheet's own date row is styled by
+   #modalOverlay and isn't touched. */
+.tx-type-chip, .tx-cat-chip, .tx-sort-chip, .range-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 36px;
+    padding: 0 14px;
+    font-size: 0.82rem;
+}
+.tx-type-chip.active, .tx-cat-chip.active, .tx-sort-chip.active, .range-chip.active { font-weight: 700; }

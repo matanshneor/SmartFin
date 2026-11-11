@@ -52,3 +52,15 @@ def test_tags_come_in_one_size():
         assert sel in block
     for decl in ("font-size: 0.72rem", "font-weight: 600", "padding: 2px 8px", "var(--radius-pill)"):
         assert decl in block
+
+
+def test_chips_come_in_one_size_and_selected_is_bold():
+    """Selected was told apart almost only by hue; now also by weight"""
+    sels = (".tx-type-chip", ".tx-cat-chip", ".tx-sort-chip", ".range-chip")
+    i = _CSS.index(", ".join(sels) + " {")
+    rule = _CSS[i:_CSS.index("}", i)]
+    for decl in ("min-height: 36px", "font-size: 0.82rem", "padding: 0 14px"):
+        assert decl in rule
+    active = ", ".join(s + ".active" for s in sels) + " {"
+    j = _CSS.index(active)
+    assert "font-weight: 700" in _CSS[j:_CSS.index("}", j)]
