@@ -40,3 +40,19 @@ def test_the_expense_donut_total_is_red_not_gold():
     assert "var(--color-expense)" in _rule(".doughnut-total.expense")
     assert '<p class="doughnut-total expense">' in _tpl("month.html")
     assert '<p class="doughnut-total {{ typ }}">' in _tpl("project_detail.html")
+
+
+# ─── 4. One segmented control ─────────────────────────────────────────
+
+def test_the_chosen_tab_is_a_white_pill_everywhere():
+    rule = _rule(".toggle-btn.active")
+    assert "background: var(--color-card)" in rule
+    assert "gradient" not in rule
+
+
+@pytest.mark.parametrize("mode,color", [("income", "--color-income"), ("expense", "--color-expense"),
+                                        ("savings", "--color-savings")])
+def test_the_type_keeps_its_colour_in_the_text(mode, color):
+    i = _CSS.index(f".modal-sheet.{mode}-mode .toggle-btn.active")
+    rule = _CSS[i:_CSS.index("}", i)]
+    assert f"color: var({color})" in rule and "background" not in rule

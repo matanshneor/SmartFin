@@ -1741,47 +1741,26 @@ body:has(.modal-overlay.open) .toast {
 }
 .toggle-btn:active:not(:disabled) { transform: scale(0.97); }
 
+/* One segmented control in the whole app (design pass, 11.11, Matan saw it side
+   by side): the chosen option is a white pill on the grey track, like "של מי"
+   and the date in the add sheet. It was a full gold, red or green block that
+   outshouted the amount itself. The type keeps its colour, in the text. */
 .toggle-btn.active {
-    background: var(--gradient-gold);
-    color: #FFFFFF;
-    box-shadow: 0 2px 8px rgba(166, 124, 0, 0.30);
+    background: var(--color-card);
+    color: var(--color-gold-text);
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(31, 24, 8, 0.12);
 }
 
-.modal-sheet.income-mode .toggle-btn.active {
-    /* The old light-green end gave white text 3.4:1, below the standard */
-    background: linear-gradient(135deg, #15803D, #166534);
-    color: #FFFFFF;
-    box-shadow: 0 2px 8px rgba(21, 128, 61, 0.30);
-}
-
-.modal-sheet.expense-mode .toggle-btn.active {
-    background: var(--gradient-danger);
-    color: #FFFFFF;
-    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.30);
-}
-
-.modal-sheet.savings-mode .toggle-btn.active {
-    background: var(--gradient-gold);
-    color: #FFFFFF;
-    box-shadow: 0 2px 8px rgba(166, 124, 0, 0.30);
-}
-
-/* The same transaction-type colours (income=green, expense=red, savings=gold)
-   in the category management tabs too, in settings and on the project page */
+.modal-sheet.income-mode .toggle-btn.active,
 .cat-type-tabs .toggle-btn[data-cat-tab="income"].active,
-.project-cat-tabs .toggle-btn[data-cat-tab="income"].active {
-    /* The old light-green end gave white text 3.4:1, below the standard */
-    background: linear-gradient(135deg, #15803D, #166534);
-    color: #FFFFFF;
-    box-shadow: 0 2px 8px rgba(21, 128, 61, 0.30);
-}
+.project-cat-tabs .toggle-btn[data-cat-tab="income"].active { color: var(--color-income); }
 
+.modal-sheet.expense-mode .toggle-btn.active,
 .cat-type-tabs .toggle-btn[data-cat-tab="expense"].active,
-.project-cat-tabs .toggle-btn[data-cat-tab="expense"].active {
-    background: var(--gradient-danger);
-    color: #FFFFFF;
-    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.30);
-}
+.project-cat-tabs .toggle-btn[data-cat-tab="expense"].active { color: var(--color-expense); }
+
+.modal-sheet.savings-mode .toggle-btn.active { color: var(--color-savings); }
 
 /* Owner toggle: whose expense it is */
 .owner-toggle {

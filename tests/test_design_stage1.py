@@ -126,12 +126,13 @@ def test_the_off_switch_track_is_visible(block, card):
     assert _ratio(_token("toggle-off", block), card) >= 3
 
 
-def test_the_income_tab_passes_with_white_text():
-    rule = _rule(".modal-sheet.income-mode .toggle-btn.active")
-    stops = re.findall(r"#[0-9A-Fa-f]{6}", re.search(r"background:[^;]*", rule).group(0))
-    assert stops
-    for stop in stops:
-        assert _ratio("#FFFFFF", stop) >= 4.5, stop
+def test_the_income_tab_text_passes_on_its_pill():
+    """Was white on a green gradient (3.4:1 at the light end); since stage 3 the
+    chosen tab is a white pill with the type's colour as text"""
+    i = _CSS.index(".modal-sheet.income-mode .toggle-btn.active")
+    rule = _CSS[i:_CSS.index("}", i)]
+    assert "var(--color-income)" in rule
+    assert _ratio(_token("color-income"), _token("color-card")) >= 4.5
 
 
 def test_switch_focus_ring_passes_on_light_surfaces():
