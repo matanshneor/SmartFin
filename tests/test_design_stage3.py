@@ -32,3 +32,11 @@ def test_the_month_balance_matches_home():
     assert "| round | int | money" in value
     assert "var(--gradient-gold-text)" in _rule(".month-net.surplus .month-net-value")
     assert "var(--color-gold-bright)" in _rule(".month-sticky-value.surplus")
+
+
+# ─── 3. The expense total in the expense colour ───────────────────────
+
+def test_the_expense_donut_total_is_red_not_gold():
+    assert "var(--color-expense)" in _rule(".doughnut-total.expense")
+    assert '<p class="doughnut-total expense">' in _tpl("month.html")
+    assert '<p class="doughnut-total {{ typ }}">' in _tpl("project_detail.html")

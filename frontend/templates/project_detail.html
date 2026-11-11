@@ -136,7 +136,7 @@
         <div class="doughnut-wrap">
             <canvas id="chart-{{ typ }}" role="img" aria-label="{{ chart_titles[typ] }}"></canvas>
             <div class="doughnut-center">
-                <p class="doughnut-total">₪{{ type_totals[typ] | money }}</p>
+                <p class="doughnut-total {{ typ }}">₪{{ type_totals[typ] | money }}</p>
                 <p class="doughnut-label">{{ type_labels[typ] }}</p>
             </div>
         </div>

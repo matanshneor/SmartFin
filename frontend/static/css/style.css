@@ -2236,6 +2236,8 @@ a.submit-btn {
 .delete-tx-btn:disabled { opacity: 0.6; }
 
 /* ─── Income and savings: a donut like expenses (Matan, 30.9) ─────── */
+/* Expenses in the expense colour (design pass, 11.11): gold is savings everywhere else */
+.doughnut-total.expense { color: var(--color-expense); }
 .doughnut-total.income  { color: var(--color-income); }
 .doughnut-total.savings { color: var(--color-savings); }
 
