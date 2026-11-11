@@ -36,3 +36,15 @@ def test_the_new_line_icons_exist():
     from backend.icons import _PATHS
     for name in ("bar-chart", "trend-down", "trend-up", "users", "plus-circle"):
         assert name in _PATHS
+
+
+_SINGULAR = ("רק לך", "עבורך", "תיפתח לך", "השם שלך", "אליך ", "בעצמך", "החשבון שלך")
+
+
+@pytest.mark.parametrize("path", list(_ui_files()), ids=lambda p: p.name)
+def test_one_form_of_address(path):
+    """The app speaks in the plural ("אתם"); a personal matter is worded without
+    addressing anyone ("גלוי רק למי שיצר אותו")"""
+    text = path.read_text(encoding="utf-8")
+    found = [w for w in _SINGULAR if w in text]
+    assert not found, f"{path.name}: {found}"

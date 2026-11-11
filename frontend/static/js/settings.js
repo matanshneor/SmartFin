@@ -1225,8 +1225,8 @@ attrSwitches.forEach(function (sw) {
         leaveBtn.addEventListener('click', function () {
             window.appConfirm({
                 title: 'לעזוב את המשפחה?',
-                message: 'תאבדו גישה לתקציב המשפחתי. תיפתח לך משפחה חדשה וריקה, '
-                       + 'והחשבון שלך נשאר. אפשר לחזור בקוד הזמנה.',
+                message: 'תאבדו גישה לתקציב המשפחתי. תיפתח לכם משפחה חדשה וריקה, '
+                       + 'והחשבון נשאר. אפשר לחזור בקוד הזמנה.',
                 confirmText: 'המשך',
             }).then(function (ok) {
                 if (!ok) return null;

@@ -233,7 +233,7 @@
                 {% if not alone %}
                 <p class="family-move-or">או</p>
                 <div class="family-move-new">
-                    <p class="group-row-hint">תיפתח לך משפחה חדשה וריקה. החשבון שלך נשאר.</p>
+                    <p class="group-row-hint">תיפתח לכם משפחה חדשה וריקה, והחשבון נשאר.</p>
                     <button class="btn-sm btn-danger-ghost" id="leaveFamilyBtn">פתיחת משפחה חדשה</button>
                 </div>
                 {% endif %}
@@ -272,7 +272,7 @@
                             <button type="button" class="toggle-btn active" id="resetScopeMine" data-scope="mine">רק העסקאות שלי</button>
                             {% endif %}
                         </div>
-                        <p class="field-hint">"רק העסקאות שלי" מוחק עסקאות שמשויכות אליך אישית — עסקאות משותפות ושל בני משפחה אחרים נשארות</p>
+                        <p class="field-hint">"רק העסקאות שלי" מוחק עסקאות שמשויכות אישית אליכם — עסקאות משותפות ושל בני משפחה אחרים נשארות</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="resetAccountPassword">אישור עם הסיסמה הנוכחית</label>
@@ -668,7 +668,7 @@
                         <span class="acct-icon">{{ ui_icon("palette") }}</span>
                         <span class="acct-text">
                             <span class="acct-label">הצבע שלי</span>
-                            <span class="acct-value">כך מופיע השם שלך ליד עסקאות ובגרפים</span>
+                            <span class="acct-value">כך מופיע השם ליד עסקאות ובגרפים</span>
                         </span>
                         <span class="member-color-swatch" style="background: {{ color_hex[mine] }};"></span>
                         <span class="acct-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
@@ -683,7 +683,7 @@
             <div class="color-sheet" id="memberColorSheet" role="dialog" aria-modal="true" aria-labelledby="memberColorTitle" hidden>
                 <div class="color-sheet-card">
                     <p class="color-sheet-title" id="memberColorTitle">הצבע שלך</p>
-                    <p class="color-sheet-hint">כך יופיע השם שלך ליד עסקאות ובגרפים</p>
+                    <p class="color-sheet-hint">כך יופיע השם ליד עסקאות ובגרפים</p>
                     <div class="color-sheet-grid">
                         {% for idx, hex in color_hex | dictsort %}
                         {% set taken = idx != mine and idx in member_colors.values() | list %}
