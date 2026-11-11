@@ -233,3 +233,22 @@ def test_the_input_edge_passes_three_to_one(ink, card):
     alpha = float(re.search(r"border: 1px solid rgba\(var\(--ink-rgb\), ([0-9.]+)\)", _rule(".form-input")).group(1))
     mix = "#" + "".join(f"{round(alpha * i + (1 - alpha) * c):02X}" for i, c in zip(ink, card))
     assert _ratio(mix, "#%02X%02X%02X" % card) >= 3
+
+
+def test_the_chart_palette_is_option_a():
+    """Matan chose option A from the samples (11.11): warmer and quieter, and
+    still about as far apart as the old set (smallest CIE76 distance >= 25)"""
+    import itertools, math
+    js = _js("chart-setup.js")
+    palette = re.findall(r"'(#[0-9A-Fa-f]{6})'", js[js.index("var COLORS = ["):js.index("];")])
+    assert palette[4:6] == ["#8B4A6B", "#9CC4B6"] and palette[9:11] == ["#D0703A", "#7E8FB3"]
+
+    def lab(h):
+        c = [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        c = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in c]
+        x = (c[0] * .4124 + c[1] * .3576 + c[2] * .1805) / .95047
+        y = c[0] * .2126 + c[1] * .7152 + c[2] * .0722
+        z = (c[0] * .0193 + c[1] * .1192 + c[2] * .9505) / 1.08883
+        f = lambda t: t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+        return (116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z)))
+    assert min(math.dist(lab(a), lab(b)) for a, b in itertools.combinations(palette, 2)) >= 25

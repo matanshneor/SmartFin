@@ -22,11 +22,15 @@ window.sfCharts = (function () {
 
     var COLORS = [
         '#A67C00', '#2E8B6E', '#B83A4B', '#1F5F6B',
-        '#7B4FB8', '#4CB3C9', '#7A4E2D', '#E58FB0',
+        // 5, 6, 8 and 9–11 warmer and quieter (Matan, 11.11, option A from the
+        // samples): plum, sage, peach, olive, copper, stone blue instead of the
+        // saturated purple, cyan, pink, lime, orange and blue. Same places and
+        // families, about as far apart from each other as before.
+        '#8B4A6B', '#9CC4B6', '#7A4E2D', '#E0A28F',
         // 12 and not 8 (Matan, 12.10): the ninth came out in the first one's
         // colour. `CHART_COLORS` in app.py
 
-        '#9AAE3C', '#E07A2E', '#3B6FB6', '#8C857D'
+        '#8F9A3C', '#D0703A', '#7E8FB3', '#8C857D'
     ];
     // From the active theme, not constants: in dark mode (round 6, item 4)
     // dark grey on a dark background isn't readable, and grid lines in the ink
