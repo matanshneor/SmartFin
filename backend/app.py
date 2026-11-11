@@ -1151,7 +1151,7 @@ def signup():
                 # loud. The return value used to be thrown away, and every
                 # joiner got "signed up successfully" and then, silently, a new
                 # family of their own.
-                success = "נרשמתם בהצלחה! כעת ניתן להתחבר."
+                success = "נרשמתם בהצלחה. אפשר להתחבר."
                 join_err = None
                 if invite_code and response and response.user:
                     # The RPC identifies the joiner through auth.uid(), so the

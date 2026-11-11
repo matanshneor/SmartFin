@@ -7,6 +7,8 @@
     const overlay = document.getElementById('yearRecap');
     if (!overlay) return;
     const body = document.getElementById('yrBody');
+    // The same abbreviations as the comparison page (`months.js`), with ׳
+    const SHORT = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳'];
     const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי',
                     'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
     const esc = window.escapeHtml;
@@ -45,7 +47,7 @@
         d.months.filter(m => m.month <= d.through).forEach(function (m) {
             const cls = m.month === d.costliest ? ' is-high' : m.month === d.best ? ' is-best' : '';
             bars += '<div class="yr-bar' + cls + '"><i style="height:' + Math.max(4, Math.round(m.expense / max * 100)) + '%"></i>'
-                  + '<span>' + MONTHS[m.month - 1].slice(0, 3) + '</span></div>';
+                  + '<span>' + SHORT[m.month - 1] + '</span></div>';
         });
         bars += '</div>';
         let lines = '';

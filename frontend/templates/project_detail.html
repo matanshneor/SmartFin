@@ -172,7 +172,7 @@
                         data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
                         data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
                         <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-                        <span class="cat-tx-desc">{{ tx.description or item.name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %} · <span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">נרשמה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
+                        <span class="cat-tx-desc">{{ tx.description or item.name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %} · <span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">הוזנה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
                         {% if (show_owner or {}).get(typ) %}
                         {% set color = member_colors.get(tx.user_id) %}
                         <span class="owner-pill owner-pill-sm owner-{{ color if color is not none else 'shared' }}">{{ tx.user_name if tx.user_id else 'משותפת' }}</span>
@@ -208,7 +208,7 @@
             data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
             data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
             <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-            <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">נרשמה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
+            <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">הוזנה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
             {% if (show_owner or {}).get(tx.type) %}
             {% set color = member_colors.get(tx.user_id) %}
             <span class="owner-pill owner-pill-sm owner-{{ color if color is not none else 'shared' }}">{{ tx.user_name if tx.user_id else 'משותפת' }}</span>
