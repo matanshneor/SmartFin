@@ -5940,3 +5940,22 @@ body:has(> .bottom-nav)::after {
     pointer-events: none;
     z-index: calc(var(--z-dock) - 1);
 }
+
+/* ─── Behind the clock and battery, second try (design pass, 11.11) ───
+   iOS 26 ignores theme-color and tints the status bar area from the page's
+   background colour, ours is cream, so a faded cream-grey band sat over the dark
+   header. The first try (10.11) laid a fixed strip there and looked pasted on;
+   Matan reverted it. This time no element is added: on pages with the dark
+   header, the page's own colour is the header's dark, and the cream is a layer
+   that starts 120px down, under the header, which always covers that much. So
+   the dark band simply continues up behind the clock. The canvas (html) stays
+   cream, which is what a pull past the bottom shows.
+   An experiment only an iPhone can confirm: if it looks wrong, revert this
+   commit. */
+html:has(> body > .page-hero) { background: var(--color-bg); }
+body:has(> .page-hero) {
+    background-color: var(--hero-bg-2);
+    background-image: linear-gradient(var(--color-bg), var(--color-bg));
+    background-position: 0 120px;
+    background-repeat: no-repeat;
+}

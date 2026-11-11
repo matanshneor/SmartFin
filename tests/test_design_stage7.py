@@ -28,3 +28,12 @@ def test_a_fade_above_the_dock_that_takes_no_taps():
     assert "pointer-events: none" in rule
     assert "var(--color-bg)" in rule
     assert "z-index: calc(var(--z-dock) - 1)" in rule
+
+
+def test_the_page_is_dark_behind_the_clock_without_an_added_strip():
+    """iOS 26 tints the status bar from the page colour (11.11, an experiment)"""
+    i = _CSS.index("body:has(> .page-hero) {")
+    rule = _CSS[i:_CSS.index("}", i)]
+    assert "background-color: var(--hero-bg-2)" in rule
+    assert "background-position: 0 120px" in rule
+    assert ".status-strip" not in _CSS          # the first try stays reverted
