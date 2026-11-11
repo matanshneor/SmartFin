@@ -225,3 +225,11 @@ def test_a_soft_refresh_across_a_deploy_reloads_fully():
     apply = core[core.index("function sfApplyHtml"):]
     apply = apply[:apply.index("pairs.forEach(function (pair) { pair[0].replaceWith")]
     assert "if (assets(doc) !== assets(document)) return 'full';" in apply
+
+
+@pytest.mark.parametrize("ink,card", [((28, 25, 23), (255, 255, 255)), ((255, 244, 214), (0x21, 0x1B, 0x12))])
+def test_the_input_edge_passes_three_to_one(ink, card):
+    """Matan chose 3:1 from the side-by-side samples (11.11)"""
+    alpha = float(re.search(r"border: 1px solid rgba\(var\(--ink-rgb\), ([0-9.]+)\)", _rule(".form-input")).group(1))
+    mix = "#" + "".join(f"{round(alpha * i + (1 - alpha) * c):02X}" for i, c in zip(ink, card))
+    assert _ratio(mix, "#%02X%02X%02X" % card) >= 3
