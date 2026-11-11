@@ -112,3 +112,24 @@ def test_home_shows_one_announcement_per_visit():
     assert "['#memberJoined', '.recap-wrap', '.year-card-wrap']" in block
     # Waiting is not "seen": nothing here writes to storage
     assert "localStorage" not in block
+
+
+def _txjs():
+    return (_ROOT / "frontend/static/js/transactions.js").read_text(encoding="utf-8")
+
+
+def test_no_category_is_chosen_silently():
+    """The first category was preselected, so a quick save landed in "דיור ושכירות".
+    Now: the last one used for the type on this phone, or nothing."""
+    js = _txjs()
+    assert "let fallbackBtn = null;" in js
+    assert "localStorage.getItem('sf_last_cat_' + currentType)" in js
+    assert "localStorage.setItem('sf_last_cat_' + currentType, payload.category_id)" in js
+    assert "'נא לבחור קטגוריה'" in js
+
+
+def test_a_new_single_transaction_can_be_undone():
+    js = _txjs()
+    assert "undo = { kind: 'delete', id: data.transaction.id, message: message };" in js
+    assert "!payload.is_recurring && !payload.installments" in js
+    assert "if (spec.kind === 'delete')" in js

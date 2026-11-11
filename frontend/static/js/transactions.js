@@ -289,11 +289,19 @@
             btn.setAttribute('aria-checked', 'false');
             categoryGrid.appendChild(btn);
         });
-        // Default: for income, "משכורת" is chosen if it exists (regardless of
-        // display order); in every other case, the first category.
+        // Default (design pass, 11.11): the category last used for this type on
+        // this phone; for income with no history, "משכורת". Otherwise nothing:
+        // the first category was chosen silently, and an expense saved without
+        // a glance at the grid landed in "דיור ושכירות". Saving without a choice
+        // now asks for one ('נא לבחור קטגוריה').
 
-        let fallbackBtn = categoryGrid.querySelector('.cat-btn');
-        if (!selectedId && currentType === 'income') {
+        let fallbackBtn = null;
+        if (!selectedId && !isProject) {
+            let last = null;
+            try { last = localStorage.getItem('sf_last_cat_' + currentType); } catch (e) { /* no storage */ }
+            if (last) fallbackBtn = categoryGrid.querySelector(`[data-value="${CSS.escape(last)}"]`);
+        }
+        if (!fallbackBtn && !selectedId && currentType === 'income') {
             const salary = cats.find(c => c.name && c.name.indexOf('משכורת') !== -1);
             const salaryBtn = salary && categoryGrid.querySelector(`[data-value="${salary.id}"]`);
             if (salaryBtn) fallbackBtn = salaryBtn;
@@ -1289,6 +1297,24 @@
         catch (e) { window.sfToastAfterReload(spec.message); }
     }
     function runUndo(spec) {
+        // "Undo" on a new transaction (design pass, 11.11): delete it again
+        if (spec.kind === 'delete') {
+            fetch('/api/transactions/' + spec.id, { method: 'DELETE' })
+                .then(function (r) { return r.json().catch(function () { return {}; }); })
+                .then(function (d) {
+                    if (d.error) { window.showToast(d.error, 'error'); return; }
+                    if (document.querySelector('main[data-soft-reload]')) {
+                        window.softReload(null, 'העסקה בוטלה').then(function (how) {
+                            if (how !== 'reloaded') window.showToast('העסקה בוטלה');
+                        });
+                    } else {
+                        window.sfToastAfterReload('העסקה בוטלה');
+                        window.location.reload();
+                    }
+                })
+                .catch(function () { window.showToast(window.sfNetError(), 'error'); });
+            return;
+        }
         fetch('/api/transactions/' + spec.id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1456,6 +1482,10 @@
             receipt_path:        currentType === 'expense' ? (txReceiptPath.value || null) : null,
             project_id:          txProject.value || null,
         };
+        // Remember the category for the next new transaction of this type
+        if (!editId && payload.category_id) {
+            try { localStorage.setItem('sf_last_cat_' + currentType, payload.category_id); } catch (e) { /* no storage */ }
+        }
         if (!editId && instCb && instCb.checked && currentType === 'expense') {
             const n = installmentCount();
             if (!n) { formError.textContent = 'מספר התשלומים — בין 2 ל-60'; instCount.focus(); return; }
@@ -1692,8 +1722,14 @@
                 // "Undo" after an edit: not when the series was changed from
                 // now on, and not after a failure
 
-                const undo = (myOriginal && data.transaction && !(followUp && (followUp.series || followUp.error)))
+                let undo = (myOriginal && data.transaction && !(followUp && (followUp.series || followUp.error)))
                     ? undoSpec(myOriginal, data.transaction, message) : null;
+                // A new single transaction can be undone too (design pass, 11.11);
+                // not a recurring one or installments, which start a series
+                if (!undo && isNew && data.transaction && data.transaction.id
+                        && !payload.is_recurring && !payload.installments && !(followUp && followUp.error)) {
+                    undo = { kind: 'delete', id: data.transaction.id, message: message };
+                }
                 if (document.querySelector('main[data-soft-reload]')) {
                     if (undo) rememberUndo(undo);
                     window.softReload(null, undo ? null : message).then(function (how) {
