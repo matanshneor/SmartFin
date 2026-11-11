@@ -1083,3 +1083,21 @@ document.addEventListener('click', function (e) {
         }
     });
 })();
+
+
+// ── Behind the clock once the dark header has scrolled away (Matan, 11.11) ──
+// iOS 26 tints the status bar from the page's colour. On pages with the dark
+// header that colour is dark (see style.css, "Behind the clock"); once the header
+// is out of view it should be cream, or brown shows over the cream cards.
+(function () {
+    const root = document.documentElement;
+    if (!root || typeof window.addEventListener !== 'function') return;
+    let on = null;
+    function update() {
+        const next = window.scrollY > 160;
+        if (next !== on) { on = next; root.classList.toggle('past-hero', next); }
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('pageshow', update);
+    update();
+})();

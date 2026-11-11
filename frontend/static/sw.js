@@ -1,4 +1,4 @@
-const CACHE = 'smartfin-v25';
+const CACHE = 'smartfin-v26';
 
 // No precaching.
 //

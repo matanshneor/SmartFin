@@ -5944,8 +5944,14 @@ body:has(> .page-hero) {
     background-color: var(--hero-bg-2);
     background-image: linear-gradient(var(--color-bg), var(--color-bg));
     background-position: 0 120px;
+    /* The cream ends where the page ends: at full size and 120px down, the last
+       120px of the page showed dark under the last card (Matan's iPhone, 11.11) */
+    background-size: 100% calc(100% - 120px);
     background-repeat: no-repeat;
 }
+/* Once the dark header has scrolled away, the page's colour is cream again, so
+   iOS stops tinting the clock area brown over cream cards (Matan, 11.11) */
+html.past-hero body:has(> .page-hero) { background-color: var(--color-bg); }
 
 /* ─── Buttons: three heights (design pass, stage 8, 11.11) ───────────
    Measured in the harness: the same .btn-sm came out 32, 36, 42 and 44px tall,
