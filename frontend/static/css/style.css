@@ -267,7 +267,9 @@ ul { list-style: none; }
         radial-gradient(ellipse 110% 80% at 85% -20%, rgba(212, 175, 55, 0.11), transparent 55%),
         linear-gradient(160deg, var(--hero-bg-2) 0%, var(--hero-bg) 70%);
     color: var(--hero-text);
-    padding: calc(14px + env(safe-area-inset-top, 0px)) 20px 46px;
+    /* 28px under the clock, not 14: iOS 26 blurs a band a little taller than
+       the safe area, and the greeting sat inside it (Matan's iPhone, 11.11) */
+    padding: calc(28px + env(safe-area-inset-top, 0px)) 20px 46px;
     border-bottom: 1px solid rgba(212, 175, 55, 0.18);
     position: relative;
 }
@@ -303,8 +305,11 @@ ul { list-style: none; }
     margin-bottom: 12px;
 }
 
-/* The magnifying glass next to the letter on the home page (Matan, 30.9) */
+/* The magnifying glass on the home page (Matan, 30.9) */
 .hero-actions { display: flex; align-items: center; gap: 10px; }
+/* Level with the middle of the greeting and the title, not the greeting's top
+   edge, so it sits clear of the blur under the clock too (Matan, 11.11) */
+.hero-top > .hero-actions { align-self: center; }
 .hero-icon-btn {
     width: 42px; height: 42px; border-radius: 50%;
     display: grid; place-items: center;
@@ -370,20 +375,6 @@ ul { list-style: none; }
     font-weight: 600;
     text-decoration: none;
     position: relative;
-}
-
-.avatar-circle {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: var(--gradient-gold);
-    color: #FFFFFF;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: var(--text-base);
-    text-decoration: none;
 }
 
 /* Big hero amount */
