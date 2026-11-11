@@ -17,7 +17,7 @@ def test_the_family_name_sits_on_the_left_of_the_title():
     css = (_ROOT / "frontend/static/css/style.css").read_text(encoding="utf-8")
     rule = css[css.index(".settings-family-name {"):]
     rule = rule[:rule.index("}")]
-    assert "text-align: left;" in rule and "font-size: 1.1rem;" in rule and "min-width: 0;" in rule
+    assert "text-align: left;" in rule and "font-size: var(--text-title);" in rule and "min-width: 0;" in rule
 
 
 def test_renaming_updates_the_name_at_the_top():
