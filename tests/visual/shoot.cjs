@@ -388,6 +388,10 @@ const sheetTo = (p, where) => p.evaluate((w) => {
         await attempt('C year recap', async () => {
             const p = await signedIn(browser, 'cards', { fixedTime: T });
             await go(p, base('cards') + '/');
+            // One announcement per visit (11.11): close the month recap first, as a user would
+            if (await p.locator('.recap-wrap:not([hidden]) .alert-dismiss').count()) {
+                await p.locator('.recap-wrap .alert-dismiss').first().click(); await p.waitForTimeout(300);
+            }
             await p.locator('[data-year-recap]').first().click(); await p.waitForTimeout(2000);
             await shot(p, 'C-year-recap-sheet', 'Year recap opened from the home card');
             await p.context().close();
