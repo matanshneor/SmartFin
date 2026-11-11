@@ -83,7 +83,7 @@ if (trendData.length > 0) {
                     legend: {
                         display:  true,
                         position: 'bottom',
-                        labels: { boxWidth: 14, padding: 18, font: { size: 14 }, color: TEXT_MUTED }
+                        labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 18, font: { size: 14 }, color: TEXT_MUTED }
                     },
                     tooltip: {
                         callbacks: {
@@ -403,7 +403,7 @@ if (memberSeries && memberSeries.length > 1 && memberCanvas && SF_VIEW.cat_trend
             onHover: function (evt, els) { evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
             plugins: {
                 legend: { display: true, position: 'bottom',
-                          labels: { boxWidth: 14, padding: 18, font: { size: 14 }, color: TEXT_MUTED } },
+                          labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 18, font: { size: 14 }, color: TEXT_MUTED } },
                 tooltip: { callbacks: {
                     title: items => shownMonths()[items[0].dataIndex].name,
                     label: c => ' ' + c.dataset.label + ': ₪' + window.sfMoney(c.parsed.y) } },
