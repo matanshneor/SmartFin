@@ -5904,3 +5904,6 @@ body.tx-screen-open { overflow: hidden; }
     font-size: var(--text-md); font-weight: 700; color: var(--color-text);
     font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate;
 }
+
+/* "Pinned to home" on the project page: the pin filled in gold (11.11) */
+.project-pin-btn[aria-pressed="true"] { background: var(--color-gold-bright); border-color: var(--color-gold-bright); color: var(--hero-bg); }

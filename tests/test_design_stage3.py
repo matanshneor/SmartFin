@@ -149,3 +149,16 @@ def test_a_category_is_one_row_with_its_budget_switch():
 def test_saving_a_budget_says_budget():
     js = (_ROOT / "frontend/static/js/settings.js").read_text(encoding="utf-8")
     assert "patch.limits ? 'התקציב נשמר' : 'ההעדפות נשמרו'" in js
+
+
+def test_project_actions_live_in_the_header():
+    tpl = _tpl("project_detail.html")
+    hero = tpl[tpl.index("{% block hero %}"):tpl.index("{% endblock %}", tpl.index("{% block hero %}"))]
+    assert "data-pin-project" in hero and "url_for('project_edit'" in hero
+    assert 'style="display:flex; justify-content:flex-end' not in tpl
+
+
+def test_the_projects_header_is_one_line_of_explanation():
+    tpl = _tpl("projects.html")
+    assert '<p class="hero-subtitle">' not in tpl
+    assert '<p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש</p>' in tpl
