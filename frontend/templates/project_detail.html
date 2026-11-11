@@ -40,29 +40,29 @@
     {% if project.track_expense %}
     <div class="kpi-chip">
         <p class="kpi-label">סה״כ הוצאות</p>
-        <p class="kpi-value expense" data-countup="{{ (project.spent) | round(2) }}">₪{{ project.spent | money }}</p>
+        <p class="kpi-value expense" data-countup="{{ project.spent | round | int }}">₪{{ project.spent | round | int | money }}</p>
     </div>
     {% endif %}
     {% if project.track_income %}
     <div class="kpi-chip">
         <p class="kpi-label">סה״כ הכנסות</p>
-        <p class="kpi-value income" data-countup="{{ (project.income) | round(2) }}">₪{{ project.income | money }}</p>
+        <p class="kpi-value income" data-countup="{{ project.income | round | int }}">₪{{ project.income | round | int | money }}</p>
     </div>
     {% endif %}
     {% if project.track_savings %}
     <div class="kpi-chip">
         <p class="kpi-label">סה״כ חיסכון</p>
-        <p class="kpi-value savings" data-countup="{{ (project.savings) | round(2) }}">₪{{ project.savings | money }}</p>
+        <p class="kpi-value savings" data-countup="{{ project.savings | round | int }}">₪{{ project.savings | round | int | money }}</p>
     </div>
     {% endif %}
     {% if project.budget_target %}
     <div class="kpi-chip">
         <p class="kpi-label">תקציב יעד</p>
-        <p class="kpi-value">₪{{ project.budget_target | money }}</p>
+        <p class="kpi-value">₪{{ project.budget_target | round | int | money }}</p>
     </div>
     <div class="kpi-chip">
         <p class="kpi-label">{% if project.remaining >= 0 %}נשאר{% else %}חריגה{% endif %}</p>
-        <p class="kpi-value {% if project.remaining >= 0 %}surplus{% else %}deficit{% endif %}">₪{{ (project.remaining | abs) | money }}</p>
+        <p class="kpi-value {% if project.remaining >= 0 %}surplus{% else %}deficit{% endif %}">₪{{ (project.remaining | abs) | round | int | money }}</p>
     </div>
     {% endif %}
 </div>
@@ -136,7 +136,7 @@
         <div class="doughnut-wrap">
             <canvas id="chart-{{ typ }}" role="img" aria-label="{{ chart_titles[typ] }}"></canvas>
             <div class="doughnut-center">
-                <p class="doughnut-total {{ typ }}">₪{{ type_totals[typ] | money }}</p>
+                <p class="doughnut-total {{ typ }}">₪{{ type_totals[typ] | round | int | money }}</p>
                 <p class="doughnut-label">{{ type_labels[typ] }}</p>
             </div>
         </div>

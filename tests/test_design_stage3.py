@@ -66,3 +66,17 @@ def test_members_are_rows_a_screen_reader_can_read():
     assert "membersChart" not in tpl
     js = (_ROOT / "frontend/static/js/month.js").read_text(encoding="utf-8")
     assert "membersChart" not in js
+
+
+# ─── 2. Totals in whole shekels ───────────────────────────────────────
+
+@pytest.mark.parametrize("tpl,snippet", [
+    ("index.html", '<p class="card-amount">₪{{ summary.expense | round | int | money }}</p>'),
+    ("month.html", '₪{{ summary.expense | round | int | money }}</p>'),
+    ("month.html", '<p class="savings-total-value">₪{{ savings_total | round | int | money }}</p>'),
+    ("project_detail.html", '₪{{ type_totals[typ] | round | int | money }}</p>'),
+])
+def test_totals_are_whole_shekels(tpl, snippet):
+    """Totals at a glance in whole shekels, like the home balance; the rows keep
+    their agorot (`format_money`), so every amount you can tap is exact"""
+    assert snippet in _tpl(tpl)

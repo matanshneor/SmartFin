@@ -124,7 +124,7 @@
             </svg>
         </div>
         <p class="card-label">הכנסות</p>
-        <p class="card-amount">₪{{ summary.income | money }}</p>
+        <p class="card-amount">₪{{ summary.income | round | int | money }}</p>
     </a>
 
     <a class="summary-card expense" href="{{ url_for('month_view') }}#expense-breakdown">
@@ -134,7 +134,7 @@
             </svg>
         </div>
         <p class="card-label">הוצאות</p>
-        <p class="card-amount">₪{{ summary.expense | money }}</p>
+        <p class="card-amount">₪{{ summary.expense | round | int | money }}</p>
     </a>
 
     <a class="summary-card savings" href="{{ url_for('month_view') }}#savings-breakdown">
@@ -146,7 +146,7 @@
             </svg>
         </div>
         <p class="card-label">חיסכון</p>
-        <p class="card-amount">₪{{ summary.savings | money }}</p>
+        <p class="card-amount">₪{{ summary.savings | round | int | money }}</p>
     </a>
 </section>
 

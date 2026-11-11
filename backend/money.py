@@ -7,6 +7,11 @@ screen. Matan's choice: show agorot when there are agorot.
 
 The exact same rule lives in the browser (`sfMoney` in core.js); change one,
 change both.
+
+Since 11.11.2026 (Matan, design pass) the summaries at a glance are whole
+shekels: the home and month tiles, the totals inside the charts, the project
+tiles. Rows, breakdowns and anything you can tap keep their agorot. The
+templates round with `| round | int | money`.
 """
 
 

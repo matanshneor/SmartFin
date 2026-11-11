@@ -61,4 +61,7 @@ def test_the_month_page_shows_agorot_and_totals_add_up(month_page):
 
     assert html.count("₪10.40") >= 3
     assert "₪31.20" in html
-    assert "₪31<" not in html and "₪10<" not in html
+    # Every row and breakdown stays exact. Since 11.11 (Matan) the summary tiles
+    # and the totals inside the charts are whole shekels, like the home
+    # balance, so ₪31 may appear there; a single purchase never rounds.
+    assert "₪10<" not in html
