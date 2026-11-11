@@ -11,9 +11,27 @@
 (function () {
     'use strict';
     const VERSION = '2026-10-13';
+    // Each line with a small gold check, not an emoji (design pass, 11.11).
+    // Built element by element: this file shows family members' names, and
+    // never parses HTML strings.
+    function check() {
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'ui-icon');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2.2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        const path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', 'M20 6 9 17l-5-5');
+        svg.appendChild(path);
+        return svg;
+    }
     const NEWS = [
-        ['🔓', 'פותחים את האפליקציה ונכנסים ישר — בלי להתחבר שוב'],
-        ['🎨', 'כל קטגוריה בעיגול ההוצאות בצבע משלה'],
+        'פותחים את האפליקציה ונכנסים ישר — בלי להתחבר שוב',
+        'כל קטגוריה בעיגול ההוצאות בצבע משלה',
     ];
 
     function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -40,9 +58,10 @@
             const li = document.createElement('li');
             const icon = document.createElement('span');
             icon.className = 'whats-new-icon';
-            icon.textContent = l[0];
+            icon.setAttribute('aria-hidden', 'true');
+            icon.appendChild(check());
             const text = document.createElement('span');
-            text.textContent = l[1];
+            text.textContent = l;
             li.appendChild(icon);
             li.appendChild(text);
             ul.appendChild(li);
@@ -67,7 +86,7 @@
     if (page.dataset.newFamily === 'true') set('sf_whats_new', VERSION);
     else if (seen !== VERSION) {
         set('sf_whats_new', VERSION);
-        sheet('מה חדש ב-SmartFin', NEWS, 'יופי, הבנתי');
+        sheet('מה חדש ב-SmartFin', NEWS, 'הבנתי');
     }
 
     // ── A family member joined ──
@@ -86,7 +105,7 @@
     if (!joined.length || !slot) return;
     const m = joined[0];
     slot.querySelector('.member-joined-text').textContent =
-        '🎉 ' + m.name + ' במשפחה! מעכשיו גם ההוצאות של ' + m.name + ' כאן';
+        m.name + ' במשפחה! מעכשיו גם ההוצאות של ' + m.name + ' כאן';
     if (m.color != null) slot.classList.add('owner-' + m.color);
     slot.hidden = false;
     slot.querySelector('.member-joined-close').addEventListener('click', function () { slot.hidden = true; });

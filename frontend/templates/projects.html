@@ -55,7 +55,7 @@
         {% if p.description %}<span class="project-tile-sub">{{ p.description }}</span>{% endif %}
         {{ tile_progress(p) }}
     </span>
-    {% if p.is_personal %}<span class="project-tile-tag">🔒 אישי</span>{% endif %}
+    {% if p.is_personal %}<span class="project-tile-tag">{{ ui_icon("lock") }} אישי</span>{% endif %}
 </a>
 {% endmacro %}
 

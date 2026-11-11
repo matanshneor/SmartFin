@@ -1007,9 +1007,7 @@ document.addEventListener('click', function (e) {
         .then(function (r) { if (!r.ok) throw new Error(); })
         .then(function () {
             btn.dataset.pinned = pin ? 'true' : 'false';
-            // The icon button in the header: its state, not its text (11.11)
-            if (btn.hasAttribute('data-pin-icon')) btn.setAttribute('aria-pressed', pin ? 'true' : 'false');
-            else btn.textContent = pin ? '📌 מוצמד לבית' : '📌 הצמדה לבית';
+            btn.setAttribute('aria-pressed', pin ? 'true' : 'false');   // the icon button in the header
             window.showToast(pin ? 'הפרויקט יופיע בבית, מתחת למאזן' : 'הפרויקט הוסר מהבית');
         })
         .catch(function () { window.showToast(window.sfNetError(), 'error'); })

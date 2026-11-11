@@ -5907,3 +5907,14 @@ body.tx-screen-open { overflow: hidden; }
 
 /* "Pinned to home" on the project page: the pin filled in gold (11.11) */
 .project-pin-btn[aria-pressed="true"] { background: var(--color-gold-bright); border-color: var(--color-gold-bright); color: var(--hero-bg); }
+
+/* Line icons where decorative emoji were (design pass, 11.11) */
+.recap-icon { color: var(--color-gold-text); }
+.recap-line-icon { display: inline-flex; justify-content: center; }
+.recap-line-icon.good { color: var(--color-income); }
+.recap-line-icon.bad  { color: var(--color-expense); }
+.empty-row-icon { color: var(--color-gold-text); display: inline-flex; }
+.onboarding-choice-icon { color: var(--color-gold-text); display: inline-flex; }
+.onboarding-choice-icon .ui-icon { stroke-width: 1.8; }
+.project-tile-tag .ui-icon { width: 0.95em; height: 0.95em; }
+.whats-new-icon { color: var(--color-gold-text); display: inline-flex; justify-content: center; padding-top: 2px; }

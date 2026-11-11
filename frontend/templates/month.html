@@ -356,7 +356,7 @@
 {% set income_sources = income_sources | default([]) %}
 {% set income_projects = income_breakdown | selectattr('total', 'gt', 0) | selectattr('is_project') | list %}
 {% if not income_sources and not income_projects %}
-{{ empty_row('income-breakdown', '💼', 'אין הכנסות החודש', 'income') }}
+{{ empty_row('income-breakdown', ui_icon('wallet'), 'אין הכנסות החודש', 'income') }}
 {% else %}
 <section class="chart-card" id="income-breakdown">
     <h2 class="chart-title">הכנסות</h2>
@@ -427,7 +427,7 @@
 {% set savings_home = savings_home | default([]) %}
 {% set savings_projects = savings_breakdown | selectattr('total', 'gt', 0) | selectattr('is_project') | list %}
 {% if not savings_home and not savings_projects %}
-{{ empty_row('savings-breakdown', '💰', 'אין חיסכון החודש', 'savings') }}
+{{ empty_row('savings-breakdown', ui_icon('coins'), 'אין חיסכון החודש', 'savings') }}
 {% else %}
 <section class="chart-card" id="savings-breakdown">
     <h2 class="chart-title">חיסכון</h2>

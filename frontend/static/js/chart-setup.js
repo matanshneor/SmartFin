@@ -62,7 +62,6 @@ window.sfCharts = (function () {
             var note = document.createElement('div');
             note.className = 'chart-empty';
             note.innerHTML =
-                '<p>📉</p>' +
                 '<p>הגרף לא נטען</p>' +
                 '<p>המספרים עצמם מעודכנים ונכונים. רענון העמוד בדרך כלל פותר.</p>';
             canvas.replaceWith(note);
