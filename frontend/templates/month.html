@@ -71,10 +71,12 @@
     {% if no_income_yet %}
     <p class="month-net-value">—</p>
     {% else %}
+    {# Whole shekels and gold, as on the home page (design pass, 11.11): the same
+       balance showed ₪14,856 in gold there and ₪14,856.39 in green here #}
     <p class="month-net-value"
-       data-countup="{{ (summary.remaining | abs) | round(2) }}"
+       data-countup="{{ (summary.remaining | abs) | round | int }}"
        {% if deficit %}data-prefix="-"{% endif %}>
-        {% if deficit %}-{% endif %}₪{{ (summary.remaining | abs) | money }}
+        {% if deficit %}-{% endif %}₪{{ (summary.remaining | abs) | round | int | money }}
     </p>
     {% endif %}
 </div>

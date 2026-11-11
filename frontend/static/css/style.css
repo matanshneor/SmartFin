@@ -617,7 +617,13 @@ ul { list-style: none; }
     color: var(--hero-text);
 }
 
-.month-net.surplus .month-net-value { color: var(--color-income-light); }
+/* A surplus in the home page's gold, not green: one balance, one colour */
+.month-net.surplus .month-net-value {
+    background: var(--gradient-gold-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
 .month-net.deficit .month-net-value { color: var(--color-expense-light); }
 
 .kpi-chips.kpi-chips-three { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; }
@@ -4949,7 +4955,7 @@ input.emoji-input[data-free-typing] { cursor: text; caret-color: auto; }
 .month-sticky[hidden] { display: none; }
 .month-sticky-title { font-weight: 700; font-size: 1rem; }
 .month-sticky-value { font-weight: 700; font-size: 0.95rem; font-variant-numeric: tabular-nums; direction: rtl; }
-.month-sticky-value.surplus { color: var(--color-income-light); }
+.month-sticky-value.surplus { color: var(--color-gold-bright); }
 .month-sticky-value.deficit { color: var(--color-expense-light); }
 
 /* Picking a colour for a family member (Matan, 30.9, round 6, item 13): a
