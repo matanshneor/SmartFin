@@ -71,25 +71,27 @@
     {% if no_income_yet %}
     <p class="month-net-value">—</p>
     {% else %}
+    {# Whole shekels and gold, as on the home page (design pass, 11.11): the same
+       balance showed ₪14,856 in gold there and ₪14,856.39 in green here #}
     <p class="month-net-value"
-       data-countup="{{ (summary.remaining | abs) | round(2) }}"
+       data-countup="{{ (summary.remaining | abs) | round | int }}"
        {% if deficit %}data-prefix="-"{% endif %}>
-        {% if deficit %}-{% endif %}₪{{ (summary.remaining | abs) | money }}
+        {% if deficit %}-{% endif %}₪{{ (summary.remaining | abs) | round | int | money }}
     </p>
     {% endif %}
 </div>
 <div class="kpi-chips kpi-chips-three">
     {% if has_breakdown %}<a class="kpi-chip kpi-link" href="#income-breakdown">{% else %}<div class="kpi-chip">{% endif %}
         <p class="kpi-label">הכנסות</p>
-        <p class="kpi-value income" data-countup="{{ (summary.income) | round(2) }}">₪{{ summary.income | money }}</p>
+        <p class="kpi-value income" data-countup="{{ summary.income | round | int }}">₪{{ summary.income | round | int | money }}</p>
     {% if has_breakdown %}</a>{% else %}</div>{% endif %}
     {% if has_breakdown %}<a class="kpi-chip kpi-link" href="#expense-breakdown">{% else %}<div class="kpi-chip">{% endif %}
         <p class="kpi-label">הוצאות</p>
-        <p class="kpi-value expense" data-countup="{{ (summary.expense) | round(2) }}">₪{{ summary.expense | money }}</p>
+        <p class="kpi-value expense" data-countup="{{ summary.expense | round | int }}">₪{{ summary.expense | round | int | money }}</p>
     {% if has_breakdown %}</a>{% else %}</div>{% endif %}
     {% if has_breakdown %}<a class="kpi-chip kpi-link" href="#savings-breakdown">{% else %}<div class="kpi-chip">{% endif %}
         <p class="kpi-label">חיסכון</p>
-        <p class="kpi-value savings" data-countup="{{ (summary.savings) | round(2) }}">₪{{ summary.savings | money }}</p>
+        <p class="kpi-value savings" data-countup="{{ summary.savings | round | int }}">₪{{ summary.savings | round | int | money }}</p>
     {% if has_breakdown %}</a>{% else %}</div>{% endif %}
 </div>
 {% endblock %}
@@ -212,7 +214,7 @@
         <div class="doughnut-wrap">
             <canvas id="expenseChart" role="img" aria-label="גרף הוצאות לפי קטגוריה"></canvas>
             <div class="doughnut-center">
-                <p class="doughnut-total">₪{{ summary.expense | money }}</p>
+                <p class="doughnut-total expense">₪{{ summary.expense | round | int | money }}</p>
                 <p class="doughnut-label">הוצאות</p>
             </div>
         </div>
@@ -354,7 +356,7 @@
 {% set income_sources = income_sources | default([]) %}
 {% set income_projects = income_breakdown | selectattr('total', 'gt', 0) | selectattr('is_project') | list %}
 {% if not income_sources and not income_projects %}
-{{ empty_row('income-breakdown', '💼', 'אין הכנסות החודש', 'income') }}
+{{ empty_row('income-breakdown', ui_icon('wallet'), 'אין הכנסות החודש', 'income') }}
 {% else %}
 <section class="chart-card" id="income-breakdown">
     <h2 class="chart-title">הכנסות</h2>
@@ -364,7 +366,7 @@
     <div class="doughnut-wrap">
         <canvas id="incomeChart" role="img" aria-label="הכנסות לפי מקור"></canvas>
         <div class="doughnut-center">
-            <p class="doughnut-total income">₪{{ (income_sources | sum(attribute='total')) | money }}</p>
+            <p class="doughnut-total income">₪{{ (income_sources | sum(attribute='total')) | round | int | money }}</p>
             <p class="doughnut-label">נכנס החודש</p>
         </div>
     </div>
@@ -425,7 +427,7 @@
 {% set savings_home = savings_home | default([]) %}
 {% set savings_projects = savings_breakdown | selectattr('total', 'gt', 0) | selectattr('is_project') | list %}
 {% if not savings_home and not savings_projects %}
-{{ empty_row('savings-breakdown', '💰', 'אין חיסכון החודש', 'savings') }}
+{{ empty_row('savings-breakdown', ui_icon('coins'), 'אין חיסכון החודש', 'savings') }}
 {% else %}
 <section class="chart-card" id="savings-breakdown">
     <h2 class="chart-title">חיסכון</h2>
@@ -437,7 +439,7 @@
     {% if savings_home %}
     <div class="savings-total">
         <p class="savings-total-label">סה״כ חיסכון החודש</p>
-        <p class="savings-total-value">₪{{ savings_total | money }}</p>
+        <p class="savings-total-value">₪{{ savings_total | round | int | money }}</p>
         {% if summary.income > 0 %}
         <p class="savings-of-income">{{ ((savings_total / summary.income) * 100) | round | int }}% מההכנסות החודש</p>
         {% endif %}
@@ -504,12 +506,23 @@
    are managed in settings → recurring transactions. #}
 
 <!-- split between family members: a chart for every transaction type the family attributes -->
+{# Rows and not a bar chart (design pass, 11.11, Matan saw both): a chart with
+   axes took 40% of a screen to show two or three numbers, and a screen reader
+   heard nothing but its title. Each bar is the member's share of the largest,
+   in their own colour. #}
 {% for mb in member_breakdowns %}
+{% set top = (mb.rows | map(attribute='expense') | max) or 1 %}
 <section class="chart-card">
     <h2 class="chart-title">{{ mb.label }} לפי בן משפחה</h2>
-    <div class="line-chart-wrap">
-        <canvas id="membersChart-{{ mb.type }}" role="img" aria-label="{{ mb.label }} לפי בן משפחה"></canvas>
-    </div>
+    <ul class="member-bars">
+        {% for r in mb.rows %}
+        <li class="member-bar">
+            <span class="member-bar-name">{{ r.name }}</span>
+            <span class="member-bar-track" aria-hidden="true"><span style="width: {{ [(r.expense / top * 100) | round(1), 100] | min }}%; background: {{ r.color }};"></span></span>
+            <span class="member-bar-amount">₪{{ r.expense | money }}</span>
+        </li>
+        {% endfor %}
+    </ul>
 </section>
 {% endfor %}
 
@@ -532,7 +545,7 @@
         <a class="btn-sm btn-ghost export-link" href="{{ url_for('import_page') }}">ייבוא מהאשראי</a>
         <a class="btn-sm btn-ghost export-link"
            href="{{ url_for('month_csv', year=year, month=month) }}"
-           download>ייצוא CSV</a>
+           download>ייצוא לאקסל</a>
         </span>
     </div>
     <div role="group" class="cat-tx-list cat-tx-list-standalone tx-preview">

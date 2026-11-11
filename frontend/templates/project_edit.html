@@ -97,10 +97,10 @@
     <h2 class="chart-title">בעלות</h2>
     <div class="group-row" style="margin-top:14px;">
         <div class="group-row-info">
-            <p class="group-row-label">{{ '🔒 פרויקט אישי' if project.is_personal else 'פרויקט משותף' }}</p>
+            <p class="group-row-label">{% if project.is_personal %}{{ ui_icon('lock') }} פרויקט אישי{% else %}פרויקט משותף{% endif %}</p>
             <p class="group-row-hint">
                 {% if project.is_personal %}
-                רק לך הפרויקט הזה גלוי. הפיכתו למשותף תפתח אותו לכל בני המשפחה, וההוצאות/הכנסות שכבר נרשמו בו יהפכו לשיוך משותף.
+                הפרויקט הזה גלוי רק למי שיצר אותו. הפיכתו למשותף תפתח אותו לכל בני המשפחה, וההוצאות/הכנסות שכבר נרשמו בו יהפכו לשיוך משותף.
                 {% elif project.created_by == user.id %}
                 כל בני המשפחה רואים ועורכים את הפרויקט הזה. רק מי שיצר אותו יכול להחזיר אותו להיות אישי.
                 {% else %}

@@ -6,9 +6,10 @@
 <div class="hero-top">
     <div>
         <h1 class="hero-title">פרויקטים</h1>
-        <p class="hero-subtitle">תקציב לפרויקט — טיול, שיפוץ, אירוע ועוד</p>
-        {# Matan (3.10): make it clear that project money doesn't go into the month's balance #}
-        <p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש — הן נספרות רק בתוך הפרויקט</p>
+        {# Matan (3.10): make it clear that project money doesn't go into the month's
+           balance. One line (design pass, 11.11): the subtitle went, since the
+           "new project" card under it says what a project is. #}
+        <p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש</p>
     </div>
 </div>
 {% endblock %}
@@ -54,7 +55,7 @@
         {% if p.description %}<span class="project-tile-sub">{{ p.description }}</span>{% endif %}
         {{ tile_progress(p) }}
     </span>
-    {% if p.is_personal %}<span class="project-tile-tag">🔒 אישי</span>{% endif %}
+    {% if p.is_personal %}<span class="project-tile-tag">{{ ui_icon("lock") }} אישי</span>{% endif %}
 </a>
 {% endmacro %}
 

@@ -16,6 +16,8 @@ if (window.location.hash.includes('type=recovery')) {
         const isSignup = tab === 'signup';
         tabLogin.classList.toggle('active', !isSignup);
         tabSignup.classList.toggle('active', isSignup);
+        tabLogin.setAttribute('aria-pressed', isSignup ? 'false' : 'true');
+        tabSignup.setAttribute('aria-pressed', isSignup ? 'true' : 'false');
         loginPanel.style.display  = isSignup ? 'none' : 'block';
         signupPanel.style.display = isSignup ? 'block' : 'none';
         // The "forgot password" screen isn't closed here, so tapping a tab after
@@ -163,7 +165,10 @@ if (window.location.hash.includes('type=recovery')) {
             out.textContent = msg;
             out.hidden = !msg;
             input.setAttribute('aria-invalid', msg ? 'true' : 'false');
-            if (msg) input.setAttribute('aria-describedby', out.id);
+            // The error, and the field's own hint if it has one (the password rule)
+            const hint = document.getElementById(id + '_hint');
+            const described = [msg ? out.id : null, hint ? hint.id : null].filter(Boolean).join(' ');
+            if (described) input.setAttribute('aria-describedby', described);
             else input.removeAttribute('aria-describedby');
             return !msg;
         }

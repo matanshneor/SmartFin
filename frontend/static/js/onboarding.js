@@ -70,6 +70,20 @@ window.escapeHtml = window.escapeHtml || function (s) {
             dots[i].classList.toggle('active', i <= n);
         });
         enter(steps[n], n);
+        // The button pressed sat in the step just hidden, and focus fell to the
+        // page: it goes to the new step's title instead, which a screen reader
+        // reads together with "step n of 3" (design pass, 11.11)
+        const title = steps[n] && steps[n].querySelector('.auth-form-title');
+        if (title) {
+            title.setAttribute('tabindex', '-1');
+            if (!title.querySelector('.sr-only')) {
+                const where = document.createElement('span');
+                where.className = 'sr-only';
+                where.textContent = ' — שלב ' + n + ' מתוך 3';
+                title.appendChild(where);
+            }
+            title.focus({ preventScroll: true });
+        }
     }
 
     function showChoice(which) {
@@ -140,7 +154,7 @@ window.escapeHtml = window.escapeHtml || function (s) {
         .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
         .then(function (res) {
             if (!res.ok) {
-                errorBox.textContent = res.data.error || 'ההצטרפות נכשלה';
+                errorBox.textContent = res.data.error || 'ההצטרפות נכשלה — נסו שוב';
                 btn.disabled = false;
                 btn.textContent = 'הצטרפות';
                 return;

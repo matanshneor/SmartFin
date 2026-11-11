@@ -75,8 +75,8 @@
             <h2 class="auth-form-title">ברוכים הבאים</h2>
 
             <div class="type-toggle auth-tabs" id="authTabs" role="group" aria-label="בחירת פעולה">
-                <button type="button" class="toggle-btn {% if active_tab != 'signup' %}active{% endif %}" id="tabLogin" data-tab="login">התחברות</button>
-                <button type="button" class="toggle-btn {% if active_tab == 'signup' %}active{% endif %}" id="tabSignup" data-tab="signup">הרשמה</button>
+                <button type="button" class="toggle-btn {% if active_tab != 'signup' %}active{% endif %}" id="tabLogin" data-tab="login" aria-pressed="{{ 'false' if active_tab == 'signup' else 'true' }}">התחברות</button>
+                <button type="button" class="toggle-btn {% if active_tab == 'signup' %}active{% endif %}" id="tabSignup" data-tab="signup" aria-pressed="{{ 'true' if active_tab == 'signup' else 'false' }}">הרשמה</button>
             </div>
 
             {% if success %}
@@ -84,7 +84,7 @@
             {% endif %}
 
             {% if request.args.get('reset') %}
-            <div class="alert alert-success">הסיסמה עודכנה בהצלחה! כעת ניתן להתחבר.</div>
+            <div class="alert alert-success">הסיסמה עודכנה. אפשר להתחבר.</div>
             {% endif %}
 
             {% if error %}
@@ -173,10 +173,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="signup_password">סיסמה (לפחות 8 תווים, אותיות וספרות)</label>
+                    <label class="form-label" for="signup_password">סיסמה</label>
                     <input class="form-input" type="password" id="signup_password" name="password"
-                           placeholder="••••••••" required autocomplete="new-password" minlength="8">
+                           placeholder="••••••••" required autocomplete="new-password" minlength="8"
+                           aria-describedby="signup_password_hint">
                     <p class="field-error" id="signup_password_error" role="alert" hidden></p>
+                    <p class="field-hint" id="signup_password_hint">לפחות 8 תווים, עם אותיות וספרות</p>
                 </div>
 
                 <div class="form-group">
@@ -185,7 +187,7 @@
                            value="{{ signup.invite_code if signup else '' }}"
                            placeholder="הדביקו קוד אם קיבלתם מבן משפחה" autocomplete="off"
                            autocapitalize="none" autocorrect="off" spellcheck="false" dir="ltr">
-                    <p class="field-hint">ללא קוד – תיפתח משפחה חדשה עבורך</p>
+                    <p class="field-hint">בלי קוד — תיפתח לכם משפחה חדשה</p>
                 </div>
 
                 <button type="submit" class="submit-btn">הרשמה</button>

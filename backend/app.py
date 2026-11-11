@@ -860,9 +860,9 @@ _OWNER_HEX  = {
     0: "#2E67A8",  # blue (Matan)
     1: "#7048B0",  # purple (Or)
     2: "#A0457C",  # plum-magenta
-    3: "#A85C3E",  # terracotta
-    4: "#5E7391",  # slate blue-grey
-    5: "#8A6A52",  # taupe brown
+    3: "#8F4D33",  # terracotta
+    4: "#4E6180",  # slate blue-grey
+    5: "#735843",  # taupe brown
     # Two more: eight to choose from (Matan, 30.9, round 6, item 13)
     6: "#4B4FA8",  # indigo
     7: "#2F7385",  # petrol blue
@@ -1151,7 +1151,7 @@ def signup():
                 # loud. The return value used to be thrown away, and every
                 # joiner got "signed up successfully" and then, silently, a new
                 # family of their own.
-                success = "נרשמתם בהצלחה! כעת ניתן להתחבר."
+                success = "נרשמתם בהצלחה. אפשר להתחבר."
                 join_err = None
                 if invite_code and response and response.user:
                     # The RPC identifies the joiner through auth.uid(), so the
@@ -2237,7 +2237,7 @@ def _parse_project_body(body: dict):
     track_income  = bool(body.get("track_income", False))
     track_savings = bool(body.get("track_savings", False))
     if not (track_expense or track_income or track_savings):
-        return None, "יש לבחור לפחות מחלקה אחת למעקב"
+        return None, "נא לבחור לפחות מחלקה אחת למעקב"
 
     return {
         "name": name, "budget_target": budget_target, "description": description,
@@ -3261,7 +3261,7 @@ def _validated_frequency(body):
         return None, None
     freq = body.get("recurring_frequency")
     if freq not in _FREQUENCIES:
-        return None, "יש לבחור כל כמה זמן העסקה הקבועה נרשמת"
+        return None, "נא לבחור כל כמה זמן העסקה הקבועה נרשמת"
     return freq, None
 
 

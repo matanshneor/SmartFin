@@ -83,7 +83,7 @@ if (trendData.length > 0) {
                     legend: {
                         display:  true,
                         position: 'bottom',
-                        labels: { boxWidth: 14, padding: 18, font: { size: 14 }, color: TEXT_MUTED }
+                        labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 18, font: { size: 14 }, color: TEXT_MUTED }
                     },
                     tooltip: {
                         callbacks: {
@@ -211,6 +211,11 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         },
         plugins: [valuesOnTop],
     });
+    // The amounts above the bars are drawn in Rubik 600, which the page may not
+    // have loaded yet: they came out in the fallback face. Once it is in, again.
+    if (document.fonts && document.fonts.load) {
+        document.fonts.load('600 12px Rubik').then(function () { chart.draw(); }, function () {});
+    }
 
     // ── Tapping a month's bar: a sheet with the category's expenses in that
     // month (Matan, 30.9) ──
@@ -398,7 +403,7 @@ if (memberSeries && memberSeries.length > 1 && memberCanvas && SF_VIEW.cat_trend
             onHover: function (evt, els) { evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
             plugins: {
                 legend: { display: true, position: 'bottom',
-                          labels: { boxWidth: 14, padding: 18, font: { size: 14 }, color: TEXT_MUTED } },
+                          labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 18, font: { size: 14 }, color: TEXT_MUTED } },
                 tooltip: { callbacks: {
                     title: items => shownMonths()[items[0].dataIndex].name,
                     label: c => ' ' + c.dataset.label + ': ₪' + window.sfMoney(c.parsed.y) } },

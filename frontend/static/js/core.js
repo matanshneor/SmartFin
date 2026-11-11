@@ -381,7 +381,7 @@ window.appFeedback = function () {
         let usage = null;
         return fetch(baseUrl + '/usage').then(catJson).then(function (res) {
             if (!res.ok) {
-                window.showToast(res.d.error || 'המחיקה נכשלה', 'error');
+                window.showToast(res.d.error || 'המחיקה נכשלה — נסו שוב', 'error');
                 return false;
             }
             usage = adjust ? adjust(res.d) : res.d;
@@ -426,7 +426,7 @@ window.appFeedback = function () {
             const url = baseUrl + (choice.target ? '?move_to=' + encodeURIComponent(choice.target) : '');
             return fetch(url, { method: 'DELETE' }).then(catJson).then(function (res) {
                 if (!res.ok) {
-                    window.showToast(res.d.error || 'המחיקה נכשלה', 'error');
+                    window.showToast(res.d.error || 'המחיקה נכשלה — נסו שוב', 'error');
                     return false;
                 }
                 window.showToast(choice.dest
@@ -509,6 +509,19 @@ function sfApplyHtml(html, regions) {
     // reload.
 
     if (typeof window.Chart === 'undefined' && doc.querySelector('main canvas')) return 'full';
+
+    // A deploy since this page loaded: the new HTML may use classes the old CSS
+    // and scripts don't know. Each asset URL carries its content hash (`?v=`),
+    // so another stylesheet or core script means another version: reload fully
+    // instead of pouring new markup into old styles (design pass, 11.11). Only
+    // the assets every page shares: switching tabs brings other page scripts.
+
+    const assets = function (d) {
+        return Array.prototype.map.call(
+            d.querySelectorAll('link[rel="stylesheet"][href*="/css/"], script[src*="/js/core.js"]'),
+            function (el) { return el.getAttribute('href') || el.getAttribute('src'); }).join('|');
+    };
+    if (assets(doc) !== assets(document)) return 'full';
 
     // All areas are collected before touching any of them: a partial swap (a
     // new hero over an old body) is worse than a full reload.
@@ -920,6 +933,38 @@ document.addEventListener('click', function (e) {
 })();
 
 
+// ── One announcement per visit on home (design pass, 11.11) ──
+// "A family member joined", "<month> closed" and "your <year>" could all sit
+// on home at once (on 1 January, all three, over the alerts). Only the first
+// still showing appears; the others wait for a later visit, without being
+// marked as seen. Order: "joined" first, since it is shown only once; then the
+// month recap (one day); then the year (fifteen days). Budget alerts aren't
+// announcements: they always show.
+
+(function () {
+    const ORDER = ['#memberJoined', '.recap-wrap', '.year-card-wrap'];
+    function oneAnnouncement() {
+        let shown = false;
+        ORDER.forEach(function (sel) {
+            document.querySelectorAll(sel).forEach(function (el) {
+                if (el.hidden && !el.dataset.sfQueued) return;     // dismissed, or never shown
+                if (!shown) { shown = true; if (el.dataset.sfQueued) { el.hidden = false; delete el.dataset.sfQueued; } return; }
+                el.hidden = true;
+                el.dataset.sfQueued = '1';
+            });
+        });
+    }
+    document.addEventListener('DOMContentLoaded', oneAnnouncement);
+    window.addEventListener('sf:refreshed', oneAnnouncement);
+    // Closing the one showing lets the next one in, on this visit
+    document.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('.recap-close, .member-joined-close, .year-card-wrap .alert-dismiss')) {
+            setTimeout(oneAnnouncement, 0);
+        }
+    });
+})();
+
+
 // ── "Project finished?": "not now" hides it for a month (Matan, 12.10) ──
 
 (function () {
@@ -962,7 +1007,7 @@ document.addEventListener('click', function (e) {
         .then(function (r) { if (!r.ok) throw new Error(); })
         .then(function () {
             btn.dataset.pinned = pin ? 'true' : 'false';
-            btn.textContent = pin ? '📌 מוצמד לבית' : '📌 הצמדה לבית';
+            btn.setAttribute('aria-pressed', pin ? 'true' : 'false');   // the icon button in the header
             window.showToast(pin ? 'הפרויקט יופיע בבית, מתחת למאזן' : 'הפרויקט הוסר מהבית');
         })
         .catch(function () { window.showToast(window.sfNetError(), 'error'); })
@@ -989,5 +1034,52 @@ document.addEventListener('click', function (e) {
     logOpen();
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible') logOpen();
+    });
+})();
+
+
+/* ─── Focus stays inside an open dialog (design pass, 11.11) ──────────────
+ *
+ * Only the transaction sheet and the confirm dialog kept Tab inside; the
+ * search screen, "all transactions", the budgets sheet, the icon and colour
+ * pickers, the receipt viewer, the yearly summary, "what's new" and the invite
+ * all said `aria-modal` and let Tab walk out to the page behind them. One trap
+ * for all of them: the topmost visible `[aria-modal="true"]`. The two that
+ * manage their own Tab cancel the event first, so this one stays out of their way.
+ */
+(function () {
+    const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), '
+                    + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    function shown(el) {
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const cs = getComputedStyle(el);
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && el.getClientRects().length > 0;
+    }
+
+    function topDialog() {
+        const open = Array.prototype.filter.call(
+            document.querySelectorAll('[aria-modal="true"]'), shown);
+        if (!open.length) return null;
+        // The one holding the focus, else the last one opened (later in the page)
+        return open.find(function (d) { return d.contains(document.activeElement); })
+            || open[open.length - 1];
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab' || e.defaultPrevented) return;
+        const dialog = topDialog();
+        if (!dialog) return;
+        const items = Array.prototype.filter.call(dialog.querySelectorAll(FOCUSABLE), shown);
+        if (!items.length) return;
+        const first = items[0], last = items[items.length - 1];
+        const inside = dialog.contains(document.activeElement);
+        if (!inside || (e.shiftKey && document.activeElement === first)) {
+            e.preventDefault();
+            (e.shiftKey ? last : first).focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
     });
 })();

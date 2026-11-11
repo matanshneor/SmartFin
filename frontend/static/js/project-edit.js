@@ -48,7 +48,7 @@ function call(method, url, body) {
         opts.body = JSON.stringify(body);
     }
     return fetch(url, opts).then(json).then(function (res) {
-        if (!res.ok || res.d.error) throw new Error(res.d.error || 'השמירה נכשלה');
+        if (!res.ok || res.d.error) throw new Error(res.d.error || 'השמירה נכשלה — נסו שוב');
         return res.d;
     });
 }
@@ -77,7 +77,7 @@ if (shareBtn) {
         if (ownership) { ownership = null; showOwnership(); return; }
         window.appConfirm({
             title: 'להפוך את הפרויקט למשותף?',
-            message: 'כל בני המשפחה יראו את הפרויקט, וההוצאות/הכנסות שכבר נרשמו בו יהפכו לשיוך משותף. תמיד אפשר להחזיר אותו להיות אישי בעצמך בעתיד. השינוי ייכנס לתוקף בשמירה.',
+            message: 'כל בני המשפחה יראו את הפרויקט, וההוצאות/הכנסות שכבר נרשמו בו יהפכו לשיוך משותף. תמיד אפשר להחזיר אותו להיות אישי. השינוי ייכנס לתוקף בשמירה.',
             confirmText: 'הפיכה למשותף',
             danger: false,
         }).then(function (ok) {
@@ -99,9 +99,9 @@ if (unshareBtn) {
         window.appConfirm({
             title: 'להחזיר את הפרויקט להיות אישי?',
             message: (others
-                ? others + '. אחרי ההחזרה הפרויקט יהיה גלוי רק לך — '
-                  + 'גם את העסקאות האלה, והן יסומנו "נרשמה ע״י".'
-                : 'מעכשיו הפרויקט גלוי רק לך. עסקאות שכבר נרשמו כמשותפות יישארו כך.')
+                ? others + '. אחרי ההחזרה הפרויקט יהיה גלוי רק למי שיצר אותו — '
+                  + 'גם את העסקאות האלה, והן יסומנו "הוזנה ע״י".'
+                : 'מעכשיו הפרויקט גלוי רק למי שיצר אותו. עסקאות שכבר נרשמו כמשותפות יישארו כך.')
                 + ' השינוי ייכנס לתוקף בשמירה.',
             confirmText: 'החזרה לפרויקט אישי',
             danger: !!others,
@@ -420,7 +420,7 @@ editForm.addEventListener('submit', function (e) {
     saveError.textContent = '';
     if (!fields.name.value.trim()) { saveError.textContent = 'נא להזין שם לפרויקט'; return; }
     if (!fields.trackExpense.checked && !fields.trackIncome.checked && !fields.trackSavings.checked) {
-        saveError.textContent = 'יש לבחור לפחות מחלקה אחת למעקב';
+        saveError.textContent = 'נא לבחור לפחות מחלקה אחת למעקב';
         return;
     }
     if (document.querySelector('.category-row.editing')) {

@@ -52,7 +52,8 @@ def _row(html, anchor):
 def test_no_savings_is_one_row_with_add():
     html = _render([_tx("expense")])
     row = _row(html, "savings-breakdown")
-    assert "💰" in row and "אין חיסכון החודש" in row
+    # A line icon, not 💰 (design pass, 11.11)
+    assert 'class="ui-icon"' in row and "אין חיסכון החודש" in row
     assert 'data-add-type="savings"' in row and "+ הוספה" in row
     assert "אין הפרשות לחיסכון החודש" not in html     # the old empty card
 
@@ -60,7 +61,7 @@ def test_no_savings_is_one_row_with_add():
 def test_no_income_is_one_row_with_add():
     html = _render([_tx("expense")])
     row = _row(html, "income-breakdown")
-    assert "💼" in row and "אין הכנסות החודש" in row and 'data-add-type="income"' in row
+    assert 'class="ui-icon"' in row and "אין הכנסות החודש" in row and 'data-add-type="income"' in row
 
 
 def test_a_type_with_data_keeps_its_card():

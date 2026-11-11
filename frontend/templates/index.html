@@ -115,6 +115,10 @@
 
 {% block content %}
 
+{# A new family sees only "בואו נתחיל" above (design pass, 11.11): three ₪0 tiles
+   and an empty "recent transactions" under it made three invitations to the
+   same first step. Both come back with the first transaction. #}
+{% if not is_new_family %}
 <!-- Summary Cards -->
 <section class="summary-cards" aria-label="סיכום חודשי">
     <a class="summary-card income" href="{{ url_for('month_view') }}#income-breakdown">
@@ -124,7 +128,7 @@
             </svg>
         </div>
         <p class="card-label">הכנסות</p>
-        <p class="card-amount">₪{{ summary.income | money }}</p>
+        <p class="card-amount">₪{{ summary.income | round | int | money }}</p>
     </a>
 
     <a class="summary-card expense" href="{{ url_for('month_view') }}#expense-breakdown">
@@ -134,7 +138,7 @@
             </svg>
         </div>
         <p class="card-label">הוצאות</p>
-        <p class="card-amount">₪{{ summary.expense | money }}</p>
+        <p class="card-amount">₪{{ summary.expense | round | int | money }}</p>
     </a>
 
     <a class="summary-card savings" href="{{ url_for('month_view') }}#savings-breakdown">
@@ -146,9 +150,10 @@
             </svg>
         </div>
         <p class="card-label">חיסכון</p>
-        <p class="card-amount">₪{{ summary.savings | money }}</p>
+        <p class="card-amount">₪{{ summary.savings | round | int | money }}</p>
     </a>
 </section>
+{% endif %}
 
 {# "September closed" (Matan, 13.10): on the first day of the month only ("the
    next day it goes away by itself"). ✕ hides it on this phone (the same
@@ -158,20 +163,20 @@
 <div class="alert-wrap recap-wrap" data-alert-key="recap|{{ recap.year }}-{{ recap.month }}">
 <section class="recap-card" aria-label="סיכום {{ rm }}">
     <div class="recap-head">
-        <span class="recap-icon" aria-hidden="true">📊</span>
+        <span class="recap-icon" aria-hidden="true">{{ ui_icon("bar-chart") }}</span>
         <h2 class="recap-title">{{ rm }} נסגר</h2>
     </div>
     <div class="recap-figures">
         {# Income · expenses · savings (Matan, 1.11), instead of in · out · left, each
    in its own colour #}
-        <div class="recap-fig income"><span class="recap-fig-label">הכנסות</span><span class="recap-fig-value">₪{{ recap.income | money }}</span></div>
-        <div class="recap-fig expense"><span class="recap-fig-label">הוצאות</span><span class="recap-fig-value">₪{{ recap.expense | money }}</span></div>
-        <div class="recap-fig savings"><span class="recap-fig-label">חיסכון</span><span class="recap-fig-value">₪{{ recap.savings | money }}</span></div>
+        <div class="recap-fig income"><span class="recap-fig-label">הכנסות</span><span class="recap-fig-value">₪{{ recap.income | round | int | money }}</span></div>
+        <div class="recap-fig expense"><span class="recap-fig-label">הוצאות</span><span class="recap-fig-value">₪{{ recap.expense | round | int | money }}</span></div>
+        <div class="recap-fig savings"><span class="recap-fig-label">חיסכון</span><span class="recap-fig-value">₪{{ recap.savings | round | int | money }}</span></div>
     </div>
     <ul class="recap-lines">
         {% if recap.diff is not none and recap.diff != 0 %}
         {% set before = hebrew_months[recap.month - 1 if recap.month > 1 else 12] %}
-        <li><span class="recap-line-icon" aria-hidden="true">{{ '📉' if recap.diff < 0 else '📈' }}</span>
+        <li><span class="recap-line-icon {{ 'good' if recap.diff < 0 else 'bad' }}" aria-hidden="true">{{ ui_icon('trend-down') if recap.diff < 0 else ui_icon('trend-up') }}</span>
             <span>הוצאתם <span class="{{ 'good' if recap.diff < 0 else 'bad' }}">₪{{ (recap.diff | abs) | money }} {{ 'פחות' if recap.diff < 0 else 'יותר' }}</span> מ{{ before }}</span></li>
         {% endif %}
         {% if recap.top %}
@@ -263,6 +268,7 @@
    "redundant on the home page". The budgets stayed on the month page →
    expenses by category. #}
 
+{% if not is_new_family %}
 <!-- Recent Transactions -->
 <section class="transactions-section">
     <div class="section-header">
@@ -284,7 +290,7 @@
             data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
                     data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
             <div class="tx-head" role="button" tabindex="0" aria-haspopup="dialog"
-                 aria-label="עריכת {{ tx.category_name }}, {{ tx.amount | money }} שקלים">
+                 aria-label="עריכת {{ tx.category_name }}: {{ {'expense': 'הוצאה', 'income': 'הכנסה', 'savings': 'חיסכון'}.get(tx.type, '') }} של {{ tx.amount | money }} שקלים, {{ tx.date | day_label }}{% if tx.workplace or tx.description %}, {{ tx.workplace or tx.description }}{% endif %}">
                 <div class="tx-icon {{ tx.type }}">
                     <span class="tx-emoji">{{ tx.category_icon }}</span>
                 </div>
@@ -326,6 +332,7 @@
     </div>
     {% endif %}
 </section>
+{% endif %}
 
 {% endblock %}
 
@@ -345,7 +352,7 @@
 <div class="color-sheet welcome-invite" id="welcomeInvite" role="dialog" aria-modal="true" aria-labelledby="welcomeInviteTitle"
      data-code="{{ welcome_invite.code }}" data-family="{{ welcome_invite.family_name }}">
     <div class="color-sheet-card">
-        <p class="color-sheet-title" id="welcomeInviteTitle">👋 איך מצרפים בן משפחה?</p>
+        <p class="color-sheet-title" id="welcomeInviteTitle">איך מצרפים בן משפחה?</p>
         <ol class="welcome-steps">
             <li>הכפתור למטה יוצר הודעה עם קישור — שולחים אותה לחבר או בן משפחה.</li>
             <li>מי שמקבל לוחץ על הקישור ונרשם — ומצטרף אליכם למשפחה.</li>

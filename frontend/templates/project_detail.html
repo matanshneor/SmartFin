@@ -19,6 +19,16 @@
             {% if project.description %}{{ project.description }}{% else %}כל העסקאות של הפרויקט, מכל החודשים{% endif %}
         </p>
     </div>
+    {# Pin and edit in the header, like search and the arrows on the month page
+       (design pass, 11.11): under it they hung off the dark band's edge like tabs #}
+    <div class="stats-month-nav">
+        {% if not project.archived %}
+        <button type="button" class="stats-nav-btn project-pin-btn" data-pin-project="{{ project.id }}" data-pin-icon
+                data-pinned="{{ 'true' if is_pinned else 'false' }}" aria-pressed="{{ 'true' if is_pinned else 'false' }}"
+                aria-label="הצמדה לבית" title="הצמדה לבית"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></button>
+        {% endif %}
+        <a href="{{ url_for('project_edit', project_id=project.id) }}" class="stats-nav-btn" aria-label="עריכת פרויקט" title="עריכת פרויקט"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></a>
+    </div>
 </div>
 
 {# The project's cost / value: income minus expenses, on a separate row above
@@ -40,29 +50,29 @@
     {% if project.track_expense %}
     <div class="kpi-chip">
         <p class="kpi-label">סה״כ הוצאות</p>
-        <p class="kpi-value expense" data-countup="{{ (project.spent) | round(2) }}">₪{{ project.spent | money }}</p>
+        <p class="kpi-value expense" data-countup="{{ project.spent | round | int }}">₪{{ project.spent | round | int | money }}</p>
     </div>
     {% endif %}
     {% if project.track_income %}
     <div class="kpi-chip">
         <p class="kpi-label">סה״כ הכנסות</p>
-        <p class="kpi-value income" data-countup="{{ (project.income) | round(2) }}">₪{{ project.income | money }}</p>
+        <p class="kpi-value income" data-countup="{{ project.income | round | int }}">₪{{ project.income | round | int | money }}</p>
     </div>
     {% endif %}
     {% if project.track_savings %}
     <div class="kpi-chip">
         <p class="kpi-label">סה״כ חיסכון</p>
-        <p class="kpi-value savings" data-countup="{{ (project.savings) | round(2) }}">₪{{ project.savings | money }}</p>
+        <p class="kpi-value savings" data-countup="{{ project.savings | round | int }}">₪{{ project.savings | round | int | money }}</p>
     </div>
     {% endif %}
     {% if project.budget_target %}
     <div class="kpi-chip">
         <p class="kpi-label">תקציב יעד</p>
-        <p class="kpi-value">₪{{ project.budget_target | money }}</p>
+        <p class="kpi-value">₪{{ project.budget_target | round | int | money }}</p>
     </div>
     <div class="kpi-chip">
         <p class="kpi-label">{% if project.remaining >= 0 %}נשאר{% else %}חריגה{% endif %}</p>
-        <p class="kpi-value {% if project.remaining >= 0 %}surplus{% else %}deficit{% endif %}">₪{{ (project.remaining | abs) | money }}</p>
+        <p class="kpi-value {% if project.remaining >= 0 %}surplus{% else %}deficit{% endif %}">₪{{ (project.remaining | abs) | round | int | money }}</p>
     </div>
     {% endif %}
 </div>
@@ -115,14 +125,6 @@
     </span>
 </div>
 {% endif %}
-<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:2px;">
-    {# Pin to home (Matan, 12.10): not for a finished project #}
-    {% if not project.archived %}
-    <button type="button" class="btn-sm btn-ghost" data-pin-project="{{ project.id }}"
-            data-pinned="{{ 'true' if is_pinned else 'false' }}">{{ '📌 מוצמד לבית' if is_pinned else '📌 הצמדה לבית' }}</button>
-    {% endif %}
-    <a href="{{ url_for('project_edit', project_id=project.id) }}" class="btn-sm btn-ghost">עריכת פרויקט</a>
-</div>
 
 
 <!-- pie chart: a split by category, for every tracked type that has transactions -->
@@ -136,7 +138,7 @@
         <div class="doughnut-wrap">
             <canvas id="chart-{{ typ }}" role="img" aria-label="{{ chart_titles[typ] }}"></canvas>
             <div class="doughnut-center">
-                <p class="doughnut-total">₪{{ type_totals[typ] | money }}</p>
+                <p class="doughnut-total {{ typ }}">₪{{ type_totals[typ] | round | int | money }}</p>
                 <p class="doughnut-label">{{ type_labels[typ] }}</p>
             </div>
         </div>
@@ -170,7 +172,7 @@
                         data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
                         data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
                         <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-                        <span class="cat-tx-desc">{{ tx.description or item.name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %} · <span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">נרשמה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
+                        <span class="cat-tx-desc">{{ tx.description or item.name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %} · <span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">הוזנה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
                         {% if (show_owner or {}).get(typ) %}
                         {% set color = member_colors.get(tx.user_id) %}
                         <span class="owner-pill owner-pill-sm owner-{{ color if color is not none else 'shared' }}">{{ tx.user_name if tx.user_id else 'משותפת' }}</span>
@@ -206,7 +208,7 @@
             data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
             data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
             <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-            <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">נרשמה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
+            <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if project.is_personal and tx.created_by and tx.created_by != project.owner_id %} · <span class="tx-entered-by">הוזנה ע״י {{ member_names.get(tx.created_by, 'בן משפחה לשעבר') }}</span>{% endif %}</span>
             {% if (show_owner or {}).get(tx.type) %}
             {% set color = member_colors.get(tx.user_id) %}
             <span class="owner-pill owner-pill-sm owner-{{ color if color is not none else 'shared' }}">{{ tx.user_name if tx.user_id else 'משותפת' }}</span>

@@ -99,9 +99,9 @@ def _row(html, description):
 def test_a_personal_project_marks_what_someone_else_entered(page):
     html = page(owner_id=_ME)
 
-    assert "נרשמה ע״י אור" in _row(html, "קבלן")
-    assert "נרשמה ע״י" not in _row(html, "צבע"), "what I recorded myself doesn't need a mark"
-    assert "נרשמה ע״י" not in _row(html, "ישנה"), "unknown isn't someone else"
+    assert "הוזנה ע״י אור" in _row(html, "קבלן")
+    assert "הוזנה ע״י" not in _row(html, "צבע"), "what I recorded myself doesn't need a mark"
+    assert "הוזנה ע״י" not in _row(html, "ישנה"), "unknown isn't someone else"
 
 
 def test_a_shared_project_has_no_marks(page):

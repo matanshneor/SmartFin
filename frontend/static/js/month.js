@@ -21,6 +21,10 @@ function centerStrip() {
     strip.style.scrollBehavior = prev;
 }
 centerStrip();
+// Again once Rubik has loaded: the chips were measured in the fallback font, and
+// the real one changes their widths, so the strip settled a few pixels off, and
+// sometimes snapped to the oldest month (design pass, 11.11).
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(centerStrip);
 window.addEventListener('sf:refreshed', centerStrip);
 })();
 
@@ -256,6 +260,10 @@ function openTxScreen(push) {
     if (screen.parentElement !== document.body) document.body.appendChild(screen);
     screen.hidden = false;
     document.body.classList.add('tx-screen-open');
+    // Focus into the screen, or keyboard and VoiceOver stayed on the button now
+    // hidden behind it (design pass, 11.11)
+    const back = document.getElementById('txScreenClose');
+    if (back) back.focus({ preventScroll: true });
     if (push) {
         try { history.pushState({ sfTxScreen: true }, '', '#all-tx'); } catch (e) { /* not critical */ }
     }
@@ -263,8 +271,11 @@ function openTxScreen(push) {
 
 function hideTxScreen() {
     const screen = txScreen();
+    const hadFocus = screen && screen.contains(document.activeElement);
     if (screen) screen.hidden = true;
     document.body.classList.remove('tx-screen-open');
+    const opener = document.getElementById('txScreenOpen');
+    if (hadFocus && opener) opener.focus({ preventScroll: true });
     txState = null;
     sortAllTx('date');                  // the sort isn't kept: next time it opens by date again
 }
@@ -380,7 +391,6 @@ document.addEventListener('click', function (e) {
 if (!window.sfCharts.ready) return;
 
 const COLORS    = window.sfCharts.colors;
-const GRID_LINE = window.sfCharts.grid;
 
 let drawn = [];
 const calmMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -499,47 +509,8 @@ if (expenseData.length > 0) {
     }));
 });
 
-// ── 5. Split between family members: a separate chart for every type the
-// family turned attribution on for ──
-
-SF_VIEW.members.forEach(function (mb) {
-    const ctx = document.getElementById('membersChart-' + mb.type);
-    if (!ctx || !mb.rows.length) return;
-    drawn.push(new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: mb.rows.map(m => m.name),
-            datasets: [{
-                label:           mb.label,
-                data:            mb.rows.map(m => m.expense),
-                // A fixed colour per family member, identical to their name-tag
-                // colour (see app.py)
-
-                backgroundColor: mb.rows.map(m => m.color),
-                borderRadius:    6,
-                maxBarThickness: 64,
-            }]
-        },
-        options: {
-            responsive:          true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: c => ` ${mb.label}: ₪${window.sfMoney(c.parsed.y)}`
-                    }
-                }
-            },
-            scales: {
-                x: { grid: { display: false }, ticks: { font: { size: 12 } } },
-                y: {
-                    grid: { color: GRID_LINE },
-                    ticks: { font: { size: 11 }, callback: v => '₪' + v.toLocaleString('en-US') }
-                }
-            }
-        }
-    }));
-});
+// ── 5. Split between family members: rows in the template now, not a chart
+// (design pass, 11.11) ──
 
 }   // paint
 
@@ -706,7 +677,7 @@ window.addEventListener('sf:refreshed', paint);
                 .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
                 .then(function (res) {
                     if (!res.ok) {
-                        err.textContent = res.d.error || 'שמירת התקציבים נכשלה';
+                        err.textContent = res.d.error || 'שמירת התקציבים נכשלה — נסו שוב';
                         save.disabled = false; save.textContent = 'שמירה';
                         return;
                     }

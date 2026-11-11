@@ -53,9 +53,8 @@
                         {% if is_manager %}
                         <button class="delete-cat-btn" data-id="{{ cat.id }}" aria-label="מחיקת הקטגוריה">✕</button>
                         {% endif %}
-                        {% else %}
-                        <span class="cat-system-badge">מובנה</span>
-                        {% endif %}
+                        {% endif %}{# "מובנה" was removed (design pass, 11.11): twelve times the same tag;
+                           a category you can edit shows the pencil, that is the difference #}
                         <div class="cat-reorder-btns">
                             <button type="button" class="cat-move-btn cat-move-up" data-id="{{ cat.id }}" aria-label="הזזה למעלה">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
@@ -74,7 +73,10 @@
                                                 <div class="cat-budget-edit">
                             {# Exactly the same switch as in the rest of settings (pref-switch), and
                                not a checkbox: this turns an option on/off. #}
-                            <span class="cat-budget-label">קביעת תקציב חודשי</span>
+                            {# On the category's own row (design pass, 11.11): "תקציב" and the switch
+                               at the end of the line; amount and save drop below only once
+                               it is on. The list was 5.6 screens long. #}
+                            <span class="cat-budget-label"><span aria-hidden="true">תקציב</span><span class="sr-only">קביעת תקציב חודשי</span></span>
                             <label class="pref-switch">
                                 <input type="checkbox" class="budget-enabled" data-id="{{ cat.id }}"
                                        {% if limit %}checked{% endif %}
@@ -231,7 +233,7 @@
                 {% if not alone %}
                 <p class="family-move-or">או</p>
                 <div class="family-move-new">
-                    <p class="group-row-hint">תיפתח לך משפחה חדשה וריקה. החשבון שלך נשאר.</p>
+                    <p class="group-row-hint">תיפתח לכם משפחה חדשה וריקה, והחשבון נשאר.</p>
                     <button class="btn-sm btn-danger-ghost" id="leaveFamilyBtn">פתיחת משפחה חדשה</button>
                 </div>
                 {% endif %}
@@ -270,7 +272,7 @@
                             <button type="button" class="toggle-btn active" id="resetScopeMine" data-scope="mine">רק העסקאות שלי</button>
                             {% endif %}
                         </div>
-                        <p class="field-hint">"רק העסקאות שלי" מוחק עסקאות שמשויכות אליך אישית — עסקאות משותפות ושל בני משפחה אחרים נשארות</p>
+                        <p class="field-hint">"רק העסקאות שלי" מוחק עסקאות שמשויכות אישית אליכם — עסקאות משותפות ושל בני משפחה אחרים נשארות</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="resetAccountPassword">אישור עם הסיסמה הנוכחית</label>
@@ -666,7 +668,7 @@
                         <span class="acct-icon">{{ ui_icon("palette") }}</span>
                         <span class="acct-text">
                             <span class="acct-label">הצבע שלי</span>
-                            <span class="acct-value">כך מופיע השם שלך ליד עסקאות ובגרפים</span>
+                            <span class="acct-value">כך מופיע השם ליד עסקאות ובגרפים</span>
                         </span>
                         <span class="member-color-swatch" style="background: {{ color_hex[mine] }};"></span>
                         <span class="acct-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
@@ -681,7 +683,7 @@
             <div class="color-sheet" id="memberColorSheet" role="dialog" aria-modal="true" aria-labelledby="memberColorTitle" hidden>
                 <div class="color-sheet-card">
                     <p class="color-sheet-title" id="memberColorTitle">הצבע שלך</p>
-                    <p class="color-sheet-hint">כך יופיע השם שלך ליד עסקאות ובגרפים</p>
+                    <p class="color-sheet-hint">כך יופיע השם ליד עסקאות ובגרפים</p>
                     <div class="color-sheet-grid">
                         {% for idx, hex in color_hex | dictsort %}
                         {% set taken = idx != mine and idx in member_colors.values() | list %}

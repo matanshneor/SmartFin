@@ -12,6 +12,8 @@ let isPersonal = false;
     btn.addEventListener('click', function () {
         ownerSharedBtn.classList.toggle('active', btn === ownerSharedBtn);
         ownerPersonalBtn.classList.toggle('active', btn === ownerPersonalBtn);
+        ownerSharedBtn.setAttribute('aria-pressed', btn === ownerSharedBtn ? 'true' : 'false');
+        ownerPersonalBtn.setAttribute('aria-pressed', btn === ownerPersonalBtn ? 'true' : 'false');
         isPersonal = btn.dataset.personal === 'true';
     });
 });
@@ -28,7 +30,7 @@ form.addEventListener('submit', function (e) {
     const trackSavings = document.getElementById('projectTrackSavings').checked;
     if (!name) { errorEl.textContent = 'נא להזין שם לפרויקט'; return; }
     if (!trackExpense && !trackIncome && !trackSavings) {
-        errorEl.textContent = 'יש לבחור לפחות מחלקה אחת למעקב';
+        errorEl.textContent = 'נא לבחור לפחות מחלקה אחת למעקב';
         return;
     }
 

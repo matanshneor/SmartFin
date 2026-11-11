@@ -73,7 +73,7 @@ def test_otherwise_it_is_the_login_screen_like_before(anon, monkeypatch, why):
 
     html = anon.post("/signup", data=_form()).get_data(as_text=True)
 
-    assert "נרשמתם בהצלחה! כעת ניתן להתחבר." in html
+    assert "נרשמתם בהצלחה. אפשר להתחבר." in html
 
 
 def test_no_confirm_field_but_an_old_form_is_still_checked(anon, monkeypatch):
