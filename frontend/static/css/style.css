@@ -5075,7 +5075,7 @@ body > .color-sheet { z-index: var(--z-picker); }
 .week-cmp.same { color: var(--color-text-muted); background: var(--color-input); }
 .week-bars {
     display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px;
-    align-items: end; height: 122px; margin-top: 10px;
+    align-items: end; height: 90px; margin-top: 8px;
 }
 .week-day {
     display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px;
@@ -5100,6 +5100,10 @@ body > .color-sheet { z-index: var(--z-picker); }
 .week-detail-list li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .week-detail-amount { color: var(--color-expense); font-weight: 600; flex: none; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
 .week-empty { margin: 0; font-size: 0.8rem; color: var(--color-text-muted); }
+/* An empty day on one line (design pass, 11.11) */
+.week-detail[data-empty] { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.week-detail[data-empty] .week-detail-head { margin: 0; }
+.week-detail[hidden] { display: none; }
 .week-fixed { font-size: 0.78rem; color: var(--color-text-muted); }
 .week-detail-list li.is-fixed { color: var(--color-text-muted); }
 .week-detail-list li.is-fixed .week-detail-amount { color: inherit; font-weight: 500; }

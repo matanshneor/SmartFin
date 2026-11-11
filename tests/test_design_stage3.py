@@ -91,3 +91,15 @@ def test_a_new_family_sees_one_way_to_start():
         before = tpl[:tpl.index(marker)]
         assert before.rstrip().endswith("{% if not is_new_family %}") or \
             before[before.rindex("{% if not is_new_family %}"):].count("{% endif %}") == 0, marker
+
+
+def test_the_week_card_is_lower():
+    tpl = _tpl("_week_card.html")
+    assert "d.total / week.max * 52" in tpl
+    assert "height: 90px" in _rule(".week-bars")
+
+
+def test_an_empty_day_is_one_line_without_zero():
+    tpl = _tpl("_week_card.html")
+    assert "data-empty" in tpl and "{% if d.total %}<span>₪{{ d.total | money }}</span>{% endif %}" in tpl
+    assert "display: none" in _rule(".week-detail[hidden]")

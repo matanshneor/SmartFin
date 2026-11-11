@@ -61,7 +61,9 @@
         {# A day that hasn't come yet is locked, unless a transaction was entered for
    it in advance (Matan, 4.10) #}
         {% set ahead = d.future and not d.total and not d.recurring %}
-        {% set h = 10 if ahead else ([6, ((d.total / week.max * 84) | round | int) if week.max else 6] | max) %}
+        {# Bars up to 52px and not 84 (design pass, 11.11): the card took a third of the
+           home screen, and the recent transactions started below the fold #}
+        {% set h = 8 if ahead else ([5, ((d.total / week.max * 52) | round | int) if week.max else 5] | max) %}
         <button type="button" class="week-day{% if d.today %} today{% endif %}{% if d.selected %} is-selected{% endif %}{% if ahead %} future{% endif %}{% if not d.future and not d.total %} zero{% endif %}"
                 data-day="{{ loop.index0 }}" {% if ahead %}disabled{% endif %}
                 aria-pressed="{{ 'true' if d.selected else 'false' }}"
@@ -76,8 +78,9 @@
        number in the week, and a locked day can come before a day with a
        transaction entered in advance #}
     {% for d in week.days %}{% if not (d.future and not d.total and not d.recurring) %}
-    <div class="week-detail" data-day="{{ loop.index0 }}" {% if not d.selected %}hidden{% endif %}>
-        <p class="week-detail-head"><span>{{ 'היום' if d.today else 'יום ' ~ d.label }} · {{ d.day }}.{{ d.month }}</span>{% if d.total or not d.recurring %}<span>₪{{ d.total | money }}</span>{% endif %}</p>
+    {# A day with nothing: one line, the day and "לא בוצעו עסקאות", without ₪0 #}
+    <div class="week-detail" data-day="{{ loop.index0 }}"{% if not (d.transactions or d.recurring) %} data-empty{% endif %} {% if not d.selected %}hidden{% endif %}>
+        <p class="week-detail-head"><span>{{ 'היום' if d.today else 'יום ' ~ d.label }} · {{ d.day }}.{{ d.month }}</span>{% if d.total %}<span>₪{{ d.total | money }}</span>{% endif %}</p>
         {% if d.transactions or d.recurring %}
         <ul class="week-detail-list">
             {% for t in d.transactions %}
