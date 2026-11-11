@@ -103,3 +103,12 @@ def test_an_empty_day_is_one_line_without_zero():
     tpl = _tpl("_week_card.html")
     assert "data-empty" in tpl and "{% if d.total %}<span>₪{{ d.total | money }}</span>{% endif %}" in tpl
     assert "display: none" in _rule(".week-detail[hidden]")
+
+
+def test_home_shows_one_announcement_per_visit():
+    core = (_ROOT / "frontend/static/js/core.js").read_text(encoding="utf-8")
+    i = core.index("One announcement per visit on home")
+    block = core[i:core.index('"Project finished?"', i)]
+    assert "['#memberJoined', '.recap-wrap', '.year-card-wrap']" in block
+    # Waiting is not "seen": nothing here writes to storage
+    assert "localStorage" not in block

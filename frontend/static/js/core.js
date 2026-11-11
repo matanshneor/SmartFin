@@ -933,6 +933,38 @@ document.addEventListener('click', function (e) {
 })();
 
 
+// ── One announcement per visit on home (design pass, 11.11) ──
+// "A family member joined", "<month> closed" and "your <year>" could all sit
+// on home at once (on 1 January, all three, over the alerts). Only the first
+// still showing appears; the others wait for a later visit, without being
+// marked as seen. Order: "joined" first, since it is shown only once; then the
+// month recap (one day); then the year (fifteen days). Budget alerts aren't
+// announcements: they always show.
+
+(function () {
+    const ORDER = ['#memberJoined', '.recap-wrap', '.year-card-wrap'];
+    function oneAnnouncement() {
+        let shown = false;
+        ORDER.forEach(function (sel) {
+            document.querySelectorAll(sel).forEach(function (el) {
+                if (el.hidden && !el.dataset.sfQueued) return;     // dismissed, or never shown
+                if (!shown) { shown = true; if (el.dataset.sfQueued) { el.hidden = false; delete el.dataset.sfQueued; } return; }
+                el.hidden = true;
+                el.dataset.sfQueued = '1';
+            });
+        });
+    }
+    document.addEventListener('DOMContentLoaded', oneAnnouncement);
+    window.addEventListener('sf:refreshed', oneAnnouncement);
+    // Closing the one showing lets the next one in, on this visit
+    document.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('.recap-close, .member-joined-close, .year-card-wrap .alert-dismiss')) {
+            setTimeout(oneAnnouncement, 0);
+        }
+    });
+})();
+
+
 // ── "Project finished?": "not now" hides it for a month (Matan, 12.10) ──
 
 (function () {
