@@ -211,6 +211,11 @@ if (catTrend && catTrend.categories.length && catCanvas) {
         },
         plugins: [valuesOnTop],
     });
+    // The amounts above the bars are drawn in Rubik 600, which the page may not
+    // have loaded yet: they came out in the fallback face. Once it is in, again.
+    if (document.fonts && document.fonts.load) {
+        document.fonts.load('600 12px Rubik').then(function () { chart.draw(); }, function () {});
+    }
 
     // ── Tapping a month's bar: a sheet with the category's expenses in that
     // month (Matan, 30.9) ──
