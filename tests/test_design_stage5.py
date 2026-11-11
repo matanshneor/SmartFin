@@ -71,3 +71,26 @@ def test_confirm_buttons_say_what_they_lead_to():
     js = (_ROOT / "frontend/static/js/settings.js").read_text(encoding="utf-8")
     assert "confirmText: 'המשך'," not in js
     assert "confirmText: 'המשך להסרה'," in js and "confirmText: 'המשך לעזיבה'," in js
+
+
+# ═══ Stage 6: sign-up and the landing page ═════════════════════════════
+
+def _tpl(name):
+    return (_ROOT / "frontend/templates" / name).read_text(encoding="utf-8")
+
+
+def test_the_landing_mockup_bar_is_split_like_home():
+    tpl = _tpl("landing.html")
+    assert '<div class="lp-app-fill spent"></div><div class="lp-app-fill saved"></div>' in tpl
+
+
+def test_free_is_said_once_in_the_landing_body():
+    tpl = _tpl("landing.html")
+    body = tpl[tpl.index("<body"):]
+    assert body.count("בחינם") == 1
+
+
+def test_the_password_rule_is_a_hint_not_the_label():
+    tpl = _tpl("login.html")
+    assert '<label class="form-label" for="signup_password">סיסמה</label>' in tpl
+    assert 'id="signup_password_hint"' in tpl and 'aria-describedby="signup_password_hint"' in tpl

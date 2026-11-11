@@ -4365,8 +4365,12 @@ li.transaction-item.swipe-ready > .swipe-content {
     background-clip: text; color: transparent;
 }
 .lp-app-sub { font-size: 0.68rem; color: var(--hero-text-muted); margin: 5px 0 14px; }
-.lp-app-track { height: 5px; border-radius: 999px; background: rgba(255,255,255,0.14); overflow: hidden; }
-.lp-app-fill  { height: 100%; width: 74%; border-radius: 999px; background: var(--gradient-gold); }
+/* Split like the real home bar (design pass, 11.11): ₪11,580 spent and ₪2,000
+   saved of ₪18,400, 63% and 11%. It was one gold fill, an old home screen. */
+.lp-app-track { display: flex; gap: 2px; height: 5px; border-radius: 999px; background: rgba(255,255,255,0.14); overflow: hidden; }
+.lp-app-fill  { height: 100%; border-radius: 999px; }
+.lp-app-fill.spent { width: 63%; background: var(--color-expense-light); }
+.lp-app-fill.saved { width: 11%; background: var(--color-savings-light); }
 
 .lp-app-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 12px 10px 8px; }
 .lp-app-card {

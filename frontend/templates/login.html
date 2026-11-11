@@ -173,10 +173,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="signup_password">סיסמה (לפחות 8 תווים, אותיות וספרות)</label>
+                    <label class="form-label" for="signup_password">סיסמה</label>
                     <input class="form-input" type="password" id="signup_password" name="password"
-                           placeholder="••••••••" required autocomplete="new-password" minlength="8">
+                           placeholder="••••••••" required autocomplete="new-password" minlength="8"
+                           aria-describedby="signup_password_hint">
                     <p class="field-error" id="signup_password_error" role="alert" hidden></p>
+                    <p class="field-hint" id="signup_password_hint">לפחות 8 תווים, עם אותיות וספרות</p>
                 </div>
 
                 <div class="form-group">
