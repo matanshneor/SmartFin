@@ -50,7 +50,7 @@ def test_tags_come_in_one_size():
     block = _CSS[i:_CSS.index("}", i)]
     for sel in (".owner-pill", ".project-tag", ".projected-tag", ".me-badge", ".manager-badge"):
         assert sel in block
-    for decl in ("font-size: 0.72rem", "font-weight: 600", "padding: 2px 8px", "var(--radius-pill)"):
+    for decl in ("font-size: var(--text-2xs)", "font-weight: 600", "padding: 2px 8px", "var(--radius-pill)"):
         assert decl in block
 
 
@@ -59,7 +59,7 @@ def test_chips_come_in_one_size_and_selected_is_bold():
     sels = (".tx-type-chip", ".tx-cat-chip", ".tx-sort-chip", ".range-chip")
     i = _CSS.index(", ".join(sels) + " {")
     rule = _CSS[i:_CSS.index("}", i)]
-    for decl in ("min-height: 36px", "font-size: 0.82rem", "padding: 0 14px"):
+    for decl in ("min-height: 36px", "font-size: var(--text-sm)", "padding: 0 14px"):
         assert decl in rule
     active = ", ".join(s + ".active" for s in sels) + " {"
     j = _CSS.index(active)
@@ -93,3 +93,15 @@ def test_the_menu_is_not_moved_during_the_rubber_band_pull():
     js = (_ROOT / "frontend/static/js/pwa.js").read_text(encoding="utf-8")
     settle = js[js.index("function settle()"):]
     assert settle.index("if (overscrolled()) { soon(); return; }") < settle.index("sfDockOffset(")
+
+
+def test_text_sizes_come_from_one_scale():
+    """Was ~35 different rem values; now ten steps (Matan approved the plan, 11.11).
+    Only the fluid clamp()/min() sizes, the 1rem iOS-zoom literals and the big
+    one-off numbers stay as they are."""
+    import re
+    sizes = set(re.findall(r"font-size:\s*([0-9.]+)rem;", _CSS))
+    assert sizes <= {"1", "1.9", "2.1", "2.25", "2.4", "2.7", "4", "0.7", "0.62", "0.56"}, sizes
+    steps = re.findall(r"--text-(\w+):\s+([0-9.]+)rem;", _CSS)
+    assert len(steps) == 10
+    assert [float(v) for _, v in steps] == sorted(float(v) for _, v in steps)
