@@ -81,6 +81,10 @@
     --shadow-lift:         0 8px 28px rgba(31, 24, 8, 0.09), 0 2px 6px rgba(31, 24, 8, 0.05);
     --shadow-gold:         0 6px 18px rgba(166, 124, 0, 0.28);
     --shadow-dock:         0 8px 26px rgba(31, 24, 8, 0.10), 0 1px 4px rgba(31, 24, 8, 0.05);
+    /* Things that float over the page: a small one (bars, toasts) and a big one
+       (dialogs, the sign-in card). Landing-page mock-ups keep their own. */
+    --shadow-float:        0 8px 26px rgba(20, 16, 7, 0.32);
+    --shadow-overlay:      0 22px 54px rgba(20, 16, 7, 0.36);
     --divider-subtle:      rgba(var(--ink-rgb), 0.06);
 
     /* Layout */
@@ -1227,7 +1231,7 @@ a.kpi-chip:active { transform: scale(0.97); }
     display: flex; align-items: center; gap: 12px; padding: 10px 12px;
     border-radius: 18px; border: 1px solid rgba(212, 175, 55, 0.35);
     background: linear-gradient(160deg, var(--hero-bg-2), var(--hero-bg)); color: #FFF8E7;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--shadow-float);
 }
 .install-bar[hidden] { display: none; }
 .install-bar-icon { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; }
@@ -1473,7 +1477,7 @@ a.alert-card:active { transform: scale(0.98); }
     font-weight: 500;
     padding: 11px 20px;
     border-radius: 99px;
-    box-shadow: 0 8px 26px rgba(20, 16, 7, 0.35);
+    box-shadow: var(--shadow-float);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s, transform 0.25s;
@@ -1553,7 +1557,7 @@ body:has(.modal-overlay.open) .toast {
     background: var(--color-card);
     border-radius: 18px;
     padding: 22px 20px 18px;
-    box-shadow: 0 20px 50px rgba(20, 16, 7, 0.3);
+    box-shadow: var(--shadow-overlay);
     text-align: center;
     transform: scale(0.95);
     transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
@@ -3500,7 +3504,7 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     background: var(--color-card);
     border-radius: 20px;
     padding: 28px 22px 24px;
-    box-shadow: 0 24px 60px rgba(20, 16, 7, 0.4);
+    box-shadow: var(--shadow-overlay);
     overflow: hidden;
     animation: auth-card-in 0.5s var(--ease-out);
 }

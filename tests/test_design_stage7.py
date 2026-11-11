@@ -105,3 +105,11 @@ def test_text_sizes_come_from_one_scale():
     steps = re.findall(r"--text-(\w+):\s+([0-9.]+)rem;", _CSS)
     assert len(steps) == 10
     assert [float(v) for _, v in steps] == sorted(float(v) for _, v in steps)
+
+
+def test_floating_things_share_two_shadows():
+    """Install bar and toast: one small shadow; confirm dialog and sign-in card: one big one"""
+    for sel, token in ((".install-bar", "float"), (".toast", "float"),
+                       (".confirm-card", "overlay"), (".auth-form-card", "overlay")):
+        i = _CSS.index("\n" + sel + " {")
+        assert f"box-shadow: var(--shadow-{token});" in _CSS[i:_CSS.index("}", i)], sel
