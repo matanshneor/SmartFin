@@ -22,9 +22,7 @@
         <button type="button" class="hero-icon-btn" id="searchOpen" aria-label="חיפוש בכל העסקאות" aria-haspopup="dialog">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
         </button>
-        <a href="{{ url_for('settings') }}" class="avatar-circle" title="הגדרות וחשבון">
-            {{ user.avatar_initial }}
-        </a>
+        {# The letter circle is gone (Matan, 11.11): settings are in the dock #}
     </div>
 </div>
 

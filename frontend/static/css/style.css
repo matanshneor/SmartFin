@@ -305,8 +305,11 @@ ul { list-style: none; }
     margin-bottom: 12px;
 }
 
-/* The magnifying glass next to the letter on the home page (Matan, 30.9) */
+/* The magnifying glass on the home page (Matan, 30.9) */
 .hero-actions { display: flex; align-items: center; gap: 10px; }
+/* Level with the middle of the greeting and the title, not the greeting's top
+   edge, so it sits clear of the blur under the clock too (Matan, 11.11) */
+.hero-top > .hero-actions { align-self: center; }
 .hero-icon-btn {
     width: 42px; height: 42px; border-radius: 50%;
     display: grid; place-items: center;
@@ -372,20 +375,6 @@ ul { list-style: none; }
     font-weight: 600;
     text-decoration: none;
     position: relative;
-}
-
-.avatar-circle {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: var(--gradient-gold);
-    color: #FFFFFF;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: var(--text-base);
-    text-decoration: none;
 }
 
 /* Big hero amount */

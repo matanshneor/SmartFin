@@ -70,3 +70,11 @@ def test_the_hero_starts_below_the_blurred_band_under_the_clock():
     """iOS 26 blurs a band a little taller than the safe area (11.11)"""
     i = _CSS.index(".page-hero {")
     assert "padding: calc(28px + env(safe-area-inset-top, 0px)) 20px 46px;" in _CSS[i:_CSS.index("}", i)]
+
+
+def test_home_has_no_letter_circle_and_search_sits_lower():
+    """Matan, 11.11: the letter circle goes; search moves down a little"""
+    tpl = (_ROOT / "frontend/templates/index.html").read_text(encoding="utf-8")
+    assert "avatar-circle" not in tpl and "avatar-circle" not in _CSS
+    assert 'id="searchOpen"' in tpl
+    assert ".hero-top > .hero-actions { align-self: center; }" in _CSS
