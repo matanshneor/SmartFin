@@ -56,3 +56,13 @@ def test_the_type_keeps_its_colour_in_the_text(mode, color):
     i = _CSS.index(f".modal-sheet.{mode}-mode .toggle-btn.active")
     rule = _CSS[i:_CSS.index("}", i)]
     assert f"color: var({color})" in rule and "background" not in rule
+
+
+# ─── 5. "By family member" as rows ────────────────────────────────────
+
+def test_members_are_rows_a_screen_reader_can_read():
+    tpl = _tpl("month.html")
+    assert 'class="member-bars"' in tpl and "{{ r.name }}" in tpl and "₪{{ r.expense | money }}" in tpl
+    assert "membersChart" not in tpl
+    js = (_ROOT / "frontend/static/js/month.js").read_text(encoding="utf-8")
+    assert "membersChart" not in js

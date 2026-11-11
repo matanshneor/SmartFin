@@ -239,7 +239,7 @@ def test_the_month_charts_are_still_drawn_when_the_library_is_there():
     result = _run_node(_WITH_CHART, "chart-setup.js", "month.js")
 
     # "Expenses vs savings" was removed (Matan, 30.9)
+    # "By family member" became rows in the template (design pass, 11.11)
     assert result["drawn"] == [
         {"el": "expenseChart",         "type": "doughnut", "points": 2},
-        {"el": "membersChart-expense", "type": "bar",      "points": 1},
     ]

@@ -5895,3 +5895,18 @@ body.tx-screen-open { overflow: hidden; }
 /* An onboarding step's title takes focus when the step opens (`onboarding.js`):
    it is where reading starts, not a control, so no ring */
 .auth-form-title:focus { outline: none; }
+
+/* "By family member" on the month page: a row per member instead of a bar chart
+   (design pass, 11.11). Name, a bar in their colour, the amount. */
+.member-bars { list-style: none; margin: 6px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.member-bar { display: grid; grid-template-columns: 4.75rem 1fr auto; align-items: center; gap: 12px; }
+.member-bar-name {
+    font-size: var(--text-md); font-weight: 600; color: var(--color-text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.member-bar-track { height: 10px; border-radius: var(--radius-pill); background: rgba(var(--ink-rgb), 0.07); overflow: hidden; }
+.member-bar-track > span { display: block; height: 100%; border-radius: inherit; }
+.member-bar-amount {
+    font-size: var(--text-md); font-weight: 700; color: var(--color-text);
+    font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate;
+}

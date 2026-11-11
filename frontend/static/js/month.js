@@ -391,7 +391,6 @@ document.addEventListener('click', function (e) {
 if (!window.sfCharts.ready) return;
 
 const COLORS    = window.sfCharts.colors;
-const GRID_LINE = window.sfCharts.grid;
 
 let drawn = [];
 const calmMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -510,47 +509,8 @@ if (expenseData.length > 0) {
     }));
 });
 
-// ── 5. Split between family members: a separate chart for every type the
-// family turned attribution on for ──
-
-SF_VIEW.members.forEach(function (mb) {
-    const ctx = document.getElementById('membersChart-' + mb.type);
-    if (!ctx || !mb.rows.length) return;
-    drawn.push(new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: mb.rows.map(m => m.name),
-            datasets: [{
-                label:           mb.label,
-                data:            mb.rows.map(m => m.expense),
-                // A fixed colour per family member, identical to their name-tag
-                // colour (see app.py)
-
-                backgroundColor: mb.rows.map(m => m.color),
-                borderRadius:    6,
-                maxBarThickness: 64,
-            }]
-        },
-        options: {
-            responsive:          true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: c => ` ${mb.label}: ₪${window.sfMoney(c.parsed.y)}`
-                    }
-                }
-            },
-            scales: {
-                x: { grid: { display: false }, ticks: { font: { size: 12 } } },
-                y: {
-                    grid: { color: GRID_LINE },
-                    ticks: { font: { size: 11 }, callback: v => '₪' + v.toLocaleString('en-US') }
-                }
-            }
-        }
-    }));
-});
+// ── 5. Split between family members: rows in the template now, not a chart
+// (design pass, 11.11) ──
 
 }   // paint
 
