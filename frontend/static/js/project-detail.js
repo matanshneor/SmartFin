@@ -152,7 +152,7 @@ document.addEventListener('click', function (e) {
     .then(r => r.json().catch(() => ({})).then(d => ({ ok: r.ok, d: d })))
     .then(function (res) {
         if (!res.ok || res.d.status !== 'ok') {
-            p.error.textContent = res.d.error || 'המחיקה נכשלה';
+            p.error.textContent = res.d.error || 'המחיקה נכשלה — נסו שוב';
             go.disabled = false;
             return;
         }

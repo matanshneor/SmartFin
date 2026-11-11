@@ -56,3 +56,12 @@ def test_requests_say_na():
         js = (_ROOT / "frontend/static/js" / name).read_text(encoding="utf-8")
         assert "'יש לבחור" not in js and "'בחרו " not in js, name
     assert '"יש לבחור' not in (_ROOT / "backend/app.py").read_text(encoding="utf-8")
+
+
+def test_every_failure_message_says_what_to_do():
+    """"השמירה נכשלה" left the user with nothing to do; like the import's
+    "הייבוא נכשל — נסו שוב", every one now ends with the next step"""
+    import re
+    for path in sorted((_ROOT / "frontend/static/js").glob("*.js")):
+        for m in re.finditer(r"'([^'\n]{0,40}נכשל[הו]?[^'\n]{0,20})'", path.read_text(encoding="utf-8")):
+            assert "נסו שוב" in m.group(1), f"{path.name}: {m.group(1)}"

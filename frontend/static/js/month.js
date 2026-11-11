@@ -677,7 +677,7 @@ window.addEventListener('sf:refreshed', paint);
                 .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
                 .then(function (res) {
                     if (!res.ok) {
-                        err.textContent = res.d.error || 'שמירת התקציבים נכשלה';
+                        err.textContent = res.d.error || 'שמירת התקציבים נכשלה — נסו שוב';
                         save.disabled = false; save.textContent = 'שמירה';
                         return;
                     }

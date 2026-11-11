@@ -1975,7 +1975,7 @@
             .then(r => r.json().then(d => (r.status === 404 ? null : d)))
             .then(function (d) {
                 if (d === null) return alreadyGone(txData, row);
-                if (d.status !== 'ok') { if (onFail) onFail(d.error || 'המחיקה נכשלה'); return; }
+                if (d.status !== 'ok') { if (onFail) onFail(d.error || 'המחיקה נכשלה — נסו שוב'); return; }
                 removeTransactionRows(txData.id, row);
                 // No "undo" here: restoring a single occurrence would also bring
                 // back the skip recorded for it, and restoring a whole series,
@@ -2034,7 +2034,7 @@
                 }
                 if (res.code === 404) return alreadyGone(txData, row);
                 const d = res.d;
-                if (d.status !== 'ok') { if (onFail) onFail(d.error || 'מחיקה נכשלה'); return; }
+                if (d.status !== 'ok') { if (onFail) onFail(d.error || 'המחיקה נכשלה — נסו שוב'); return; }
                 removeTransactionRows(txData.id, row);
                 window.showToast(hadReceipt
                     ? 'העסקה נמחקה. הקבלה המצורפת נמחקה איתה ולא תחזור'
@@ -2543,7 +2543,7 @@
                     setTimeout(function () { row.remove(); }, 260);
                     window.showToast('העסקה הקבועה הוסרה');
                 } else {
-                    window.showToast('ההסרה נכשלה', 'error');
+                    window.showToast('ההסרה נכשלה — נסו שוב', 'error');
                 }
             })
             .catch(function () { window.showToast(window.sfNetError(), 'error'); });

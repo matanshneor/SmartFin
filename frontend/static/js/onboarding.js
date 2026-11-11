@@ -154,7 +154,7 @@ window.escapeHtml = window.escapeHtml || function (s) {
         .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
         .then(function (res) {
             if (!res.ok) {
-                errorBox.textContent = res.data.error || 'ההצטרפות נכשלה';
+                errorBox.textContent = res.data.error || 'ההצטרפות נכשלה — נסו שוב';
                 btn.disabled = false;
                 btn.textContent = 'הצטרפות';
                 return;

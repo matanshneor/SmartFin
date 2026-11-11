@@ -381,7 +381,7 @@ window.appFeedback = function () {
         let usage = null;
         return fetch(baseUrl + '/usage').then(catJson).then(function (res) {
             if (!res.ok) {
-                window.showToast(res.d.error || 'המחיקה נכשלה', 'error');
+                window.showToast(res.d.error || 'המחיקה נכשלה — נסו שוב', 'error');
                 return false;
             }
             usage = adjust ? adjust(res.d) : res.d;
@@ -426,7 +426,7 @@ window.appFeedback = function () {
             const url = baseUrl + (choice.target ? '?move_to=' + encodeURIComponent(choice.target) : '');
             return fetch(url, { method: 'DELETE' }).then(catJson).then(function (res) {
                 if (!res.ok) {
-                    window.showToast(res.d.error || 'המחיקה נכשלה', 'error');
+                    window.showToast(res.d.error || 'המחיקה נכשלה — נסו שוב', 'error');
                     return false;
                 }
                 window.showToast(choice.dest

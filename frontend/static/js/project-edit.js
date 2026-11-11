@@ -48,7 +48,7 @@ function call(method, url, body) {
         opts.body = JSON.stringify(body);
     }
     return fetch(url, opts).then(json).then(function (res) {
-        if (!res.ok || res.d.error) throw new Error(res.d.error || 'השמירה נכשלה');
+        if (!res.ok || res.d.error) throw new Error(res.d.error || 'השמירה נכשלה — נסו שוב');
         return res.d;
     });
 }

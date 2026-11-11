@@ -107,7 +107,7 @@ if (saveBtn) {
                 document.querySelectorAll('.settings-family-name').forEach(el => { el.textContent = newName; });
                 nameEdit.classList.remove('visible');
             } else {
-                window.showToast('השמירה נכשלה', 'error');
+                window.showToast('השמירה נכשלה — נסו שוב', 'error');
             }
         })
         .catch(function () {
@@ -220,7 +220,7 @@ if (joinBtn && joinInput) {
             .then(function (res) {
                 if (res === null) return;
                 if (res.status >= 400) {
-                    joinError.textContent = res.data.error || 'ההצטרפות נכשלה';
+                    joinError.textContent = res.data.error || 'ההצטרפות נכשלה — נסו שוב';
                     return;
                 }
                 window.location.reload();
@@ -281,7 +281,7 @@ function persistCategoryOrder(panel) {
     })
     .then(r => r.json())
     .then(function (d) {
-        if (d.error) { window.showToast('שמירת הסדר נכשלה', 'error'); return; }
+        if (d.error) { window.showToast('שמירת הסדר נכשלה — נסו שוב', 'error'); return; }
         forgetCategories();                 // the order also decides the order in +
     })
     .catch(function () { window.showToast(window.sfNetError(), 'error'); });
@@ -1043,7 +1043,7 @@ function savePrefs(patch, revert) {
     })
     .then(function (res) {
         if (!res.ok || res.data.error) {
-            failed(res.data.error || 'שמירת ההעדפות נכשלה');
+            failed(res.data.error || 'שמירת ההעדפות נכשלה — נסו שוב');
             return;
         }
         // The global modal reads from here: the "whose?" picker updates without
@@ -1207,7 +1207,7 @@ attrSwitches.forEach(function (sw) {
                             setTimeout(function () { window.location.reload(); }, 700);
                         } else {
                             removeBtn.disabled = false;
-                            window.showToast(res.data.error || 'ההסרה נכשלה', 'error');
+                            window.showToast(res.data.error || 'ההסרה נכשלה — נסו שוב', 'error');
                         }
                     })
                     .catch(function () {
@@ -1244,7 +1244,7 @@ attrSwitches.forEach(function (sw) {
                             window.location.href = '/';
                         } else {
                             leaveBtn.disabled = false;
-                            window.showToast(res.data.error || 'העזיבה נכשלה', 'error');
+                            window.showToast(res.data.error || 'העזיבה נכשלה — נסו שוב', 'error');
                         }
                     })
                     .catch(function () {
@@ -1274,7 +1274,7 @@ attrSwitches.forEach(function (sw) {
                             document.getElementById('inviteCode').textContent = res.data.invite_code;
                             window.showToast('נוצר קוד חדש');
                         } else {
-                            window.showToast(res.data.error || 'ההחלפה נכשלה', 'error');
+                            window.showToast(res.data.error || 'ההחלפה נכשלה — נסו שוב', 'error');
                         }
                     })
                     .catch(function () {
@@ -1504,7 +1504,7 @@ attrSwitches.forEach(function (sw) {
         })
             .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); })
             .then(function (res) {
-                if (!res.ok) { btn.disabled = false; window.showToast(res.d.error || 'שמירת הצבע נכשלה', 'error'); return; }
+                if (!res.ok) { btn.disabled = false; window.showToast(res.d.error || 'שמירת הצבע נכשלה — נסו שוב', 'error'); return; }
                 try { window.sfToastAfterReload('הצבע נשמר'); } catch (err) { /* without a toast */ }
                 window.location.reload();
             })
