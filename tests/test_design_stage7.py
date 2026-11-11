@@ -43,3 +43,12 @@ def test_buttons_come_in_three_heights():
     for sel in (".logout-btn", ".project-save-btn", ".project-save-cancel", ".delete-tx-btn"):
         assert sel in block
     assert ".hero-start-btn {\n    min-height: var(--btn-h-lg);" in block
+
+
+def test_tags_come_in_one_size():
+    i = _CSS.index("/* ─── Tags: one size")
+    block = _CSS[i:_CSS.index("}", i)]
+    for sel in (".owner-pill", ".project-tag", ".projected-tag", ".me-badge", ".manager-badge"):
+        assert sel in block
+    for decl in ("font-size: 0.72rem", "font-weight: 600", "padding: 2px 8px", "var(--radius-pill)"):
+        assert decl in block

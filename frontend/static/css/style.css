@@ -5989,3 +5989,17 @@ body:has(> .page-hero) {
     display: flex; align-items: center; justify-content: center;
 }
 :where(.empty-row-add) { min-height: var(--btn-h-sm); }
+
+/* ─── Tags: one size (design pass, stage 8, 11.11) ───────────────────
+   The small labels that only inform (whose, a project, "צפוי", a payment
+   number, me, manager…) came in four heights (16-23px), text from 10.4 to
+   12.5px and weights from 400 to 700. Now one size; each keeps its colours. */
+.owner-pill, .owner-pill-sm, .project-tag, .projected-tag, .installment-tag,
+.me-badge, .manager-badge, .hero-badge, .project-tile-tag, .from-receipt-tag,
+.week-fixed-tag, .all-tx-count, .current-month-badge, .week-cmp {
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+}
