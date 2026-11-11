@@ -144,3 +144,8 @@ def test_a_category_is_one_row_with_its_budget_switch():
     assert "display: contents" in _rule(".cat-budget-edit")
     assert "flex-basis: 100%" in _rule(".cat-budget-fields")
     assert "#categoriesArea.managing .cat-budget-label { display: none; }" in _CSS
+
+
+def test_saving_a_budget_says_budget():
+    js = (_ROOT / "frontend/static/js/settings.js").read_text(encoding="utf-8")
+    assert "patch.limits ? 'התקציב נשמר' : 'ההעדפות נשמרו'" in js

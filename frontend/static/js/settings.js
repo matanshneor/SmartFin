@@ -1050,7 +1050,8 @@ function savePrefs(patch, revert) {
         // a refresh
 
         window.SF_ATTRIBUTION = res.data.settings.owner_attribution;
-        window.showToast('ההעדפות נשמרו');
+        // Say what was saved (design pass, 11.11): a budget isn't "preferences"
+        window.showToast(patch.limits ? 'התקציב נשמר' : 'ההעדפות נשמרו');
     })
     .catch(function () { failed(window.sfNetError()); });
 }
