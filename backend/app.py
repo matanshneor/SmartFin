@@ -860,9 +860,9 @@ _OWNER_HEX  = {
     0: "#2E67A8",  # blue (Matan)
     1: "#7048B0",  # purple (Or)
     2: "#A0457C",  # plum-magenta
-    3: "#A85C3E",  # terracotta
-    4: "#5E7391",  # slate blue-grey
-    5: "#8A6A52",  # taupe brown
+    3: "#8F4D33",  # terracotta
+    4: "#4E6180",  # slate blue-grey
+    5: "#735843",  # taupe brown
     # Two more: eight to choose from (Matan, 30.9, round 6, item 13)
     6: "#4B4FA8",  # indigo
     7: "#2F7385",  # petrol blue

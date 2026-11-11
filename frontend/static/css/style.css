@@ -66,7 +66,8 @@
     --alert-warn-ink:      #6E5200;
     --alert-danger-bg:     #FCEDED;
     --alert-danger-ink:    #8E1A1A;
-    --toggle-off:          #D8D2C4;
+    /* The "off" track: #D8D2C4 was 1.5:1, and the switch's state didn't read (3.5) */
+    --toggle-off:          #8F8777;
     /* Translucent + blur (`.bottom-nav`). At 0.97 without blur the content behind
        flashed sharply between the labels; this way it becomes a soft patch of
        colour. */
@@ -127,7 +128,7 @@
     --alert-warn-ink:      #F0CF7A;
     --alert-danger-bg:     #361A18;
     --alert-danger-ink:    #FCA5A5;
-    --toggle-off:          #3A3223;
+    --toggle-off:          #746A57;
     --dock-bg:             rgba(33, 27, 18, 0.72);
     --dock-bg-solid:       #211B12;
 
@@ -716,8 +717,22 @@ ul { list-style: none; }
 .nav-item .nav-label {
     font-size: 0.75rem;
     font-weight: 500;
-    letter-spacing: 0.02em;
     transition: color 0.25s;
+}
+.nav-item { min-width: 0; }
+
+/* The dock on a narrow screen with large text (design pass, 11.11): at 320px and
+   "extra large" the five labels touched each other and "הגדרות" ran under the +.
+   The labels go back to about their normal size there; the icons carry them. */
+@media (max-width: 380px) {
+    /* Each item as wide as its own label, not a fifth of the bar: "פרויקטים" is
+       twice "בית". The icon pill narrows a little to make room. */
+    .bottom-nav { padding: 0 4px; }
+    .nav-item { flex: 1 1 auto; }
+    .nav-item .nav-icon { width: 34px; }
+    .nav-item .nav-label { font-size: 0.7rem; }
+    html[data-text-size="large"] .nav-item .nav-label  { font-size: 0.62rem; }
+    html[data-text-size="xlarge"] .nav-item .nav-label { font-size: 0.56rem; }
 }
 
 .nav-item.active {
@@ -1057,9 +1072,10 @@ a.kpi-chip:active { transform: scale(0.97); }
 .owner-0 { background: rgba(46, 103, 168, 0.12); color: #2E67A8; }  /* blue (Matan) */
 .owner-1 { background: rgba(112, 72, 176, 0.12); color: #7048B0; }  /* purple (Or) */
 .owner-2 { background: rgba(160, 69, 124, 0.12); color: #A0457C; }  /* plum-magenta */
-.owner-3 { background: rgba(168, 92, 62, 0.12);  color: #A85C3E; }  /* terracotta */
-.owner-4 { background: rgba(94, 115, 145, 0.12); color: #5E7391; }  /* slate blue-grey */
-.owner-5 { background: rgba(138, 106, 82, 0.12); color: #8A6A52; }  /* taupe brown */
+/* 3–5 darkened (design pass, 11.11): 4.2:1 at this size, below the 4.5 for text */
+.owner-3 { background: rgba(143, 77, 51, 0.12);  color: #8F4D33; }  /* terracotta */
+.owner-4 { background: rgba(78, 97, 128, 0.12); color: #4E6180; }  /* slate blue-grey */
+.owner-5 { background: rgba(115, 88, 67, 0.12); color: #735843; }  /* taupe brown */
 .owner-6 { background: rgba(75, 79, 168, 0.12);  color: #4B4FA8; }  /* indigo */
 .owner-7 { background: rgba(47, 115, 133, 0.12); color: #2F7385; }  /* petrol blue */
 .owner-shared { background: rgba(var(--ink-rgb), 0.07); color: var(--color-text-muted); }
@@ -1190,6 +1206,15 @@ a.kpi-chip:active { transform: scale(0.97); }
 /* the content isn't hidden under the bar */
 body.has-install-bar .main-content {
     padding-bottom: calc(var(--dock-height) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 96px);
+}
+/* Any open sheet, dialog or full screen hides the bar (design pass, 11.11): at
+   z-index 950 it floated over the transaction sheet and covered the row above
+   Save, and over "what's new". It comes back when the overlay closes. */
+body:has(.modal-overlay.open, .confirm-overlay.open, .color-sheet:not([hidden]), .icon-picker:not([hidden]), .search-screen:not([hidden]), .tx-screen:not([hidden]), .receipt-viewer:not([hidden]), .yr-overlay:not([hidden])) .install-bar { display: none; }
+/* The toast sat at the bar's height and was hidden behind it entirely, "added ·
+   undo" included: above the bar instead (its 10px offset + ~62px + a gap) */
+body.has-install-bar .toast {
+    bottom: calc(var(--dock-height) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 82px);
 }
 .install-steps { list-style: none; margin: 4px 0 14px; padding: 0; text-align: right; }
 .install-steps li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--divider-subtle); }
@@ -1679,7 +1704,8 @@ body:has(.modal-overlay.open) .toast {
 }
 
 .modal-sheet.income-mode .toggle-btn.active {
-    background: linear-gradient(135deg, #22A055, #15803D);
+    /* The old light-green end gave white text 3.4:1, below the standard */
+    background: linear-gradient(135deg, #15803D, #166534);
     color: #FFFFFF;
     box-shadow: 0 2px 8px rgba(21, 128, 61, 0.30);
 }
@@ -1700,7 +1726,8 @@ body:has(.modal-overlay.open) .toast {
    in the category management tabs too, in settings and on the project page */
 .cat-type-tabs .toggle-btn[data-cat-tab="income"].active,
 .project-cat-tabs .toggle-btn[data-cat-tab="income"].active {
-    background: linear-gradient(135deg, #22A055, #15803D);
+    /* The old light-green end gave white text 3.4:1, below the standard */
+    background: linear-gradient(135deg, #15803D, #166534);
     color: #FFFFFF;
     box-shadow: 0 2px 8px rgba(21, 128, 61, 0.30);
 }
@@ -1855,7 +1882,8 @@ body:has(.modal-overlay.open) .toast {
 }
 
 .form-input::placeholder {
-    color: #A8A29E;
+    /* #A8A29E was 2.2:1 on the input fill; the muted text colour passes (5.1) */
+    color: var(--color-text-muted);
 }
 
 select.form-input {
@@ -2114,15 +2142,7 @@ a.submit-btn {
 .error-card .empty-illus { margin-bottom: 8px; }
 .error-message { text-align: center; margin-bottom: 20px; }
 
-.modal-sheet.income-mode .submit-btn {
-    background: linear-gradient(135deg, #22A055, #15803D);
-    box-shadow: 0 6px 18px rgba(21, 128, 61, 0.32);
-}
 
-.modal-sheet.expense-mode .submit-btn {
-    background: var(--gradient-danger);
-    box-shadow: 0 6px 18px rgba(185, 28, 28, 0.32);
-}
 
 /* The edit-mode action row: "add again" + "delete" side by side */
 /* Suggestions from earlier descriptions under the description field (Matan,
@@ -2625,24 +2645,6 @@ li.zero-cat-row { display: none; }
     padding: 2px 10px;
 }
 
-/* Breakdown rows */
-.breakdown-bars {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.breakdown-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: var(--radius-sm);
-    background: var(--color-input);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    flex-shrink: 0;
-}
 
 /* Chart wrapper (doughnut / bar / line canvases) */
 .line-chart-wrap {
@@ -2858,20 +2860,7 @@ li.zero-cat-row { display: none; }
     box-shadow: var(--shadow-card);
 }
 
-.icon-btn {
-    position: relative;
-    width: 36px;
-    height: 36px;
-    border-radius: 11px;
-    background: var(--color-input);
-    color: var(--color-gold-text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
 
-.icon-btn svg { width: 17px; height: 17px; }
 
 .family-name-edit {
     display: none;
@@ -3033,10 +3022,6 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     text-overflow: ellipsis;
 }
 
-.recurring-freq {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-}
 /* "₪5,000 ← ₪5,500 מאוקטובר" (Matan, 3.10, idea 40) */
 .recurring-price-change { font-size: 0.72rem; color: var(--color-text-muted); margin-top: 1px; font-variant-numeric: tabular-nums; }
 
@@ -3870,6 +3855,9 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;
+        /* Without this an endless animation (the scan line, the spinner) keeps
+           running at 0.01ms a cycle: a flicker, not a stop */
+        animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
     .anim-rise { opacity: 1; }
@@ -3955,6 +3943,9 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .pref-switch input:checked + .pref-slider::before { transform: translateX(-20px); }
 .pref-switch input:disabled + .pref-slider { opacity: 0.4; cursor: not-allowed; }
 .pref-switch input:focus-visible + .pref-slider { outline: 2px solid var(--color-gold-bright); outline-offset: 2px; }
+/* The bright gold ring is 2.1:1 on a white card: the darker gold there (5.6) */
+:root:not([data-theme="dark"]) .pref-switch input:focus-visible + .pref-slider,
+:root:not([data-theme="dark"]) #modalOverlay .recurring-group .checkbox-input:focus-visible + .checkbox-custom { outline-color: var(--color-gold-text); }
 
 /* A temporary "recent transaction" row (optimistic UI), until the full refresh
    replaces it with real data */
@@ -4083,7 +4074,6 @@ li.transaction-item.swipe-ready > .swipe-content {
 /* Enlarging the actual tap area to 44×44 without changing the visual size: a
    transparent, centred pseudo-element, larger than the visible icon */
 .modal-close::before,
-.icon-btn::before,
 .edit-cat-btn::before,
 .delete-cat-btn::before,
 .receipt-badge::before,
@@ -5454,6 +5444,17 @@ body.tx-screen-open { overflow: hidden; }
     box-shadow: 0 6px 18px rgba(20, 16, 7, 0.28);
 }
 :root[data-theme="dark"] #modalOverlay .submit-btn { background: var(--gradient-gold); color: #FFFFFF; box-shadow: var(--shadow-gold); }
+/* Save stays in view (design pass, 11.11): with twelve categories and a project
+   the sheet is taller than a 390×844 screen, and Save opened below the fold. It
+   sticks to the bottom of the sheet instead. The 12px ring in the sheet's colour
+   covers the rows scrolling behind it, so nothing peeks around the button. */
+#modalOverlay label.submit-btn {
+    position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 2;
+    box-shadow: 0 6px 18px rgba(20, 16, 7, 0.28), 0 0 0 12px var(--color-bg-elevated);
+}
+:root[data-theme="dark"] #modalOverlay label.submit-btn { box-shadow: var(--shadow-gold), 0 0 0 12px var(--color-bg-elevated); }
+#modalOverlay label.submit-btn.is-unchanged,
+:root[data-theme="dark"] #modalOverlay label.submit-btn.is-unchanged { box-shadow: 0 0 0 12px var(--color-bg-elevated); }
 
 /* Keyboard open (touch round, 7.10): the bottom bar and + get out of the way.
    On Android, with `interactive-widget=resizes-content` (in the viewport), the
@@ -5666,10 +5667,6 @@ body.tx-screen-open { overflow: hidden; }
 .recap-lines li { display: flex; gap: 8px; align-items: baseline; }
 .recap-line-icon { width: 20px; text-align: center; flex-shrink: 0; }
 .recap-lines b { font-weight: 700; }
-.recap-link {
-    display: block; text-align: center; font-size: 0.86rem; font-weight: 600; color: var(--color-gold-text);
-    text-decoration: none; padding-top: 10px; border-top: 1px solid var(--divider-subtle);
-}
 
 /* Signup: the problem under its field, while typing (Matan, 13.10; `login.js`) */
 .field-error { margin: 5px 2px 0; font-size: 0.8rem; font-weight: 500; color: var(--color-expense); }
@@ -5779,7 +5776,6 @@ body.tx-screen-open { overflow: hidden; }
     background: linear-gradient(150deg, var(--hero-bg) 0%, var(--hero-bg-2) 100%);
     color: var(--hero-text); box-shadow: var(--shadow-card);
 }
-.year-card-icon { font-size: 1.9rem; }
 .year-card-text { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .year-card-title { font-size: 1.15rem; font-weight: 700; color: var(--color-gold-bright); }
 .year-card-sub { font-size: 0.85rem; color: var(--hero-text-muted); }
@@ -5861,3 +5857,14 @@ body.tx-screen-open { overflow: hidden; }
 .year-card-wrap { margin-bottom: 14px; }
 .year-card-wrap .year-card { padding-inline-end: 46px; }
 .year-card-wrap .alert-dismiss { color: var(--hero-text); opacity: 0.6; }
+
+/* Focus rings that were missing (design pass, 11.11): the search field drew
+   none, the project's track checkboxes hide the real input, and the import's
+   file input is visually hidden behind its label */
+.search-bar:focus-within { outline: 2px solid var(--color-gold-text); outline-offset: 2px; }
+.checkbox-input:focus-visible + .checkbox-custom { outline: 2px solid var(--color-gold-text); outline-offset: 2px; }
+.import-file-btn:has(+ input:focus-visible) { outline: 2px solid var(--color-gold-text); outline-offset: 2px; }
+
+/* An onboarding step's title takes focus when the step opens (`onboarding.js`):
+   it is where reading starts, not a control, so no ring */
+.auth-form-title:focus { outline: none; }

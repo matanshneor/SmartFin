@@ -21,6 +21,10 @@ function centerStrip() {
     strip.style.scrollBehavior = prev;
 }
 centerStrip();
+// Again once Rubik has loaded: the chips were measured in the fallback font, and
+// the real one changes their widths, so the strip settled a few pixels off, and
+// sometimes snapped to the oldest month (design pass, 11.11).
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(centerStrip);
 window.addEventListener('sf:refreshed', centerStrip);
 })();
 
@@ -256,6 +260,10 @@ function openTxScreen(push) {
     if (screen.parentElement !== document.body) document.body.appendChild(screen);
     screen.hidden = false;
     document.body.classList.add('tx-screen-open');
+    // Focus into the screen, or keyboard and VoiceOver stayed on the button now
+    // hidden behind it (design pass, 11.11)
+    const back = document.getElementById('txScreenClose');
+    if (back) back.focus({ preventScroll: true });
     if (push) {
         try { history.pushState({ sfTxScreen: true }, '', '#all-tx'); } catch (e) { /* not critical */ }
     }
@@ -263,8 +271,11 @@ function openTxScreen(push) {
 
 function hideTxScreen() {
     const screen = txScreen();
+    const hadFocus = screen && screen.contains(document.activeElement);
     if (screen) screen.hidden = true;
     document.body.classList.remove('tx-screen-open');
+    const opener = document.getElementById('txScreenOpen');
+    if (hadFocus && opener) opener.focus({ preventScroll: true });
     txState = null;
     sortAllTx('date');                  // the sort isn't kept: next time it opens by date again
 }

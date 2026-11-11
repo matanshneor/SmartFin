@@ -14,10 +14,16 @@
     }
 
     const sendBtn = document.getElementById('welcomeSendBtn');
-    const close = function () { sheet.hidden = true; };
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    const close = function () {
+        sheet.hidden = true;
+        document.removeEventListener('keydown', onKey);
+    };
     document.getElementById('welcomeCloseBtn').addEventListener('click', close);
     sheet.addEventListener('click', function (e) { if (e.target === sheet) close(); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    document.addEventListener('keydown', onKey);
+    // Focus into the sheet: it opens by itself, over the page (design pass, 11.11)
+    requestAnimationFrame(function () { sendBtn.focus({ preventScroll: true }); });
 
     sendBtn.addEventListener('click', function () {
         const msg = window.sfInviteMessage(sheet.dataset.code, sheet.dataset.family);

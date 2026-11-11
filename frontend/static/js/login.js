@@ -16,6 +16,8 @@ if (window.location.hash.includes('type=recovery')) {
         const isSignup = tab === 'signup';
         tabLogin.classList.toggle('active', !isSignup);
         tabSignup.classList.toggle('active', isSignup);
+        tabLogin.setAttribute('aria-pressed', isSignup ? 'false' : 'true');
+        tabSignup.setAttribute('aria-pressed', isSignup ? 'true' : 'false');
         loginPanel.style.display  = isSignup ? 'none' : 'block';
         signupPanel.style.display = isSignup ? 'block' : 'none';
         // The "forgot password" screen isn't closed here, so tapping a tab after

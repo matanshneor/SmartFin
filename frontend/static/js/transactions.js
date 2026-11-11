@@ -151,6 +151,7 @@
             const ds = dateStr(parseInt(chip.dataset.days, 10));
             const on = ds === txDate.value;
             chip.classList.toggle('active', on);
+            chip.setAttribute('aria-pressed', on ? 'true' : 'false');
             quick = quick || on;
             // The date itself under "today"/"yesterday": no need to think what
             // the date is (Matan, 1.11)

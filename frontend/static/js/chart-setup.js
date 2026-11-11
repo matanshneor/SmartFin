@@ -75,6 +75,11 @@ window.sfCharts = (function () {
     Chart.defaults.color = MUTED;
     Chart.defaults.animation.duration = 900;
     Chart.defaults.animation.easing = 'easeOutQuart';
+    // Whoever asked their phone for less motion gets the charts already drawn:
+    // count-up and the bars already honour it, the charts didn't (design pass, 11.11)
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        Chart.defaults.animation = false;
+    }
     Chart.defaults.plugins.legend.display = false;
     Chart.defaults.plugins.tooltip.backgroundColor = '#1C1917';
     Chart.defaults.plugins.tooltip.titleColor = '#FAF7F0';

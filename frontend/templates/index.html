@@ -284,7 +284,7 @@
             data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
                     data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
             <div class="tx-head" role="button" tabindex="0" aria-haspopup="dialog"
-                 aria-label="עריכת {{ tx.category_name }}, {{ tx.amount | money }} שקלים">
+                 aria-label="עריכת {{ tx.category_name }}: {{ {'expense': 'הוצאה', 'income': 'הכנסה', 'savings': 'חיסכון'}.get(tx.type, '') }} של {{ tx.amount | money }} שקלים, {{ tx.date | day_label }}{% if tx.workplace or tx.description %}, {{ tx.workplace or tx.description }}{% endif %}">
                 <div class="tx-icon {{ tx.type }}">
                     <span class="tx-emoji">{{ tx.category_icon }}</span>
                 </div>

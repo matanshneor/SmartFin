@@ -510,6 +510,19 @@ function sfApplyHtml(html, regions) {
 
     if (typeof window.Chart === 'undefined' && doc.querySelector('main canvas')) return 'full';
 
+    // A deploy since this page loaded: the new HTML may use classes the old CSS
+    // and scripts don't know. Each asset URL carries its content hash (`?v=`),
+    // so another stylesheet or core script means another version: reload fully
+    // instead of pouring new markup into old styles (design pass, 11.11). Only
+    // the assets every page shares: switching tabs brings other page scripts.
+
+    const assets = function (d) {
+        return Array.prototype.map.call(
+            d.querySelectorAll('link[rel="stylesheet"][href*="/css/"], script[src*="/js/core.js"]'),
+            function (el) { return el.getAttribute('href') || el.getAttribute('src'); }).join('|');
+    };
+    if (assets(doc) !== assets(document)) return 'full';
+
     // All areas are collected before touching any of them: a partial swap (a
     // new hero over an old body) is worse than a full reload.
 
@@ -989,5 +1002,52 @@ document.addEventListener('click', function (e) {
     logOpen();
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible') logOpen();
+    });
+})();
+
+
+/* ─── Focus stays inside an open dialog (design pass, 11.11) ──────────────
+ *
+ * Only the transaction sheet and the confirm dialog kept Tab inside; the
+ * search screen, "all transactions", the budgets sheet, the icon and colour
+ * pickers, the receipt viewer, the yearly summary, "what's new" and the invite
+ * all said `aria-modal` and let Tab walk out to the page behind them. One trap
+ * for all of them: the topmost visible `[aria-modal="true"]`. The two that
+ * manage their own Tab cancel the event first, so this one stays out of their way.
+ */
+(function () {
+    const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), '
+                    + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    function shown(el) {
+        if (el.hidden || el.closest('[hidden]')) return false;
+        const cs = getComputedStyle(el);
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && el.getClientRects().length > 0;
+    }
+
+    function topDialog() {
+        const open = Array.prototype.filter.call(
+            document.querySelectorAll('[aria-modal="true"]'), shown);
+        if (!open.length) return null;
+        // The one holding the focus, else the last one opened (later in the page)
+        return open.find(function (d) { return d.contains(document.activeElement); })
+            || open[open.length - 1];
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab' || e.defaultPrevented) return;
+        const dialog = topDialog();
+        if (!dialog) return;
+        const items = Array.prototype.filter.call(dialog.querySelectorAll(FOCUSABLE), shown);
+        if (!items.length) return;
+        const first = items[0], last = items[items.length - 1];
+        const inside = dialog.contains(document.activeElement);
+        if (!inside || (e.shiftKey && document.activeElement === first)) {
+            e.preventDefault();
+            (e.shiftKey ? last : first).focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
     });
 })();
