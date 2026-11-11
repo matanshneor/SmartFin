@@ -1181,7 +1181,7 @@ attrSwitches.forEach(function (sw) {
                 message: 'הגישה של ' + name + ' לתקציב המשפחתי תיפסק מיד, ותיפתח משפחה '
                        + 'חדשה וריקה. אפשר לצרף שוב בקוד הזמנה.\n\n'
                        + 'פרויקטים אישיים של ' + name + ', אם יש, יימחקו יחד עם העסקאות שבהם.',
-                confirmText: 'המשך',
+                confirmText: 'המשך להסרה',
             }).then(function (ok) {
                 if (!ok) return null;
                 return askAboutTransactions('העסקאות של ' + name,
@@ -1227,10 +1227,10 @@ attrSwitches.forEach(function (sw) {
                 title: 'לעזוב את המשפחה?',
                 message: 'תאבדו גישה לתקציב המשפחתי. תיפתח לכם משפחה חדשה וריקה, '
                        + 'והחשבון נשאר. אפשר לחזור בקוד הזמנה.',
-                confirmText: 'המשך',
+                confirmText: 'המשך לעזיבה',
             }).then(function (ok) {
                 if (!ok) return null;
-                return askAboutTransactions('העסקאות שלך',
+                return askAboutTransactions('העסקאות שלכם',
                     'העסקאות שרשמתם נרשמו מהתקציב המשותף ויישארו אצל המשפחה.');
             }).then(function (choice) {
                 if (!choice) return;

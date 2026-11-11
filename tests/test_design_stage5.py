@@ -65,3 +65,9 @@ def test_every_failure_message_says_what_to_do():
     for path in sorted((_ROOT / "frontend/static/js").glob("*.js")):
         for m in re.finditer(r"'([^'\n]{0,40}נכשל[הו]?[^'\n]{0,20})'", path.read_text(encoding="utf-8")):
             assert "נסו שוב" in m.group(1), f"{path.name}: {m.group(1)}"
+
+
+def test_confirm_buttons_say_what_they_lead_to():
+    js = (_ROOT / "frontend/static/js/settings.js").read_text(encoding="utf-8")
+    assert "confirmText: 'המשך'," not in js
+    assert "confirmText: 'המשך להסרה'," in js and "confirmText: 'המשך לעזיבה'," in js
