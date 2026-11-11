@@ -267,7 +267,9 @@ ul { list-style: none; }
         radial-gradient(ellipse 110% 80% at 85% -20%, rgba(212, 175, 55, 0.11), transparent 55%),
         linear-gradient(160deg, var(--hero-bg-2) 0%, var(--hero-bg) 70%);
     color: var(--hero-text);
-    padding: calc(14px + env(safe-area-inset-top, 0px)) 20px 46px;
+    /* 28px under the clock, not 14: iOS 26 blurs a band a little taller than
+       the safe area, and the greeting sat inside it (Matan's iPhone, 11.11) */
+    padding: calc(28px + env(safe-area-inset-top, 0px)) 20px 46px;
     border-bottom: 1px solid rgba(212, 175, 55, 0.18);
     position: relative;
 }

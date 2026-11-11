@@ -64,3 +64,9 @@ def test_chips_come_in_one_size_and_selected_is_bold():
     active = ", ".join(s + ".active" for s in sels) + " {"
     j = _CSS.index(active)
     assert "font-weight: 700" in _CSS[j:_CSS.index("}", j)]
+
+
+def test_the_hero_starts_below_the_blurred_band_under_the_clock():
+    """iOS 26 blurs a band a little taller than the safe area (11.11)"""
+    i = _CSS.index(".page-hero {")
+    assert "padding: calc(28px + env(safe-area-inset-top, 0px)) 20px 46px;" in _CSS[i:_CSS.index("}", i)]
