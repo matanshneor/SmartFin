@@ -5955,3 +5955,37 @@ body:has(> .page-hero) {
     background-position: 0 120px;
     background-repeat: no-repeat;
 }
+
+/* ─── Buttons: three heights (design pass, stage 8, 11.11) ───────────
+   Measured in the harness: the same .btn-sm came out 32, 36, 42 and 44px tall,
+   the two "בואו נתחיל" buttons 46 and 51, the project's save 47. Now every
+   button is one of three heights: small (in a row of controls), medium (a
+   button of its own inside a card) and large (the screen's main action). Only
+   the height is set here; colours and wording stay with each button. */
+:root {
+    --btn-h-sm: 36px;
+    --btn-h-md: 44px;
+    --btn-h-lg: 54px;
+}
+:where(.btn-sm) { min-height: var(--btn-h-sm); }    /* zero weight: a button that needs 44 ("לכל עסקאות החודש") keeps it */
+.confirm-actions .btn-sm,
+.logout-btn,
+.project-save-btn,
+.project-save-cancel,
+.import-file-btn,
+.duplicate-tx-btn,
+.delete-tx-btn,
+.install-bar-go,
+.yr-done,
+.week-empty-add {
+    min-height: var(--btn-h-md);
+    padding-block: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.logout-btn, .duplicate-tx-btn, .delete-tx-btn, .yr-done { display: flex; }
+.hero-start-btn {
+    min-height: var(--btn-h-lg);
+    padding-block: 0;
+    display: flex; align-items: center; justify-content: center;
+}
+:where(.empty-row-add) { min-height: var(--btn-h-sm); }

@@ -29,3 +29,17 @@ def test_the_page_is_dark_behind_the_clock_without_an_added_strip():
     assert "background-color: var(--hero-bg-2)" in rule
     assert "background-position: 0 120px" in rule
     assert ".status-strip" not in _CSS          # the first try stays reverted
+
+
+# ─── Stage 8: buttons, tags, chips ────────────────────────────────────
+
+def test_buttons_come_in_three_heights():
+    for name, value in (("btn-h-sm", "36px"), ("btn-h-md", "44px"), ("btn-h-lg", "54px")):
+        assert f"--{name}: {value};" in _CSS
+    i = _CSS.index("/* ─── Buttons: three heights")
+    block = _CSS[i:i + 2500]
+    # The general rule carries no weight, so a button that needs 44 keeps it
+    assert ":where(.btn-sm) { min-height: var(--btn-h-sm); }" in block
+    for sel in (".logout-btn", ".project-save-btn", ".project-save-cancel", ".delete-tx-btn"):
+        assert sel in block
+    assert ".hero-start-btn {\n    min-height: var(--btn-h-lg);" in block
