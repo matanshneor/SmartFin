@@ -115,6 +115,10 @@
 
 {% block content %}
 
+{# A new family sees only "בואו נתחיל" above (design pass, 11.11): three ₪0 tiles
+   and an empty "recent transactions" under it made three invitations to the
+   same first step. Both come back with the first transaction. #}
+{% if not is_new_family %}
 <!-- Summary Cards -->
 <section class="summary-cards" aria-label="סיכום חודשי">
     <a class="summary-card income" href="{{ url_for('month_view') }}#income-breakdown">
@@ -149,6 +153,7 @@
         <p class="card-amount">₪{{ summary.savings | round | int | money }}</p>
     </a>
 </section>
+{% endif %}
 
 {# "September closed" (Matan, 13.10): on the first day of the month only ("the
    next day it goes away by itself"). ✕ hides it on this phone (the same
@@ -263,6 +268,7 @@
    "redundant on the home page". The budgets stayed on the month page →
    expenses by category. #}
 
+{% if not is_new_family %}
 <!-- Recent Transactions -->
 <section class="transactions-section">
     <div class="section-header">
@@ -326,6 +332,7 @@
     </div>
     {% endif %}
 </section>
+{% endif %}
 
 {% endblock %}
 

@@ -80,3 +80,14 @@ def test_totals_are_whole_shekels(tpl, snippet):
     """Totals at a glance in whole shekels, like the home balance; the rows keep
     their agorot (`format_money`), so every amount you can tap is exact"""
     assert snippet in _tpl(tpl)
+
+
+# ═══ Stage 4: calmer screens ═══════════════════════════════════════════
+
+def test_a_new_family_sees_one_way_to_start():
+    """Three ₪0 tiles and an empty list under "בואו נתחיל" (11.11)"""
+    tpl = _tpl("index.html")
+    for marker in ('<section class="summary-cards"', '<section class="transactions-section">'):
+        before = tpl[:tpl.index(marker)]
+        assert before.rstrip().endswith("{% if not is_new_family %}") or \
+            before[before.rindex("{% if not is_new_family %}"):].count("{% endif %}") == 0, marker
