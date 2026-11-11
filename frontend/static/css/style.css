@@ -5926,3 +5926,17 @@ body.tx-screen-open { overflow: hidden; }
 .onboarding-choice-icon .ui-icon { stroke-width: 1.8; }
 .project-tile-tag .ui-icon { width: 0.95em; height: 0.95em; }
 .whats-new-icon { color: var(--color-gold-text); display: inline-flex; justify-content: center; padding-top: 2px; }
+
+/* A soft fade above the bottom bar (design pass, 11.11): amounts showed in the
+   gap beside the +, and a whole row under the bar. The content now melts into
+   the page colour before it reaches the bar. Under the bar and the +, over the
+   content, and it never takes a tap. Only on pages that have the bar. */
+body:has(> .bottom-nav)::after {
+    content: '';
+    position: fixed; left: 0; right: 0; bottom: 0;
+    height: calc(var(--dock-height) + var(--dock-gap) + env(safe-area-inset-bottom, 0px) + 28px);
+    /* Clear for the top 28px, then solid from the bar's top edge down */
+    background: linear-gradient(to bottom, transparent, var(--color-bg) 28px);
+    pointer-events: none;
+    z-index: calc(var(--z-dock) - 1);
+}

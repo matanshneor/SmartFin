@@ -20,3 +20,11 @@ def test_the_comparison_table_colours_only_the_balance():
 def test_chart_legends_use_round_dots_like_the_rest_of_the_app():
     js = (_ROOT / "frontend/static/js/months.js").read_text(encoding="utf-8")
     assert js.count("usePointStyle: true, pointStyle: 'circle'") == 2
+
+
+def test_a_fade_above_the_dock_that_takes_no_taps():
+    i = _CSS.index("body:has(> .bottom-nav)::after {")
+    rule = _CSS[i:_CSS.index("}", i)]
+    assert "pointer-events: none" in rule
+    assert "var(--color-bg)" in rule
+    assert "z-index: calc(var(--z-dock) - 1)" in rule
