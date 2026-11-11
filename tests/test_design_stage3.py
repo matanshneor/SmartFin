@@ -162,3 +162,9 @@ def test_the_projects_header_is_one_line_of_explanation():
     tpl = _tpl("projects.html")
     assert '<p class="hero-subtitle">' not in tpl
     assert '<p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש</p>' in tpl
+
+
+def test_the_month_recap_tiles_are_whole_shekels_too():
+    tpl = _tpl("index.html")
+    for k in ("income", "expense", "savings"):
+        assert f'<span class="recap-fig-value">₪{{{{ recap.{k} | round | int | money }}}}</span>' in tpl

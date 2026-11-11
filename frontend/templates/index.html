@@ -169,9 +169,9 @@
     <div class="recap-figures">
         {# Income · expenses · savings (Matan, 1.11), instead of in · out · left, each
    in its own colour #}
-        <div class="recap-fig income"><span class="recap-fig-label">הכנסות</span><span class="recap-fig-value">₪{{ recap.income | money }}</span></div>
-        <div class="recap-fig expense"><span class="recap-fig-label">הוצאות</span><span class="recap-fig-value">₪{{ recap.expense | money }}</span></div>
-        <div class="recap-fig savings"><span class="recap-fig-label">חיסכון</span><span class="recap-fig-value">₪{{ recap.savings | money }}</span></div>
+        <div class="recap-fig income"><span class="recap-fig-label">הכנסות</span><span class="recap-fig-value">₪{{ recap.income | round | int | money }}</span></div>
+        <div class="recap-fig expense"><span class="recap-fig-label">הוצאות</span><span class="recap-fig-value">₪{{ recap.expense | round | int | money }}</span></div>
+        <div class="recap-fig savings"><span class="recap-fig-label">חיסכון</span><span class="recap-fig-value">₪{{ recap.savings | round | int | money }}</span></div>
     </div>
     <ul class="recap-lines">
         {% if recap.diff is not none and recap.diff != 0 %}
