@@ -2309,7 +2309,13 @@ def week_card():
         week = db.week_spending(user["family_id"], offset=offset)
     except db.DataUnavailable:
         return jsonify({"error": "לא הצלחנו לטעון את השבוע — נסו שוב"}), 503
-    return render_template("_week_card.html", week=week)
+    # The owner tags' colours are decoration: without them every tag shows in
+    # the shared colour, and the card still loads
+    try:
+        colors = _member_colors(user["family_id"])
+    except db.DataUnavailable:
+        colors = {}
+    return render_template("_week_card.html", week=week, member_colors=colors)
 
 
 @app.route("/api/projects", methods=["POST"])

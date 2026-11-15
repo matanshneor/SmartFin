@@ -5092,6 +5092,7 @@ body > .color-sheet { z-index: var(--z-picker); }
 .week-detail-list { list-style: none; margin: 0; padding: 0; }
 .week-detail-list li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: var(--text-md); }
 .week-detail-list li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.week-detail-side { display: flex; align-items: center; gap: 8px; flex: none; }
 .week-detail-amount { color: var(--color-expense); font-weight: 600; flex: none; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
 .week-empty { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
 /* An empty day on one line (design pass, 11.11) */

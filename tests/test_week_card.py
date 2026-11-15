@@ -325,3 +325,46 @@ def test_an_empty_past_week_says_so_without_an_add_button(monkeypatch):
     html = _render_week(past)
     assert '<p class="week-empty-title">לא היו הוצאות בשבוע הזה</p>' in html
     assert 'class="week-empty-add"' not in html
+
+
+# ─── Whose each transaction is, like the recent list (Matan, 16.11) ─────────
+
+_OR = "33333333-3333-3333-3333-333333333333"
+
+
+def _owned(amount, date, desc, user_id=None, name=""):
+    row = _tx(amount, date, desc)
+    row["user_id"] = user_id
+    row["profiles"] = {"name": name} if user_id else None
+    return row
+
+
+def test_each_week_item_carries_its_owner_and_shared_has_none(monkeypatch):
+    w = _week([_owned(401, "2026-10-04", "דלק", _OR, "אור כהן"),
+               _owned(900, "2026-10-04", "חתונה")], monkeypatch)
+    items = {t["description"]: t for t in w["days"][0]["transactions"]}
+    assert (items["דלק"]["user_id"], items["דלק"]["user_name"]) == (_OR, "אור")
+    assert (items["חתונה"]["user_id"], items["חתונה"]["user_name"]) == (None, "משותפת")
+
+
+def _render_owned(w, show):
+    from pathlib import Path
+    from backend.app import app
+    tpl = (Path(__file__).resolve().parent.parent / "frontend/templates/_week_card.html").read_text(encoding="utf-8")
+    with app.test_request_context():
+        return app.jinja_env.from_string(tpl).render(
+            week=w, member_colors={_OR: 1}, show_owner={"expense": show})
+
+
+def test_the_owner_tag_sits_beside_the_amount_in_the_member_colour(monkeypatch):
+    w = _week([_owned(401, "2026-10-04", "דלק", _OR, "אור כהן"),
+               _owned(900, "2026-10-04", "חתונה")], monkeypatch)
+    html = _render_owned(w, True)
+    assert ('<span class="week-detail-side"><span class="owner-pill owner-pill-sm owner-1">אור</span>'
+            '<span class="week-detail-amount">-₪401</span>') in html
+    assert '<span class="owner-pill owner-pill-sm owner-shared">משותפת</span>' in html
+
+
+def test_no_owner_tag_when_whose_is_turned_off(monkeypatch):
+    w = _week([_owned(401, "2026-10-04", "דלק", _OR, "אור כהן")], monkeypatch)
+    assert "owner-pill" not in _render_owned(w, False)

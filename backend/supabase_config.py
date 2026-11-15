@@ -1513,7 +1513,7 @@ def week_spending(family_id: str, today=None, offset: int = 0) -> dict:
     try:
         rows = client.table("transactions") \
             .select("amount, date, description, category_id, is_recurring, recurring_parent_id, "
-                    "project_id, categories(name, icon)") \
+                    "project_id, user_id, categories(name, icon), profiles(name)") \
             .eq("family_id", family_id).eq("type", "expense").is_("project_id", "null") \
             .gte("date", prev_start.isoformat()) \
             .lte("date", end.isoformat()).execute().data or []
@@ -1557,6 +1557,11 @@ def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
         return [{"icon": (r.get("categories") or {}).get("icon") or "📦",
                  "name": (r.get("categories") or {}).get("name") or _NO_CATEGORY,
                  "description": r.get("description") or "",
+                 # Whose it is, for the owner tag (Matan, 16.11): same rule as
+                 # the recent transactions list
+                 "user_id": r.get("user_id"),
+                 "user_name": (first_name((r.get("profiles") or {}).get("name", ""))
+                               if r.get("user_id") else "משותפת"),
                  "amount": float(r["amount"])} for r in txs]
 
     days = []

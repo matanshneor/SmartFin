@@ -1,6 +1,10 @@
 {# The "this week" card: on the home page, and from `/api/week` when paging to
    earlier weeks (Matan, 2.10). `week.offset`: how many weeks back. A swipe or
    the arrows replace the whole card. #}
+{% macro week_owner(t) -%}
+{%- set color = (member_colors or {}).get(t.user_id) if t.user_id else none -%}
+<span class="owner-pill owner-pill-sm owner-{{ color if color is not none else 'shared' }}">{{ t.user_name }}</span>
+{%- endmacro %}
 {% set ago = week.offset or 0 %}
 <section class="chart-card week-card" aria-labelledby="weekTitle" data-offset="{{ ago }}">
     <div class="week-head">
@@ -83,11 +87,15 @@
         <p class="week-detail-head"><span>{{ 'היום' if d.today else 'יום ' ~ d.label }} · {{ d.day }}.{{ d.month }}</span>{% if d.total %}<span>₪{{ d.total | money }}</span>{% endif %}</p>
         {% if d.transactions or d.recurring %}
         <ul class="week-detail-list">
+            {# Whose each transaction is, the same tag as in the recent list and
+               under the same setting, beside the amount so the tags line up
+               (Matan, 16.11) #}
+            {% set owner = (show_owner or {}).get('expense') %}
             {% for t in d.transactions %}
-            <li><span>{{ t.icon }} {{ t.description or t.name }}</span><span class="week-detail-amount">-₪{{ t.amount | money }}</span></li>
+            <li><span>{{ t.icon }} {{ t.description or t.name }}</span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
             {% endfor %}
             {% for t in d.recurring %}
-            <li class="is-fixed"><span>{{ t.icon }} {{ t.description or t.name }} <span class="week-fixed-tag">קבועה</span></span><span class="week-detail-amount">-₪{{ t.amount | money }}</span></li>
+            <li class="is-fixed"><span>{{ t.icon }} {{ t.description or t.name }} <span class="week-fixed-tag">קבועה</span></span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
             {% endfor %}
         </ul>
         {% else %}
