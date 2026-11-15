@@ -172,7 +172,7 @@ def test_the_database_only_sees_a_hash_of_the_session_id():
     body = src[src.index("def web_session_open"):src.index("def web_session_close")]
     assert body.count('"p_sid_hash": _sid_hash(sid)') == 3
     mig = open(app_module.os.path.join(app_module.os.path.dirname(db.__file__),
-                                       "supabase/migrations/20261013090000_web_sessions.sql"),
+                                       "supabase/migrations/20261013002308_web_sessions.sql"),
                encoding="utf-8").read()
     assert "enable row level security" in mig and "security definer" in mig
     assert "set search_path = ''" in mig and "on conflict (sid_hash) do nothing" in mig

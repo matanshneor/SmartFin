@@ -3763,7 +3763,7 @@ def fetch_home_page(family_id: str, today, recent_limit: int, viewer_user_id: st
     """Everything the home page needs, in one trip to the database (Matan, 13.10).
 
     Replaces nine queries that ran in sequence; see migration
-    `20261013120000_home_page_fn.sql`. Like `fetch_month_page`: only the
+    `20261013065715_home_page_fn.sql`. Like `fetch_month_page`: only the
     transport changed; the calculations are the same functions
     (`summary_from_rows`, `week_from_rows`, `recent_from_rows`) the separate
     queries go through.
@@ -3816,7 +3816,7 @@ def fetch_home_page(family_id: str, today, recent_limit: int, viewer_user_id: st
 
 def fetch_settings_page(family_id: str, today, viewer_user_id: str) -> dict:
     """Everything the settings page needs from the database, in one trip (Matan,
-    13.10); see `20261013120100_settings_page_fn.sql`. The calculations are the
+    13.10); see `20261013070003_settings_page_fn.sql`. The calculations are the
     same functions (`category_averages_from_totals`, `price_changes_from`,
     `_format_transactions`).
 
@@ -3867,7 +3867,7 @@ def _members_first_names(members: list) -> list:
 
 def fetch_projects_page(family_id: str, viewer_user_id: str) -> dict:
     """The projects page in one trip (Matan, 13.10); see
-    `20261013130000_projects_and_months_page_fn.sql`. `DataUnavailable` on failure."""
+    `20261013121454_projects_and_months_page_fn.sql`. `DataUnavailable` on failure."""
     client = get_client()
     if not client:
         raise DataUnavailable("fetch_projects_page: no client")

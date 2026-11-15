@@ -11,7 +11,7 @@ from backend.app import app
 pytestmark = pytest.mark.unit
 
 _ROOT = Path(__file__).resolve().parent.parent
-_SQL = (_ROOT / "backend/supabase/migrations/20261013130000_projects_and_months_page_fn.sql").read_text(encoding="utf-8")
+_SQL = (_ROOT / "backend/supabase/migrations/20261013121454_projects_and_months_page_fn.sql").read_text(encoding="utf-8")
 _FAM = "11111111-1111-1111-1111-111111111111"
 _ME  = "22222222-2222-2222-2222-222222222222"
 _OTHER = "33333333-3333-3333-3333-333333333333"

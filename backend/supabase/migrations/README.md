@@ -1,13 +1,14 @@
 # Migrations
 
-**Current state (10 November 2026): the ledger has drifted again.** The server's
-history lists 12 versions (11 October – 1 November 2026) with no file of the same
-version here, so `supabase db push` refuses to run. Until that is
-reconciled, new migrations are applied one at a time (`supabase db query` inside a
-transaction, plus a manual insert into `supabase_migrations.schema_migrations`), and
-the local file is renamed to the version the server recorded.
+**Current state (16 November 2026): the ledger matches.** Every version on the
+server has a file here and every file is on the server; `supabase db push
+--dry-run` reports "Remote database is up to date". Two kinds of drift were
+fixed: seven files had been renamed after they were applied (the file now carries
+the version the server recorded), and eight migrations applied from other
+sessions (the old admin console's functions) had no file: they were restored
+verbatim from the `statements` column of the history table.
 
-That was also the state until 20 September 2026. The server's ledger knew only 5 of
+The ledger had drifted once before, until 20 September 2026: the server knew only 5 of
 the 34 migrations, and two early records (`20260527172248`, `20260527172300`) were
 registered on the server with no local file: they were created through the
 dashboard before the CLI came into use. That made `db push` dangerous: it would try
