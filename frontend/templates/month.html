@@ -515,11 +515,23 @@
 <section class="chart-card">
     <h2 class="chart-title">{{ mb.label }} לפי בן משפחה</h2>
     <ul class="member-bars">
+        {# A tap opens that person's transactions of the month, like a category
+           row (Matan, 16.11) #}
         {% for r in mb.rows %}
-        <li class="member-bar">
-            <span class="member-bar-name">{{ r.name }}</span>
-            <span class="member-bar-track" aria-hidden="true"><span style="width: {{ [(r.expense / top * 100) | round(1), 100] | min }}%; background: {{ r.color }};"></span></span>
-            <span class="member-bar-amount">₪{{ r.expense | money }}</span>
+        <li class="legend-item-wrap">
+            <div class="member-bar{% if r.transactions %} clickable{% endif %}" {% if r.transactions %}role="button" tabindex="0" aria-expanded="false"{% endif %}>
+                <span class="member-bar-name">{{ r.name }}</span>
+                <span class="member-bar-track" aria-hidden="true"><span style="width: {{ [(r.expense / top * 100) | round(1), 100] | min }}%; background: {{ r.color }};"></span></span>
+                <span class="member-bar-amount">₪{{ r.expense | money }}</span>
+                <span class="expand-chevron" aria-hidden="true">{% if r.transactions %}
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                {% endif %}</span>
+            </div>
+            {% if r.transactions %}
+            <div role="group" class="cat-tx-list">
+                {% for tx in r.transactions %}{{ tx_row(tx, freq_labels) }}{% endfor %}
+            </div>
+            {% endif %}
         </li>
         {% endfor %}
     </ul>

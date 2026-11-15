@@ -45,7 +45,7 @@ window.addEventListener('sf:refreshed', centerStrip);
  * what is above it shrinks. */
 function closeOtherCategories(trigger, wrap) {
     const before = wrap.getBoundingClientRect().top;
-    document.querySelectorAll('.legend-item.clickable[aria-expanded="true"]').forEach(function (other) {
+    document.querySelectorAll('.legend-item.clickable[aria-expanded="true"], .member-bar.clickable[aria-expanded="true"]').forEach(function (other) {
         if (other === trigger) return;
         other.setAttribute('aria-expanded', 'false');
         const w = other.closest('.legend-item-wrap');
@@ -73,13 +73,13 @@ function toggleExpand(trigger) {
 }
 
 document.addEventListener('click', function (e) {
-    const trigger = e.target.closest('.legend-item.clickable');
+    const trigger = e.target.closest('.legend-item.clickable, .member-bar.clickable');
     if (trigger) toggleExpand(trigger);
 });
 
 document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
-    const trigger = e.target.closest('.legend-item.clickable');
+    const trigger = e.target.closest('.legend-item.clickable, .member-bar.clickable');
     if (trigger) { e.preventDefault(); toggleExpand(trigger); }
     // `.zero-toggle` is marked `role="button" tabindex="0"`, but was handled on
     // `click` only, and an element that isn't a `<button>` doesn't produce a

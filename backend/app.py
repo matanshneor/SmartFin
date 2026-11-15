@@ -1877,13 +1877,21 @@ def month_view():
         c["share"] = savings_pcts.get(c["name"], 0)
         c["color"] = _SAVINGS_HEX[i % len(_SAVINGS_HEX)]
     member_breakdowns = []
-    for t in active_types:
+    # No "income by family member" (Matan, 16.11): the income card above already
+    # splits income per person, so the bars said the same thing twice
+    for t in (t for t in active_types if t != "income"):
         # `mb` and not `rows`: `rows` is the month's rows, and overwriting it
         # here would poison everything derived from it later
         mb = db.member_breakdown_from_rows(rows, t)
         for r in mb:
             idx = mcolors.get(r.get("user_id"))
             r["color"] = _OWNER_HEX.get(idx, _SHARED_HEX) if idx is not None else _SHARED_HEX
+            # Tapping a member's row opens their transactions of the month
+            # (Matan, 16.11). The same rows the total was summed from:
+            # household only (`month_transactions` has no projects), and
+            # no owner = shared
+            r["transactions"] = [tx for tx in month_transactions
+                                 if tx["type"] == t and tx.get("user_id") == r["user_id"]]
         # One bar compares nothing: at the start of a month, when only one
         # person had entered anything, it was a half-screen chart with a single
         # bar (Matan, 12.10). "Shared" counts as a bar.
