@@ -229,3 +229,19 @@ def test_nothing_peeks_out_under_save():
 def test_save_ring_does_not_cut_the_field_above():
     # the 12px ring cut the project field's bottom edge with only 8px between them
     assert "#modalOverlay label.submit-btn { margin-top: 18px; }" in _CSS
+
+
+def test_week_card_names_an_installment():
+    # "תשלום 1 מתוך 2" instead of "קבועה" in the week card (Matan, 22.11)
+    from backend.supabase_config import week_from_rows
+    import datetime
+    today = datetime.date(2026, 11, 22)
+    rows = [{"amount": 150, "date": "2026-11-22", "description": "", "is_recurring": True,
+             "recurring_parent_id": None, "installments": 2, "installment_no": 1,
+             "categories": {"name": "מסעדות", "icon": "🥂"}}]
+    week = week_from_rows(rows, False, today)
+    day = [d for d in week["days"] if d["today"]][0]
+    assert day["recurring"][0]["installment"] == "תשלום 1 מתוך 2"
+    assert week["recurring_label"] == "בתשלומים"
+    card = _read(_T / "_week_card.html")
+    assert "{{ t.installment or 'קבועה' }}" in card
