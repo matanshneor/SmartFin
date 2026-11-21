@@ -88,7 +88,9 @@ def test_the_card_marks_recurring_and_adds_the_line_under_the_total(monkeypatch)
         html = app.jinja_env.from_string(tpl).render(week=w)
     assert "+ ₪5,620 בעסקאות קבועות" in html
     sunday = html.split('class="week-detail" data-day="0"')[1].split("</div>")[0]
-    assert '<li class="is-fixed"><span>🛒 שכר דירה <span class="week-fixed-tag">קבועה</span>' in sunday
+    # the row is marked fixed (and, with an id, tappable: `week-tx`, Matan 22.11)
+    import re
+    assert re.search(r'<li[^>]*class="(?:week-tx )?is-fixed"[^>]*><span>🛒 שכר דירה <span class="week-fixed-tag">קבועה</span>', sunday)
     assert "לא בוצעו עסקאות" not in sunday and "₪0" not in sunday   # a day with a recurring one only
     monday = html.split('class="week-detail" data-day="1"')[1].split("</div>")[0]
     assert "is-fixed" not in monday and "קפה" in monday
