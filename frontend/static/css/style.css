@@ -5616,6 +5616,9 @@ body.tx-screen-open { overflow: hidden; }
 
 /* "תשלום 3 מתוך 12" on the row (Matan, 12.10) */
 .installment-tag { color: var(--color-gold-text); font-weight: 600; }
+/* In a narrow row "תשלום 3 מתוך 12" was cut to "תשלום 3 …" (Matan, 21.11): it
+   gets a line of its own under the description, which alone is shortened. */
+.cat-tx-desc .installment-tag { display: table; margin-top: 3px; padding-inline: 0; }
 
 .installments-group[hidden] { display: none; }
 .installments-fields { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; margin-top: 8px; }

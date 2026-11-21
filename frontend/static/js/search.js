@@ -50,8 +50,13 @@
         desc.className = 'cat-tx-desc';
         desc.textContent = (tx.category_icon || '') + ' ' + (tx.description || tx.category_name)
             + (tx.description ? ' · ' + tx.category_name : '')
-            + (tx.project_name ? ' · ' + (tx.project_icon || '🎯') + ' ' + tx.project_name : '')
-            + (tx.installments && tx.installment_no ? ' · תשלום ' + tx.installment_no + ' מתוך ' + tx.installments : '');
+            + (tx.project_name ? ' · ' + (tx.project_icon || '🎯') + ' ' + tx.project_name : '');
+        if (tx.installments && tx.installment_no) {     // on a line of its own, never cut off
+            const tag = document.createElement('span');
+            tag.className = 'installment-tag';
+            tag.textContent = 'תשלום ' + tx.installment_no + ' מתוך ' + tx.installments;
+            desc.append(tag);
+        }
         const amt = document.createElement('span');
         amt.className = 'cat-tx-amount ' + tx.type;
         amt.textContent = (tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : '')
