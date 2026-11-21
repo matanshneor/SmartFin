@@ -2033,7 +2033,44 @@
         setTimeout(function () { el.remove(); }, 320);
     }
 
+    /* {no, total} when the transaction is an installment, otherwise null: the
+     * delete questions then speak of payments, not of a recurring transaction
+     * (Matan, 22.11). */
+    function installmentOf(txData) {
+        const no = parseInt(txData && txData.installmentNo, 10), total = parseInt(txData && txData.installments, 10);
+        return no > 0 && total > 0 ? { no: no, total: total } : null;
+    }
+
     function askAboutSeries(txData, row, later, onFail) {
+        const inst = installmentOf(txData);
+        if (inst) {
+            // Counted from the payment numbers, not from `later`: the payments
+            // ahead aren't recorded yet (one is added each month), and "this
+            // and all following" stops the series, so they never will be
+            const left = inst.total - inst.no + 1;
+            const range = left > 1 ? 'מתשלום ' + inst.no + ' עד ' + inst.total : 'זה התשלום האחרון';
+            const kept = inst.no === 1 ? 'כל העסקה בתשלומים תימחק.'
+                       : inst.no === 2 ? 'תשלום 1 יישאר.' : 'תשלומים 1 עד ' + (inst.no - 1) + ' יישארו.';
+            return window.appConfirm({
+                title:       'זו עסקה בתשלומים',
+                message:     'זה תשלום ' + inst.no + ' מתוך ' + inst.total + '. אפשר למחוק רק את התשלום הזה, '
+                             + 'או אותו וכל התשלומים שאחריו (' + range + ').',
+                confirmText: 'רק את התשלום הזה',
+                cancelText:  'את זה וכל הבאים',
+                danger:      false,
+            }).then(function (onlyThis) {
+                if (onlyThis === null) return;
+                if (onlyThis) return sendSeriesDelete(txData, row, 'one', 1, onFail);
+                return window.appConfirm({
+                    title:       'למחוק את התשלום הזה וכל הבאים?',
+                    message:     window.sfCount(left, 'תשלום אחד יימחק', 'תשלומים יימחקו') + ' (' + range + '). ' + kept,
+                    confirmText: 'מחיקת ' + window.sfCount(left, 'התשלום', 'תשלומים'),
+                }).then(function (sure) {
+                    if (sure !== true) return;
+                    return sendSeriesDelete(txData, row, 'later', later, onFail);
+                });
+            });
+        }
         return window.appConfirm({
             title:       'זו עסקה קבועה',
             message:     'אפשר למחוק רק את המופע הזה, או אותו וכל הבאים '
@@ -2079,7 +2116,13 @@
                 // dozens of rows.
 
                 const n = d.deleted || total;
-                window.showToast(mode === 'one'
+                const inst = installmentOf(txData);
+                if (inst) {
+                    window.showToast(mode === 'one'
+                        ? 'התשלום נמחק. שאר התשלומים נשארו'
+                        : window.sfCount(inst.total - inst.no + 1, 'תשלום אחד נמחק', 'תשלומים נמחקו')
+                          + ', והעסקה בתשלומים נעצרה');
+                } else window.showToast(mode === 'one'
                     ? 'העסקה נמחקה. שאר החודשים של העסקה הקבועה נשארו'
                     : window.sfCount(n, 'עסקה אחת נמחקה', 'עסקאות נמחקו') + ', והעסקה הקבועה נעצרה');
                 clearTimeout(pendingDeleteReload);

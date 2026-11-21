@@ -273,3 +273,12 @@ def test_editing_an_installment_shows_installments_not_recurring():
     assert "payload.is_recurring        = !!editingOriginal.isRecurring;" in tx
     # `hidden` really hides inside the sheet
     assert "#modalOverlay [hidden] { display: none !important; }" in _CSS
+
+
+def test_deleting_an_installment_speaks_of_payments():
+    # Matan, 22.11: the delete question called an installment "a recurring
+    # transaction". It now names the payment and counts from the payment numbers
+    tx = _read(_JS / "transactions.js")
+    assert "title:       'זו עסקה בתשלומים'," in tx
+    assert "const left = inst.total - inst.no + 1;" in tx
+    assert "confirmText: 'רק את התשלום הזה'," in tx
