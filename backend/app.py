@@ -3662,7 +3662,8 @@ def _entered_text(meta: dict, viewer_id: str, names: dict, now=None) -> str:
     "Transaction" is feminine in Hebrew ("הוזנה"), like "נרשמה ע״י" and the
     duplicate window."""
     if meta.get("recurring_parent_id"):
-        return "נוצרה אוטומטית מעסקה קבועה"
+        return "נוצרה אוטומטית מעסקה בתשלומים" if meta.get("installments") \
+            else "נוצרה אוטומטית מעסקה קבועה"
     now = now or clock.now()
     when = ""
     raw = meta.get("created_at")

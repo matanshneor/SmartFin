@@ -42,6 +42,7 @@
         d.recurringEndDate = tx.recurring_end_date || '';
         d.recurringParentId = tx.recurring_parent_id || '';
         d.projectId = tx.project_id || '';
+        d.installments = tx.installments || ''; d.installmentNo = tx.installment_no || '';
         const date = document.createElement('span');
         date.className = 'cat-tx-date';
         date.textContent = tx.date.slice(8, 10) + '.' + tx.date.slice(5, 7);
@@ -49,7 +50,8 @@
         desc.className = 'cat-tx-desc';
         desc.textContent = (tx.category_icon || '') + ' ' + (tx.description || tx.category_name)
             + (tx.description ? ' · ' + tx.category_name : '')
-            + (tx.project_name ? ' · ' + (tx.project_icon || '🎯') + ' ' + tx.project_name : '');
+            + (tx.project_name ? ' · ' + (tx.project_icon || '🎯') + ' ' + tx.project_name : '')
+            + (tx.installments && tx.installment_no ? ' · תשלום ' + tx.installment_no + ' מתוך ' + tx.installments : '');
         const amt = document.createElement('span');
         amt.className = 'cat-tx-amount ' + tx.type;
         amt.textContent = (tx.type === 'expense' ? '-' : tx.type === 'income' ? '+' : '')
