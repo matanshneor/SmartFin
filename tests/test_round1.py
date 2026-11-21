@@ -245,3 +245,19 @@ def test_week_card_names_an_installment():
     assert week["recurring_label"] == "בתשלומים"
     card = _read(_T / "_week_card.html")
     assert "{{ t.installment or 'קבועה' }}" in card
+
+
+def test_week_card_rows_open_the_edit_sheet():
+    # tapping a transaction in "this week" opens the edit sheet (Matan, 22.11)
+    from backend.supabase_config import week_from_rows
+    import datetime
+    rows = [{"id": "t1", "amount": 95, "date": "2026-11-22", "description": "ערב",
+             "category_id": "c1", "is_recurring": False, "recurring_parent_id": None,
+             "user_id": None, "categories": {"name": "מסעדות", "icon": "🥂"}}]
+    week = week_from_rows(rows, False, datetime.date(2026, 11, 22))
+    item = [d for d in week["days"] if d["today"]][0]["transactions"][0]
+    assert item["id"] == "t1" and item["date"] == "2026-11-22" and item["category_id"] == "c1"
+    card = _read(_T / "_week_card.html")
+    assert 'class="week-tx' in card and 'data-id="{{ t.id }}"' in card
+    tx = _read(_JS / "transactions.js")
+    assert tx.count("'.transaction-item, .cat-tx-row, .recurring-row, .week-tx'") == 2

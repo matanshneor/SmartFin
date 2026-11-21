@@ -1512,8 +1512,8 @@ def week_spending(family_id: str, today=None, offset: int = 0) -> dict:
         return empty
     try:
         rows = client.table("transactions") \
-            .select("amount, date, description, category_id, is_recurring, recurring_parent_id, "
-                    "installments, installment_no, "
+            .select("id, amount, date, description, category_id, is_recurring, recurring_parent_id, "
+                    "recurring_frequency, recurring_end_date, installments, installment_no, "
                     "project_id, user_id, categories(name, icon), profiles(name)") \
             .eq("family_id", family_id).eq("type", "expense").is_("project_id", "null") \
             .gte("date", prev_start.isoformat()) \
@@ -1565,6 +1565,18 @@ def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
                                if r.get("user_id") else "משותפת"),
                  # An installment says which one it is, not "קבועה" (Matan, 22.11)
                  "installment": installment_label(r),
+                 # What the edit sheet needs, so tapping a row opens it as it
+                 # does everywhere else (Matan, 22.11). No `id` (an older RPC):
+                 # the row just isn't tappable.
+                 "id": r.get("id"),
+                 "date": str(r.get("date") or "")[:10],
+                 "category_id": r.get("category_id"),
+                 "is_recurring": bool(r.get("is_recurring")),
+                 "recurring_frequency": r.get("recurring_frequency"),
+                 "recurring_end_date": r.get("recurring_end_date"),
+                 "recurring_parent_id": r.get("recurring_parent_id"),
+                 "installments": r.get("installments"),
+                 "installment_no": r.get("installment_no"),
                  "amount": float(r["amount"])} for r in txs]
 
     days = []

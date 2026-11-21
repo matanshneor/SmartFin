@@ -1,3 +1,15 @@
+{# Tapping a transaction opens the edit sheet, as everywhere else (Matan, 22.11):
+   the same data-* the other rows carry (`buildTxFromRow`). Without an id the
+   row stays plain text. #}
+{% macro week_tx_attrs(t, extra='') -%}
+{% if t.id %} class="week-tx{{ ' ' ~ extra if extra }}" role="button" tabindex="0" data-id="{{ t.id }}" data-amount="{{ t.amount }}" data-type="expense"
+ data-category-id="{{ t.category_id or '' }}" data-project-category-id="" data-description="{{ t.description or '' }}"
+ data-date="{{ t.date }}" data-user-id="{{ t.user_id or '' }}" data-is-recurring="{{ t.is_recurring | lower }}"
+ data-recurring-frequency="{{ t.recurring_frequency or '' }}" data-recurring-end-date="{{ t.recurring_end_date or '' }}"
+ data-recurring-parent-id="{{ t.recurring_parent_id or '' }}" data-project-id="" data-installments="{{ t.installments or '' }}" data-installment-no="{{ t.installment_no or '' }}"
+ aria-label="עריכת {{ t.description or t.name }}: {{ t.amount | money }} שקלים"
+{%- elif extra %} class="{{ extra }}"{% endif %}
+{%- endmacro %}
 {# The "this week" card: on the home page, and from `/api/week` when paging to
    earlier weeks (Matan, 2.10). `week.offset`: how many weeks back. A swipe or
    the arrows replace the whole card. #}
@@ -92,10 +104,10 @@
                (Matan, 16.11) #}
             {% set owner = (show_owner or {}).get('expense') %}
             {% for t in d.transactions %}
-            <li><span>{{ t.icon }} {{ t.description or t.name }}</span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
+            <li{{ week_tx_attrs(t) }}><span>{{ t.icon }} {{ t.description or t.name }}</span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
             {% endfor %}
             {% for t in d.recurring %}
-            <li class="is-fixed"><span>{{ t.icon }} {{ t.description or t.name }} <span class="week-fixed-tag">{{ t.installment or 'קבועה' }}</span></span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
+            <li{{ week_tx_attrs(t, 'is-fixed') }}><span>{{ t.icon }} {{ t.description or t.name }} <span class="week-fixed-tag">{{ t.installment or 'קבועה' }}</span></span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
             {% endfor %}
         </ul>
         {% else %}

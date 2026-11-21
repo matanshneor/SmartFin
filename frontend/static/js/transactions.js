@@ -2324,7 +2324,7 @@
     document.addEventListener('click', function (e) {
         if (justSwiped) { justSwiped = false; return; }
         if (e.target.closest('.receipt-badge, .swipe-action')) return;
-        const row = e.target.closest('.transaction-item, .cat-tx-row, .recurring-row');
+        const row = e.target.closest('.transaction-item, .cat-tx-row, .recurring-row, .week-tx');
         if (!row || !row.dataset.id) return;
         openEditModal(buildTxFromRow(row), row);
     });
@@ -2336,7 +2336,7 @@
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') return;
         if (e.target.closest('.receipt-badge, .swipe-action')) return;
-        const row = e.target.closest('.transaction-item, .cat-tx-row, .recurring-row');
+        const row = e.target.closest('.transaction-item, .cat-tx-row, .recurring-row, .week-tx');
         if (!row || !row.dataset.id) return;
         e.preventDefault();
         openEditModal(buildTxFromRow(row), row);
