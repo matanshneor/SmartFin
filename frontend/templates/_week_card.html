@@ -57,7 +57,7 @@
         {# Recurring transactions aren't counted in the total and the bars, only shown
    (Matan, 11.10) #}
         {% if week.recurring_total %}
-        <span class="week-fixed">+ ₪{{ week.recurring_total | round | int | money }} בעסקאות קבועות</span>
+        <span class="week-fixed">+ ₪{{ week.recurring_total | round | int | money }} {{ week.recurring_label or 'בעסקאות קבועות' }}</span>
         {% endif %}
     </div>
     <div class="week-bars" role="group" aria-label="הוצאות לפי יום">
@@ -95,7 +95,7 @@
             <li><span>{{ t.icon }} {{ t.description or t.name }}</span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
             {% endfor %}
             {% for t in d.recurring %}
-            <li class="is-fixed"><span>{{ t.icon }} {{ t.description or t.name }} <span class="week-fixed-tag">קבועה</span></span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
+            <li class="is-fixed"><span>{{ t.icon }} {{ t.description or t.name }} <span class="week-fixed-tag">{{ t.installment or 'קבועה' }}</span></span><span class="week-detail-side">{% if owner %}{{ week_owner(t) }}{% endif %}<span class="week-detail-amount">-₪{{ t.amount | money }}</span></span></li>
             {% endfor %}
         </ul>
         {% else %}

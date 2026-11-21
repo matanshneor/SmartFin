@@ -1513,6 +1513,7 @@ def week_spending(family_id: str, today=None, offset: int = 0) -> dict:
     try:
         rows = client.table("transactions") \
             .select("amount, date, description, category_id, is_recurring, recurring_parent_id, "
+                    "installments, installment_no, "
                     "project_id, user_id, categories(name, icon), profiles(name)") \
             .eq("family_id", family_id).eq("type", "expense").is_("project_id", "null") \
             .gte("date", prev_start.isoformat()) \
@@ -1562,6 +1563,8 @@ def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
                  "user_id": r.get("user_id"),
                  "user_name": (first_name((r.get("profiles") or {}).get("name", ""))
                                if r.get("user_id") else "משותפת"),
+                 # An installment says which one it is, not "קבועה" (Matan, 22.11)
+                 "installment": installment_label(r),
                  "amount": float(r["amount"])} for r in txs]
 
     days = []
@@ -1578,6 +1581,12 @@ def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
         })
     total = round(sum(d["total"] for d in days), 2)
     recurring_total = round(sum(t["amount"] for d in days for t in d["recurring"]), 2)
+    # The line under the total names what it adds up: recurring transactions,
+    # installments, or both (Matan, 22.11)
+    kinds = {bool(t["installment"]) for d in days for t in d["recurring"]}
+    recurring_label = ("בתשלומים" if kinds == {True} else
+                       "בעסקאות קבועות ותשלומים" if kinds == {True, False} else
+                       "בעסקאות קבועות")
     prev = [r for r in rows if prev_start.isoformat() <= str(r["date"])[:10] < start.isoformat()]
     last = round(sum(float(r["amount"]) for r in prev), 2) if prev else None
     # The day whose breakdown is open: today itself in the current week; in
@@ -1586,7 +1595,8 @@ def week_from_rows(rows: list, has_older: bool, today, offset: int = 0) -> dict:
             [i for i, d in enumerate(days) if d["total"]][-1:] or [6]
     for i, d in enumerate(days):
         d["selected"] = i == shown[0]
-    return {"days": days, "total": total, "recurring_total": recurring_total, "last_week": last,
+    return {"days": days, "total": total, "recurring_total": recurring_total,
+            "recurring_label": recurring_label, "last_week": last,
             "diff": round(total - last, 2) if last is not None and offset else None,
             "max": max([d["total"] for d in days] + [0]),
             "offset": offset, "has_older": bool(has_older)}
