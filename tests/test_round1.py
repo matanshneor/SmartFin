@@ -273,3 +273,24 @@ def test_editing_an_installment_shows_installments_not_recurring():
     assert "payload.is_recurring        = !!editingOriginal.isRecurring;" in tx
     # `hidden` really hides inside the sheet
     assert "#modalOverlay [hidden] { display: none !important; }" in _CSS
+
+
+def test_deleting_an_installment_speaks_of_payments():
+    # Matan, 22.11: the delete question called an installment "a recurring
+    # transaction". It now names the payment and counts from the payment numbers
+    tx = _read(_JS / "transactions.js")
+    assert "title:       'זו עסקה בתשלומים'," in tx
+    assert "const left = inst.total - inst.no + 1;" in tx
+    assert "confirmText: 'רק את התשלום הזה'," in tx
+
+
+def test_series_delete_is_one_question_with_three_answers():
+    # Matan, 22.11: one question instead of two. The destructive button says what
+    # it deletes ("מחיקת 10 תשלומים (3 עד 12)"), returns 'extra', and maps to
+    # mode=later; "only this one" maps to mode=one
+    tx = _read(_JS / "transactions.js")
+    assert "extraText:   'מחיקת ' + left + ' תשלומים (' + inst.no + ' עד ' + inst.total + ')'," in tx
+    assert "if (answer === 'extra') return sendSeriesDelete(txData, row, 'later', later, onFail);" in tx
+    core = _read(_JS / "core.js")
+    assert "closeConfirm('extra')" in core
+    assert 'id="confirmExtra"' in _read(_T / "base.html")

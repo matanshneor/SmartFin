@@ -2033,27 +2033,60 @@
         setTimeout(function () { el.remove(); }, 320);
     }
 
-    function askAboutSeries(txData, row, later, onFail) {
-        return window.appConfirm({
-            title:       'זו עסקה קבועה',
-            message:     'אפשר למחוק רק את המופע הזה, או אותו וכל הבאים '
-                         + 'אחריו (' + later + ' בסך הכל).',
-            confirmText: 'רק את זו',
-            cancelText:  'את זו וכל הבאות',
-            danger:      false,
-        }).then(function (onlyThis) {
-            if (onlyThis === null) return;                 // retreat
-            if (onlyThis) return sendSeriesDelete(txData, row, 'one', 1, onFail);
+    /* {no, total} when the transaction is an installment, otherwise null: the
+     * delete questions then speak of payments, not of a recurring transaction
+     * (Matan, 22.11). */
+    function installmentOf(txData) {
+        const no = parseInt(txData && txData.installmentNo, 10), total = parseInt(txData && txData.installments, 10);
+        return no > 0 && total > 0 ? { no: no, total: total } : null;
+    }
 
-            return window.appConfirm({
-                title:       'למחוק את זו וכל הבאות?',
-                message:     window.sfCount(later, 'עסקה אחת תימחק', 'עסקאות יימחקו') + ', והעסקה הקבועה תיעצר כאן. '
-                             + 'מה שנרשם בחודשים קודמים יישאר.',
-                confirmText: 'מחיקת ' + later,
-            }).then(function (sure) {
-                if (sure !== true) return;
-                return sendSeriesDelete(txData, row, 'later', later, onFail);
-            });
+    /* One question, three answers (Matan, 22.11: "why two questions?"): only
+     * this one, this and all following, or back. The destructive button says
+     * exactly what it deletes, so it needs no second "are you sure?"; the safe
+     * answer comes first and the focus starts on "cancel". */
+    function askAboutSeries(txData, row, later, onFail) {
+        const inst = installmentOf(txData);
+        let opts;
+        if (inst) {
+            // Counted from the payment numbers, not from `later`: the payments
+            // ahead aren't recorded yet (one is added each month), and "this
+            // and all following" stops the series, so they never will be
+            const left = inst.total - inst.no + 1;
+            if (left === 1) {
+                return window.appConfirm({
+                    title:       'למחוק את התשלום האחרון?',
+                    message:     'זה תשלום ' + inst.no + ' מתוך ' + inst.total + '.',
+                    confirmText: 'מחיקת התשלום',
+                }).then(function (ok) {
+                    if (ok === true) return sendSeriesDelete(txData, row, 'one', 1, onFail);
+                });
+            }
+            opts = {
+                title:       'זו עסקה בתשלומים',
+                message:     'זה תשלום ' + inst.no + ' מתוך ' + inst.total + '. '
+                             + (inst.no === 1 ? 'מחיקת כל התשלומים מוחקת את העסקה כולה.'
+                                : inst.no === 2 ? 'תשלום 1 יישאר בכל מקרה.'
+                                : 'תשלומים 1 עד ' + (inst.no - 1) + ' יישארו בכל מקרה.'),
+                confirmText: 'רק את התשלום הזה',
+                extraText:   'מחיקת ' + left + ' תשלומים (' + inst.no + ' עד ' + inst.total + ')',
+            };
+        } else {
+            const after = later - 1;
+            opts = {
+                title:       'זו עסקה קבועה',
+                message:     'אפשר למחוק רק את זו, או למחוק אותה'
+                             + (after === 1 ? ' ואת זו שנרשמה אחריה' : after > 1 ? ' ואת ' + after + ' שנרשמו אחריה' : '')
+                             + ' ולעצור את העסקה הקבועה. מה שנרשם לפני כן יישאר.',
+                confirmText: 'רק את זו',
+                extraText:   later > 1 ? 'מחיקת ' + later + ' ועצירת העסקה הקבועה' : 'מחיקה ועצירת העסקה הקבועה',
+            };
+        }
+        opts.danger = false;
+        opts.cancelText = 'ביטול';
+        return window.appConfirm(opts).then(function (answer) {
+            if (answer === true) return sendSeriesDelete(txData, row, 'one', 1, onFail);
+            if (answer === 'extra') return sendSeriesDelete(txData, row, 'later', later, onFail);
         });
     }
 
@@ -2079,7 +2112,13 @@
                 // dozens of rows.
 
                 const n = d.deleted || total;
-                window.showToast(mode === 'one'
+                const inst = installmentOf(txData);
+                if (inst) {
+                    window.showToast(mode === 'one'
+                        ? 'התשלום נמחק. שאר התשלומים נשארו'
+                        : window.sfCount(inst.total - inst.no + 1, 'תשלום אחד נמחק', 'תשלומים נמחקו')
+                          + ', והעסקה בתשלומים נעצרה');
+                } else window.showToast(mode === 'one'
                     ? 'העסקה נמחקה. שאר החודשים של העסקה הקבועה נשארו'
                     : window.sfCount(n, 'עסקה אחת נמחקה', 'עסקאות נמחקו') + ', והעסקה הקבועה נעצרה');
                 clearTimeout(pendingDeleteReload);

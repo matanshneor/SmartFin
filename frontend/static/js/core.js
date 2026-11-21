@@ -294,6 +294,7 @@ window.appFeedback = function () {
     const msgEl   = document.getElementById('confirmMessage');
     const yesBtn  = document.getElementById('confirmYes');
     const noBtn   = document.getElementById('confirmNo');
+    const extraBtn = document.getElementById('confirmExtra');
     const choiceEl = document.getElementById('confirmChoice');
     let resolver  = null;
     let withChoice = false;
@@ -324,7 +325,11 @@ window.appFeedback = function () {
      * distinction checks `=== null`.
      *
      * `opts.choices` ([{value, label}]) adds a list to choose from under the
-     * message, and then confirming returns the chosen `value` instead of `true`. */
+     * message, and then confirming returns the chosen `value` instead of `true`.
+     *
+     * `opts.extraText` adds a third, destructive button between the two, which
+     * returns `'extra'`; the buttons then stack (Matan, 22.11: one question
+     * instead of two when deleting from a series). */
     window.appConfirm = function (opts) {
         withChoice = !!(opts.choices && opts.choices.length);
         choiceEl.hidden = !withChoice;
@@ -344,6 +349,11 @@ window.appFeedback = function () {
         // actions.
 
         yesBtn.classList.toggle('confirm-yes-neutral', opts.danger === false);
+        if (extraBtn) {
+            extraBtn.hidden = !opts.extraText;
+            extraBtn.textContent = opts.extraText || '';
+            extraBtn.parentElement.classList.toggle('is-stacked', !!opts.extraText);
+        }
         confirmLastFocused = document.activeElement;
         overlay.classList.add('open');
         // On the next frame: the dialog is hidden with visibility when closed,
@@ -443,6 +453,7 @@ window.appFeedback = function () {
 
     yesBtn.addEventListener('click', function () { closeConfirm(true); });
     noBtn.addEventListener('click', function () { closeConfirm(false); });
+    if (extraBtn) extraBtn.addEventListener('click', function () { closeConfirm('extra'); });
     overlay.addEventListener('click', function (e) {
         if (e.target === overlay) closeConfirm(null);   // a retreat, not a "no"
     });
