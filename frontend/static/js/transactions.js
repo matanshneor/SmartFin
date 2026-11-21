@@ -60,6 +60,7 @@
     // the current month (Matan, 2.10)
 
     let editingSeries = false;
+    let editingInstallment = null;      // {no, total} while editing an installment (Matan, 22.11)
     let editingOriginal = null;          // the transaction as it was before the edit, for "undo" (round 6, item 10)
     let originalAmount = null;  // the amount loaded for editing, to compare for "you changed the amount"
     let categoriesCache = null;
@@ -649,6 +650,9 @@
         modalSheet.classList.toggle('savings-mode', type === 'savings');
         buildProjectSelect(selectedProjectId, keepOriginal);
         refreshCategoryGrid(selectedCategoryId, keepOriginal);
+        // Installments are for an expense only: switching type takes the row
+        // away (it stayed on income and savings while `hidden` didn't work)
+        if (typeof syncInstallments === 'function') syncInstallments();
         // The "whose?" picker appears only for types the family turned
         // attribution on for (family settings), and not when the family is one
         // person (Matan, 5.10). Then it is only hidden: the choice is built and
@@ -705,6 +709,7 @@
     // a string counts.
 
     function openAddModal(presetType) {
+        editingInstallment = null;
         const preset = typeof presetType === 'string' ? presetType : null;
         editSnapshot = null;
         const seriesLink = document.getElementById('txSeriesLink');
@@ -773,6 +778,10 @@
         txReceiptPath.value = '';               // don't inherit a receipt from a previous form
         editId = tx.id;
         editingRecurringParentId = tx.recurringParentId || null;
+        {
+            const n = parseInt(tx.installmentNo, 10), t = parseInt(tx.installments, 10);
+            editingInstallment = n > 0 && t > 0 ? { no: n, total: t } : null;
+        }
         editingSeries = !!(triggerEl && triggerEl.closest && triggerEl.closest('#recurringList'));
         // From "recurring transactions" the button stops the series and doesn't
         // delete a row; see `deleteBtn` below. The name says what it does.
@@ -845,6 +854,7 @@
                 // offer an action that would fail.
 
                 setRecurringLock(!!tx.recurringParentId);
+                syncInstallments();
                 editSnapshot = formSnapshot();
                 updateSubmitLabel();
                 openModal();
@@ -1120,6 +1130,26 @@
     }
     function syncInstallments() {
         if (!instGroup) return;
+        // Editing an installment (Matan, 22.11: "it says recurring, and that's
+        // wrong"): the installments switch is on and locked, with which payment
+        // this is; the recurring switch is hidden (`applyInstallmentEdit`).
+        // The series itself is changed from settings.
+        const recurGroup = recurringCb.closest('.recurring-group');
+        if (editId && editingInstallment) {
+            instGroup.hidden = false;
+            instCb.checked = true;
+            instCb.disabled = true;
+            instGroup.classList.add('is-locked');
+            instFields.hidden = false;
+            instCount.hidden = true;
+            instHint.textContent = 'תשלום ' + editingInstallment.no + ' מתוך ' + editingInstallment.total;
+            if (recurGroup) recurGroup.hidden = true;
+            return;
+        }
+        instCb.disabled = false;
+        instGroup.classList.remove('is-locked');
+        instCount.hidden = false;
+        if (recurGroup) recurGroup.hidden = false;
         // Only when adding an expense
 
         instGroup.hidden = !!editId || currentType !== 'expense';
@@ -1542,6 +1572,13 @@
             receipt_path:        currentType === 'expense' ? (txReceiptPath.value || null) : null,
             project_id:          txProject.value || null,
         };
+        // An installment keeps its series as it is: the recurring switch is
+        // hidden for it, and its unchecked state must not end the series
+        if (editId && editingInstallment && editingOriginal) {
+            payload.is_recurring        = !!editingOriginal.isRecurring;
+            payload.recurring_frequency = editingOriginal.isRecurring ? (editingOriginal.recurringFrequency || null) : null;
+            payload.recurring_end_date  = editingOriginal.isRecurring ? (editingOriginal.recurringEndDate || null) : null;
+        }
         // Remember the category for the next new transaction of this type
         if (!editId && payload.category_id) {
             try { localStorage.setItem('sf_last_cat_' + currentType, payload.category_id); } catch (e) { /* no storage */ }
