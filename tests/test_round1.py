@@ -213,3 +213,19 @@ def test_the_sheet_fits_above_the_iphone_keyboard():
     assert "overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');" in tx
     assert "vv.addEventListener('resize', fit);" in tx
     assert "max-height: calc(var(--sheet-room, 100dvh) * 0.96)" in _CSS
+
+
+def test_nothing_peeks_out_under_save():
+    # Matan's screenshot (21.11): "תשלומים" showed in the strip under Save. While
+    # content goes on below, the strip is covered; with the keyboard open Save
+    # sits right on top of it
+    tx = _read(_JS / "transactions.js")
+    assert "submitBtn.classList.toggle('is-stuck', below > 2);" in tx
+    assert "overlay.classList.add('kb-fit');" in tx
+    assert "#modalOverlay label.submit-btn.is-stuck::after {" in _CSS
+    assert "#modalOverlay.kb-fit label.submit-btn { bottom: 8px; }" in _CSS
+
+
+def test_save_ring_does_not_cut_the_field_above():
+    # the 12px ring cut the project field's bottom edge with only 8px between them
+    assert "#modalOverlay label.submit-btn { margin-top: 18px; }" in _CSS

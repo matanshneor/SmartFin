@@ -561,13 +561,27 @@
                 overlay.style.bottom = 'auto';
                 overlay.style.height = Math.round(vv.height) + 'px';
                 overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');
+                overlay.classList.add('kb-fit');
                 fitted = true;
             } else if (fitted) {
                 overlay.style.top = overlay.style.bottom = overlay.style.height = '';
                 overlay.style.removeProperty('--sheet-room');
+                overlay.classList.remove('kb-fit');
                 fitted = false;
             }
+            markStuck();
         }
+        // Save is stuck to the bottom while there is still content below it: then
+        // the strip under it is covered (see `.is-stuck` in the CSS)
+        function markStuck() {
+            const below = modalSheetEl.scrollHeight - modalSheetEl.clientHeight - modalSheetEl.scrollTop;
+            submitBtn.classList.toggle('is-stuck', below > 2);
+        }
+        modalSheetEl.addEventListener('scroll', markStuck, { passive: true });
+        window.addEventListener('resize', markStuck);
+        new MutationObserver(function () { requestAnimationFrame(markStuck); })
+            .observe(overlay, { attributes: true, attributeFilter: ['class'] });
+        if (window.ResizeObserver) new ResizeObserver(markStuck).observe(txForm);
         vv.addEventListener('resize', fit);
         vv.addEventListener('scroll', fit);
         overlay.addEventListener('focusin', function () { setTimeout(fit, 0); });
