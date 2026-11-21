@@ -5101,6 +5101,16 @@ body > .color-sheet { z-index: var(--z-picker); }
 .week-detail[hidden] { display: none; }
 .week-fixed { font-size: var(--text-xs); color: var(--color-text-muted); }
 .week-detail-list li.is-fixed { color: var(--color-text-muted); }
+/* A tappable row (Matan, 22.11): opens the edit sheet, and the tap shows on
+   it the way it does on the other lists. The highlight reaches a little past
+   the text on both sides, so the row keeps its place. */
+.week-detail-list li.week-tx {
+    cursor: pointer; border-radius: 8px; margin-inline: -8px; padding-inline: 8px;
+    align-items: center; -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.15s;
+}
+.week-detail-list li.week-tx:active { background: rgba(var(--ink-rgb), 0.05); }
+.week-detail-list li.week-tx:focus-visible { outline: 2px solid var(--color-gold-bright); outline-offset: -2px; }
 .week-detail-list li.is-fixed .week-detail-amount { color: inherit; font-weight: 500; }
 .week-fixed-tag { font-size: var(--text-2xs); font-weight: 600; padding: 1px 7px; margin-inline-start: 4px; border-radius: 99px; background: var(--color-input); }
 /* An empty week: one row instead of an empty chart (Matan, 18.10) */

@@ -338,8 +338,10 @@ def _rpc(t, name, p):
                   and ((not r.get("is_recurring") and not r.get("recurring_parent_id"))
                        or r["date"] >= p["p_recent_from"])]
         recent.sort(key=lambda r: r["created_at"], reverse=True)
-        week = [{k: r.get(k) for k in ("amount", "date", "description", "category_id", "is_recurring",
-                                         "recurring_parent_id", "project_id", "categories")}
+        week = [{k: r.get(k) for k in ("id", "amount", "date", "description", "category_id", "is_recurring",
+                                         "recurring_parent_id", "recurring_frequency", "recurring_end_date",
+                                         "installments", "installment_no", "project_id", "user_id",
+                                         "categories", "profiles")}
                 for r in tx if r["type"] == "expense" and not r.get("project_id")
                 and p["p_week_from"] <= r["date"] <= p["p_week_to"]]
         older = any(r["type"] == "expense" and not r.get("project_id") and r.get("is_recurring") is False
