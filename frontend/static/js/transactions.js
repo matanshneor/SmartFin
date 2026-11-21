@@ -2041,56 +2041,52 @@
         return no > 0 && total > 0 ? { no: no, total: total } : null;
     }
 
+    /* One question, three answers (Matan, 22.11: "why two questions?"): only
+     * this one, this and all following, or back. The destructive button says
+     * exactly what it deletes, so it needs no second "are you sure?"; the safe
+     * answer comes first and the focus starts on "cancel". */
     function askAboutSeries(txData, row, later, onFail) {
         const inst = installmentOf(txData);
+        let opts;
         if (inst) {
             // Counted from the payment numbers, not from `later`: the payments
             // ahead aren't recorded yet (one is added each month), and "this
             // and all following" stops the series, so they never will be
             const left = inst.total - inst.no + 1;
-            const range = left > 1 ? 'מתשלום ' + inst.no + ' עד ' + inst.total : 'זה התשלום האחרון';
-            const kept = inst.no === 1 ? 'כל העסקה בתשלומים תימחק.'
-                       : inst.no === 2 ? 'תשלום 1 יישאר.' : 'תשלומים 1 עד ' + (inst.no - 1) + ' יישארו.';
-            return window.appConfirm({
-                title:       'זו עסקה בתשלומים',
-                message:     'זה תשלום ' + inst.no + ' מתוך ' + inst.total + '. אפשר למחוק רק את התשלום הזה, '
-                             + 'או אותו וכל התשלומים שאחריו (' + range + ').',
-                confirmText: 'רק את התשלום הזה',
-                cancelText:  'את זה וכל הבאים',
-                danger:      false,
-            }).then(function (onlyThis) {
-                if (onlyThis === null) return;
-                if (onlyThis) return sendSeriesDelete(txData, row, 'one', 1, onFail);
+            if (left === 1) {
                 return window.appConfirm({
-                    title:       'למחוק את התשלום הזה וכל הבאים?',
-                    message:     window.sfCount(left, 'תשלום אחד יימחק', 'תשלומים יימחקו') + ' (' + range + '). ' + kept,
-                    confirmText: 'מחיקת ' + window.sfCount(left, 'התשלום', 'תשלומים'),
-                }).then(function (sure) {
-                    if (sure !== true) return;
-                    return sendSeriesDelete(txData, row, 'later', later, onFail);
+                    title:       'למחוק את התשלום האחרון?',
+                    message:     'זה תשלום ' + inst.no + ' מתוך ' + inst.total + '.',
+                    confirmText: 'מחיקת התשלום',
+                }).then(function (ok) {
+                    if (ok === true) return sendSeriesDelete(txData, row, 'one', 1, onFail);
                 });
-            });
+            }
+            opts = {
+                title:       'זו עסקה בתשלומים',
+                message:     'זה תשלום ' + inst.no + ' מתוך ' + inst.total + '. '
+                             + (inst.no === 1 ? 'מחיקת כל התשלומים מוחקת את העסקה כולה.'
+                                : inst.no === 2 ? 'תשלום 1 יישאר בכל מקרה.'
+                                : 'תשלומים 1 עד ' + (inst.no - 1) + ' יישארו בכל מקרה.'),
+                confirmText: 'רק את התשלום הזה',
+                extraText:   'מחיקת ' + left + ' תשלומים (' + inst.no + ' עד ' + inst.total + ')',
+            };
+        } else {
+            const after = later - 1;
+            opts = {
+                title:       'זו עסקה קבועה',
+                message:     'אפשר למחוק רק את זו, או למחוק אותה'
+                             + (after === 1 ? ' ואת זו שנרשמה אחריה' : after > 1 ? ' ואת ' + after + ' שנרשמו אחריה' : '')
+                             + ' ולעצור את העסקה הקבועה. מה שנרשם לפני כן יישאר.',
+                confirmText: 'רק את זו',
+                extraText:   later > 1 ? 'מחיקת ' + later + ' ועצירת העסקה הקבועה' : 'מחיקה ועצירת העסקה הקבועה',
+            };
         }
-        return window.appConfirm({
-            title:       'זו עסקה קבועה',
-            message:     'אפשר למחוק רק את המופע הזה, או אותו וכל הבאים '
-                         + 'אחריו (' + later + ' בסך הכל).',
-            confirmText: 'רק את זו',
-            cancelText:  'את זו וכל הבאות',
-            danger:      false,
-        }).then(function (onlyThis) {
-            if (onlyThis === null) return;                 // retreat
-            if (onlyThis) return sendSeriesDelete(txData, row, 'one', 1, onFail);
-
-            return window.appConfirm({
-                title:       'למחוק את זו וכל הבאות?',
-                message:     window.sfCount(later, 'עסקה אחת תימחק', 'עסקאות יימחקו') + ', והעסקה הקבועה תיעצר כאן. '
-                             + 'מה שנרשם בחודשים קודמים יישאר.',
-                confirmText: 'מחיקת ' + later,
-            }).then(function (sure) {
-                if (sure !== true) return;
-                return sendSeriesDelete(txData, row, 'later', later, onFail);
-            });
+        opts.danger = false;
+        opts.cancelText = 'ביטול';
+        return window.appConfirm(opts).then(function (answer) {
+            if (answer === true) return sendSeriesDelete(txData, row, 'one', 1, onFail);
+            if (answer === 'extra') return sendSeriesDelete(txData, row, 'later', later, onFail);
         });
     }
 

@@ -363,6 +363,9 @@
                     aria-labelledby="confirmMessage"></select>
             <div class="confirm-actions">
                 <button type="button" class="btn-sm confirm-yes" id="confirmYes">מחיקה</button>
+                {# A third answer (`extraText`): e.g. "delete 10 payments" beside
+                   "only this one" (Matan, 22.11) #}
+                <button type="button" class="btn-sm confirm-yes confirm-extra" id="confirmExtra" hidden></button>
                 <button type="button" class="btn-sm btn-ghost" id="confirmNo">ביטול</button>
             </div>
         </div>

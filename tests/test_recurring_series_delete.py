@@ -228,26 +228,29 @@ def test_the_dialog_asks_the_calendar_question():
     block = _dialog()
 
     assert "רק את זו" in block
-    assert "את זו וכל הבאות" in block
+    assert "מחיקה ועצירת העסקה הקבועה" in block
     assert "'זו עסקה קבועה'" in block
 
 
 def test_the_safe_option_is_the_confirm_button():
-    """Deleting one occurrence is the expected action; deleting all the rest goes
-    through a second confirmation that shows the number."""
+    """Deleting one occurrence is the expected action, the confirm button.
+    Deleting all the rest is a separate red button that says what it does
+    (Matan, 22.11: one question instead of two), with the count when there is
+    more than one."""
     block = _dialog()
 
     assert "confirmText: 'רק את זו'" in block
-    assert "למחוק את זו וכל הבאות?" in block
+    assert "'מחיקת ' + later + ' ועצירת העסקה הקבועה'" in block
 
 
 def test_backing_out_of_either_dialog_deletes_nothing():
-    """Backing out returns null. A second dialog interpreting null as confirmation is
-    exactly the bug that was already in project deletion."""
+    """Backing out returns null and cancel returns false: only `true` ("only this
+    one") and `'extra'` ("this and all following") delete anything."""
     block = _dialog()
 
-    assert "if (onlyThis === null) return;" in block
-    assert "if (sure !== true) return;" in block
+    assert "if (answer === true) return sendSeriesDelete(txData, row, 'one', 1, onFail);" in block
+    assert "if (answer === 'extra') return sendSeriesDelete(txData, row, 'later', later, onFail);" in block
+    assert "if (ok === true) return sendSeriesDelete(txData, row, 'one', 1, onFail);" in block
 
 
 def test_no_undo_is_offered_for_either():
