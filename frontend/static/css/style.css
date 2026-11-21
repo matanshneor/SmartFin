@@ -5498,6 +5498,10 @@ body.tx-screen-open { overflow: hidden; }
 #modalOverlay.kb-fit .modal-sheet { padding-bottom: 0; }
 #modalOverlay.kb-fit .tx-form::after { height: 8px; }
 #modalOverlay.kb-fit label.submit-btn { bottom: 8px; }
+/* The 12px ring around Save cut the bottom edge off the project field above it
+   (Matan, 21.11, a screenshot): only 8px separated them. 18px (it collapses
+   with the error line's 8px margin above), so the ring ends in the gap. */
+#modalOverlay label.submit-btn { margin-top: 18px; }
 :root[data-theme="dark"] #modalOverlay label.submit-btn { box-shadow: var(--shadow-gold), 0 0 0 12px var(--color-bg-elevated); }
 #modalOverlay label.submit-btn.is-unchanged,
 :root[data-theme="dark"] #modalOverlay label.submit-btn.is-unchanged { box-shadow: 0 0 0 12px var(--color-bg-elevated); }

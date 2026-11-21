@@ -224,3 +224,8 @@ def test_nothing_peeks_out_under_save():
     assert "overlay.classList.add('kb-fit');" in tx
     assert "#modalOverlay label.submit-btn.is-stuck::after {" in _CSS
     assert "#modalOverlay.kb-fit label.submit-btn { bottom: 8px; }" in _CSS
+
+
+def test_save_ring_does_not_cut_the_field_above():
+    # the 12px ring cut the project field's bottom edge with only 8px between them
+    assert "#modalOverlay label.submit-btn { margin-top: 18px; }" in _CSS
