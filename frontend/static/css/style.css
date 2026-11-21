@@ -5648,6 +5648,13 @@ body.tx-screen-open { overflow: hidden; }
 .cat-tx-desc .installment-tag { display: table; margin-top: 3px; padding-inline: 0; }
 
 .installments-group[hidden] { display: none; }
+/* `hidden` inside the sheet really hides (Matan, 22.11): `.detail-row` and the
+   edit buttons set a display of their own that outranked it, so the
+   installments row showed while editing and on income, and "duplicate" on a
+   recurring transaction. */
+#modalOverlay [hidden] { display: none !important; }
+.installments-group.is-locked .checkbox-label { cursor: default; opacity: 1; }
+#modalOverlay .installments-group.is-locked .installments-hint { color: var(--color-gold-text); font-weight: 700; }
 .installments-fields { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; margin-top: 8px; }
 .installments-fields[hidden] { display: none; }
 .installments-count { width: 72px; text-align: center; font-weight: 700; }

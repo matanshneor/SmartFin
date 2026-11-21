@@ -261,3 +261,15 @@ def test_week_card_rows_open_the_edit_sheet():
     assert 'class="week-tx' in card and 'data-id="{{ t.id }}"' in card
     tx = _read(_JS / "transactions.js")
     assert tx.count("'.transaction-item, .cat-tx-row, .recurring-row, .week-tx'") == 2
+
+
+def test_editing_an_installment_shows_installments_not_recurring():
+    # Matan, 22.11: an installment opened for editing said "recurring". Now the
+    # installments switch is on and locked with "תשלום X מתוך Y", the recurring
+    # switch is hidden, and saving keeps the series' recurring fields
+    tx = _read(_JS / "transactions.js")
+    assert "if (editId && editingInstallment) {" in tx
+    assert "instHint.textContent = 'תשלום ' + editingInstallment.no + ' מתוך ' + editingInstallment.total;" in tx
+    assert "payload.is_recurring        = !!editingOriginal.isRecurring;" in tx
+    # `hidden` really hides inside the sheet
+    assert "#modalOverlay [hidden] { display: none !important; }" in _CSS
