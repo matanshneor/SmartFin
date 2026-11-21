@@ -178,7 +178,7 @@
                    template itself. The link goes to recurring transactions in
                    settings, where it opens for editing. #}
                 <a class="tx-series-link" id="txSeriesLink" href="{{ url_for('settings') }}" hidden>
-                    {{ ui_icon("repeat") }}<span>חלק מעסקה קבועה · עריכה לכל החודשים</span>
+                    {{ ui_icon("repeat") }}<span id="txSeriesText">חלק מעסקה קבועה · עריכה לכל החודשים</span>
                 </a>
                 {# "View receipt" (Matan, 13.10): the small icon on the row sits inside the
                    edit button, and VoiceOver doesn't reach it; from here it

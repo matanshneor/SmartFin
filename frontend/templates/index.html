@@ -286,7 +286,7 @@
             data-is-recurring="{{ tx.is_recurring | lower }}"
             data-recurring-frequency="{{ tx.recurring_frequency or '' }}"
             data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
-                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
+                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}" data-installments="{{ tx.installments or '' }}" data-installment-no="{{ tx.installment_no or '' }}">
             <div class="tx-head" role="button" tabindex="0" aria-haspopup="dialog"
                  aria-label="עריכת {{ tx.category_name }}: {{ {'expense': 'הוצאה', 'income': 'הכנסה', 'savings': 'חיסכון'}.get(tx.type, '') }} של {{ tx.amount | money }} שקלים, {{ tx.date | day_label }}{% if tx.workplace or tx.description %}, {{ tx.workplace or tx.description }}{% endif %}">
                 <div class="tx-icon {{ tx.type }}">

@@ -424,7 +424,7 @@
                         data-date="{{ tx.date }}" data-user-id="{{ tx.user_id or '' }}" data-is-recurring="{{ tx.is_recurring | lower }}"
                         data-recurring-frequency="{{ tx.recurring_frequency or '' }}"
                         data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
-                        data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
+                        data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}" data-installments="{{ tx.installments or '' }}" data-installment-no="{{ tx.installment_no or '' }}">
                         <span class="recurring-icon">{{ tx.category_icon }}</span>
                         <div class="recurring-details">
                             <p class="recurring-name">{{ tx.description or tx.category_name }}</p>

@@ -107,7 +107,7 @@
         data-template-id="{{ tx.recurring_parent_id }}" data-date="{{ tx.date }}"
         data-label="{{ tx.description or tx.category_name }}">
         <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-        <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if tx.installments and tx.installment_no %} · <span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% endif %}</span>
+        <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if tx.installments and tx.installment_no %}<span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% endif %}</span>
         <span class="projected-tag">צפוי</span>
         <span class="cat-tx-amount {{ tx.type }}">{% if tx.type == 'expense' %}-{% elif tx.type == 'income' %}+{% endif %}₪{{ tx.amount | money }}</span>
     </div>
@@ -117,11 +117,11 @@
         data-date="{{ tx.date }}" data-user-id="{{ tx.user_id or '' }}" data-is-recurring="{{ tx.is_recurring | lower }}"
         data-recurring-frequency="{{ tx.recurring_frequency or '' }}"
         data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
-        data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}"
+        data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}" data-installments="{{ tx.installments or '' }}" data-installment-no="{{ tx.installment_no or '' }}"
         data-cat-key="{{ tx.get('cat_key', '') }}"
         data-search="{{ tx.category_name or '' }} {{ tx.project_name or '' }}">
         <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-        <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %} · <span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}</span>
+        <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %}<span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}</span>
         {% if tx.project_id %}<span class="project-tag">{{ tx.project_icon or '🎯' }} {{ tx.project_name or 'פרויקט' }}</span>{% endif %}
         {% if (show_owner or {}).get(tx.type) %}
         {% set color = member_colors.get(tx.user_id) %}
@@ -304,9 +304,9 @@
                     data-date="{{ tx.date }}" data-user-id="{{ tx.user_id or '' }}" data-is-recurring="{{ tx.is_recurring | lower }}"
                     data-recurring-frequency="{{ tx.recurring_frequency or '' }}"
                     data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
-                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
+                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}" data-installments="{{ tx.installments or '' }}" data-installment-no="{{ tx.installment_no or '' }}">
                     <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-                    <span class="cat-tx-desc">{{ tx.description or item.name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %} · <span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}</span>
+                    <span class="cat-tx-desc">{{ tx.description or item.name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}{% if tx.installments and tx.installment_no %}<span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% elif tx.is_recurring or tx.recurring_parent_id %} · {{ ui_icon("repeat") }} {{ freq_labels.get(tx.recurring_frequency, 'חודשי') }}{% endif %}</span>
                     {% if (show_owner or {}).get('expense') %}
                     {% set color = member_colors.get(tx.user_id) %}
                     <span class="owner-pill owner-pill-sm owner-{{ color if color is not none else 'shared' }}">{{ tx.user_name if tx.user_id else 'משותפת' }}</span>
@@ -394,7 +394,7 @@
                     data-date="{{ tx.date }}" data-user-id="{{ tx.user_id or '' }}" data-is-recurring="{{ tx.is_recurring | lower }}"
                     data-recurring-frequency="{{ tx.recurring_frequency or '' }}"
                     data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
-                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
+                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}" data-installments="{{ tx.installments or '' }}" data-installment-no="{{ tx.installment_no or '' }}">
                     <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
                     <span class="cat-tx-desc">{{ tx.description or tx.category_name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}</span>
                     {% if (show_owner or {}).get('income') %}
@@ -471,7 +471,7 @@
                     data-date="{{ tx.date }}" data-user-id="{{ tx.user_id or '' }}" data-is-recurring="{{ tx.is_recurring | lower }}"
                     data-recurring-frequency="{{ tx.recurring_frequency or '' }}"
                     data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
-                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
+                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}" data-installments="{{ tx.installments or '' }}" data-installment-no="{{ tx.installment_no or '' }}">
                     <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
                     <span class="cat-tx-desc">{{ tx.description or item.name }}{% if tx.workplace %} · {{ tx.workplace }}{% endif %}</span>
                     {% if (show_owner or {}).get('savings') %}
@@ -666,9 +666,9 @@
                     data-date="{{ tx.date }}" data-user-id="{{ tx.user_id or '' }}" data-is-recurring="{{ tx.is_recurring | lower }}"
                     data-recurring-frequency="{{ tx.recurring_frequency or '' }}"
                     data-recurring-end-date="{{ tx.recurring_end_date or '' }}"
-                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}">
+                    data-recurring-parent-id="{{ tx.recurring_parent_id or '' }}" data-project-id="{{ tx.project_id or '' }}" data-installments="{{ tx.installments or '' }}" data-installment-no="{{ tx.installment_no or '' }}">
                     <span class="cat-tx-date">{{ tx.date[8:10] }}.{{ tx.date[5:7] }}</span>
-                    <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}</span>
+                    <span class="cat-tx-desc">{{ tx.category_icon }} {{ tx.description or tx.category_name }}{% if tx.installments and tx.installment_no %}<span class="installment-tag">תשלום {{ tx.installment_no }} מתוך {{ tx.installments }}</span>{% endif %}</span>
                     <span class="cat-tx-amount {{ tx.type }}">{% if tx.type == 'expense' %}-{% elif tx.type == 'income' %}+{% endif %}₪{{ tx.amount | money }}</span>
                 </div>
                 {% endif %}

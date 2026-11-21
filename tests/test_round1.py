@@ -107,9 +107,31 @@ def test_an_occurrence_links_to_its_recurring_transaction():
     base = _read(_T / "base.html")
     assert 'id="txSeriesLink"' in base and "חלק מעסקה קבועה" in base
     tx = _read(_JS / "transactions.js")
-    assert "seriesLink.href = '/settings?series=' + encodeURIComponent(tx.recurringParentId);" in tx
+    assert "const seriesId = tx.recurringParentId ||" in tx
+    assert "seriesLink.href = '/settings?series=' + encodeURIComponent(seriesId);" in tx
     settings = _read(_JS / "settings.js")
     assert "new URLSearchParams(location.search).get('series')" in settings and "row.click();" in settings
+
+
+def test_an_installment_says_which_payment_it_is():
+    # "תשלום 3 מתוך 12" in the edit sheet, from the numbers every row carries
+    base = _read(_T / "base.html")
+    assert 'id="txSeriesText"' in base
+    tx = _read(_JS / "transactions.js")
+    assert "'תשלום ' + instNo + ' מתוך ' + instTotal" in tx
+    assert "installmentNo:       row.dataset.installmentNo || null," in tx
+    for name in ("index.html", "month.html", "project_detail.html", "settings.html"):
+        page = _read(_T / name)
+        assert page.count('data-recurring-parent-id=') == page.count('data-installment-no="{{ tx.installment_no'), name
+    search = _read(_JS / "search.js")
+    assert "d.installmentNo = tx.installment_no" in search
+
+
+def test_save_does_not_cover_the_last_row_on_iphone():
+    # Safari counts the sticky `bottom` from inside the sheet's padding: the
+    # space under Save is a spacer inside the form, not padding on the sheet
+    assert "#modalOverlay .tx-form::after { content: \"\"; display: block; height: calc(10px + env(safe-area-inset-bottom, 0px)); }" in _CSS
+    assert "#modalOverlay .modal-sheet { padding-bottom: 8px; }" in _CSS
 
 
 # ─── Password and sign-out ──────────────────────────────────────────────
@@ -180,3 +202,14 @@ def test_one_member_gets_no_chart():
     from backend import app as app_module
     src = inspect.getsource(app_module.month_view)
     assert "if len(mb) >= 2:" in src
+
+
+def test_the_sheet_fits_above_the_iphone_keyboard():
+    # iOS doesn't shrink the page for the keyboard: while a field in the sheet has
+    # focus, the overlay takes the visible screen's size, so the sheet scrolls to
+    # its last rows (installments, Save) instead of ending behind the keyboard
+    tx = _read(_JS / "transactions.js")
+    assert "const covered = window.innerHeight - vv.height > 60;" in tx
+    assert "overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');" in tx
+    assert "vv.addEventListener('resize', fit);" in tx
+    assert "max-height: calc(var(--sheet-room, 100dvh) * 0.96)" in _CSS

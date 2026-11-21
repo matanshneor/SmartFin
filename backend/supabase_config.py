@@ -1343,7 +1343,7 @@ def transaction_meta(tx_id: str, family_id: str):
     row = _tx_row(tx_id, family_id)
     if not row:
         return None
-    return {k: row.get(k) for k in ("created_by", "created_at", "recurring_parent_id")}
+    return {k: row.get(k) for k in ("created_by", "created_at", "recurring_parent_id", "installments")}
 
 
 def get_transaction_receipt_path(transaction_id: str, family_id: str):
@@ -1800,7 +1800,7 @@ def personal_project_owner(tx_id: str, family_id: str):
 
 
 _TX_ROW_FIELDS = ("user_id, project_id, amount, type, date, description, category_id, "
-                  "project_category_id, created_by, created_at, recurring_parent_id, "
+                  "project_category_id, created_by, created_at, recurring_parent_id, installments, "
                   "projects(owner_id)")
 
 

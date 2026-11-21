@@ -5279,7 +5279,7 @@ body.tx-screen-open { overflow: hidden; }
    other pages don't change. */
 /* The sheet up to 96% of the screen height (was 92%), and smaller bottom
    padding, so it fits on one screen without shrinking the categories */
-#modalOverlay .modal-sheet { max-height: 96vh; max-height: 96dvh; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+#modalOverlay .modal-sheet { max-height: 96vh; max-height: calc(var(--sheet-room, 100dvh) * 0.96); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 #modalOverlay .modal-handle { margin-bottom: 8px; }
 #modalOverlay .toggle-btn { padding-block: 7px; }
 #modalOverlay .tx-form .form-input:not(.amount-input) { padding-block: 9px; }
@@ -5478,6 +5478,13 @@ body.tx-screen-open { overflow: hidden; }
     position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 2;
     box-shadow: 0 6px 18px rgba(20, 16, 7, 0.28), 0 0 0 12px var(--color-bg-elevated);
 }
+/* Safari measures that `bottom` from inside the sheet's bottom padding, Chrome
+   from its edge. So on iPhone, scrolled all the way down, Save still rose by the
+   padding and covered the last row, the "תשלומים" switch (Matan, 21.11: "it's
+   under the button and can't be pressed"). The space under the form is a spacer
+   inside it instead of padding, and both engines leave the button in place. */
+#modalOverlay .modal-sheet { padding-bottom: 8px; }
+#modalOverlay .tx-form::after { content: ""; display: block; height: calc(10px + env(safe-area-inset-bottom, 0px)); }
 :root[data-theme="dark"] #modalOverlay label.submit-btn { box-shadow: var(--shadow-gold), 0 0 0 12px var(--color-bg-elevated); }
 #modalOverlay label.submit-btn.is-unchanged,
 :root[data-theme="dark"] #modalOverlay label.submit-btn.is-unchanged { box-shadow: 0 0 0 12px var(--color-bg-elevated); }
@@ -5609,6 +5616,9 @@ body.tx-screen-open { overflow: hidden; }
 
 /* "תשלום 3 מתוך 12" on the row (Matan, 12.10) */
 .installment-tag { color: var(--color-gold-text); font-weight: 600; }
+/* In a narrow row "תשלום 3 מתוך 12" was cut to "תשלום 3 …" (Matan, 21.11): it
+   gets a line of its own under the description, which alone is shortened. */
+.cat-tx-desc .installment-tag { display: table; margin-top: 3px; padding-inline: 0; }
 
 .installments-group[hidden] { display: none; }
 .installments-fields { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; margin-top: 8px; }

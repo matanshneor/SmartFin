@@ -28,7 +28,8 @@ def _meta(at, by=_OR, parent=None):
     (_meta("2026-10-03T06:15:00+00:00", by="gone"), "הוזנה ע״י בן משפחה לשעבר · היום 09:15"),
     (_meta("2026-09-12T08:00:00+00:00", by=None), "הוזנה ב-12.9.2026 11:00"),
     (_meta("2026-10-01T03:00:00+00:00", parent="tpl"), "נוצרה אוטומטית מעסקה קבועה"),
-], ids=["today", "yesterday", "older", "me", "former-member", "unknown-creator", "auto"])
+    ({**_meta("2026-10-01T03:00:00+00:00", parent="tpl"), "installments": 12}, "נוצרה אוטומטית מעסקה בתשלומים"),
+], ids=["today", "yesterday", "older", "me", "former-member", "unknown-creator", "auto", "auto-installment"])
 def test_the_line_says_who_and_when(meta, expected):
     assert _entered_text(meta, _ME, _NAMES, now=_NOW) == expected
 
