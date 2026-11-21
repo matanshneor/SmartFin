@@ -5485,6 +5485,19 @@ body.tx-screen-open { overflow: hidden; }
    inside it instead of padding, and both engines leave the button in place. */
 #modalOverlay .modal-sheet { padding-bottom: 8px; }
 #modalOverlay .tx-form::after { content: ""; display: block; height: calc(10px + env(safe-area-inset-bottom, 0px)); }
+/* Rows scrolling past Save peeked out in the strip under it (Matan, 21.11, a
+   screenshot: "תשלומים" visible under the button). While the content still
+   goes on below (`.is-stuck`, transactions.js) a strip in the sheet's colour
+   hides it; at the end it's gone, so the edit actions under Save show. */
+#modalOverlay label.submit-btn.is-stuck::after {
+    content: ""; position: absolute; inset-inline: -12px; top: 100%; height: 120px;
+    background: var(--color-bg-elevated); pointer-events: none;
+}
+/* Keyboard open (`.kb-fit`): Save right on top of it. The home-indicator
+   space is under the keyboard, so it is not needed. */
+#modalOverlay.kb-fit .modal-sheet { padding-bottom: 0; }
+#modalOverlay.kb-fit .tx-form::after { height: 8px; }
+#modalOverlay.kb-fit label.submit-btn { bottom: 8px; }
 :root[data-theme="dark"] #modalOverlay label.submit-btn { box-shadow: var(--shadow-gold), 0 0 0 12px var(--color-bg-elevated); }
 #modalOverlay label.submit-btn.is-unchanged,
 :root[data-theme="dark"] #modalOverlay label.submit-btn.is-unchanged { box-shadow: 0 0 0 12px var(--color-bg-elevated); }
