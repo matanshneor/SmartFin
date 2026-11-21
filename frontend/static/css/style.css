@@ -5279,7 +5279,7 @@ body.tx-screen-open { overflow: hidden; }
    other pages don't change. */
 /* The sheet up to 96% of the screen height (was 92%), and smaller bottom
    padding, so it fits on one screen without shrinking the categories */
-#modalOverlay .modal-sheet { max-height: 96vh; max-height: 96dvh; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+#modalOverlay .modal-sheet { max-height: 96vh; max-height: calc(var(--sheet-room, 100dvh) * 0.96); padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 #modalOverlay .modal-handle { margin-bottom: 8px; }
 #modalOverlay .toggle-btn { padding-block: 7px; }
 #modalOverlay .tx-form .form-input:not(.amount-input) { padding-block: 9px; }

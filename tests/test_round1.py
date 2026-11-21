@@ -202,3 +202,14 @@ def test_one_member_gets_no_chart():
     from backend import app as app_module
     src = inspect.getsource(app_module.month_view)
     assert "if len(mb) >= 2:" in src
+
+
+def test_the_sheet_fits_above_the_iphone_keyboard():
+    # iOS doesn't shrink the page for the keyboard: while a field in the sheet has
+    # focus, the overlay takes the visible screen's size, so the sheet scrolls to
+    # its last rows (installments, Save) instead of ending behind the keyboard
+    tx = _read(_JS / "transactions.js")
+    assert "const covered = window.innerHeight - vv.height > 60;" in tx
+    assert "overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');" in tx
+    assert "vv.addEventListener('resize', fit);" in tx
+    assert "max-height: calc(var(--sheet-room, 100dvh) * 0.96)" in _CSS

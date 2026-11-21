@@ -538,6 +538,43 @@
         refreshIfPending();
     }
 
+    // ── The sheet above the iPhone keyboard (Matan, 21.11: "I can't scroll down
+    // to installments") ──
+    // Android shrinks the page when the keyboard opens (`interactive-widget` in
+    // the viewport); iOS doesn't: the keyboard covers the bottom of the screen
+    // and the sheet still believes it is all visible, so its scrolling ended
+    // with the last rows (installments, Save) behind the keyboard. While a field
+    // inside the sheet has focus and the visible screen is shorter than the
+    // page, the overlay takes the visible screen's size and place, and the
+    // sheet scrolls inside it. Not on a pinch zoom: no field has focus then.
+    (function () {
+        const vv = window.visualViewport;
+        if (!vv) return;
+        let fitted = false;
+        function fit() {
+            const a = document.activeElement;
+            const typing = overlay.classList.contains('open') && a && a !== modalSheetEl
+                && modalSheetEl.contains(a) && a.matches('input, textarea, select');
+            const covered = window.innerHeight - vv.height > 60;
+            if (typing && covered) {
+                overlay.style.top = Math.round(vv.offsetTop) + 'px';
+                overlay.style.bottom = 'auto';
+                overlay.style.height = Math.round(vv.height) + 'px';
+                overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');
+                fitted = true;
+            } else if (fitted) {
+                overlay.style.top = overlay.style.bottom = overlay.style.height = '';
+                overlay.style.removeProperty('--sheet-room');
+                fitted = false;
+            }
+        }
+        vv.addEventListener('resize', fit);
+        vv.addEventListener('scroll', fit);
+        overlay.addEventListener('focusin', function () { setTimeout(fit, 0); });
+        overlay.addEventListener('focusout', function () { setTimeout(fit, 0); });
+        window.sfFitSheet = fit;     // for the browser test
+    })();
+
     function resetForm() {
         txForm.reset();
         fitAmount();
