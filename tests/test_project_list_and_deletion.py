@@ -685,3 +685,24 @@ def test_the_categories_section_starts_closed_with_a_count():
     assert 'id="projectCatToggle"' in _EDIT and 'aria-expanded="false"' in _EDIT
     assert '<div id="projectCatBody" hidden>' in _EDIT
     assert 'id="projectCatCount"' in _EDIT
+
+
+# ─── The new-project screen: one task, its own bar (Matan, 23.11) ────────────
+
+def test_creating_a_project_has_its_own_bar_and_no_bottom_menu():
+    """The button waited at the end of a scroll, and on a phone the page opened
+    with an empty strip where the bottom menu should have been: the name had
+    `autofocus`, the menu hides while a field has focus, and no keyboard came."""
+    new = (_ROOT / "frontend/templates/project_new.html").read_text(encoding="utf-8")
+    css = (_ROOT / "frontend/static/css/style.css").read_text(encoding="utf-8")
+    js = (_JS / "projects.js").read_text(encoding="utf-8")
+
+    assert "{% block body_class %}no-fab no-nav{% endblock %}" in new
+    assert '<button type="submit" form="newProjectForm" class="btn-primary project-save-btn">' in new
+    assert new.index("</form>") < new.index('class="project-save-bar"')
+    assert "autofocus" not in new
+    assert "body.no-nav .bottom-nav { display: none; }" in css
+    # The fade above the menu would cover the bar that took its place
+    assert "body.no-nav:has(> .bottom-nav)::after { content: none; }" in css
+    assert "document.querySelector('button[form=\"newProjectForm\"]')" in js
+    assert "window.matchMedia('(pointer: coarse)').matches" in js

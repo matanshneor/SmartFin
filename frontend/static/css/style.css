@@ -4740,6 +4740,11 @@ li.transaction-item.swipe-ready > .swipe-content {
    irreversible action on the page was half hidden behind a button that didn't
    belong there. */
 body.no-fab .fab { display: none; }
+/* A screen that is one task (creating a project, Matan 23.11): no bottom menu,
+   and its own bar of actions sits where the menu was */
+body.no-nav .bottom-nav { display: none; }
+body.no-nav .project-save-bar { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+body.no-nav .install-bar { display: none; }     /* it would sit on the bar of actions */
 body.no-fab .bottom-nav { left: var(--dock-side); }    /* no +: the bar at full width */
 /* Settings have no + button, so no room is needed for it at the bottom (Matan,
    11.10). The +'s 96 pixels made settings taller than the screen even with
@@ -4783,6 +4788,10 @@ body.settings-page .settings-groups { flex: 1 0 auto; }
 
 /* The id selector is needed to beat `.category-row:first-child`, which resets it. */
 #projectCategoriesArea .category-row:first-child,
+/* No bar on this screen (`no-nav`): no fade either. It covered the screen's own
+   bar of actions, which sits where the menu was. */
+body.no-nav:has(> .bottom-nav)::after { content: none; }
+
 #categoriesArea .category-row:first-child { padding-top: 10px; }
 
 /* Pull down to refresh in the installed app (Matan, 30.9, idea 14; like on

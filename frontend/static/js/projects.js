@@ -59,7 +59,7 @@ form.addEventListener('submit', function (e) {
         return;
     }
 
-    const submitBtn = form.querySelector('button[type="submit"]');
+    const submitBtn = document.querySelector('button[form="newProjectForm"]');   // in the bar, outside the form
     submitBtn.disabled = true;
     fetch('/api/projects', {
         method:  'POST',

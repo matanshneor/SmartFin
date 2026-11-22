@@ -5,7 +5,7 @@
 {# A screen of its own (Matan, 5.10): before, the form opened inside the project
    list. Like the edit screen: without the floating +, which is "add a
    transaction" and has no meaning here. #}
-{% block body_class %}no-fab{% endblock %}
+{% block body_class %}no-fab no-nav{% endblock %}
 
 {% block hero %}
 <div class="hero-top">
@@ -92,13 +92,18 @@
             </label>
         </div>
         </div>
-        <p class="form-error" id="newProjectError" role="alert"></p>
-        <div class="edit-actions">
-            <button type="submit" class="btn-sm btn-primary">יצירת הפרויקט</button>
-            <a class="btn-sm btn-ghost" id="cancelProjectBtn" href="{{ url_for('projects') }}">ביטול</a>
-        </div>
     </form>
 </section>
+
+{# "Create" and "cancel" in a bar that stays at the bottom of the screen, and no
+   bottom menu on this screen (Matan, 23.11): it is one task with a start and
+   an end, and the button used to wait at the end of a scroll. `form=`: the
+   button is outside the form and still submits it. #}
+<p class="form-error project-save-error" id="newProjectError" role="alert"></p>
+<div class="project-save-bar">
+    <button type="submit" form="newProjectForm" class="btn-primary project-save-btn">יצירת הפרויקט</button>
+    <a href="{{ url_for('projects') }}" class="btn-ghost project-save-cancel" id="cancelProjectBtn">ביטול</a>
+</div>
 {% endblock %}
 
 {% block scripts %}
