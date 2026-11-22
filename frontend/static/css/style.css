@@ -6119,3 +6119,13 @@ html.past-hero body:has(> .page-hero) { background-color: var(--color-bg); }
     font-size: var(--text-sm);
 }
 .tx-type-chip.active, .tx-cat-chip.active, .tx-sort-chip.active, .range-chip.active { font-weight: 700; }
+
+/* A sheet fitted above the iPhone keyboard (`kb-fit`): the page behind it is
+   not drawn at all. iOS shows the page in the strip the keyboard's bar floats
+   over, where a fixed sheet can't reach, and for a second the home page
+   showed under Save (Matan, 22.11: "I don't want it to happen at all"). With
+   the page hidden that strip is the sheet's own colour. */
+html.sheet-typing, html.sheet-typing body { background: var(--color-bg-elevated) !important; }
+html.small-sheet-typing, html.small-sheet-typing body { background: var(--color-card) !important; }
+html.sheet-typing body > :not(#modalOverlay):not(.toast):not(.confirm-overlay),
+html.small-sheet-typing body > :not(.color-sheet):not(.toast) { visibility: hidden !important; }

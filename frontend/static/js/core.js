@@ -1176,26 +1176,34 @@ document.addEventListener('click', function (e) {
     }
     function fit() {
         const a = document.activeElement;
-        const sheet = a && a.matches && a.matches('input, textarea, select') ? a.closest('.color-sheet') : null;
+        let sheet = a && a.matches && a.matches('input, textarea, select') ? a.closest('.color-sheet') : null;
+        if (sheet && (sheet.hidden || !sheet.isConnected)) sheet = null;
+        seenActive = a; seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
+        if (sheet && !watching) { watching = true; requestAnimationFrame(watch); }
         const covered = window.innerHeight - vv.height > 60;
+        // On a phone the page behind isn't drawn while a field of the sheet has
+        // focus: see `small-sheet-typing` in the CSS
+        document.documentElement.classList.toggle('small-sheet-typing',
+            !!sheet && window.matchMedia('(pointer: coarse)').matches);
         if (fitted && (fitted !== sheet || !covered)) release();
         if (!sheet || !covered) return;
         sheet.style.top = Math.round(vv.offsetTop) + 'px';
         sheet.style.bottom = 'auto';
         sheet.style.height = Math.round(vv.height) + 'px';
         sheet.classList.add('kb-fit');
-        seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
-        if (!fitted) requestAnimationFrame(watch);
         fitted = sheet;
         reveal(a, sheet);
     }
     // iOS doesn't always announce that the visible screen moved: while fitted,
     // look every frame (as in the add sheet)
-    let seenTop = 0, seenHeight = 0;
+    // The same look also catches a sheet closed or removed while its field had
+    // focus (no focus event then): the page must come back.
+    let seenTop = 0, seenHeight = 0, seenActive = null, watching = false;
     function watch() {
-        if (!fitted) return;
-        if (Math.round(vv.offsetTop) !== seenTop || Math.round(vv.height) !== seenHeight) fit();
-        if (fitted) requestAnimationFrame(watch);
+        if (Math.round(vv.offsetTop) !== seenTop || Math.round(vv.height) !== seenHeight
+            || document.activeElement !== seenActive) fit();
+        if (fitted || document.documentElement.classList.contains('small-sheet-typing')) requestAnimationFrame(watch);
+        else watching = false;
     }
     vv.addEventListener('resize', fit);
     vv.addEventListener('scroll', fit);
