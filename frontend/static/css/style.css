@@ -3104,6 +3104,9 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .recurring-sum-value.expense { color: var(--color-expense); }
 .recurring-sum-value.savings { color: var(--color-savings); }
 
+/* The two parts of the list: "קבועות" and "בתשלומים" (Matan, 22.11) */
+.recurring-part-title { margin: 6px 0 2px; font-size: var(--text-base); font-weight: 700; color: var(--color-text); }
+.recurring-part-title.has-line { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(var(--ink-rgb), 0.12); }
 .recurring-group-title {
     margin: 14px 0 8px;
     font-size: var(--text-xs);
