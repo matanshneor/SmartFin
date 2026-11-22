@@ -169,7 +169,7 @@ def test_settings_says_no_recurring_instead_of_zero():
     from pathlib import Path
     tpl = (Path(__file__).resolve().parent.parent / "frontend/templates/settings.html").read_text(encoding="utf-8")
     assert "עסקאות קבועות פעילות" not in tpl and "0 עסקאות" not in tpl
-    assert '<p class="empty-text">אין עסקאות חוזרות עדיין</p>' in tpl
+    assert '<p class="empty-text">אין עסקאות קבועות עדיין</p>' in tpl
 
 
 # ─── A project deleted a moment earlier (review of 1.10) ─────────────────────

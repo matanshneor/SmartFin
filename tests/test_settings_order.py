@@ -42,7 +42,7 @@ def test_the_family_group_holds_what_is_shared():
 def test_the_groups_come_in_matans_order():
     import re
     titles = re.findall(r'<span class="group-title">([^<]+)</span>', _HTML)
-    assert titles == ["המשפחה שלי", "קטגוריות", "עסקאות חוזרות", "שיוך עסקאות",
+    assert titles == ["המשפחה שלי", "קטגוריות", "עסקאות קבועות", "שיוך עסקאות",
                       "תצוגה", "התראות", "החשבון שלי"]
     # "החשבון שלי" right above "התנתקות"
     assert _HTML.index('id="my-details"') < _HTML.index('class="logout-form') 
