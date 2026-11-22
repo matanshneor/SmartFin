@@ -1313,7 +1313,13 @@
         instCb.addEventListener('change', function () {
             syncInstallments();
             // The count opens under Save: bring it up as it appears
-            if (instCb.checked) requestAnimationFrame(function () { revealInSheet(instFields, true); });
+            // The count starts empty (Matan, 22.11: "it opens on 12 and I have to
+            // delete it"): the tap that turned the switch on puts the caret in
+            // it, so the number is typed right away
+            if (instCb.checked) {
+                if (!instCount.value) instCount.focus({ preventScroll: true });
+                requestAnimationFrame(function () { revealInSheet(instFields, true); });
+            }
         });
         txDate.addEventListener('change', syncInstallments);
         txForm.addEventListener('click', function (e) {
