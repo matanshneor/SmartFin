@@ -5084,7 +5084,8 @@ body > .color-sheet { z-index: var(--z-picker); }
 .budget-sheet-amount .amount-input { font-size: 1rem; padding-block: 8px; }
 .budget-sheet-actions { margin-top: 4px; }
 /* Keyboard open on iPhone (`core.js`): the sheet lives in the visible screen */
-.color-sheet.kb-fit .color-sheet-card { max-height: 100%; padding-bottom: 12px; }
+/* Under the status bar, not behind it: the title stays in sight */
+.color-sheet.kb-fit .color-sheet-card { max-height: calc(100% - env(safe-area-inset-top, 0px) - 6px); padding-bottom: 12px; }
 .color-sheet.kb-fit::after {
     content: ''; position: absolute; inset-inline: 0; top: 100%; height: 100vh;
     background: var(--color-card);
@@ -5534,7 +5535,7 @@ body.tx-screen-open { overflow: hidden; }
 }
 /* Keyboard open (`.kb-fit`): Save right on top of it. The home-indicator
    space is under the keyboard, so it is not needed. */
-#modalOverlay.kb-fit .modal-sheet { padding-bottom: 0; }
+#modalOverlay.kb-fit .modal-sheet { padding-bottom: 0; max-height: calc(var(--sheet-room, 100dvh) - env(safe-area-inset-top, 0px) - 6px); }
 #modalOverlay.kb-fit .tx-form::after { height: 8px; }
 #modalOverlay.kb-fit label.submit-btn { bottom: 8px; }
 /* Whatever is under the fitted sheet is the sheet's colour, a whole screen

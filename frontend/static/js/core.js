@@ -1178,6 +1178,10 @@ document.addEventListener('click', function (e) {
         const a = document.activeElement;
         let sheet = a && a.matches && a.matches('input, textarea, select') ? a.closest('.color-sheet') : null;
         if (sheet && (sheet.hidden || !sheet.isConnected)) sheet = null;
+        // The field is brought into sight when it takes focus or the keyboard
+        // changes size, and not again: later the list is the finger's (Matan,
+        // 22.11: "see how it jumps when I scroll")
+        const moved = a !== seenActive || Math.round(vv.height) !== seenHeight;
         seenActive = a; seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
         if (sheet && !watching) { watching = true; requestAnimationFrame(watch); }
         const covered = window.innerHeight - vv.height > 60;
@@ -1192,7 +1196,7 @@ document.addEventListener('click', function (e) {
         sheet.style.height = Math.round(vv.height) + 'px';
         sheet.classList.add('kb-fit');
         fitted = sheet;
-        reveal(a, sheet);
+        if (moved) reveal(a, sheet);
     }
     // iOS doesn't always announce that the visible screen moved: while fitted,
     // look every frame (as in the add sheet)
@@ -1205,6 +1209,23 @@ document.addEventListener('click', function (e) {
         if (fitted || document.documentElement.classList.contains('small-sheet-typing')) requestAnimationFrame(watch);
         else watching = false;
     }
+    // A finger that can't scroll the list any further (its end, or not on the
+    // list at all) would drag the whole screen under the keyboard, and the
+    // sheet jumped after it. Then nothing moves.
+    let touchY = 0;
+    document.addEventListener('touchstart', function (e) {
+        if (fitted && e.touches.length === 1) touchY = e.touches[0].clientY;
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+        if (!fitted || !e.cancelable || e.touches.length !== 1) return;
+        const dy = e.touches[0].clientY - touchY;
+        let box = e.target;
+        while (box && box !== fitted && box.nodeType === 1
+               && !(/auto|scroll/.test(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight + 1)) box = box.parentElement;
+        if (!box || box === fitted || box.nodeType !== 1 || !fitted.contains(box)) { e.preventDefault(); return; }
+        const atTop = box.scrollTop <= 0, atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 1;
+        if ((dy > 0 && atTop) || (dy < 0 && atEnd)) e.preventDefault();
+    }, { passive: false });
     vv.addEventListener('resize', fit);
     vv.addEventListener('scroll', fit);
     document.addEventListener('focusin', function () { setTimeout(fit, 0); });

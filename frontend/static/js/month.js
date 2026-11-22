@@ -777,7 +777,11 @@ window.addEventListener('sf:refreshed', paint);
 
     // From settings (`?budgets=1`): the sheet opens by itself, and the parameter
     // leaves the address so a refresh doesn't open it again (Matan, 22.11)
+    // `&cat=<id>` (Matan, 22.11): from one category's row, the sheet opens on
+    // that category's field.
+    let wantedCat = null;
     if (window.location && new URLSearchParams(window.location.search || '').get('budgets') === '1') {
+        wantedCat = new URLSearchParams(window.location.search || '').get('cat');
         history.replaceState(null, '', window.location.pathname);
         setTimeout(function () {
             const btn = document.getElementById('budgetsOpen');
@@ -792,8 +796,21 @@ window.addEventListener('sf:refreshed', paint);
         catch (err) { rows = []; }
         if (!rows.length) return;
         buildBudgets(rows);
-        const first = sheet.querySelector('input');
-        if (first) first.focus({ preventScroll: true });
+        let first = null;
+        if (wantedCat) {
+            first = Array.prototype.find.call(sheet.querySelectorAll('input[data-cat]'),
+                                              function (i) { return i.dataset.cat === wantedCat; }) || null;
+            wantedCat = null;
+        }
+        const asked = !!first;
+        if (!first) first = sheet.querySelector('input');
+        if (first) {
+            first.focus({ preventScroll: true });
+            if (asked) {
+                first.closest('.budget-sheet-row').scrollIntoView({ block: 'center' });
+                first.select();
+            }
+        }
     });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && sheet) closeBudgets();
