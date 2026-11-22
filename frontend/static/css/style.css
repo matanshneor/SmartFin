@@ -5702,6 +5702,8 @@ body.tx-screen-open { overflow: hidden; }
 .installments-fields { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; margin-top: 8px; }
 .installments-fields[hidden] { display: none; }
 .installments-count { width: 72px; text-align: center; font-weight: 700; }
+/* Empty until a number is typed (Matan, 22.11): the hint is pale, not a value */
+.installments-count::placeholder { font-weight: 400; color: var(--color-text-muted); opacity: 0.75; }
 .installments-hint { flex: 1; min-width: 0; font-size: var(--text-md); color: var(--color-text-muted); text-wrap: balance; }
 
 
