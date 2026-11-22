@@ -3113,12 +3113,6 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 .recurring-row { cursor: pointer; }
 .recurring-chevron { display: flex; color: var(--color-text-muted); opacity: 0.6; }
 .recurring-chevron svg { width: 16px; height: 16px; }
-.recurring-hint {
-    margin-top: 12px;
-    text-align: center;
-    font-size: var(--text-xs);
-    color: var(--color-text-muted);
-}
 
 /* Categories management */
 .categories-list {

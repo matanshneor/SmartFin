@@ -380,3 +380,8 @@ def test_the_home_hero_is_shorter():
     # the first screen above the bottom bar
     assert 'class="hero-top hero-top-home"' in _read(_T / "index.html")
     assert ".hero-balance .hero-amount { font-size: 2.25rem; }" in _CSS
+
+
+def test_the_recurring_list_has_no_hint_line():
+    # Matan, 22.11: the row's chevron already says it opens; the line went
+    assert "recurring-hint" not in _read(_T / "settings.html") and "recurring-hint" not in _CSS
