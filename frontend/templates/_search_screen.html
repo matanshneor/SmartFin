@@ -8,6 +8,36 @@
                aria-label="מה לחפש" autocomplete="off" enterkeyhint="search" maxlength="80">
         <button type="button" class="search-close" id="searchClose" aria-label="סגירת החיפוש">✕</button>
     </div>
+    {# Filters (Matan, 22.11): whose, when and how much. Closed until asked for;
+       the button says how many are on. The members' chips are built by
+       search.js. #}
+    <div class="search-filter-bar">
+        <button type="button" class="date-chip search-filter-toggle" id="searchFilterToggle" aria-expanded="false" aria-controls="searchFilters">סינון</button>
+        <button type="button" class="search-filter-clear" id="searchFilterClear" hidden>ניקוי</button>
+    </div>
+    <div class="search-filters" id="searchFilters" hidden>
+        <div class="search-filter-row" id="searchWhoRow" hidden>
+            <span class="search-filter-label" id="searchWhoLabel">של מי</span>
+            <div class="search-chips" id="searchWho" role="group" aria-labelledby="searchWhoLabel"></div>
+        </div>
+        <div class="search-filter-row">
+            <span class="search-filter-label" id="searchWhenLabel">מתי</span>
+            <div class="search-chips" id="searchWhen" role="group" aria-labelledby="searchWhenLabel">
+                <button type="button" class="date-chip active" data-when="" aria-pressed="true">הכל</button>
+                <button type="button" class="date-chip" data-when="month" aria-pressed="false">החודש</button>
+                <button type="button" class="date-chip" data-when="3m" aria-pressed="false">3 חודשים</button>
+                <button type="button" class="date-chip" data-when="year" aria-pressed="false">השנה</button>
+            </div>
+        </div>
+        <div class="search-filter-row">
+            <span class="search-filter-label" id="searchAmountLabel">סכום</span>
+            <div class="search-amounts" role="group" aria-labelledby="searchAmountLabel">
+                <input type="text" inputmode="numeric" class="form-input" id="searchMin" placeholder="מ-₪" aria-label="סכום מינימלי" data-thousands autocomplete="off">
+                <span aria-hidden="true">עד</span>
+                <input type="text" inputmode="numeric" class="form-input" id="searchMax" placeholder="₪" aria-label="סכום מקסימלי" data-thousands autocomplete="off">
+            </div>
+        </div>
+    </div>
     <p class="search-summary" id="searchSummary" aria-live="polite">תיאור, קטגוריה, מקום עבודה, פרויקט או סכום</p>
     <div class="search-results" id="searchResults"></div>
 </div>

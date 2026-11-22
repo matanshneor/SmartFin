@@ -185,6 +185,9 @@ def build(scenario, today):
             if d <= today:
                 tx(d, "expense", 400, "ריהוט ואביזרים לבית", "מקרר חדש", None,
                    recurring_parent_id=tpl["id"], installments=12, installment_no=n + 1)
+        # the same expense three months in a row: offered as a recurring one
+        for n in (-2, -1, 0):
+            tx(month_add(today, n).replace(day=2), "expense", 54.9, "חשבונות ומנויים", "נטפליקס", ME)
         # recent rows worth looking at: today / yesterday, a receipt, a long description
         tx(today, "expense", 86.5, "סופר ומזון", "מכולת", ME,
            receipt_path=f"{FAM}/{uid('r1')}.jpg")

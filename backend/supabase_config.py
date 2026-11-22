@@ -1638,6 +1638,76 @@ def _filter_hidden_personal_projects(rows: list, viewer_user_id: str) -> list:
     ]
 
 
+def recurring_suggestions(family_id: str, viewer_user_id: str, today=None, limit: int = 2) -> list:
+    """Expenses that already repeat, to offer as recurring transactions (Matan,
+    22.11: "Netflix ₪55 three months in a row").
+
+    A suggestion is an ordinary household expense (no project, not recurring)
+    with the same description, category and owner, entered exactly once in
+    each of three calendar months in a row, the latest of them this month or
+    the last, at amounts within 10% of each other. Not offered when a
+    recurring transaction with that description and category already runs.
+    Returns the latest of the three, formatted like any transaction row, with
+    `months`. Raises DataUnavailable."""
+    from datetime import date
+    today = today or clock.today()
+    client = get_client()
+    if not client:
+        raise DataUnavailable("recurring_suggestions: no client")
+    first = _add_months(today.replace(day=1), -3)
+    try:
+        rows = client.table("transactions") \
+            .select("*, categories(name, icon), project_categories(name, icon), "
+                    "profiles(name, workplace), projects(owner_id, name, icon)") \
+            .eq("family_id", family_id).eq("type", "expense") \
+            .gte("date", first.isoformat()).lte("date", today.isoformat()) \
+            .execute().data or []
+        templates = client.table("transactions").select("description, category_id, recurring_end_date") \
+            .eq("family_id", family_id).eq("is_recurring", True).execute().data or []
+    except Exception as e:
+        raise DataUnavailable("recurring_suggestions") from e
+
+    def norm(text):
+        return " ".join(str(text or "").split()).lower()
+
+    running = {(norm(t.get("description")), t.get("category_id"))
+               for t in templates if is_active_template(t, today)}
+    groups = {}
+    for r in rows:
+        if r.get("project_id") or r.get("is_recurring") or r.get("recurring_parent_id"):
+            continue
+        desc = norm(r.get("description"))
+        if len(desc) < 2 or (desc, r.get("category_id")) in running:
+            continue
+        groups.setdefault((desc, r.get("category_id"), r.get("user_id")), []).append(r)
+
+    this_month = (today.year, today.month)
+    prev = _add_months(today.replace(day=1), -1)
+    out = []
+    for txs in groups.values():
+        by_month = {}
+        for r in txs:
+            d = date.fromisoformat(str(r["date"])[:10])
+            by_month.setdefault((d.year, d.month), []).append(r)
+        for end in (this_month, (prev.year, prev.month)):
+            end_first = date(end[0], end[1], 1)
+            window = [(m.year, m.month) for m in (_add_months(end_first, -2), _add_months(end_first, -1), end_first)]
+            picked = [by_month.get(m, []) for m in window]
+            if any(len(p) != 1 for p in picked):
+                continue
+            # the series must have stopped there: nothing newer outside the window
+            if end != this_month and by_month.get(this_month):
+                continue
+            amounts = [float(p[0].get("amount") or 0) for p in picked]
+            if min(amounts) <= 0 or max(amounts) > min(amounts) * 1.1:
+                continue
+            row = dict(_format_transactions([picked[-1][0]])[0], months=3)
+            out.append(row)
+            break
+    out.sort(key=lambda r: (r["date"], float(r["amount"])), reverse=True)
+    return out[:limit]
+
+
 def recent_descriptions(family_id: str, viewer_user_id: str, today=None, limit: int = 300) -> list:
     """Descriptions already written, for autocomplete in the "short description"
     field (Matan, 3.10, idea 41). The whole family's, from the last 6 months,
@@ -1670,8 +1740,37 @@ def recent_descriptions(family_id: str, viewer_user_id: str, today=None, limit: 
     return [spelled[k] for k, _ in counts.most_common(limit)]
 
 
+def search_filters(args) -> dict:
+    """The search filters from the request (Matan, 22.11): whose, a date range
+    and an amount range. Anything malformed is dropped, not an error: a filter
+    is a narrowing, and a bad one narrows nothing."""
+    from datetime import date
+    out = {}
+    who = (args.get("who") or "").strip()[:64]
+    if who:
+        out["who"] = who
+    for key in ("from", "to"):
+        raw = (args.get(key) or "").strip()[:10]
+        if raw:
+            try:
+                out[key] = date.fromisoformat(raw).isoformat()
+            except ValueError:
+                logger.warning("search_filters: bad date %r", raw)
+    for key in ("min", "max"):
+        raw = (args.get(key) or "").replace(",", "").strip()[:14]
+        if raw:
+            try:
+                n = float(raw)
+            except ValueError:
+                logger.warning("search_filters: bad amount %r", raw)
+                continue
+            if n == n and 0 <= n < 1e12:
+                out[key] = n
+    return out
+
+
 def search_transactions(family_id: str, viewer_user_id: str, q: str,
-                        settings: dict = None, limit: int = 100) -> dict:
+                        settings: dict = None, limit: int = 100, filters: dict = None) -> dict:
     """Search across all months (Matan, 30.9, round 6, item 2).
 
     Searches the description, category name, workplace and project name. A
@@ -1681,16 +1780,22 @@ def search_transactions(family_id: str, viewer_user_id: str, q: str,
     family's scale (thousands of rows) this is one light query.
 
     `count` and `totals` cover everything found; `results` up to `limit`,
-    newest first."""
+    newest first.
+
+    `filters` (`search_filters`) narrow the results: `who` (a member's id, or
+    "shared"), `from`/`to` (dates) and `min`/`max` (amounts). With a filter the
+    text may be empty: "everything of Daniel's since September"."""
     empty = {"results": [], "count": 0, "truncated": False,
              "totals": {"expense": 0.0, "income": 0.0, "savings": 0.0}}
+    filters = filters or {}
     needle = " ".join((q or "").split()).lower()
     amount = None
     try:
         amount = float(needle.replace(",", "").replace("₪", ""))
     except ValueError:
         pass
-    if len(needle) < 2 and amount is None:
+    match_all = not needle and bool(filters)
+    if len(needle) < 2 and amount is None and not match_all:
         return empty
     client = get_client()
     if not client:
@@ -1704,7 +1809,30 @@ def search_transactions(family_id: str, viewer_user_id: str, q: str,
     except Exception as e:
         raise DataUnavailable("search_transactions") from e
 
+    def passes(r):
+        who = filters.get("who")
+        if who == "shared":
+            if r.get("user_id"):
+                return False
+        elif who and r.get("user_id") != who:
+            return False
+        day = str(r.get("date") or "")[:10]
+        if filters.get("from") and day < filters["from"]:
+            return False
+        if filters.get("to") and day > filters["to"]:
+            return False
+        value = float(r.get("amount") or 0)
+        if filters.get("min") is not None and value < filters["min"] - 0.005:
+            return False
+        if filters.get("max") is not None and value > filters["max"] + 0.005:
+            return False
+        return True
+
     def hit(r):
+        if not passes(r):
+            return False
+        if match_all:
+            return True
         if amount is not None and abs(float(r.get("amount") or 0) - amount) < 0.005:
             return True
         cat = (r.get("project_categories") if r.get("project_category_id") else r.get("categories")) or {}

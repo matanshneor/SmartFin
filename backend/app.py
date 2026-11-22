@@ -2278,7 +2278,24 @@ def search_route():
                         "totals": {"expense": 0, "income": 0, "savings": 0}})
     q = (request.args.get("q") or "")[:80]
     return jsonify(db.search_transactions(user["family_id"], user["id"], q,
-                                          settings=family_settings()))
+                                          settings=family_settings(),
+                                          filters=db.search_filters(request.args)))
+
+
+@app.route("/api/recurring-suggestions")
+@limiter.limit("60 per minute")
+@login_required
+def recurring_suggestions_route():
+    """An expense entered three months in a row, to offer as a recurring
+    transaction (Matan, 22.11). Asked for by the home page after it has loaded;
+    a failure means no suggestion, not an error on the screen."""
+    user = get_current_user()
+    if not user["family_id"]:
+        return jsonify({"suggestions": []})
+    try:
+        return jsonify({"suggestions": db.recurring_suggestions(user["family_id"], user["id"])})
+    except db.DataUnavailable:
+        return jsonify({"suggestions": []})
 
 
 @app.route("/api/descriptions")
@@ -4304,6 +4321,8 @@ def _daily_message(kind: str, data: dict):
         return push.last_installment(data.get("description"), data.get("amount"))
     if kind == "quiet_week":
         return push.quiet_week(int(data.get("weeks") or 1))
+    if kind == "week_summary":
+        return push.week_summary(data.get("total"), data.get("previous"))
     return None
 
 

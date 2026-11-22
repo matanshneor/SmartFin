@@ -93,14 +93,105 @@
         });
     }
 
+    // ── Filters (Matan, 22.11): whose, when, how much ──
+    const toggle = document.getElementById('searchFilterToggle');
+    const panel  = document.getElementById('searchFilters');
+    const clear  = document.getElementById('searchFilterClear');
+    const whoBox = document.getElementById('searchWho');
+    const whenBox = document.getElementById('searchWhen');
+    const minIn = document.getElementById('searchMin'), maxIn = document.getElementById('searchMax');
+    const state = { who: '', when: '' };
+    let membersLoaded = false;
+
+    function iso(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function num(el) { return el.value.replace(/,/g, '').trim(); }
+    function filterParams() {
+        const p = [];
+        if (state.who) p.push('who=' + encodeURIComponent(state.who));
+        if (state.when) {
+            const now = new Date();
+            const from = state.when === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1)
+                       : state.when === '3m'    ? new Date(now.getFullYear(), now.getMonth() - 2, 1)
+                       :                          new Date(now.getFullYear(), 0, 1);
+            p.push('from=' + iso(from));
+        }
+        if (num(minIn)) p.push('min=' + encodeURIComponent(num(minIn)));
+        if (num(maxIn)) p.push('max=' + encodeURIComponent(num(maxIn)));
+        return p;
+    }
+    function markFilters() {
+        const n = filterParams().length;
+        toggle.textContent = n ? 'סינון · ' + n : 'סינון';
+        toggle.classList.toggle('active', n > 0);
+        clear.hidden = n === 0;
+    }
+    function pick(box, attr, value) {
+        box.querySelectorAll('.date-chip').forEach(function (c) {
+            const on = c.getAttribute(attr) === value;
+            c.classList.toggle('active', on);
+            c.setAttribute('aria-pressed', on);
+        });
+    }
+    function chip(value, label) {
+        const c = document.createElement('button');
+        c.type = 'button';
+        c.className = 'date-chip' + (value === '' ? ' active' : '');
+        c.dataset.who = value;
+        c.setAttribute('aria-pressed', value === '');
+        c.textContent = label;
+        return c;
+    }
+    function loadMembers() {
+        if (membersLoaded || !window.sfFetchList) return;
+        membersLoaded = true;
+        window.sfFetchList('/api/family/members').then(function (members) {
+            if (!members || members.length < 2) return;     // one person: nothing to choose
+            whoBox.append(chip('', 'הכל'), chip('shared', 'משותפת'));
+            members.forEach(function (m) { whoBox.appendChild(chip(m.id, String(m.name || '').split(' ')[0])); });
+            document.getElementById('searchWhoRow').hidden = false;
+        }).catch(function () { membersLoaded = false; });
+    }
+    toggle.addEventListener('click', function () {
+        panel.hidden = !panel.hidden;
+        toggle.setAttribute('aria-expanded', String(!panel.hidden));
+        if (!panel.hidden) loadMembers();
+    });
+    whoBox.addEventListener('click', function (e) {
+        const c = e.target.closest('[data-who]');
+        if (!c) return;
+        state.who = c.dataset.who; pick(whoBox, 'data-who', state.who); markFilters(); run();
+    });
+    whenBox.addEventListener('click', function (e) {
+        const c = e.target.closest('[data-when]');
+        if (!c) return;
+        state.when = c.dataset.when; pick(whenBox, 'data-when', state.when); markFilters(); run();
+    });
+    [minIn, maxIn].forEach(function (el) {
+        el.addEventListener('input', function () {
+            markFilters();
+            clearTimeout(timer);
+            timer = setTimeout(run, 400);
+        });
+    });
+    clear.addEventListener('click', function () {
+        state.who = ''; state.when = '';
+        pick(whoBox, 'data-who', ''); pick(whenBox, 'data-when', '');
+        minIn.value = ''; maxIn.value = '';
+        markFilters(); run();
+    });
+
     function run() {
         const q = input.value.trim();
         const mine = ++seq;
-        if (q.length < 2 && isNaN(parseFloat(q))) {
+        const filters = filterParams();
+        // A filter alone is a search too: "everything of Daniel's this year"
+        if (q.length < 2 && isNaN(parseFloat(q)) && !filters.length) {
             results.innerHTML = ''; summary.textContent = HINT; return;
         }
         summary.textContent = 'מחפש…';
-        fetch('/api/search?q=' + encodeURIComponent(q))
+        fetch('/api/search?q=' + encodeURIComponent(q) + (filters.length ? '&' + filters.join('&') : ''))
             .then(function (r) {
                 return r.json().then(function (data) {
                     if (!r.ok) throw new Error(data && data.error);

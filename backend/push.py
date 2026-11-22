@@ -6,7 +6,8 @@ Five notifications, all to the family rather than one person:
   · Month closed                : on the 1st of the month, in the morning
   · Last installment            : on the day the last payment of a series is due
   · Nothing recorded for a week : after 7, 14 and 21 days with no new transaction
-The last three are sent from `/internal/push/daily`, which `pg_cron` calls once
+  · The week's summary          : on Sunday morning, for the week that ended
+The last four are sent from `/internal/push/daily`, which `pg_cron` calls once
 a day.
 
 Encryption is implemented here (RFC 8291, `aes128gcm`) on top of
@@ -235,6 +236,21 @@ def last_installment(description: str, amount) -> dict:
     return {"title": f"תשלום אחרון של {what}" if what else "תשלום אחרון",
             "body": f"{_shekels(amount)} פחות בחודש מעכשיו",
             "url": "/settings", "tag": "last-installment"}
+
+
+def week_summary(total, previous) -> dict:
+    """The week that ended, on Sunday morning (Matan, 22.11): running expenses,
+    as in the home page's week card (no projects, no recurring), against the
+    week before it."""
+    total, previous = round(float(total or 0)), round(float(previous or 0))
+    if previous <= 0:
+        body = "הוצאות שוטפות, בלי עסקאות קבועות ופרויקטים"
+    elif total == previous:
+        body = "כמו בשבוע שלפניו"
+    else:
+        body = f"{_shekels(abs(total - previous))} {'יותר' if total > previous else 'פחות'} מהשבוע שלפניו"
+    return {"title": f"בשבוע שעבר הוצאתם {_shekels(total)}",
+            "body": body, "url": "/", "tag": "week-summary"}
 
 
 def quiet_week(weeks: int) -> dict:
