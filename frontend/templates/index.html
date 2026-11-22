@@ -12,9 +12,11 @@
 {% set spent_pct = ((summary.expense / summary.income * 100) | round | int) if summary.income > 0 else 0 %}
 {% set saved_pct = ((summary.savings / summary.income * 100) | round | int) if summary.income > 0 else 0 %}
 
-<div class="hero-top">
+{# A shorter hero (Matan, 22.11): without the greeting line and with tighter
+   spacing, so the whole "this week" chart, day names included, fits the first
+   screen above the bottom bar. #}
+<div class="hero-top hero-top-home">
     <div>
-        <p class="greeting">{{ greeting() }}, {{ user.name }}</p>
         <h1 class="month-title">{{ month_label }}</h1>
     </div>
     <div class="hero-actions">

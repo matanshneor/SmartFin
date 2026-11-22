@@ -37,7 +37,9 @@ def test_the_greeting_follows_the_hour(hour, text):
 
 
 def test_the_home_page_greets_by_the_israeli_clock():
-    assert '{{ greeting() }}, {{ user.name }}' in _read(_T / "index.html")
+    # the home hero dropped the greeting line on 22.11 (Matan: a shorter hero, so
+    # the week chart fits the first screen); the function stays for later use
+    assert '{{ greeting() }}' not in _read(_T / "index.html")
     app_src = _read(_ROOT / "backend/app.py")
     assert 'app.jinja_env.globals["greeting"] = lambda: greeting(clock.now().hour)' in app_src
 
@@ -371,3 +373,10 @@ def test_third_round_of_22_11_shortcuts_one_budget_place_swipe_hint():
     tx = _read(_JS / "transactions.js")
     assert "const KEY = 'sf_swipe_hint';" in tx
     assert "content.style.transform = 'translateX(' + OPEN_X + 'px)';" in tx
+
+
+def test_the_home_hero_is_shorter():
+    # Matan, 22.11: no greeting line and tighter spacing, so the week chart fits
+    # the first screen above the bottom bar
+    assert 'class="hero-top hero-top-home"' in _read(_T / "index.html")
+    assert ".hero-balance .hero-amount { font-size: 2.25rem; }" in _CSS

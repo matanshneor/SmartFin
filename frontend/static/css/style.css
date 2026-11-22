@@ -436,6 +436,12 @@ ul { list-style: none; }
 .hero-bar {
     margin-top: 18px;
 }
+/* The home hero, shorter (Matan, 22.11): see index.html */
+.hero-top-home { margin-bottom: 4px; align-items: center; }
+.hero-balance { padding-top: 0; }
+.hero-balance .hero-amount { font-size: 2.25rem; }
+.hero-balance .hero-sub { margin-top: 0; }
+.hero-balance .hero-bar { margin-top: 10px; }
 
 /* Progress bar on dark hero */
 .page-hero .balance-bar-track {
