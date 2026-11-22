@@ -71,7 +71,7 @@
                            sheet. Until then the same thing was set in two
                            screens. #}
                         {% if type_key == 'expense' %}
-                        <a class="cat-budget-link{% if limit %} has-budget{% endif %}" href="{{ url_for('month_view') }}?budgets=1"
+                        <a class="cat-budget-link{% if limit %} has-budget{% endif %}" href="{{ url_for('month_view') }}?budgets=1&cat={{ cat.id }}"
                            aria-label="{% if limit %}תקציב חודשי ל{{ cat.name }}: {{ limit.amount | round | int | money }} שקלים, שינוי{% else %}קביעת תקציב חודשי ל{{ cat.name }}{% endif %}">
                             {%- if limit %}תקציב ₪{{ limit.amount | round | int | money }}{% else %}קביעת תקציב{% endif -%}
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
