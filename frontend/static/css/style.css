@@ -4740,6 +4740,11 @@ li.transaction-item.swipe-ready > .swipe-content {
    irreversible action on the page was half hidden behind a button that didn't
    belong there. */
 body.no-fab .fab { display: none; }
+/* A screen that is one task (creating a project, Matan 23.11): no bottom menu,
+   and its own bar of actions sits where the menu was */
+body.no-nav .bottom-nav { display: none; }
+body.no-nav .project-save-bar { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+body.no-nav .install-bar { display: none; }     /* it would sit on the bar of actions */
 body.no-fab .bottom-nav { left: var(--dock-side); }    /* no +: the bar at full width */
 /* Settings have no + button, so no room is needed for it at the bottom (Matan,
    11.10). The +'s 96 pixels made settings taller than the screen even with
@@ -4784,6 +4789,10 @@ body.settings-page .settings-groups { flex: 1 0 auto; }
 /* The id selector is needed to beat `.category-row:first-child`, which resets it. */
 #projectCategoriesArea .category-row:first-child,
 #categoriesArea .category-row:first-child { padding-top: 10px; }
+
+/* No bar on this screen (`no-nav`): no fade either. It covered the screen's own
+   bar of actions, which sits where the menu was. */
+body.no-nav:has(> .bottom-nav)::after { content: none; }
 
 /* Pull down to refresh in the installed app (Matan, 30.9, idea 14; like on
    iPhone, 13.10): the dark band revealed above the page as it comes down, and
@@ -5737,6 +5746,10 @@ body.tx-screen-open { overflow: hidden; }
     border-radius: var(--radius); background: var(--color-card); box-shadow: var(--shadow-card);
     color: var(--color-text); text-decoration: none;
 }
+/* The card is a `div` since 23.11: the link covers it, the + sits above */
+.pinned-project { position: relative; }
+.pinned-project-link { color: inherit; text-decoration: none; }
+.pinned-project-link::after { content: ""; position: absolute; inset: 0; }
 .pinned-project-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); background: var(--color-gold-dim); font-size: var(--text-lg); flex-shrink: 0; }
 .pinned-project-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pinned-project-name { font-weight: 700; font-size: var(--text-body); }

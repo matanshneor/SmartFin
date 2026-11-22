@@ -18,6 +18,14 @@ let isPersonal = false;
     });
 });
 
+// The name takes the focus on a computer only (Matan, 23.11). It had
+// `autofocus`: on a phone the field got the focus but no keyboard came, and
+// since the bottom menu hides while a field has focus, the page opened with an
+// empty strip where the menu should be.
+if (!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) {
+    document.getElementById('projectName').focus();
+}
+
 // The kind of project (Matan, 22.11): one of two cards. It sets what belongs
 // to the project (the three hidden checkboxes) and what the amount is called.
 let kind = 'expense';
@@ -51,7 +59,7 @@ form.addEventListener('submit', function (e) {
         return;
     }
 
-    const submitBtn = form.querySelector('button[type="submit"]');
+    const submitBtn = document.querySelector('button[form="newProjectForm"]');   // in the bar, outside the form
     submitBtn.disabled = true;
     fetch('/api/projects', {
         method:  'POST',

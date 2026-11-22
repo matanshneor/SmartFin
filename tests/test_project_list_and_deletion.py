@@ -215,30 +215,44 @@ def test_the_project_page_still_shows_the_totals():
     assert "project.spent" in detail
 
 
-def test_deletion_lives_at_the_bottom_of_the_project_page():
-    """Not on the edit page: there, editing only (Matan, 9.10)."""
-    assert "project-danger" not in _EDIT and "confirmDeleteProjectBtn" not in _EDIT
-    assert 'id="confirmDeleteProjectBtn"' in _DETAIL
-    assert _DETAIL.index("project-danger") > _DETAIL.rindex("כל העסקאות ("), "deletion isn't at the bottom"
+def test_deletion_lives_in_the_projects_settings():
+    """Matan (23.11): only deleting moves to the project's settings, the edit page;
+    finishing stays on the project page. (From 9.10 until then both sat at the
+    bottom of the project page, with a red button everyone scrolled past.)"""
+    assert "project-danger" not in _DETAIL and "confirmDeleteProjectBtn" not in _DETAIL
+    assert 'id="confirmDeleteProjectBtn"' in _EDIT
+    # Above the save bar, outside the edit form: its buttons don't submit it
+    assert _EDIT.index("</form>") < _EDIT.index("project-danger") < _EDIT.index('class="project-save-bar"')
+    # The script that runs it moved with it
+    assert "confirmDeleteProjectBtn" in (_JS / "project-edit.js").read_text(encoding="utf-8")
+    assert "confirmDeleteProjectBtn" not in (_JS / "project-detail.js").read_text(encoding="utf-8")
 
 
-def test_finishing_comes_before_deleting_in_the_same_card():
-    """Finishing is the soft way: it is seen before deleting."""
+def test_a_deleted_project_leaves_without_the_unsaved_changes_question():
+    js = (_JS / "project-edit.js").read_text(encoding="utf-8")
+    assert "window.sfProjectEditLeaving = function () { leaving = true; };" in js
+    block = js[js.index("const go = e.target.closest('#confirmDeleteProjectBtn');"):]
+    assert block.index("window.sfProjectEditLeaving();") < block.index("window.location.href = '/projects';")
+
+
+def test_finishing_stays_on_the_project_page():
     card = _DETAIL[_DETAIL.index('class="chart-card project-finish"'):]
-    assert card.index("data-archive-project") < card.index("project-danger")
+    card = card[:card.index("</section>")]
+    assert "data-archive-project" in card
+    # Only for a project still open; a finished one has "reopen" in its bar
+    assert _DETAIL.rindex("{% if not project.archived %}", 0, _DETAIL.index('class="chart-card project-finish"')) > 0
 
 
 def test_a_finished_project_can_still_be_deleted():
-    card = _DETAIL[_DETAIL.index('class="chart-card project-finish"'):]
-    finish = card[card.index("{% if not project.archived %}"):]
-    finish = finish[:finish.index("{% endif %}")]
-    assert "data-archive-project" in finish, "finishing doesn't depend on the project's state"
-    assert "project-danger" not in finish, "deletion is hidden in a finished project"
+    """In the settings, which a finished project has too."""
+    block = _EDIT[_EDIT.index('class="chart-card project-finish"'):]
+    block = block[:block.index("</section>")]
+    assert "project.archived" not in block, "deletion doesn't depend on the project's state"
 
 
 def test_it_says_how_many_transactions_will_be_affected():
     """The ✕ in the list carried no number."""
-    block = _DETAIL[_DETAIL.index("project-danger"):]
+    block = _EDIT[_EDIT.index("project-danger"):]
 
     assert "tx_count" in block
     assert "אין לפרויקט עסקאות" in block, "an empty project gets its own wording"
@@ -248,8 +262,8 @@ def test_there_is_no_choice_to_keep_the_transactions_any_more():
     """"Keep" promised "they'll go back to the normal category", and they landed in
     the household as "no category" and inflated the past months. Matan decided:
     deleting a project deletes its transactions."""
-    block = _DETAIL[_DETAIL.index("project-danger"):]
-    js = (_JS / "project-detail.js").read_text(encoding="utf-8")
+    block = _EDIT[_EDIT.index("project-danger"):]
+    js = (_JS / "project-edit.js").read_text(encoding="utf-8")
 
     assert "data-tx-mode" not in block
     assert "הקטגוריה הרגילה" not in block + js
@@ -257,7 +271,7 @@ def test_there_is_no_choice_to_keep_the_transactions_any_more():
 
 
 def test_the_warning_says_what_goes_and_what_does_not_change():
-    block = _DETAIL[_DETAIL.index("project-danger"):]
+    block = _EDIT[_EDIT.index("project-danger"):]
 
     assert "יחד עם" in block and "project.spent" in block, "it wasn't said what is deleted and how much money"
     assert "ההוצאות של הבית לא ישתנו" in block
@@ -449,7 +463,7 @@ def test_the_budget_field_explains_what_it_does():
 
 def test_the_floating_plus_is_gone_from_the_settings_screen():
     """It covered the delete button."""
-    assert "{% block body_class %}no-fab{% endblock %}" in _EDIT
+    assert "{% block body_class %}no-fab no-nav{% endblock %}" in _EDIT
     assert "{% block body_class %}{% endblock %}" in _BASE, \
         "the body doesn't carry the block, so the class never arrives"
     assert "body.no-fab .fab" in _CSS
@@ -671,3 +685,29 @@ def test_the_categories_section_starts_closed_with_a_count():
     assert 'id="projectCatToggle"' in _EDIT and 'aria-expanded="false"' in _EDIT
     assert '<div id="projectCatBody" hidden>' in _EDIT
     assert 'id="projectCatCount"' in _EDIT
+
+
+# ─── The new-project screen: one task, its own bar (Matan, 23.11) ────────────
+
+def test_creating_a_project_has_its_own_bar_and_no_bottom_menu():
+    """The button waited at the end of a scroll, and on a phone the page opened
+    with an empty strip where the bottom menu should have been: the name had
+    `autofocus`, the menu hides while a field has focus, and no keyboard came."""
+    new = (_ROOT / "frontend/templates/project_new.html").read_text(encoding="utf-8")
+    css = (_ROOT / "frontend/static/css/style.css").read_text(encoding="utf-8")
+    js = (_JS / "projects.js").read_text(encoding="utf-8")
+
+    assert "{% block body_class %}no-fab no-nav{% endblock %}" in new
+    assert '<button type="submit" form="newProjectForm" class="btn-primary project-save-btn">' in new
+    assert new.index("</form>") < new.index('class="project-save-bar"')
+    assert "autofocus" not in new
+    assert "body.no-nav .bottom-nav { display: none; }" in css
+    # The fade above the menu would cover the bar that took its place
+    assert "body.no-nav:has(> .bottom-nav)::after { content: none; }" in css
+    assert "document.querySelector('button[form=\"newProjectForm\"]')" in js
+    assert "window.matchMedia('(pointer: coarse)').matches" in js
+
+
+def test_editing_a_project_has_no_bottom_menu_either():
+    assert "{% block body_class %}no-fab no-nav{% endblock %}" in _EDIT
+    assert 'class="project-save-bar"' in _EDIT

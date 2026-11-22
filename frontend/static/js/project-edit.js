@@ -436,6 +436,8 @@ function saveSteps() {
 }
 
 let leaving = false;
+// For the delete below, in its own block: a deleted project has nothing unsaved
+window.sfProjectEditLeaving = function () { leaving = true; };
 editForm.addEventListener('submit', function (e) {
     e.preventDefault();
     saveError.textContent = '';
@@ -492,4 +494,72 @@ document.addEventListener('click', function (e) {
     });
 });
 syncSave();
+})();
+
+
+/* ═══ Deleting the project ═══ (on the project page from 9.10 to 23.11; back
+ * here, in the project's settings, since: Matan)
+ *
+ * **No `appConfirm` here**: the area opens, shows how many transactions and
+ * how much money are at stake, and asks for an explicit choice. Another dialog
+ * on top would be a second question about what is already fully shown.
+ * Delegated: a soft refresh replaces the page after a transaction is added. */
+(function () {
+function parts() {
+    return {
+        toggle: document.getElementById('toggleDeleteProjectBtn'),
+        form:   document.getElementById('deleteProjectForm'),
+        error:  document.getElementById('deleteProjectError'),
+    };
+}
+
+document.addEventListener('click', function (e) {
+    const p = parts();
+    if (!p.form) return;
+
+    if (e.target.closest('#toggleDeleteProjectBtn')) {
+        // `visible` and not `open`: the class `.password-form` already uses
+
+        const open = p.form.classList.toggle('visible');
+        p.toggle.setAttribute('aria-expanded', String(open));
+        return;
+    }
+    if (e.target.closest('#cancelDeleteProjectBtn')) {
+        p.form.classList.remove('visible');
+        p.toggle.setAttribute('aria-expanded', 'false');
+        p.error.textContent = '';
+        return;
+    }
+    const go = e.target.closest('#confirmDeleteProjectBtn');
+    if (!go || go.disabled) return;
+    go.disabled = true;
+    p.error.textContent = '';
+    fetch('/api/projects/' + go.dataset.id, {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+    })
+    .then(r => r.json().catch(() => ({})).then(d => ({ ok: r.ok, d: d })))
+    .then(function (res) {
+        if (!res.ok || res.d.status !== 'ok') {
+            p.error.textContent = res.d.error || 'המחיקה נכשלה — נסו שוב';
+            go.disabled = false;
+            return;
+        }
+        // `deleted` is the number of transactions actually deleted: the server
+        // returns it so we don't have to promise a number that wasn't checked.
+
+        const wiped = res.d.deleted || 0;
+        try {
+            window.sfToastAfterReload(wiped
+                ? 'הפרויקט נמחק, ואיתו ' + window.sfCount(wiped, 'עסקה אחת', 'עסקאות')
+                : 'הפרויקט נמחק');
+        } catch (err) { /* no storage: give up the toast, not the navigation */ }
+        window.sfProjectEditLeaving();       // deleted: nothing unsaved to warn about
+        window.location.href = '/projects';
+    })
+    .catch(function () {
+        p.error.textContent = window.sfNetError();
+        go.disabled = false;
+    });
+});
 })();

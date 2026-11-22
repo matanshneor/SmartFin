@@ -203,8 +203,9 @@ def test_backing_out_of_the_second_question_cancels_everything(path):
 def test_it_says_how_many_transactions_are_at_stake():
     """✕ in the list carried no number. Inside the project it is possible to say
     exactly what will be lost."""
-    # Deletion at the bottom of the project page since 9.10
-    html = (_ROOT / "frontend/templates/project_detail.html").read_text(encoding="utf-8")
+    # Deletion in the project's settings, the edit page, since 23.11 (on the
+    # project page from 9.10 until then)
+    html = (_ROOT / "frontend/templates/project_edit.html").read_text(encoding="utf-8")
     block = html[html.index("project-danger"):]
 
     assert "tx_count" in block

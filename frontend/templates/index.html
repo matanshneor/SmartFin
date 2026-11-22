@@ -236,25 +236,39 @@
    same calculation as "how much is left" in the project list. #}
 {% if pinned_project %}
 {% set p = pinned_project %}
-<a class="pinned-project" href="{{ url_for('project_detail', project_id=p.id) }}">
+{# The same sentence, bar and + as the project's tile in the projects list
+   (Matan, 23.11): what the amount means follows the project's kind, and the
+   sentence says what the bar shows. Until then a pinned savings project said
+   "נשארו ₪60,000 מתוך ₪60,000" over an empty bar. The link covers the card; the
+   + is a button above it. #}
+{% set kind = project_kind(p) %}
+{% set done = p.saved if kind == 'savings' else p.spent %}
+{% set over = kind == 'expense' and p.budget_target and done > p.budget_target %}
+<div class="pinned-project">
     <span class="pinned-project-icon" aria-hidden="true">{{ p.icon or '🎯' }}</span>
     <span class="pinned-project-body">
-        <span class="pinned-project-name">{{ p.name }}</span>
+        <a class="pinned-project-name pinned-project-link" href="{{ url_for('project_detail', project_id=p.id) }}">{{ p.name }}</a>
         {% if p.budget_target %}
-        {% set left = p.budget_target - p.spent %}
-        {% set pinned_pct = ((p.spent / p.budget_target) * 100) | round | int %}
+        {% set pinned_pct = ((done / p.budget_target) * 100) | round | int %}
         <span class="pinned-project-sub">
-            {%- if left >= 0 -%}נשארו <b>₪{{ left | money }}</b> מתוך ₪{{ p.budget_target | money }}
-            {%- else -%}<span class="deficit">חריגה של <b>₪{{ (left | abs) | money }}</b></span> מתוך ₪{{ p.budget_target | money }}{%- endif -%}
+            {%- if kind == 'savings' -%}
+            נחסכו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
+            {%- elif over -%}
+            <span class="deficit">חריגה של <b>₪{{ (done - p.budget_target) | round | int | money }}</b></span> מתוך ₪{{ p.budget_target | round | int | money }}
+            {%- else -%}
+            יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }} · נשארו <b>₪{{ (p.budget_target - done) | round | int | money }}</b>
+            {%- endif -%}
         </span>
-        <span class="project-tile-bar" aria-hidden="true"><span class="{% if left < 0 %}danger{% endif %}" style="width: {{ [pinned_pct, 100] | min }}%;"></span></span>
-        {% elif p.track_expense and p.spent > 0 %}
-        <span class="pinned-project-sub">יצאו <b>₪{{ p.spent | money }}</b> עד עכשיו</span>
-        {% elif p.track_savings and p.saved > 0 %}
-        <span class="pinned-project-sub">נחסכו <b>₪{{ p.saved | money }}</b> עד עכשיו</span>
+        <span class="project-tile-bar" aria-hidden="true"><span class="{% if over %}danger{% elif kind == 'savings' %}saving{% endif %}" style="width: {{ [pinned_pct, 100] | min }}%;"></span></span>
+        {% elif kind == 'savings' and p.saved > 0 %}
+        <span class="pinned-project-sub">נחסכו <b>₪{{ p.saved | round | int | money }}</b> עד עכשיו</span>
+        {% elif kind == 'expense' and p.spent > 0 %}
+        <span class="pinned-project-sub">יצאו <b>₪{{ p.spent | round | int | money }}</b> עד עכשיו</span>
         {% endif %}
     </span>
-</a>
+    <button type="button" class="project-tile-add" data-add-to-project="{{ p.id }}"
+            aria-label="הוספת עסקה ל{{ p.name }}">＋</button>
+</div>
 {% endif %}
 
 {# This week (Matan, 30.9): running expenses Sunday to Saturday, without

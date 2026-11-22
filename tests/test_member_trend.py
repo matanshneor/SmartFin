@@ -69,7 +69,7 @@ def test_the_chart_appears_only_when_it_means_something(monkeypatch, attribution
 def test_the_chart_follows_the_range_and_its_legend_reads_like_its_bars():
     from pathlib import Path
     js = (Path(__file__).resolve().parent.parent / "frontend/static/js/months.js").read_text(encoding="utf-8")
-    part = js[js.index("const memberSeries = SF_VIEW.members;"):]
+    part = js[js.index("const memberSeries = SF_MONTHS_VIEW.members;"):]
     part = part[:part.index("// ── The range buttons ──")]
     assert "rangeListeners.push(function () {" in part, "the range changes this chart too"
     assert "memberSeries.slice().reverse()" in part, "the first in the list: on the right"
