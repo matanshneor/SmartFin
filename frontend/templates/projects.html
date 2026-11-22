@@ -2,6 +2,11 @@
 
 {% block title %}SmartFin – פרויקטים{% endblock %}
 
+{# Safe to swap in place (a soft refresh after a save, and the tabs): the page
+   has no script of its own, and what it does is delegated (the + on a tile is
+   in transactions.js) #}
+{% block soft_reload %} data-soft-reload{% endblock %}
+
 {% block hero %}
 <div class="hero-top projects-hero-top">
     <h1 class="hero-title">פרויקטים</h1>

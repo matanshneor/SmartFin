@@ -1,4 +1,6 @@
-const SF_VIEW = window.sfData('sf-view-data');
+// Its own name: `month.js` has a top-level `SF_VIEW` too, and since the tabs
+// switch without a full load both files can run in one document (22.11)
+const SF_MONTHS_VIEW = window.sfData('sf-view-data');
 
 /* ═══ The chart ═══  (see chart-setup.js)
  * A block separate from "show more" below: when the library doesn't load, the
@@ -9,7 +11,7 @@ if (!window.sfCharts.ready) return;
 const TEXT_MUTED = window.sfCharts.muted;
 const GRID_LINE  = window.sfCharts.grid;
 
-const trendData = SF_VIEW.trend;
+const trendData = SF_MONTHS_VIEW.trend;
 // The range of both charts: 3 / 6 / 12 months (idea 24). Each chart registers
 // here how it updates, and the buttons call all of them.
 
@@ -125,7 +127,7 @@ if (trendData.length > 0) {
 // each bar, a dashed line at the average, and the current month lighter: it
 // isn't over yet.
 
-const catTrend = SF_VIEW.cat_trend;
+const catTrend = SF_MONTHS_VIEW.cat_trend;
 const catCanvas = document.getElementById('categoryChart');
 if (catTrend && catTrend.categories.length && catCanvas) {
     const allMonths = catTrend.months;              // 12; the last ones are shown by the range
@@ -362,10 +364,10 @@ if (catTrend && catTrend.categories.length && catCanvas) {
 // the other charts. Below, a monthly average for each, from the finished months
 // (as in the category chart).
 
-const memberSeries = SF_VIEW.members;
+const memberSeries = SF_MONTHS_VIEW.members;
 const memberCanvas = document.getElementById('memberTrendChart');
-if (memberSeries && memberSeries.length > 1 && memberCanvas && SF_VIEW.cat_trend) {
-    const allM = SF_VIEW.cat_trend.months;            // the same 12 months that were sent
+if (memberSeries && memberSeries.length > 1 && memberCanvas && SF_MONTHS_VIEW.cat_trend) {
+    const allM = SF_MONTHS_VIEW.cat_trend.months;            // the same 12 months that were sent
     const avgsEl = document.getElementById('memberTrendAvgs');
     const shownMonths = () => allM.slice(-RANGE);
     const off = () => allM.length - shownMonths().length;

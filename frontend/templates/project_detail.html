@@ -261,9 +261,11 @@
    thinking of deleting a finished project really just want it out of the way.
    For a project already finished the bar at the top offers "reopen", so only
    deletion stays here. #}
-{% set tx_count = (project.transactions or []) | length %}
+{# Finishing the project stays here; deleting it moved to the project's
+   settings, the edit page (Matan, 23.11): a red button at the bottom of the
+   page everyone looks at was more than it deserved. #}
+{% if not project.archived %}
 <section class="chart-card project-finish">
-    {% if not project.archived %}
     <div class="group-row">
         <div class="group-row-info">
             <p class="group-row-label">סיום הפרויקט</p>
@@ -272,56 +274,8 @@
         <button type="button" class="btn-sm btn-ghost" data-archive-project="{{ project.id }}"
                 data-archived="true" data-name="{{ project.name }}">הפרויקט הסתיים</button>
     </div>
-    <div class="group-divider"></div>
-    {% endif %}
-
-    {# The button used to sit as a ✕ in the project list, one tap away from the
-       name and with no context about what is about to be deleted. Here, inside
-       the project, you have already seen the amounts and the transactions: it
-       is clear what will be lost. #}
-    <div class="project-danger">
-    <div class="group-row">
-        <div class="group-row-info">
-            <p class="group-row-label">מחיקת הפרויקט</p>
-            <p class="group-row-hint">
-                {% if tx_count %}
-                    לפרויקט יש {{ tx_count | count_of('עסקה אחת', 'עסקאות') }}
-                {% else %}
-                    אין לפרויקט עסקאות
-                {% endif %}
-            </p>
-        </div>
-        <button type="button" class="btn-sm btn-ghost btn-danger-ghost"
-                id="toggleDeleteProjectBtn" aria-expanded="false" aria-controls="deleteProjectForm">מחיקת הפרויקט</button>
-    </div>
-
-    <div class="password-form" id="deleteProjectForm">
-        {# There is no longer a "keep the transactions" choice: they landed in the
-           household as "uncategorised" and past months became more expensive,
-           while the screen promised "they'll return to their regular category".
-           The amounts here are real, from the project itself. #}
-        {% set amounts = [] %}
-        {% if project.spent %}{% set _ = amounts.append('הוצאות ₪' ~ (project.spent | money)) %}{% endif %}
-        {% if project.income %}{% set _ = amounts.append('הכנסות ₪' ~ (project.income | money)) %}{% endif %}
-        {% if project.savings %}{% set _ = amounts.append('חיסכון ₪' ~ (project.savings | money)) %}{% endif %}
-        <p class="delete-account-warning">
-            {% if tx_count %}
-                הפרויקט יימחק יחד עם {{ 'העסקה' if tx_count == 1 else tx_count ~ ' העסקאות' }} שבו{% if amounts %} ({{ amounts | join(', ') }}){% endif %}.
-                ההוצאות של הבית לא ישתנו — כסף של פרויקט ממילא לא נספר בהן.
-            {% else %}
-                הפרויקט יימחק. אין לו עסקאות, אז שום כסף לא יושפע.
-            {% endif %}
-        </p>
-
-        <p class="form-error" id="deleteProjectError" role="alert"></p>
-        <div class="edit-actions">
-            <button class="btn-sm btn-danger" id="confirmDeleteProjectBtn"
-                    data-id="{{ project.id }}" data-name="{{ project.name }}">מחיקת הפרויקט</button>
-            <button class="btn-sm btn-ghost" id="cancelDeleteProjectBtn">ביטול</button>
-        </div>
-    </div>
-    </div>
 </section>
+{% endif %}
 
 {% endblock %}
 

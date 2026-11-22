@@ -215,30 +215,44 @@ def test_the_project_page_still_shows_the_totals():
     assert "project.spent" in detail
 
 
-def test_deletion_lives_at_the_bottom_of_the_project_page():
-    """Not on the edit page: there, editing only (Matan, 9.10)."""
-    assert "project-danger" not in _EDIT and "confirmDeleteProjectBtn" not in _EDIT
-    assert 'id="confirmDeleteProjectBtn"' in _DETAIL
-    assert _DETAIL.index("project-danger") > _DETAIL.rindex("כל העסקאות ("), "deletion isn't at the bottom"
+def test_deletion_lives_in_the_projects_settings():
+    """Matan (23.11): only deleting moves to the project's settings, the edit page;
+    finishing stays on the project page. (From 9.10 until then both sat at the
+    bottom of the project page, with a red button everyone scrolled past.)"""
+    assert "project-danger" not in _DETAIL and "confirmDeleteProjectBtn" not in _DETAIL
+    assert 'id="confirmDeleteProjectBtn"' in _EDIT
+    # Above the save bar, outside the edit form: its buttons don't submit it
+    assert _EDIT.index("</form>") < _EDIT.index("project-danger") < _EDIT.index('class="project-save-bar"')
+    # The script that runs it moved with it
+    assert "confirmDeleteProjectBtn" in (_JS / "project-edit.js").read_text(encoding="utf-8")
+    assert "confirmDeleteProjectBtn" not in (_JS / "project-detail.js").read_text(encoding="utf-8")
 
 
-def test_finishing_comes_before_deleting_in_the_same_card():
-    """Finishing is the soft way: it is seen before deleting."""
+def test_a_deleted_project_leaves_without_the_unsaved_changes_question():
+    js = (_JS / "project-edit.js").read_text(encoding="utf-8")
+    assert "window.sfProjectEditLeaving = function () { leaving = true; };" in js
+    block = js[js.index("const go = e.target.closest('#confirmDeleteProjectBtn');"):]
+    assert block.index("window.sfProjectEditLeaving();") < block.index("window.location.href = '/projects';")
+
+
+def test_finishing_stays_on_the_project_page():
     card = _DETAIL[_DETAIL.index('class="chart-card project-finish"'):]
-    assert card.index("data-archive-project") < card.index("project-danger")
+    card = card[:card.index("</section>")]
+    assert "data-archive-project" in card
+    # Only for a project still open; a finished one has "reopen" in its bar
+    assert _DETAIL.rindex("{% if not project.archived %}", 0, _DETAIL.index('class="chart-card project-finish"')) > 0
 
 
 def test_a_finished_project_can_still_be_deleted():
-    card = _DETAIL[_DETAIL.index('class="chart-card project-finish"'):]
-    finish = card[card.index("{% if not project.archived %}"):]
-    finish = finish[:finish.index("{% endif %}")]
-    assert "data-archive-project" in finish, "finishing doesn't depend on the project's state"
-    assert "project-danger" not in finish, "deletion is hidden in a finished project"
+    """In the settings, which a finished project has too."""
+    block = _EDIT[_EDIT.index('class="chart-card project-finish"'):]
+    block = block[:block.index("</section>")]
+    assert "project.archived" not in block, "deletion doesn't depend on the project's state"
 
 
 def test_it_says_how_many_transactions_will_be_affected():
     """The ✕ in the list carried no number."""
-    block = _DETAIL[_DETAIL.index("project-danger"):]
+    block = _EDIT[_EDIT.index("project-danger"):]
 
     assert "tx_count" in block
     assert "אין לפרויקט עסקאות" in block, "an empty project gets its own wording"
@@ -248,8 +262,8 @@ def test_there_is_no_choice_to_keep_the_transactions_any_more():
     """"Keep" promised "they'll go back to the normal category", and they landed in
     the household as "no category" and inflated the past months. Matan decided:
     deleting a project deletes its transactions."""
-    block = _DETAIL[_DETAIL.index("project-danger"):]
-    js = (_JS / "project-detail.js").read_text(encoding="utf-8")
+    block = _EDIT[_EDIT.index("project-danger"):]
+    js = (_JS / "project-edit.js").read_text(encoding="utf-8")
 
     assert "data-tx-mode" not in block
     assert "הקטגוריה הרגילה" not in block + js
@@ -257,7 +271,7 @@ def test_there_is_no_choice_to_keep_the_transactions_any_more():
 
 
 def test_the_warning_says_what_goes_and_what_does_not_change():
-    block = _DETAIL[_DETAIL.index("project-danger"):]
+    block = _EDIT[_EDIT.index("project-danger"):]
 
     assert "יחד עם" in block and "project.spent" in block, "it wasn't said what is deleted and how much money"
     assert "ההוצאות של הבית לא ישתנו" in block

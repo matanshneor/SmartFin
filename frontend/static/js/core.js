@@ -568,9 +568,15 @@ function sfApplyHtml(html, regions, tab) {
             const src = el.getAttribute('src');
             if (!have[path(src)]) missing.push(src);
         });
-        // Only between pages that mark themselves safe to swap
-        const mains = [document.querySelector('main.main-content'), doc.querySelector('main.main-content')];
-        if (mains.some(function (m) { return !m || !m.hasAttribute('data-soft-reload'); })) return 'full';
+        // A page that marks itself safe to swap (`data-soft-reload`) can be
+        // entered any number of times: its listeners are delegated and it
+        // redraws on `sf:refreshed`. Any other page binds to its elements as
+        // its script loads, so it is entered softly only the first time, when
+        // that script hasn't run in this document yet; coming back to it is a
+        // full load, as it always was.
+        const target = doc.querySelector('main.main-content');
+        if (!target || !document.querySelector('main.main-content')) return 'full';
+        if (!target.hasAttribute('data-soft-reload') && !missing.length) return 'full';
         // Charts to draw, and this document already learned it has no library
         if (doc.querySelector('main canvas') && window.sfCharts && !window.sfCharts.ready) return 'full';
     }
@@ -727,8 +733,8 @@ window.sfFetchPage = sfFetchPage;
  * own scripts run once per document. Measured on the month page: about half
  * the time of a full load.
  *
- * First stage: home ↔ month only (`SOFT_TABS` below). Anything unexpected falls
- * back to the full load there was until now: a missing area, another version
+ * Between the five tabs (`SOFT_TABS` below; the first day, home ↔ month only).
+ * Anything unexpected falls back to the full load there was until now: a missing area, another version
  * of the assets, a script that didn't arrive, an error right after the swap.
  * After such an error the soft switch stays off until the app is reopened. */
 (function () {
@@ -840,9 +846,9 @@ document.addEventListener('click', function (e) {
 
 (function () {
     const TABS = ['/', '/month', '/months', '/projects', '/settings'];
-    // Between these the content is swapped in place (`sfSwitchTab`); the rest
-    // still load fully. First stage (Matan, 22.11).
-    const SOFT_TABS = ['/', '/month'];
+    // Between these the content is swapped in place (`sfSwitchTab`, Matan
+    // 22.11), where the page arriving allows it; see `sfApplyHtml`.
+    const SOFT_TABS = TABS;      // all five since 23.11 (home ↔ month only, the first day)
     window.addEventListener('click', function (e) {
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         const a = e.target.closest && e.target.closest('a[href]');

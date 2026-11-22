@@ -5737,6 +5737,10 @@ body.tx-screen-open { overflow: hidden; }
     border-radius: var(--radius); background: var(--color-card); box-shadow: var(--shadow-card);
     color: var(--color-text); text-decoration: none;
 }
+/* The card is a `div` since 23.11: the link covers it, the + sits above */
+.pinned-project { position: relative; }
+.pinned-project-link { color: inherit; text-decoration: none; }
+.pinned-project-link::after { content: ""; position: absolute; inset: 0; }
 .pinned-project-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); background: var(--color-gold-dim); font-size: var(--text-lg); flex-shrink: 0; }
 .pinned-project-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pinned-project-name { font-weight: 700; font-size: var(--text-body); }

@@ -427,6 +427,11 @@ drawn = [];
 
 const view = window.sfData('sf-view-data');
 const SF_VIEW = view;
+// Another page's data (Matan, 23.11): since the tabs switch without a full
+// load this file stays in the document, and `sf:refreshed` reaches it on the
+// comparison page too, whose block of the same id has no `expense`. Nothing of
+// this page to draw then.
+if (!SF_VIEW || !Array.isArray(SF_VIEW.expense)) return;
 
 // ── 2. Expenses by category ──
 // A fixed colour per category (`color_idx` from the server: its place in the
