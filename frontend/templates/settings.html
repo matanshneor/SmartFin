@@ -695,7 +695,7 @@
             {% set mine = member_colors.get(user.id) %}
             <div class="color-sheet" id="memberColorSheet" role="dialog" aria-modal="true" aria-labelledby="memberColorTitle" hidden>
                 <div class="color-sheet-card">
-                    <p class="color-sheet-title" id="memberColorTitle">הצבע שלך</p>
+                    <p class="color-sheet-title" id="memberColorTitle">הצבע שלי</p>
                     <p class="color-sheet-hint">כך יופיע השם ליד עסקאות ובגרפים</p>
                     <div class="color-sheet-grid">
                         {% for idx, hex in color_hex | dictsort %}
@@ -711,7 +711,7 @@
                             <span class="color-swatch owner-{{ idx }}" aria-hidden="true">{% if idx == mine %}<b>✓</b>{% endif %}</span>
                             <span class="color-option-text">
                                 <span class="owner-pill owner-{{ idx }}">{{ holder.name if taken and holder.name else (me.name if me else user.name) }}</span>
-                                <span class="color-option-note">{% if idx == mine %}הצבע שלך{% elif taken %}תפוס{% endif %}</span>
+                                <span class="color-option-note">{% if idx == mine %}הצבע שלי{% elif taken %}תפוס{% endif %}</span>
                             </span>
                         </button>
                         {% endfor %}

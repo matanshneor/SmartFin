@@ -5667,6 +5667,7 @@ body.tx-screen-open { overflow: hidden; }
 .cat-tx-desc .installment-tag { display: table; margin-top: 3px; padding-inline: 0; }
 .recurring-next .installment-tag { padding: 0; }
 .empty-cta { margin-top: 14px; padding-inline: 22px; }
+.switch-hint { display: block; margin-top: 2px; font-size: var(--text-sm); font-weight: 400; color: var(--color-text-muted); }
 /* A row that opens something is at least 44px tall (audit, 22.11): the
    transaction rows in the week card and under a category were 33-35px, easy to
    miss with a finger. */

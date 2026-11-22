@@ -267,7 +267,9 @@
                     <label class="checkbox-label">
                         <input type="checkbox" id="txRecurring" class="checkbox-input">
                         <span class="checkbox-custom"></span>
-                        <span class="checkbox-text">עסקה קבועה</span>
+                        {# What each switch does, in a line (Matan, 22.11): the two
+                           were hard to tell apart #}
+                        <span class="checkbox-text">עסקה קבועה<small class="switch-hint">חוזרת כל חודש, עד שעוצרים אותה</small></span>
                     </label>
 
                     {# Frequency and end date on the same row (Matan, 5.10) #}
@@ -298,7 +300,7 @@
                     <label class="checkbox-label">
                         <input type="checkbox" id="txInstallments" class="checkbox-input">
                         <span class="checkbox-custom"></span>
-                        <span class="checkbox-text">תשלומים</span>
+                        <span class="checkbox-text">תשלומים<small class="switch-hint">מחיר מלא שמתחלק לחודשים</small></span>
                     </label>
                     <div class="installments-fields" id="installmentsFields" hidden>
                         <input class="form-input installments-count" type="number" id="txInstallmentCount"

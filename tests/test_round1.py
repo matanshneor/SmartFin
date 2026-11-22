@@ -353,3 +353,11 @@ def test_second_audit_round_of_22_11():
     for name in ("project_edit.html", "project_new.html", "settings.html"):
         assert "data-thousands" in _read(_T / name), name
     assert 'data-add-type="expense"' in _read(_T / "months.html")
+
+
+def test_switch_hints_and_my_colour():
+    base = _read(_T / "base.html")
+    assert 'עסקה קבועה<small class="switch-hint">חוזרת כל חודש, עד שעוצרים אותה</small>' in base
+    assert 'תשלומים<small class="switch-hint">מחיר מלא שמתחלק לחודשים</small>' in base
+    st = _read(_T / "settings.html")
+    assert "הצבע שלך" not in st and 'id="memberColorTitle">הצבע שלי</p>' in st
