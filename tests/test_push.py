@@ -288,3 +288,32 @@ def test_every_signed_in_page_gets_the_key(client, monkeypatch):
         assert app_module.inject_family_settings()["push_key"] == push.public_key()
     with app.test_request_context():                     # guest: no key
         assert app_module.inject_family_settings()["push_key"] is None
+
+
+# ─── The week's summary (Matan, 22.11) ───────────────────────────────────────
+
+@pytest.mark.parametrize("total,previous,title,body", [
+    (1634, 1496, "בשבוע שעבר הוצאתם ₪1,634", "₪138 יותר מהשבוע שלפניו"),
+    (900, 1496, "בשבוע שעבר הוצאתם ₪900", "₪596 פחות מהשבוע שלפניו"),
+    (500, 500.4, "בשבוע שעבר הוצאתם ₪500", "כמו בשבוע שלפניו"),
+    (320, 0, "בשבוע שעבר הוצאתם ₪320", "הוצאות שוטפות, בלי עסקאות קבועות ופרויקטים"),
+], ids=["more", "less", "same", "no-previous"])
+def test_week_summary(total, previous, title, body):
+    m = push.week_summary(total, previous)
+    assert (m["title"], m["body"], m["tag"], m["url"]) == (title, body, "week-summary", "/")
+
+
+def test_the_daily_route_knows_the_week_summary():
+    from backend import app as app_module
+    m = app_module._daily_message("week_summary", {"total": 1634, "previous": 1496})
+    assert m["title"] == "בשבוע שעבר הוצאתם ₪1,634"
+
+
+def test_the_week_summary_migration_counts_what_the_week_card_counts():
+    import pathlib
+    sql = next(pathlib.Path(__file__).resolve().parent.parent.glob(
+        "backend/supabase/migrations/*_push_week_summary.sql")).read_text(encoding="utf-8")
+    assert "if extract(dow from p_today) = 0 then" in sql
+    assert "t.type = 'expense' and t.project_id is null" in sql
+    assert "t.is_recurring is not true and t.recurring_parent_id is null" in sql
+    assert "'wk-' || to_char(p_today - 7, 'YYYY-MM-DD')" in sql

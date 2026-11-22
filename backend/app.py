@@ -4321,6 +4321,8 @@ def _daily_message(kind: str, data: dict):
         return push.last_installment(data.get("description"), data.get("amount"))
     if kind == "quiet_week":
         return push.quiet_week(int(data.get("weeks") or 1))
+    if kind == "week_summary":
+        return push.week_summary(data.get("total"), data.get("previous"))
     return None
 
 
