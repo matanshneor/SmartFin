@@ -413,8 +413,12 @@
                 {% endfor %}
             </div>
             <div id="recurringList">
+                {# Installment purchases in a list of their own (Matan, 22.11): a
+                   standing order goes on, these end on a known date #}
                 {% for t, _, title in rec_groups %}
-                {% set items = recurring | selectattr('type', 'equalto', t) | list %}
+                {% set of_type = recurring | selectattr('type', 'equalto', t) | list %}
+                {% for title, items in [(title, of_type | rejectattr('installments') | list),
+                                        ('בתשלומים', of_type | selectattr('installments') | list)] %}
                 {% if items %}
                 <p class="recurring-group-title">{{ title }}</p>
                 <ul class="recurring-list">
@@ -434,7 +438,9 @@
                             {# An installment purchase isn't a standing order: how many
                                payments, and when it ends (audit, 22.11) #}
                             {% if tx.installments %}
-                            <p class="recurring-next"><span class="installment-tag">{{ tx.installments }} תשלומים</span>{% if tx.recurring_end_date %} · עד {{ hebrew_months[tx.recurring_end_date[5:7] | int] }} {{ tx.recurring_end_date[:4] }}{% endif %}</p>
+                            {% set inst = (installment_state or {}).get(tx.id) %}
+                            <p class="recurring-next"><span class="installment-tag">{% if inst %}שולמו {{ inst.paid }} מתוך {{ tx.installments }}{% else %}{{ tx.installments }} תשלומים{% endif %}</span>{% if tx.recurring_end_date %} · עד {{ hebrew_months[tx.recurring_end_date[5:7] | int] }} {{ tx.recurring_end_date[:4] }}{% endif %}</p>
+                            {% if inst and inst.left %}<p class="recurring-next">נשארו ₪{{ inst.left | money }}</p>{% endif %}
                             {% endif %}
                             {# "₪5,000 ← ₪5,500 מאוקטובר": the latest change in the amount (Matan, 3.10, idea 40) #}
                             {% set change = (price_changes or {}).get(tx.id) %}
@@ -450,6 +456,7 @@
                     {% endfor %}
                 </ul>
                 {% endif %}
+                {% endfor %}
                 {% endfor %}
             </div>
             <p class="recurring-hint">נגיעה בשורה — עריכה או הסרה</p>
@@ -696,8 +703,15 @@
                                 data-member="{{ user.id }}" data-color="{{ idx }}"
                                 aria-pressed="{{ 'true' if idx == mine else 'false' }}"
                                 {% if taken %}disabled{% endif %}>
-                            <span class="owner-pill owner-{{ idx }}">{{ me.name if me else user.name }}</span>
-                            <span class="color-option-note">{% if idx == mine %}הצבע שלך{% elif taken %}תפוס{% endif %}</span>
+                            {# A swatch in the full colour (Matan, 22.11): the pale name
+                               tags alone were hard to tell apart. Who holds a taken one. #}
+                            {% set holder = namespace(name='') %}
+                            {% if taken %}{% for m in members %}{% if member_colors.get(m.id) == idx %}{% set holder.name = m.name.split(' ')[0] %}{% endif %}{% endfor %}{% endif %}
+                            <span class="color-swatch owner-{{ idx }}" aria-hidden="true">{% if idx == mine %}<b>✓</b>{% endif %}</span>
+                            <span class="color-option-text">
+                                <span class="owner-pill owner-{{ idx }}">{{ holder.name if taken and holder.name else (me.name if me else user.name) }}</span>
+                                <span class="color-option-note">{% if idx == mine %}הצבע שלך{% elif taken %}תפוס{% endif %}</span>
+                            </span>
                         </button>
                         {% endfor %}
                     </div>

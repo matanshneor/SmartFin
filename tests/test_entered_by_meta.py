@@ -61,6 +61,7 @@ def test_the_edit_window_loads_it_and_a_new_form_hides_it():
     root = Path(__file__).resolve().parent.parent
     js = (root / "frontend/static/js/transactions.js").read_text(encoding="utf-8")
     assert "loadEnteredMeta(tx.id);" in js
-    assert "if (mySeq !== formSeq || !d || !d.text) return;" in js, "a late response isn't written onto another form"
+    assert "if (mySeq !== formSeq || !d) return;" in js, "a late response isn't written onto another form"
+    assert "if (!d.text) return;" in js
     assert js.count("if (enteredMeta) enteredMeta.hidden = true;") == 2, "add and duplicate hide it"
     assert 'id="txEnteredMeta"' in (root / "frontend/templates/base.html").read_text(encoding="utf-8")

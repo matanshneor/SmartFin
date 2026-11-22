@@ -764,7 +764,13 @@
             .then(function (d) {
                 // Another form opened meanwhile: the line isn't its
 
-                if (mySeq !== formSeq || !d || !d.text) return;
+                if (mySeq !== formSeq || !d) return;
+                // "נשארו ₪3,600" beside the payment number (Matan, 22.11)
+                if (editingInstallment && typeof d.installment_left === 'number') {
+                    editingInstallment.left = d.installment_left;
+                    syncInstallments();
+                }
+                if (!d.text) return;
                 enteredMeta.textContent = d.text;
                 enteredMeta.hidden = false;
             })
@@ -1143,6 +1149,10 @@
             instFields.hidden = false;
             instCount.hidden = true;
             instHint.textContent = 'תשלום ' + editingInstallment.no + ' מתוך ' + editingInstallment.total;
+            if (typeof editingInstallment.left === 'number') {
+                instHint.textContent += editingInstallment.left > 0
+                    ? ' · נשארו ₪' + window.sfMoney(editingInstallment.left) : ' · התשלום האחרון';
+            }
             if (recurGroup) recurGroup.hidden = true;
             return;
         }

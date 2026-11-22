@@ -302,8 +302,27 @@ def test_audit_fixes_of_22_11():
     # project budget "12000", not "12000.0"
     assert "{{ b | int if b == b | int else b }}" in _read(_T / "project_edit.html")
     # an installment purchase is named in the recurring list
-    assert "{{ tx.installments }} תשלומים</span>" in _read(_T / "settings.html")
+    assert 'class="installment-tag">' in _read(_T / "settings.html")
     # the same row of checkboxes when creating a project as when editing one
     assert '<div class="track-row">' in _read(_T / "project_new.html")
     # a switch that is off is hollow
     assert ".pref-switch input:not(:checked) + .pref-slider { background: transparent;" in _CSS
+
+
+def test_installment_left_counts_what_is_still_to_pay():
+    # "נשארו ₪3,600" (Matan, 22.11): the first payment carries the remainder
+    from backend.supabase_config import installment_left
+    assert installment_left(4800, 12, "2026-09-04", 3) == 3600
+    assert installment_left(4800, 12, "2026-09-04", 12) == 0
+    assert installment_left(4800, 12, "2026-09-04", 0) == 4800
+    assert installment_left(100, 3, "2026-09-04", 1) == 66.66      # 33.34 + 33.33 + 33.33
+    assert installment_left(None, 12, "2026-09-04", 3) is None
+
+
+def test_installments_have_their_own_list_and_colours_a_swatch():
+    st = _read(_T / "settings.html")
+    assert "('בתשלומים', of_type | selectattr('installments') | list)" in st
+    assert "נשארו ₪{{ inst.left | money }}" in st
+    assert 'class="color-swatch owner-{{ idx }}"' in st
+    tx = _read(_JS / "transactions.js")
+    assert "' · נשארו ₪' + window.sfMoney(editingInstallment.left)" in tx

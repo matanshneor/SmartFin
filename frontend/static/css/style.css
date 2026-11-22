@@ -5000,15 +5000,25 @@ body > .color-sheet { z-index: var(--z-picker); }
 .color-sheet-hint { margin: -6px 0 0; font-size: var(--text-sm); color: var(--color-text-muted); }
 .color-sheet-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .color-option {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    min-height: 48px; padding: 8px 12px; border-radius: 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+    min-height: 56px; padding: 8px 12px; border-radius: 12px; cursor: pointer;
     background: var(--color-input); border: 2px solid transparent; font: inherit; text-align: start;
 }
 .color-option.is-current { border-color: var(--color-gold-border); background: var(--color-gold-dim); }
 .color-option:disabled { opacity: 0.4; cursor: not-allowed; }
 .color-option:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
 .color-option-note { font-size: var(--text-2xs); color: var(--color-text-muted); font-weight: 600; }
-.color-option .owner-pill { font-size: var(--text-body); padding: 5px 12px; }
+.color-option .owner-pill { font-size: var(--text-md); padding: 3px 10px; }
+/* The colour itself, full strength: `currentColor` of the member's tag class,
+   so the swatch follows the palette in both themes (Matan, 22.11) */
+.color-option .color-swatch {
+    flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%;
+    background: currentColor !important;
+    display: grid; place-items: center; font-size: var(--text-md); font-weight: 700;
+}
+.color-option .color-swatch b { color: #FFFFFF; }
+:root[data-theme="dark"] .color-option .color-swatch b { color: #1A1408; }
+.color-option-text { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
 .color-sheet-close { align-self: stretch; min-height: 44px; }
 
 /* A loading skeleton (Matan, 30.9, round 6, item 14): above the page, below
