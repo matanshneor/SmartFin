@@ -398,7 +398,11 @@
     <script src="{{ url_for('static', filename='js/icon-picker.js') }}"></script>
     <script src="{{ url_for('static', filename='js/skeleton.js') }}"></script>
 
-    {% block scripts %}{% endblock %}
+    {# Each page's own scripts and pieces outside `main`. In a holder so that
+       switching tabs without a full load (`sfSwitchTab` in core.js) can tell
+       them from the scripts every page shares. `display: contents`: it draws
+       nothing itself. #}
+    <div id="sfPageExtras" class="page-extras">{% block scripts %}{% endblock %}</div>
 
 
     <!-- ── The PWA install offer (home screen) ── -->

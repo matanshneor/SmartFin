@@ -545,15 +545,43 @@ const SF_RELOAD_REGIONS = ['header.page-hero', 'main.main-content'];
 /* Replaces the page areas with content from HTML already fetched. Returns
  * `'full'` when it can't be replaced safely (a missing area, or charts without
  * the library), and the caller falls back to a full load. */
-function sfApplyHtml(html, regions) {
+// The classes the server put on `body`, read before any script adds its own
+let sfServerBodyClasses = document.body && document.body.classList
+    ? Array.prototype.slice.call(document.body.classList) : [];
+
+function sfApplyHtml(html, regions, tab) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    // Switching tabs (`sfSwitchTab`): the page arriving has scripts and blocks
+    // of its own, in `#sfPageExtras`. Those this document hasn't run yet are
+    // loaded after the swap; one it already ran isn't run again (its listeners
+    // are still here), it hears `sf:refreshed` like after a soft refresh.
+    const extras = tab ? document.getElementById('sfPageExtras') : null;
+    const newExtras = tab ? doc.getElementById('sfPageExtras') : null;
+    const missing = [];
+    if (tab) {
+        if (!extras || !newExtras) return 'full';
+        const path = function (src) { try { return new URL(src, location.href).pathname; } catch (e) { return src; } };
+        const have = {};
+        document.querySelectorAll('script[src]').forEach(function (el) { have[path(el.src)] = true; });
+        newExtras.querySelectorAll('script[src]').forEach(function (el) {
+            const src = el.getAttribute('src');
+            if (!have[path(src)]) missing.push(src);
+        });
+        // Only between pages that mark themselves safe to swap
+        const mains = [document.querySelector('main.main-content'), doc.querySelector('main.main-content')];
+        if (mains.some(function (m) { return !m || !m.hasAttribute('data-soft-reload'); })) return 'full';
+        // Charts to draw, and this document already learned it has no library
+        if (doc.querySelector('main canvas') && window.sfCharts && !window.sfCharts.ready) return 'full';
+    }
+    const bringsCharts = missing.some(function (src) { return src.indexOf('chart.umd') !== -1; });
 
     // A month that was empty doesn't load the chart library (70KB with nothing
     // to draw). After the first transaction the new HTML already brings charts,
     // and without the library they stayed empty squares. Once a month: a full
     // reload.
 
-    if (typeof window.Chart === 'undefined' && doc.querySelector('main canvas')) return 'full';
+    if (typeof window.Chart === 'undefined' && doc.querySelector('main canvas') && !bringsCharts) return 'full';
 
     // A deploy since this page loaded: the new HTML may use classes the old CSS
     // and scripts don't know. Each asset URL carries its content hash (`?v=`),
@@ -601,12 +629,42 @@ function sfApplyHtml(html, regions) {
     doc.querySelectorAll('script[type="application/json"][id]').forEach(function (fresh) {
         const current = document.getElementById(fresh.id);
         if (current && current.tagName === 'SCRIPT') current.textContent = fresh.textContent;
+        // A block only the arriving page has (its scripts read it as they load)
+        else if (tab && !current) extras.appendChild(document.importNode(fresh, true));
     });
     if (doc.title) document.title = doc.title;
+    if (tab) {
+        // The arriving page's own pieces outside `main` (a dialog, a data
+        // holder). One already here stays as it is: scripts hold on to it.
+        Array.prototype.forEach.call(newExtras.children, function (el) {
+            if (el.tagName === 'SCRIPT') return;
+            const here = el.id ? document.getElementById(el.id) : null;
+            if (here) {
+                // A plain data holder has no listeners: take the fresh values
+                if (el.hidden && !el.children.length) here.replaceWith(document.importNode(el, true));
+                return;
+            }
+            extras.appendChild(document.importNode(el, true));
+        });
+        // The page's own classes on `body` change; the ones scripts added
+        // meanwhile (the install bar's room, an open search) stay
+        sfServerBodyClasses.forEach(function (c) { document.body.classList.remove(c); });
+        sfServerBodyClasses = Array.prototype.slice.call(doc.body.classList);
+        sfServerBodyClasses.forEach(function (c) { document.body.classList.add(c); });
+        const tabs = document.querySelectorAll('.bottom-nav .nav-item');
+        const fresh = doc.querySelectorAll('.bottom-nav .nav-item');
+        if (tabs.length === fresh.length) {
+            tabs.forEach(function (el, i) {
+                el.classList.toggle('active', fresh[i].classList.contains('active'));
+                if (fresh[i].hasAttribute('aria-current')) el.setAttribute('aria-current', 'page');
+                else el.removeAttribute('aria-current');
+            });
+        }
+    }
     // Notify whoever needs to reconnect themselves (animations, charts)
 
     window.dispatchEvent(new CustomEvent('sf:refreshed'));
-    return 'ok';
+    return tab ? { missing: missing } : 'ok';
 }
 
 function sfFetchPage(url) {
@@ -660,6 +718,69 @@ window.softNavigate = function (url, html) {
         .catch(fullLoad);
 };
 window.sfFetchPage = sfFetchPage;
+
+/* Switching tabs without a full load (Matan, 22.11: "make the app faster").
+ *
+ * A tap on a tab loaded a whole page: the browser threw everything away and
+ * parsed the stylesheet and every script again. Here only the hero and `main`
+ * are replaced, the bottom menu and the + stay where they are, and the page's
+ * own scripts run once per document. Measured on the month page: about half
+ * the time of a full load.
+ *
+ * First stage: home ↔ month only (`SOFT_TABS` below). Anything unexpected falls
+ * back to the full load there was until now: a missing area, another version
+ * of the assets, a script that didn't arrive, an error right after the swap.
+ * After such an error the soft switch stays off until the app is reopened. */
+(function () {
+    const OFF_KEY = 'sf_soft_tabs_off';
+    let switching = false;
+    function off() { try { return sessionStorage.getItem(OFF_KEY) === '1'; } catch (e) { return false; } }
+
+    function loadScripts(urls) {
+        const extras = document.getElementById('sfPageExtras');
+        return urls.reduce(function (chain, src) {
+            return chain.then(function () {
+                return new Promise(function (resolve, reject) {
+                    const el = document.createElement('script');
+                    el.src = src;
+                    el.onload = resolve;
+                    el.onerror = function () { reject(new Error('script ' + src)); };
+                    extras.appendChild(el);
+                });
+            });
+        }, Promise.resolve());
+    }
+
+    // An error in the first moments after a swap: this document isn't trusted
+    // any more. A full load of the same page, and full loads from here on.
+    function watchForErrors() {
+        function bail() {
+            try { sessionStorage.setItem(OFF_KEY, '1'); } catch (e) { /* then only this once */ }
+            window.location.reload();
+        }
+        window.addEventListener('error', bail);
+        setTimeout(function () { window.removeEventListener('error', bail); }, 1500);
+    }
+
+    window.sfSoftTabsOn = function () { return !off(); };
+    window.sfSwitchTab = function (url) {
+        if (switching) return Promise.resolve('busy');
+        switching = true;
+        function full() { window.location.replace(url); return 'navigated'; }
+        return sfFetchPage(url)
+            .then(function (html) {
+                watchForErrors();
+                const done = sfApplyHtml(html, SF_RELOAD_REGIONS, true);
+                if (done === 'full') return full();
+                try { history.replaceState(null, '', url); } catch (e) { /* not critical */ }
+                window.scrollTo(0, 0);
+                window.dispatchEvent(new Event('scroll'));       // the hero's state follows the scroll
+                return loadScripts(done.missing).then(function () { return 'swapped'; });
+            })
+            .catch(full)
+            .finally(function () { switching = false; });
+    };
+})();
 
 
 // ── "Project finished" / "reopen" (Matan, 30.9, round 6, item 3) ──
@@ -719,6 +840,9 @@ document.addEventListener('click', function (e) {
 
 (function () {
     const TABS = ['/', '/month', '/months', '/projects', '/settings'];
+    // Between these the content is swapped in place (`sfSwitchTab`); the rest
+    // still load fully. First stage (Matan, 22.11).
+    const SOFT_TABS = ['/', '/month'];
     window.addEventListener('click', function (e) {
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         const a = e.target.closest && e.target.closest('a[href]');
@@ -730,6 +854,15 @@ document.addEventListener('click', function (e) {
 
         if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
         e.preventDefault();
+        const tabLink = a.closest('.bottom-nav');
+        if (tabLink && !url.search && !url.hash && url.pathname !== location.pathname
+                && SOFT_TABS.indexOf(url.pathname) !== -1 && SOFT_TABS.indexOf(location.pathname) !== -1
+                && window.sfSwitchTab && window.sfSoftTabsOn()) {
+            // The tapped tab lights up at once: "got it"
+            tabLink.querySelectorAll('.nav-item').forEach(function (n) { n.classList.toggle('active', n === a); });
+            window.sfSwitchTab(url.href);
+            return;
+        }
         location.replace(url.href);
     });
 })();
