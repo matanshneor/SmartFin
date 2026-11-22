@@ -2632,6 +2632,64 @@
             }
         });
 
+        /* The swipe shows itself once (Matan, 22.11): nothing on the screen said
+         * a row can be swiped. The first time a list is on screen, on a touch
+         * device, the first row slides aside to show "edit" and comes back.
+         * Once per device (localStorage); not with reduced motion, not while a
+         * sheet or dialog is open, and a touch during it cancels it. */
+        (function () {
+            const KEY = 'sf_swipe_hint';
+            let seen = true;
+            try { seen = localStorage.getItem(KEY) === '1'; } catch (e) { /* no storage: no hint */ }
+            if (seen) return;
+            if (!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) return;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            if (!('IntersectionObserver' in window)) return;
+            let done = false, watcher = null;
+            function show(row) {
+                if (done || drag || openRow) return;
+                if (document.querySelector('#modalOverlay.open, .confirm-overlay.open, .whats-new')) return;
+                ensureSwipeStructure(row);
+                const content = row.querySelector('.swipe-content');
+                if (!content) return;
+                done = true;
+                if (watcher) watcher.disconnect();
+                try { localStorage.setItem(KEY, '1'); } catch (e) { /* shown anyway */ }
+                let cancelled = false;
+                const cancel = function () { cancelled = true; content.style.transition = ''; content.style.transform = ''; };
+                document.addEventListener('touchstart', cancel, { once: true, passive: true });
+                content.style.transition = 'transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)';
+                content.style.transform = 'translateX(' + OPEN_X + 'px)';
+                setTimeout(function () {
+                    if (cancelled) return;
+                    content.style.transform = '';
+                    setTimeout(function () { if (!cancelled) content.style.transition = ''; }, 500);
+                }, 1100);
+            }
+            // The lists sit below the fold: the hint waits for the first row that
+            // is fully on screen, and for the scrolling to settle
+            function watch() {
+                if (done) return;
+                if (watcher) watcher.disconnect();
+                watcher = new IntersectionObserver(function (entries) {
+                    const hit = entries.find(function (e) { return e.isIntersecting && e.intersectionRatio >= 0.99; });
+                    if (!hit) return;
+                    setTimeout(function () {
+                        const r = hit.target.getBoundingClientRect();
+                        if (hit.target.dataset.id && r.top > 80 && r.bottom < window.innerHeight - 110) show(hit.target);
+                    }, 700);
+                }, { threshold: 1 });
+                // The first rows of the page are enough: a month has hundreds, and
+                // nothing here should cost per row on load
+                const rows = document.querySelectorAll(ROW_SELECTOR);
+                for (let i = 0, n = 0; i < rows.length && n < 12; i++) {
+                    if (rows[i].dataset.id) { watcher.observe(rows[i]); n++; }
+                }
+            }
+            setTimeout(watch, 1200);
+            window.addEventListener('sf:refreshed', function () { setTimeout(watch, 300); });
+        })();
+
         // A tap on a revealed panel: the same existing flows (edit/delete), with
         // no duplicated code
 

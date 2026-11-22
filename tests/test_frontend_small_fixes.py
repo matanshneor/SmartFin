@@ -753,11 +753,11 @@ def test_the_month_header_stays_on_top_once_the_balance_scrolls_away():
     """Matan (30.9, round 6 item 12). Only when the balance left upwards, and the
     final amount, not the count-up's intermediate number."""
     js = _strip_comments(_read("frontend/static/js/month.js"))
-    assert "bar.hidden = e.isIntersecting || e.boundingClientRect.top > 0;" in js
+    assert "wrap.hidden = e.isIntersecting || e.boundingClientRect.top > 0;" in js
     assert "window.sfMoney(valueEl.dataset.countup)" in js
     assert "window.addEventListener('sf:refreshed', build);" in js
     css = _read("frontend/static/css/style.css")
-    assert "padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 10px;" in css
+    assert "padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 8px;" in css
 
 
 def test_a_slow_page_change_shows_a_skeleton_and_a_fast_one_does_not():
@@ -855,11 +855,12 @@ def test_jumping_to_a_department_clears_the_sticky_bar():
     css = _read("frontend/static/css/style.css")
     rule = css[css.index("#income-breakdown,\n#expense-breakdown,\n#savings-breakdown {"):]
     rule = rule[:rule.index("}")]
-    assert "scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px));" in rule
-    sticky = css[css.index(".month-sticky {"):]
+    # 104px since 22.11: the bar carries a row of section shortcuts under the title
+    assert "scroll-margin-top: calc(104px + env(safe-area-inset-top, 0px));" in rule
+    sticky = css[css.index(".month-sticky-top {"):]
     sticky = sticky[:sticky.index("}")]
-    assert "padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 10px;" in sticky, \
-        "the sticky header's height changed: update the 58px"
+    assert "padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 8px;" in sticky, \
+        "the sticky header's height changed: update the 104px"
 
 
 def test_only_the_settings_list_edits_a_series_from_now():

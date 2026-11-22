@@ -249,41 +249,27 @@ def test_manage_mode_still_hides_the_list_management_controls():
 # ─── The structure Matan asked for ──────────────────────────────────────────
 
 def _budget_block():
-    """The budget-editing block in the template.
+    """The budget link on a category's row in the template.
 
-    Don't cut at the first `{% endif %}`: there is `{% if limit %}checked{% endif %}`
-    inside the checkbox itself, and the cut happened before it. Bound by the
-    div's closing tag."""
+    Since 22.11 (Matan: "one place to set a budget") the row in settings only
+    shows the budget and opens the sheet on the month page; the switch, the
+    amount box and the save button that used to be here are gone."""
     html = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
-    start = html.index('<div class="cat-budget-edit">')
-    depth, i = 0, start
-    while True:
-        if html.startswith("<div", i):
-            depth += 1
-        elif html.startswith("</div>", i):
-            depth -= 1
-            if depth == 0:
-                return html[start:i + 6]
-        i += 1
+    start = html.index('<a class="cat-budget-link')
+    return html[start:html.index("</a>", start)]
 
 
-def test_there_is_exactly_one_toggle_and_it_says_what_it_does():
-    """One switch, "set a monthly budget". Not two, and not wording that leaves the
-    user guessing what will happen."""
+def test_the_row_shows_the_budget_and_opens_the_month_sheet():
+    """One place to set a budget: the sheet on the month page. The settings row
+    says what the budget is (or offers to set one) and leads there."""
     block = _budget_block()
 
-    assert block.count('type="checkbox"') == 1
-    assert "קביעת תקציב חודשי" in block
-
-
-def test_it_is_a_switch_and_not_a_tick_box():
-    """An on/off switch, like every other setting in the app, and not a checkbox.
-    `pref-switch` is the existing component; building another would produce two
-    switches that look different on the same screen."""
-    block = _budget_block()
-
-    assert 'class="pref-switch"' in block
-    assert 'class="pref-slider"' in block
+    assert "url_for('month_view') }}?budgets=1" in block
+    assert "תקציב ₪{{ limit.amount | round | int | money }}" in block
+    assert "קביעת תקציב" in block
+    assert 'type="checkbox"' not in block, "the budget is no longer set from this row"
+    js = (_ROOT / "frontend/static/js/month.js").read_text(encoding="utf-8")
+    assert ".get('budgets') === '1'" in js and "history.replaceState(null, '', window.location.pathname);" in js
 
 
 def test_the_switch_reuses_the_existing_component():
@@ -292,16 +278,6 @@ def test_the_switch_reuses_the_existing_component():
 
     assert ".pref-switch input:checked + .pref-slider" in css
     assert ".cat-budget-toggle" not in css, "a redundant local component remains"
-
-
-def test_turning_it_on_reveals_an_amount_box_and_a_save_button():
-    block  = _budget_block()
-    fields = block[block.index('class="cat-budget-fields"'):]
-
-    assert 'class="form-input budget-amount"' in fields
-    assert "budget-save" in fields and ">שמירה<" in fields
-    # hidden until turned on
-    assert "{% if not limit %}hidden{% endif %}" in block
 
 
 def test_the_amount_box_is_hidden_until_the_toggle_is_on():

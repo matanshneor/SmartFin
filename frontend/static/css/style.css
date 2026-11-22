@@ -840,9 +840,12 @@ a.kpi-chip:active { transform: scale(0.97); }
        the dynamic island, so 14px from the top of the screen is inside that band:
        Matan: "the island is really stepping on it". And above the card the
        sticky header appears too (`.month-sticky`, 44px under the band); without
-       it the top of the card was cut off (Matan, 2.10). 44 + 14 = 58. */
-    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px));
+       it the top of the card was cut off (Matan, 2.10). Since 22.11 the bar
+       carries a row of shortcuts too: 88 + 16 = 104. */
+    scroll-margin-top: calc(104px + env(safe-area-inset-top, 0px));
 }
+/* The other sections the shortcuts jump to */
+#allTx, #month-projects { scroll-margin-top: calc(104px + env(safe-area-inset-top, 0px)); }
 
 .chart-card.flash {
     /* The flash replaces the entrance animation (`.anim-rise`, `motion.js`),
@@ -866,7 +869,7 @@ a.kpi-chip:active { transform: scale(0.97); }
 
 /* The category an alert led to (Matan, 11.10): the same spacing from the
    sticky header as the breakdowns */
-.legend-item-wrap[id] { scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px)); }
+.legend-item-wrap[id] { scroll-margin-top: calc(104px + env(safe-area-inset-top, 0px)); }
 
 .legend-item-wrap.flash {
     border-radius: var(--radius-sm);
@@ -1322,7 +1325,7 @@ body.has-install-bar .toast {
     box-shadow: var(--shadow-card);
     font-size: var(--text-body);
     color: var(--color-text-muted);
-    scroll-margin-top: calc(58px + env(safe-area-inset-top, 0px));
+    scroll-margin-top: calc(104px + env(safe-area-inset-top, 0px));
 }
 .empty-row-icon { font-size: var(--text-title); }
 .empty-row-text { flex: 1; }
@@ -3371,6 +3374,15 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 /* While reordering, the row also carries the handle and the arrows: the word
    goes (the switch keeps its spoken label), so the average stays on one line */
 #categoriesArea.managing .cat-budget-label { display: none; }
+/* The budget on a category's row: what it is, and a way to the sheet that sets
+   it (Matan, 22.11) */
+.cat-budget-link {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding-inline: 6px;
+    font-size: var(--text-md); font-weight: 600; color: var(--color-text-muted); text-decoration: none; white-space: nowrap;
+}
+.cat-budget-link.has-budget { color: var(--color-gold-text); }
+.cat-budget-link svg { width: 14px; height: 14px; }
+#categoriesArea.managing .cat-budget-link { display: none; }
 
 .cat-budget-fields {
     display: flex;
@@ -4930,12 +4942,27 @@ input.emoji-input[data-free-typing] { cursor: text; caret-color: auto; }
    transaction sheet (100). */
 .month-sticky {
     position: fixed; top: 0; left: 0; right: 0; z-index: 60;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 10px;
     background: linear-gradient(170deg, var(--hero-bg), var(--hero-bg-2));
-    color: var(--hero-text); border: 0; font: inherit; text-align: start; cursor: pointer;
+    color: var(--hero-text);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
+.month-sticky-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 8px;
+    background: transparent; color: inherit; border: 0; font: inherit; text-align: start; cursor: pointer;
+}
+/* Shortcuts to the page's sections (Matan, 22.11). One row that scrolls
+   sideways if it has to; 36px chips with a 44px tap height. */
+.month-sticky-nav { display: flex; gap: 6px; padding: 0 14px 10px; overflow-x: auto; scrollbar-width: none; }
+.month-sticky-nav::-webkit-scrollbar { display: none; }
+.month-sticky-nav[hidden] { display: none; }
+.month-jump {
+    position: relative; flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: var(--radius-pill);
+    border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06);
+    color: var(--hero-text); font: inherit; font-size: var(--text-md); font-weight: 600; cursor: pointer;
+}
+.month-jump::before { content: ""; position: absolute; inset: -4px 0; }
+.month-jump.is-current { background: var(--color-gold); border-color: var(--color-gold); color: #FFFFFF; }
 .month-sticky[hidden] { display: none; }
 .month-sticky-title { font-weight: 700; font-size: 1rem; }
 .month-sticky-value { font-weight: 700; font-size: var(--text-body); font-variant-numeric: tabular-nums; direction: rtl; }

@@ -350,7 +350,7 @@ def test_second_audit_round_of_22_11():
     assert "--text-2xs:            0.75rem;" in _CSS
     core = _read(_JS / "core.js")
     assert "window.sfThousands = function (input) {" in core
-    for name in ("project_edit.html", "project_new.html", "settings.html"):
+    for name in ("project_edit.html", "project_new.html"):
         assert "data-thousands" in _read(_T / name), name
     assert 'data-add-type="expense"' in _read(_T / "months.html")
 
@@ -361,3 +361,13 @@ def test_switch_hints_and_my_colour():
     assert 'תשלומים<small class="switch-hint">מחיר מלא שמתחלק לחודשים</small>' in base
     st = _read(_T / "settings.html")
     assert "הצבע שלך" not in st and 'id="memberColorTitle">הצבע שלי</p>' in st
+
+
+def test_third_round_of_22_11_shortcuts_one_budget_place_swipe_hint():
+    month = _read(_JS / "month.js")
+    assert "nav.className = 'month-sticky-nav';" in month and "chip.className = 'month-jump';" in month
+    assert 'id="month-projects"' in _read(_T / "month.html")
+    assert "#allTx, #month-projects { scroll-margin-top: calc(104px + env(safe-area-inset-top, 0px)); }" in _CSS
+    tx = _read(_JS / "transactions.js")
+    assert "const KEY = 'sf_swipe_hint';" in tx
+    assert "content.style.transform = 'translateX(' + OPEN_X + 'px)';" in tx
