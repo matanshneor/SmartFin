@@ -1146,3 +1146,50 @@ document.addEventListener('click', function (e) {
     window.addEventListener('pageshow', update);
     update();
 })();
+
+
+// ── A small sheet above the iPhone keyboard (Matan, 22.11: "in setting a
+// budget the caret wanders around the screen by itself") ──
+// iOS doesn't resize the page for the keyboard: a sheet fixed to the bottom
+// stays behind it, and Safari pans the whole screen to reach the field, with
+// the caret drawn on the way. Same cure as the add sheet (`transactions.js`):
+// while a field in a `.color-sheet` has focus and the keyboard covers part of
+// the screen, the sheet takes the visible screen's place and size, and the
+// field is scrolled into sight inside it, at once.
+(function () {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let fitted = null;
+    function release() {
+        if (!fitted) return;
+        fitted.style.top = fitted.style.bottom = fitted.style.height = '';
+        fitted.classList.remove('kb-fit');
+        fitted = null;
+    }
+    function reveal(el, sheet) {
+        let box = el.parentElement;
+        while (box && box !== sheet && !/auto|scroll/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
+        if (!box || box === sheet) return;
+        const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+        if (r.bottom > b.bottom - 8) box.scrollTop += r.bottom - b.bottom + 8;
+        else if (r.top < b.top + 8) box.scrollTop += r.top - b.top - 8;
+    }
+    function fit() {
+        const a = document.activeElement;
+        const sheet = a && a.matches && a.matches('input, textarea, select') ? a.closest('.color-sheet') : null;
+        const covered = window.innerHeight - vv.height > 60;
+        if (fitted && (fitted !== sheet || !covered)) release();
+        if (!sheet || !covered) return;
+        sheet.style.top = Math.round(vv.offsetTop) + 'px';
+        sheet.style.bottom = 'auto';
+        sheet.style.height = Math.round(vv.height) + 'px';
+        sheet.classList.add('kb-fit');
+        fitted = sheet;
+        reveal(a, sheet);
+    }
+    vv.addEventListener('resize', fit);
+    vv.addEventListener('scroll', fit);
+    document.addEventListener('focusin', function () { setTimeout(fit, 0); });
+    document.addEventListener('focusout', function () { setTimeout(fit, 0); });
+    window.sfFitSmallSheet = fit;     // for the browser test
+})();
