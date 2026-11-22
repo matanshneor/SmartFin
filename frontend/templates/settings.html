@@ -392,14 +392,28 @@
                 {% endfor %}
             </div>
             <div id="recurringList">
-                {# Installment purchases in a list of their own (Matan, 22.11): a
-                   standing order goes on, these end on a known date #}
+                {# Two parts, one under the other (Matan, 22.11: "בתשלומים" sat between
+                   "הוצאות" and "חיסכון" like one more kind of recurring
+                   transaction, and the page read as a jumble): first what
+                   repeats with no end, by type; then, under a line and a heading
+                   of its own, the installment purchases. The headings appear
+                   only when there are both parts to tell apart. #}
+                {% set fixed = recurring | rejectattr('installments') | list %}
+                {% set installments = recurring | selectattr('installments') | list %}
+                {% set sections = [] %}
                 {% for t, _, title in rec_groups %}
-                {% set of_type = recurring | selectattr('type', 'equalto', t) | list %}
-                {% for title, items in [(title, of_type | rejectattr('installments') | list),
-                                        ('בתשלומים', of_type | selectattr('installments') | list)] %}
+                {% set _ = sections.append((title, fixed | selectattr('type', 'equalto', t) | list, 'fixed', loop.first)) %}
+                {% endfor %}
+                {% set _ = sections.append((none, installments, 'installments', false)) %}
+                {% set seen = namespace(fixed=false) %}
+                {% for title, items, part, _first in sections %}
                 {% if items %}
-                <p class="recurring-group-title">{{ title }}</p>
+                {% if part == 'fixed' and not seen.fixed %}
+                {% set seen.fixed = true %}
+                {% if installments %}<h3 class="recurring-part-title">קבועות</h3>{% endif %}
+                {% endif %}
+                {% if part == 'installments' %}<h3 class="recurring-part-title{% if fixed %} has-line{% endif %}">בתשלומים</h3>{% endif %}
+                {% if title %}<p class="recurring-group-title">{{ title }}</p>{% endif %}
                 <ul class="recurring-list">
                     {% for tx in items %}
                     <li class="recurring-row" role="button" tabindex="0" data-id="{{ tx.id }}" data-amount="{{ tx.amount }}" data-type="{{ tx.type }}"
@@ -438,7 +452,6 @@
                     {% endfor %}
                 </ul>
                 {% endif %}
-                {% endfor %}
                 {% endfor %}
             </div>
             {% else %}

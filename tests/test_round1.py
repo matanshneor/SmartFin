@@ -323,7 +323,10 @@ def test_installment_left_counts_what_is_still_to_pay():
 
 def test_installments_have_their_own_list_and_colours_a_swatch():
     st = _read(_T / "settings.html")
-    assert "('בתשלומים', of_type | selectattr('installments') | list)" in st
+    # two parts since 22.11: "קבועות" by type, then "בתשלומים" under a line
+    assert "{% set installments = recurring | selectattr('installments') | list %}" in st
+    assert '<h3 class="recurring-part-title{% if fixed %} has-line{% endif %}">בתשלומים</h3>' in st
+    assert '<h3 class="recurring-part-title">קבועות</h3>' in st
     assert "נשארו ₪{{ inst.left | money }}" in st
     assert 'class="color-swatch owner-{{ idx }}"' in st
     tx = _read(_JS / "transactions.js")
