@@ -1184,8 +1184,18 @@ document.addEventListener('click', function (e) {
         sheet.style.bottom = 'auto';
         sheet.style.height = Math.round(vv.height) + 'px';
         sheet.classList.add('kb-fit');
+        seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
+        if (!fitted) requestAnimationFrame(watch);
         fitted = sheet;
         reveal(a, sheet);
+    }
+    // iOS doesn't always announce that the visible screen moved: while fitted,
+    // look every frame (as in the add sheet)
+    let seenTop = 0, seenHeight = 0;
+    function watch() {
+        if (!fitted) return;
+        if (Math.round(vv.offsetTop) !== seenTop || Math.round(vv.height) !== seenHeight) fit();
+        if (fitted) requestAnimationFrame(watch);
     }
     vv.addEventListener('resize', fit);
     vv.addEventListener('scroll', fit);

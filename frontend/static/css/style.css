@@ -5074,6 +5074,10 @@ body > .color-sheet { z-index: var(--z-picker); }
 .budget-sheet-actions { margin-top: 4px; }
 /* Keyboard open on iPhone (`core.js`): the sheet lives in the visible screen */
 .color-sheet.kb-fit .color-sheet-card { max-height: 100%; padding-bottom: 12px; }
+.color-sheet.kb-fit::after {
+    content: ''; position: absolute; inset-inline: 0; top: 100%; height: 100vh;
+    background: var(--color-card);
+}
 
 /* "This week" on the home page (Matan, 30.9) */
 .week-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -5522,6 +5526,13 @@ body.tx-screen-open { overflow: hidden; }
 #modalOverlay.kb-fit .modal-sheet { padding-bottom: 0; }
 #modalOverlay.kb-fit .tx-form::after { height: 8px; }
 #modalOverlay.kb-fit label.submit-btn { bottom: 8px; }
+/* Whatever is under the fitted sheet is the sheet's colour, a whole screen
+   down: if it is ever a step above the keyboard, the page doesn't show in the
+   gap (Matan, 22.11) */
+#modalOverlay.kb-fit::after {
+    content: ''; position: absolute; inset-inline: 0; top: 100%; height: 100vh;
+    background: var(--color-bg-elevated);
+}
 /* The 12px ring around Save cut the bottom edge off the project field above it
    (Matan, 21.11, a screenshot): only 8px separated them. 18px (it collapses
    with the error line's 8px margin above), so the ring ends in the gap. */

@@ -581,6 +581,8 @@
                 overlay.style.height = Math.round(vv.height) + 'px';
                 overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');
                 overlay.classList.add('kb-fit');
+                seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
+                if (!fitted) requestAnimationFrame(watch);
                 fitted = true;
                 // The sheet just got shorter: the field being typed in stays
                 // in sight, at once — before iOS draws its caret elsewhere
@@ -592,6 +594,16 @@
                 fitted = false;
             }
             markStuck();
+        }
+        // iOS doesn't always announce that the visible screen moved (a pull on
+        // the page under the sheet, the keyboard's bar changing): the sheet
+        // stayed a step behind and the page showed between Save and the
+        // keyboard (Matan, 22.11). While fitted, look every frame.
+        let seenTop = 0, seenHeight = 0;
+        function watch() {
+            if (!fitted) return;
+            if (Math.round(vv.offsetTop) !== seenTop || Math.round(vv.height) !== seenHeight) fit();
+            if (fitted) requestAnimationFrame(watch);
         }
         // Save is stuck to the bottom while there is still content below it: then
         // the strip under it is covered (see `.is-stuck` in the CSS)
