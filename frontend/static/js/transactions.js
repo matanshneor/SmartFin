@@ -581,6 +581,8 @@
                 overlay.style.height = Math.round(vv.height) + 'px';
                 overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');
                 overlay.classList.add('kb-fit');
+                seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
+                if (!fitted) requestAnimationFrame(watch);
                 fitted = true;
                 // The sheet just got shorter: the field being typed in stays
                 // in sight, at once — before iOS draws its caret elsewhere
@@ -592,6 +594,16 @@
                 fitted = false;
             }
             markStuck();
+        }
+        // iOS doesn't always announce that the visible screen moved (a pull on
+        // the page under the sheet, the keyboard's bar changing): the sheet
+        // stayed a step behind and the page showed between Save and the
+        // keyboard (Matan, 22.11). While fitted, look every frame.
+        let seenTop = 0, seenHeight = 0;
+        function watch() {
+            if (!fitted) return;
+            if (Math.round(vv.offsetTop) !== seenTop || Math.round(vv.height) !== seenHeight) fit();
+            if (fitted) requestAnimationFrame(watch);
         }
         // Save is stuck to the bottom while there is still content below it: then
         // the strip under it is covered (see `.is-stuck` in the CSS)
@@ -920,8 +932,25 @@
     }
 
     closeBtn.addEventListener('click', closeModal);
+    // A field of the sheet with the keyboard up. Then a tap outside or a pull
+    // down puts the keyboard away and nothing more: the sheet, and what was
+    // typed in it, stay (Matan, 22.11: "I pull the keyboard down and I'm out
+    // of the add screen, and have to start over").
+    function typingField() {
+        const a = document.activeElement;
+        return a && a !== modalSheetEl && modalSheetEl.contains(a)
+            && a.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea') ? a : null;
+    }
+    // Asked when the finger lands: some browsers take the focus away before
+    // the click arrives
+    let typingAtDown = false;
+    overlay.addEventListener('pointerdown', function () { typingAtDown = !!typingField(); }, true);
     overlay.addEventListener('click', function (e) {
-        if (e.target === overlay) closeModal();
+        if (e.target !== overlay) return;
+        const field = typingField();
+        if (field) field.blur();
+        if (field || (typingAtDown && window.matchMedia('(pointer: coarse)').matches)) { typingAtDown = false; return; }
+        closeModal();
     });
 
     // Escape closes the modal, Tab/Shift+Tab stay inside it (focus trap)
@@ -1034,6 +1063,8 @@
         }, { passive: true });
 
         overlay.addEventListener('touchmove', function (e) {
+            // A finger on the backdrop doesn't drag the page behind the sheet
+            if (overlay.classList.contains('open') && !sheet.contains(e.target)) { e.preventDefault(); return; }
             if (!g) return;
             const t = e.touches[0];
             const dx = t.clientX - g.x0, dy = t.clientY - g.y0;
@@ -1050,6 +1081,9 @@
                 if (Math.abs(dx) > Math.abs(dy) || (dy > 0 && sheet.scrollTop > 0) || (dy < 0 && !atEnd)) {
                     g = null; return;
                 }
+                // Keyboard up: a pull down puts it away, the sheet stays
+                const field = dy > 0 ? typingField() : null;
+                if (field) { e.preventDefault(); field.blur(); g = null; return; }
                 g.axis = 'y';
                 g.y0 += dy > 0 ? 8 : -8;            // without the 8-pixel jump of the decision
                 sheet.style.transition = 'none';

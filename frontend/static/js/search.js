@@ -28,6 +28,13 @@
         if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
     }
 
+    // Scrolling the results puts the keyboard away (Matan, 22.11): on iPhone it
+    // covers the bottom of the list, and the last results couldn't be reached
+    results.addEventListener('touchmove', function () {
+        const a = document.activeElement;
+        if (a && screen.contains(a) && a.matches('input')) a.blur();
+    }, { passive: true });
+
     function row(tx) {
         const li = document.createElement('li');
         li.className = 'cat-tx-row';

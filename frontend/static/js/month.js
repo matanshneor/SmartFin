@@ -704,7 +704,20 @@ window.addEventListener('sf:refreshed', paint);
         sheet.appendChild(card);
         document.body.appendChild(sheet);
 
+        // Asked when the finger lands: some browsers take the focus away
+        // before the click arrives
+        let typingAtDown = false;
+        sheet.addEventListener('pointerdown', function () {
+            const a = document.activeElement;
+            typingAtDown = !!(a && sheet.contains(a) && a.matches('input'));
+        }, true);
         sheet.addEventListener('click', function (e) {
+            // Keyboard up: a tap outside puts it away, the sheet and what was
+            // typed stay (Matan, 22.11)
+            const typing = document.activeElement;
+            const wasTyping = typingAtDown; typingAtDown = false;
+            if (e.target === sheet && typing && sheet.contains(typing) && typing.matches('input')) { typing.blur(); return; }
+            if (e.target === sheet && wasTyping && window.matchMedia('(pointer: coarse)').matches) return;
             if (e.target === sheet || e.target.closest('[data-cancel]')) { closeBudgets(); return; }
             if (!e.target.closest('[data-save]')) return;
             const limits = {};
