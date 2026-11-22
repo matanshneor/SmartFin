@@ -599,6 +599,9 @@
             // in the CSS
             document.documentElement.classList.toggle('sheet-typing',
                 !!typing && window.matchMedia('(pointer: coarse)').matches);
+            // Brought into sight when the field takes focus or the keyboard
+            // changes size, and not again: later the sheet is the finger's
+            const moved = a !== seenActive || Math.round(vv.height) !== seenHeight;
             seenActive = a; seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
             if (typing && !watching) { watching = true; requestAnimationFrame(watch); }
             if (typing && covered) {
@@ -610,7 +613,7 @@
                 fitted = true;
                 // The sheet just got shorter: the field being typed in stays
                 // in sight, at once — before iOS draws its caret elsewhere
-                revealInSheet(a, false);
+                if (moved) revealInSheet(a, false);
             } else if (fitted) {
                 overlay.style.top = overlay.style.bottom = overlay.style.height = '';
                 overlay.style.removeProperty('--sheet-room');
