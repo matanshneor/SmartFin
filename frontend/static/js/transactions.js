@@ -932,8 +932,25 @@
     }
 
     closeBtn.addEventListener('click', closeModal);
+    // A field of the sheet with the keyboard up. Then a tap outside or a pull
+    // down puts the keyboard away and nothing more: the sheet, and what was
+    // typed in it, stay (Matan, 22.11: "I pull the keyboard down and I'm out
+    // of the add screen, and have to start over").
+    function typingField() {
+        const a = document.activeElement;
+        return a && a !== modalSheetEl && modalSheetEl.contains(a)
+            && a.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea') ? a : null;
+    }
+    // Asked when the finger lands: some browsers take the focus away before
+    // the click arrives
+    let typingAtDown = false;
+    overlay.addEventListener('pointerdown', function () { typingAtDown = !!typingField(); }, true);
     overlay.addEventListener('click', function (e) {
-        if (e.target === overlay) closeModal();
+        if (e.target !== overlay) return;
+        const field = typingField();
+        if (field) field.blur();
+        if (field || (typingAtDown && window.matchMedia('(pointer: coarse)').matches)) { typingAtDown = false; return; }
+        closeModal();
     });
 
     // Escape closes the modal, Tab/Shift+Tab stay inside it (focus trap)
@@ -1046,6 +1063,8 @@
         }, { passive: true });
 
         overlay.addEventListener('touchmove', function (e) {
+            // A finger on the backdrop doesn't drag the page behind the sheet
+            if (overlay.classList.contains('open') && !sheet.contains(e.target)) { e.preventDefault(); return; }
             if (!g) return;
             const t = e.touches[0];
             const dx = t.clientX - g.x0, dy = t.clientY - g.y0;
@@ -1062,6 +1081,9 @@
                 if (Math.abs(dx) > Math.abs(dy) || (dy > 0 && sheet.scrollTop > 0) || (dy < 0 && !atEnd)) {
                     g = null; return;
                 }
+                // Keyboard up: a pull down puts it away, the sheet stays
+                const field = dy > 0 ? typingField() : null;
+                if (field) { e.preventDefault(); field.blur(); g = null; return; }
                 g.axis = 'y';
                 g.y0 += dy > 0 ? 8 : -8;            // without the 8-pixel jump of the decision
                 sheet.style.transition = 'none';
