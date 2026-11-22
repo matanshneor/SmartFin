@@ -283,6 +283,67 @@ app.jinja_env.filters["count_of"] = count_of
 app.jinja_env.filters["day_label"] = lambda d: day_label(d, clock.today())
 
 
+_WEEKDAY_LETTERS = ["ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳", "א׳"]      # `date.weekday()`: Monday is 0
+UPCOMING_DAYS = 7
+
+
+def upcoming_charges(templates, today) -> dict:
+    """"מה יורד השבוע" on the home page (Matan, 23.11): the recurring transactions
+    and installments that will be charged in the next seven days, tomorrow
+    first. Today's are already recorded and counted in "השבוע" above it.
+
+    Money that leaves the month only: no income, and no project money, which
+    the home page doesn't count anywhere. An installment after the first is the
+    regular payment (`installment_plan`), not the template's amount, which
+    carries the remainder."""
+    tomorrow = today + timedelta(days=1)
+    items = []
+    for t in templates or []:
+        if t.get("type") == "income" or t.get("project_id") or not db.is_active_template(t, today):
+            continue
+        when = db.next_recurring_date(t, tomorrow)
+        if when is None or (when - today).days > UPCOMING_DAYS:
+            continue
+        amount = float(t.get("amount") or 0)
+        if t.get("installments") and t.get("installment_total") and str(t.get("date"))[:10] != when.isoformat():
+            plan = db.installment_plan(t["installment_total"], t["installments"], t["date"])
+            if plan:
+                amount = plan["base"]
+        days = (when - today).days
+        items.append({
+            "id": t["id"], "date": when,
+            "day": "מחר" if days == 1 else _WEEKDAY_LETTERS[when.weekday()],
+            "soon": days == 1,
+            "icon": t.get("category_icon") or "📦",
+            "name": t.get("description") or t.get("category_name") or "",
+            "amount": amount,
+        })
+    items.sort(key=lambda i: (i["date"], -i["amount"]))
+    return {"items": items, "total": sum(i["amount"] for i in items)}
+
+
+def _upcoming_for_home(family_id, user_id, settings, today):
+    """The templates are fetched only when a charge is due within the week: the
+    family's settings already hold the date of the next one (`recurring_next`,
+    kept by the recurring engine), so most days this costs the home page nothing."""
+    nxt = (settings or {}).get("recurring_next")
+    nxt = nxt if isinstance(nxt, dict) else {}
+    try:
+        due = date.fromisoformat(str(nxt.get("due"))[:10]) if nxt.get("due") else None
+    except ValueError:
+        due = None
+    # No date of a next charge (no recurring transactions, or the engine hasn't
+    # looked yet), or one further than a week away: nothing to show
+    if due is None or (due - today).days > UPCOMING_DAYS:
+        return None
+    try:
+        templates = _timed("upcoming", lambda: db.get_recurring_transactions(family_id, user_id, settings))
+    except db.DataUnavailable:
+        return None                         # a card of its own: the home page stands without it
+    out = upcoming_charges(templates, today)
+    return out if out["items"] else None
+
+
 def project_kind(p) -> str:
     """A project is one of two kinds (Matan, 22.11): `savings`, saving towards a
     goal, only savings belong to it, and its amount is a goal to reach; or
@@ -1714,6 +1775,7 @@ def dashboard():
         year_recap_year=db.year_recap_due(clock.today()),
         hebrew_months=_HEBREW_MONTHS,
         pinned_project=pinned_project,
+        upcoming=_upcoming_for_home(family_id, user["id"], batch["settings"], clock.today()),
         # For "a family member joined" (`whats-new.js`): id, first name and
         # colour, no other details
         home_members=[{"id": m["id"], "name": m.get("name") or "",

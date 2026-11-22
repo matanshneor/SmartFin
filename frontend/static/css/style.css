@@ -6218,3 +6218,19 @@ html.small-sheet-typing body > :not(.color-sheet):not(.toast) { visibility: hidd
 
 /* A savings project's bar at the top of its page: green, it fills as money goes in */
 .balance-bar-fill.saving { background: var(--color-income-light); }
+
+/* "מה יורד השבוע" on the home page (Matan, 23.11; the dense list he chose): one
+   line per charge, the day on the right, the amount on the left */
+.upcoming-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.upcoming-head .chart-title { margin: 0; }
+.upcoming-total { font-size: var(--text-xs); color: var(--color-text-muted); }
+.upcoming-total b { color: var(--color-text); font-variant-numeric: tabular-nums; }
+.upcoming-list { list-style: none; margin: 0; padding: 0; }
+.upcoming-row {
+    display: flex; align-items: baseline; gap: 8px; min-height: 40px; padding: 8px 0;
+    color: var(--color-text); text-decoration: none; font-size: var(--text-md);
+}
+.upcoming-day { flex: none; width: 44px; font-size: var(--text-xs); color: var(--color-text-muted); }
+.upcoming-day.is-soon { color: var(--color-gold-text); font-weight: 700; }
+.upcoming-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upcoming-amount { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
