@@ -294,3 +294,70 @@ def test_series_delete_is_one_question_with_three_answers():
     core = _read(_JS / "core.js")
     assert "closeConfirm('extra')" in core
     assert 'id="confirmExtra"' in _read(_T / "base.html")
+
+
+def test_audit_fixes_of_22_11():
+    # year recap: the bar's height is a share of the row above its label
+    assert ".yr-bar { display: grid; grid-template-rows: minmax(0, 1fr) auto;" in _CSS
+    # project budget "12000", not "12000.0"
+    assert "{{ b | int if b == b | int else b }}" in _read(_T / "project_edit.html")
+    # an installment purchase is named in the recurring list
+    assert 'class="installment-tag">' in _read(_T / "settings.html")
+    # the same row of checkboxes when creating a project as when editing one
+    assert '<div class="track-row">' in _read(_T / "project_new.html")
+    # a switch that is off is hollow
+    assert ".pref-switch input:not(:checked) + .pref-slider { background: transparent;" in _CSS
+
+
+def test_installment_left_counts_what_is_still_to_pay():
+    # "נשארו ₪3,600" (Matan, 22.11): the first payment carries the remainder
+    from backend.supabase_config import installment_left
+    assert installment_left(4800, 12, "2026-09-04", 3) == 3600
+    assert installment_left(4800, 12, "2026-09-04", 12) == 0
+    assert installment_left(4800, 12, "2026-09-04", 0) == 4800
+    assert installment_left(100, 3, "2026-09-04", 1) == 66.66      # 33.34 + 33.33 + 33.33
+    assert installment_left(None, 12, "2026-09-04", 3) is None
+
+
+def test_installments_have_their_own_list_and_colours_a_swatch():
+    st = _read(_T / "settings.html")
+    assert "('בתשלומים', of_type | selectattr('installments') | list)" in st
+    assert "נשארו ₪{{ inst.left | money }}" in st
+    assert 'class="color-swatch owner-{{ idx }}"' in st
+    tx = _read(_JS / "transactions.js")
+    assert "' · נשארו ₪' + window.sfMoney(editingInstallment.left)" in tx
+
+
+def test_bimonthly_and_yearly_frequencies():
+    # Matan, 22.11: arnona/water/electricity every two months, insurance yearly
+    from datetime import date
+    from backend.supabase_config import _recurring_occurrences as occ
+    from backend.app import _FREQUENCIES
+    assert {"bimonthly", "yearly"} <= set(_FREQUENCIES)
+    two = occ({"date": "2026-01-31", "recurring_frequency": "bimonthly"}, date(2026, 12, 31))
+    assert [d.isoformat() for d in two] == ["2026-03-31", "2026-05-31", "2026-07-31", "2026-09-30", "2026-11-30"]
+    year = occ({"date": "2024-02-29", "recurring_frequency": "yearly"}, date(2028, 3, 1))
+    assert [d.isoformat() for d in year] == ["2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29"]
+    # monthly is unchanged
+    month = occ({"date": "2026-10-23", "recurring_frequency": "monthly_same"}, date(2027, 1, 31))
+    assert [d.isoformat() for d in month] == ["2026-11-23", "2026-12-23", "2027-01-23"]
+    base = _read(_T / "base.html")
+    assert '<option value="bimonthly">' in base and '<option value="yearly">' in base
+
+
+def test_second_audit_round_of_22_11():
+    assert ".cat-tx-row, .week-detail-list li.week-tx, .legend-item { min-height: 44px; }" in _CSS
+    assert "--text-2xs:            0.75rem;" in _CSS
+    core = _read(_JS / "core.js")
+    assert "window.sfThousands = function (input) {" in core
+    for name in ("project_edit.html", "project_new.html", "settings.html"):
+        assert "data-thousands" in _read(_T / name), name
+    assert 'data-add-type="expense"' in _read(_T / "months.html")
+
+
+def test_switch_hints_and_my_colour():
+    base = _read(_T / "base.html")
+    assert 'עסקה קבועה<small class="switch-hint">חוזרת כל חודש, עד שעוצרים אותה</small>' in base
+    assert 'תשלומים<small class="switch-hint">מחיר מלא שמתחלק לחודשים</small>' in base
+    st = _read(_T / "settings.html")
+    assert "הצבע שלך" not in st and 'id="memberColorTitle">הצבע שלי</p>' in st

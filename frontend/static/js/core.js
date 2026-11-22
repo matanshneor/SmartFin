@@ -49,6 +49,40 @@ window.sfCount = function (n, one, many) {
     return n === 1 ? one : n + ' ' + many;
 };
 
+/* "12,000" in a field where a whole amount is typed (audit, 22.11: project and
+ * category budgets showed "12000" while every other number has commas). The
+ * field becomes text with a numeric keyboard; `sfNum` reads it back. Safe to
+ * call twice. `defaultValue` follows, so "nothing changed" checks still hold. */
+window.sfNum = function (v) { return String(v == null ? '' : v).replace(/,/g, '').trim(); };
+window.sfThousands = function (input) {
+    if (!input || input.dataset.thousands === 'on') return;
+    input.dataset.thousands = 'on';
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.autocomplete = 'off';
+    function format(keepCaret) {
+        const raw = input.value;
+        const caret = keepCaret ? input.selectionStart : null;
+        const digitsBefore = caret == null ? 0 : raw.slice(0, caret).replace(/\D/g, '').length;
+        const digits = raw.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+        const out = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        if (out === raw) return;
+        input.value = out;
+        if (caret != null) {
+            let pos = 0, seen = 0;
+            while (pos < out.length && seen < digitsBefore) { if (/\d/.test(out[pos])) seen++; pos++; }
+            try { input.setSelectionRange(pos, pos); } catch (e) { /* not focusable right now */ }
+        }
+    }
+    format(false);
+    input.defaultValue = input.value;
+    input.addEventListener('input', function () { format(true); });
+};
+(function () {
+    function all() { document.querySelectorAll('input[data-thousands]').forEach(window.sfThousands); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', all); else all();
+})();
+
 /* A save button is enabled only when something changed (Matan, 13.10: "everywhere
  * something can be saved"). The label doesn't change; only disabled or
  * enabled. "Changed" = different from the saved value, each field's

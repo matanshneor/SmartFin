@@ -1343,7 +1343,17 @@ def transaction_meta(tx_id: str, family_id: str):
     row = _tx_row(tx_id, family_id)
     if not row:
         return None
-    return {k: row.get(k) for k in ("created_by", "created_at", "recurring_parent_id", "installments")}
+    meta = {k: row.get(k) for k in ("created_by", "created_at", "recurring_parent_id", "installments",
+                                      "installment_no", "installment_total", "date")}
+    # Not every occurrence carries the full price (`_recurring_occurrences`
+    # writes only the payment): it is on the series' first payment, with the
+    # date the plan starts from
+    if meta["installments"] and meta["recurring_parent_id"]:
+        parent = _tx_row(meta["recurring_parent_id"], family_id)
+        if parent and parent.get("installment_total"):
+            meta["installment_total"] = parent["installment_total"]
+            meta["date"] = parent.get("date")
+    return meta
 
 
 def get_transaction_receipt_path(transaction_id: str, family_id: str):
@@ -1823,6 +1833,7 @@ def personal_project_owner(tx_id: str, family_id: str):
 
 _TX_ROW_FIELDS = ("user_id, project_id, amount, type, date, description, category_id, "
                   "project_category_id, created_by, created_at, recurring_parent_id, installments, "
+                  "installment_no, installment_total, "
                   "projects(owner_id)")
 
 
@@ -2422,10 +2433,14 @@ def _recurring_occurrences(template: dict, until) -> list:
     freq = template.get("recurring_frequency") or "monthly_1"
 
     out = []
-    if freq in ("monthly_1", "monthly_15", "monthly_same"):
+    if freq in ("monthly_1", "monthly_15", "monthly_same", "bimonthly", "yearly"):
         # monthly_same repeats every month on the day-of-month of the source
-        # date (e.g. the 23rd); monthly_1/15 are fixed to the 1st or the 15th
+        # date (e.g. the 23rd); monthly_1/15 are fixed to the 1st or the 15th.
+        # bimonthly and yearly (Matan, 22.11: arnona, water and electricity
+        # come every two months, insurance once a year) keep the source day
+        # too, every 2 or 12 months.
         target_day = {"monthly_1": 1, "monthly_15": 15}.get(freq, start.day)
+        step_months = {"bimonthly": 2, "yearly": 12}.get(freq, 1)
         # Start from the start month itself: an occurrence in the same month
         # after the start date counts
         y, m = start.year, start.month
@@ -2437,9 +2452,9 @@ def _recurring_occurrences(template: dict, until) -> list:
                 break
             if d > start:
                 out.append(d)
-            m += 1
-            if m > 12:
-                m, y = 1, y + 1
+            m += step_months
+            while m > 12:
+                m, y = m - 12, y + 1
     else:
         step = timedelta(days=7 if freq == "weekly" else 14)
         d = start + step
@@ -2476,6 +2491,23 @@ def installment_plan(total: float, count: int, start):
     first = cents - base * (count - 1)
     return {"total": round(cents / 100, 2), "count": count, "base": round(base / 100, 2),
             "first": round(first / 100, 2), "end_date": _add_months(start, count - 1).isoformat()}
+
+
+def installment_left(total, count, start, paid: int):
+    """How much of an installment purchase is still to pay after `paid`
+    payments (Matan, 22.11: "נשארו ₪3,600"). The first payment carries the
+    remainder, as in `installment_plan`. `None` when the numbers are missing."""
+    try:
+        plan = installment_plan(float(total), int(count), start)
+    except (TypeError, ValueError):
+        logger.warning("installment_left: bad numbers %r in %r payments", total, count)
+        return None
+    if not plan:
+        logger.warning("installment_left: no plan for %r in %r payments", total, count)
+        return None
+    paid = max(0, min(int(paid or 0), plan["count"]))
+    done = (plan["first"] + plan["base"] * (paid - 1)) if paid else 0
+    return max(0.0, round(plan["total"] - done, 2))
 
 
 def installment_label(row: dict) -> str:
@@ -4690,6 +4722,7 @@ def _format_transactions(rows: list, settings: dict = None) -> list:
             # "תשלום 3 מתוך 12" (Matan, 12.10)
             "installments":         row.get("installments"),
             "installment_no":       row.get("installment_no"),
+            "installment_total":    row.get("installment_total"),
             "recurring_end_date":   str(row["recurring_end_date"]) if row.get("recurring_end_date") else None,
             # The id of the recurring template that created this occurrence (None
             # for a regular transaction or a template itself). Used for smart

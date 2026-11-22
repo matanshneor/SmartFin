@@ -2415,7 +2415,7 @@ def update_project_route(project_id):
     if ok is None:
         return jsonify({"error": "הפרויקט לא נמצא — ייתכן שנמחק בינתיים"}), 404
     if not ok:
-        return jsonify({"error": "עדכון נכשל"}), 500
+        return jsonify({"error": "העדכון נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", **fields})
 
 
@@ -2620,7 +2620,7 @@ def update_project_category_route(project_id, cat_id):
         return jsonify({"error": "נא להזין שם קטגוריה"}), 422
     ok = db.update_project_category(cat_id, project_id, user["family_id"], name, icon)
     if not ok:
-        return jsonify({"error": "עדכון נכשל"}), 500
+        return jsonify({"error": "העדכון נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", "name": name, "icon": icon})
 
 
@@ -2749,8 +2749,28 @@ def settings():
         categories, cat_averages, members, family, recurring, price_changes, family_tx_count = \
             _settings_separately(family_id, user)
     # "הבא: 1.11" for every recurring transaction (Matan, 12.10)
-    next_charges = {t["id"]: next_charge_label(db.next_recurring_date(t, today), today)
-                    for t in (recurring or [])}
+    next_dates = {t["id"]: db.next_recurring_date(t, today) for t in (recurring or [])}
+    next_charges = {tid: next_charge_label(d, today) for tid, d in next_dates.items()}
+    # Installment purchases get a list of their own, with how many payments
+    # were made and how much is left (Matan, 22.11)
+    installment_state = {}
+    for t in (recurring or []):
+        if not (t.get("installments") and t.get("installment_total")):
+            continue
+        try:
+            start = date.fromisoformat(str(t["date"])[:10])
+        except (KeyError, ValueError):
+            continue
+        nxt = next_dates.get(t["id"])
+        if nxt is None:
+            paid = int(t["installments"])
+        else:
+            no = (nxt.year - start.year) * 12 + nxt.month - start.month + 1
+            paid = no if nxt <= today else no - 1
+        paid = max(0, min(paid, int(t["installments"])))
+        left = db.installment_left(t["installment_total"], t["installments"], start, paid)
+        if left is not None:
+            installment_state[t["id"]] = {"paid": paid, "left": left}
     # My profile is already in the member list fetched above: it returns the
     # full name, email, phone and workplace for every member. Another query here
     # was a whole database round trip for data already in hand.
@@ -2787,6 +2807,7 @@ def settings():
         recurring=recurring,
         price_changes=price_changes,
         next_charges=next_charges,
+        installment_state=installment_state,
         hebrew_months=_HEBREW_MONTHS,
         account=account,
         # Picking a colour for a family member (round 6, item 13)
@@ -2995,7 +3016,7 @@ def reset_account_route():
     )
     if err:
         logger.error("reset_transactions route: %s", err)
-        return jsonify({"error": "האיפוס נכשל"}), 500
+        return jsonify({"error": "האיפוס נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", "deleted": deleted})
 
 
@@ -3266,7 +3287,7 @@ def _retro_occurrences(body, tx_date, already=None):
 # that `_recurring_occurrences` reads as `monthly_1` and produces rows from on
 # the 1st of every month, while the frequency picker in the UI shows empty. An
 # unknown string was stopped only by the CHECK and came back as a 500.
-_FREQUENCIES = ("monthly_same", "monthly_1", "monthly_15", "weekly", "biweekly")
+_FREQUENCIES = ("monthly_same", "monthly_1", "monthly_15", "weekly", "biweekly", "bimonthly", "yearly")
 
 
 def _validated_frequency(body):
@@ -3708,7 +3729,15 @@ def transaction_meta(tx_id):
     names = _member_names(user["family_id"]) \
         if by and by != user["id"] and not meta.get("recurring_parent_id") else {}
     text = _entered_text(meta, user["id"], names)
-    return jsonify({"text": text})
+    out = {"text": text}
+    # "נשארו ₪3,600" on an installment (Matan, 22.11): what is still to pay
+    # after this payment
+    if meta.get("installments") and meta.get("installment_no") and meta.get("installment_total"):
+        left = db.installment_left(meta["installment_total"], meta["installments"],
+                                   meta.get("date"), meta["installment_no"])
+        if left is not None:
+            out["installment_left"] = left
+    return jsonify(out)
 
 
 @app.route("/api/transactions/<tx_id>", methods=["DELETE"])
@@ -4415,7 +4444,7 @@ def update_category(cat_id):
         return jsonify({"error": "נא להזין שם קטגוריה"}), 422
     ok = db.update_category(cat_id, user["family_id"], name, icon)
     if not ok:
-        return jsonify({"error": "עדכון נכשל"}), 500
+        return jsonify({"error": "העדכון נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", "name": name, "icon": icon})
 
 
@@ -4517,7 +4546,7 @@ def reorder_categories_route():
         return jsonify({"error": "קלט לא תקין"}), 422
     ok = db.reorder_categories(user["family_id"], type_, order)
     if not ok:
-        return jsonify({"error": "עדכון הסדר נכשל"}), 500
+        return jsonify({"error": "עדכון הסדר נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok"})
 
 

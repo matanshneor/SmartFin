@@ -24,7 +24,7 @@ form.addEventListener('submit', function (e) {
     const name = document.getElementById('projectName').value.trim();
     const icon = document.getElementById('projectIcon').value.trim();
     const description = document.getElementById('projectDescription').value.trim();
-    const budgetVal = document.getElementById('projectBudget').value;
+    const budgetVal = document.getElementById('projectBudget').value.replace(/,/g, '').trim();
     const trackExpense = document.getElementById('projectTrackExpense').checked;
     const trackIncome  = document.getElementById('projectTrackIncome').checked;
     const trackSavings = document.getElementById('projectTrackSavings').checked;

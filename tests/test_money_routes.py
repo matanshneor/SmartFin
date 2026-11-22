@@ -701,7 +701,7 @@ def test_deleting_the_account_calls_the_archiving_function_and_ends_the_session(
 
 # ═══ Frequency, target budget, and backfill ══════════════════════════════════
 
-@pytest.mark.parametrize("freq", [None, "", "daily", "yearly", "MONTHLY_1"])
+@pytest.mark.parametrize("freq", [None, "", "daily", "hourly", "MONTHLY_1"])
 def test_a_recurring_transaction_needs_a_frequency_the_engine_knows(money, freq):
     """`NULL` passed the database's CHECK, so `{"is_recurring": true}` with no
     frequency created a live template the engine reads as `monthly_1` and

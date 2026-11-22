@@ -55,9 +55,9 @@
             <label class="form-label" for="editProjectBudget">תקציב יעד (אופציונלי)</label>
             <div class="amount-input-wrap">
                 <span class="amount-currency">₪</span>
-                <input class="form-input amount-input" type="number" inputmode="numeric" id="editProjectBudget" min="0" step="1"
+                <input class="form-input amount-input" type="number" inputmode="numeric" id="editProjectBudget" min="0" step="1" data-thousands
                        aria-describedby="budgetTargetHint"
-                       value="{{ project.budget_target if project.budget_target is not none else '' }}">
+                       value="{% if project.budget_target is not none %}{% set b = project.budget_target | float %}{{ b | int if b == b | int else b }}{% endif %}">
             </div>
             {# The field stood without a single word of explanation: two words and a box
                for an amount, without saying whether it is a ceiling, a
