@@ -2282,22 +2282,6 @@ def search_route():
                                           filters=db.search_filters(request.args)))
 
 
-@app.route("/api/recurring-suggestions")
-@limiter.limit("60 per minute")
-@login_required
-def recurring_suggestions_route():
-    """An expense entered three months in a row, to offer as a recurring
-    transaction (Matan, 22.11). Asked for by the home page after it has loaded;
-    a failure means no suggestion, not an error on the screen."""
-    user = get_current_user()
-    if not user["family_id"]:
-        return jsonify({"suggestions": []})
-    try:
-        return jsonify({"suggestions": db.recurring_suggestions(user["family_id"], user["id"])})
-    except db.DataUnavailable:
-        return jsonify({"suggestions": []})
-
-
 @app.route("/api/descriptions")
 @limiter.limit("60 per minute")
 @login_required

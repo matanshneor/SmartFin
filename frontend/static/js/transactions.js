@@ -777,7 +777,7 @@
             .catch(function () { /* an info line: without it the sheet works as usual */ });
     }
 
-    function openEditModal(tx, triggerEl, opts) {
+    function openEditModal(tx, triggerEl) {
         scanSeq++;
         formSeq++;
         setSubmitBusy(false);                   // a new form isn't "mid-save"; see `finish`
@@ -862,16 +862,6 @@
                 setRecurringLock(!!tx.recurringParentId);
                 syncInstallments();
                 editSnapshot = formSnapshot();
-                // From "this expense repeats" on home (Matan, 22.11): the sheet
-                // opens with "recurring" already on, after the snapshot, so Save
-                // is ready and the user only confirms
-                if (opts && opts.makeRecurring && !tx.isRecurring && !tx.recurringParentId) {
-                    recurringCb.checked = true;
-                    recurFields.classList.add('visible');
-                    txFrequency.value = 'monthly_same';
-                    txEndDate.value = '';
-                    setTimeout(function () { recurringCb.closest('.detail-row').scrollIntoView({ block: 'center' }); }, 350);
-                }
                 updateSubmitLabel();
                 openModal();
             })
@@ -888,61 +878,6 @@
         const btn = e.target.closest('[data-add-type]');
         if (btn) openAddModal(btn.dataset.addType);
     });
-
-    // ── "This expense repeats" on the home page (Matan, 22.11) ──
-    // An expense entered three months in a row is offered as a recurring
-    // transaction: a card above the week card, built here after the page has
-    // settled. "כן" opens the edit sheet with "recurring" on; ✕ hides it on this
-    // phone (the alerts' own mechanism in core.js, by `data-alert-key`).
-    function suggestRecurring() {
-        const anchor = document.querySelector('.week-card');
-        if (!anchor || document.getElementById('recurSuggest')) return;
-        fetch('/api/recurring-suggestions', { credentials: 'same-origin' })
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (d) {
-                const list = (d && d.suggestions) || [];
-                let gone = [];
-                try { gone = JSON.parse(localStorage.getItem('sf_dismissed_alerts') || '[]'); } catch (e) { /* no storage */ }
-                const tx = list.find(function (t) { return gone.indexOf('recur|' + t.description + '|' + t.category_id) === -1; });
-                if (!tx || document.getElementById('recurSuggest') || !anchor.isConnected) return;
-                const wrap = document.createElement('div');
-                wrap.className = 'alert-wrap recur-suggest';
-                wrap.id = 'recurSuggest';
-                wrap.dataset.alertKey = 'recur|' + tx.description + '|' + tx.category_id;
-                const card = document.createElement('div');
-                card.className = 'alert-card warning';
-                const text = document.createElement('span');
-                text.className = 'alert-text';
-                text.textContent = (tx.category_icon || '') + ' ' + tx.description + ' (₪' + window.sfMoney(tx.amount)
-                                 + ') נרשמה ' + tx.months + ' חודשים ברצף. להפוך לעסקה קבועה?';
-                const yes = document.createElement('button');
-                yes.type = 'button';
-                yes.className = 'btn-sm btn-primary recur-suggest-yes';
-                yes.textContent = 'כן, קבועה';
-                yes.addEventListener('click', function () {
-                    openEditModal({
-                        id: tx.id, amount: tx.amount, type: tx.type, categoryId: tx.category_id,
-                        projectCategoryId: null, description: tx.description, date: tx.date,
-                        userId: tx.user_id || '', isRecurring: false, recurringFrequency: '',
-                        recurringEndDate: '', recurringParentId: null, projectId: null,
-                    }, yes, { makeRecurring: true });
-                });
-                card.append(text, yes);
-                const close = document.createElement('button');
-                close.type = 'button';
-                close.className = 'alert-dismiss';
-                close.setAttribute('aria-label', 'לא עכשיו — להסתיר את ההצעה');
-                close.textContent = '✕';
-                wrap.append(card, close);
-                anchor.parentNode.insertBefore(wrap, anchor);
-            })
-            .catch(function () { /* a suggestion: without it the page is whole */ });
-    }
-    if (document.querySelector('.week-card')) {
-        if ('requestIdleCallback' in window) requestIdleCallback(suggestRecurring, { timeout: 3000 });
-        else setTimeout(suggestRecurring, 1500);
-    }
-    window.addEventListener('sf:refreshed', function () { setTimeout(suggestRecurring, 400); });
 
     // Warming the cache on the home page: the categories and family members are
     // fetched in the background after the page settled, so even the first open
