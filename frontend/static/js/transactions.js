@@ -548,6 +548,24 @@
     // inside the sheet has focus and the visible screen is shorter than the
     // page, the overlay takes the visible screen's size and place, and the
     // sheet scrolls inside it. Not on a pinch zoom: no field has focus then.
+    // A field of the sheet in the part one can see: under the sheet's top and
+    // above the sticky Save (Matan, 22.11: "the number of installments hides
+    // behind the keyboard"). Moves only when the field is outside that part.
+    function revealInSheet(el, smooth) {
+        if (!el || !modalSheetEl.contains(el)) return;
+        const r = el.getBoundingClientRect();
+        if (!r.height) return;
+        const top = modalSheetEl.getBoundingClientRect().top + 12;
+        const bottom = submitBtn.getBoundingClientRect().top - 12;
+        let by = 0;
+        if (r.bottom > bottom) by = r.bottom - bottom;
+        else if (r.top < top) by = r.top - top;
+        if (Math.abs(by) < 1) return;
+        const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        modalSheetEl.scrollBy({ top: by, behavior: smooth && !calm ? 'smooth' : 'auto' });
+    }
+    window.sfRevealInSheet = revealInSheet;     // for the browser test
+
     (function () {
         const vv = window.visualViewport;
         if (!vv) return;
@@ -564,6 +582,9 @@
                 overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');
                 overlay.classList.add('kb-fit');
                 fitted = true;
+                // The sheet just got shorter: the field being typed in stays
+                // in sight, at once — before iOS draws its caret elsewhere
+                revealInSheet(a, false);
             } else if (fitted) {
                 overlay.style.top = overlay.style.bottom = overlay.style.height = '';
                 overlay.style.removeProperty('--sheet-room');
@@ -1179,7 +1200,11 @@
     }
     if (instGroup) {
         [instCb, instCount].forEach(el => el.addEventListener('input', syncInstallments));
-        instCb.addEventListener('change', syncInstallments);
+        instCb.addEventListener('change', function () {
+            syncInstallments();
+            // The count opens under Save: bring it up as it appears
+            if (instCb.checked) requestAnimationFrame(function () { revealInSheet(instFields, true); });
+        });
         txDate.addEventListener('change', syncInstallments);
         txForm.addEventListener('click', function (e) {
             if (e.target.closest('.type-toggle, .date-chip')) requestAnimationFrame(syncInstallments);
