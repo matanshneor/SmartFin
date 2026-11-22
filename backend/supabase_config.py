@@ -1638,6 +1638,76 @@ def _filter_hidden_personal_projects(rows: list, viewer_user_id: str) -> list:
     ]
 
 
+def recurring_suggestions(family_id: str, viewer_user_id: str, today=None, limit: int = 2) -> list:
+    """Expenses that already repeat, to offer as recurring transactions (Matan,
+    22.11: "Netflix ₪55 three months in a row").
+
+    A suggestion is an ordinary household expense (no project, not recurring)
+    with the same description, category and owner, entered exactly once in
+    each of three calendar months in a row, the latest of them this month or
+    the last, at amounts within 10% of each other. Not offered when a
+    recurring transaction with that description and category already runs.
+    Returns the latest of the three, formatted like any transaction row, with
+    `months`. Raises DataUnavailable."""
+    from datetime import date
+    today = today or clock.today()
+    client = get_client()
+    if not client:
+        raise DataUnavailable("recurring_suggestions: no client")
+    first = _add_months(today.replace(day=1), -3)
+    try:
+        rows = client.table("transactions") \
+            .select("*, categories(name, icon), project_categories(name, icon), "
+                    "profiles(name, workplace), projects(owner_id, name, icon)") \
+            .eq("family_id", family_id).eq("type", "expense") \
+            .gte("date", first.isoformat()).lte("date", today.isoformat()) \
+            .execute().data or []
+        templates = client.table("transactions").select("description, category_id, recurring_end_date") \
+            .eq("family_id", family_id).eq("is_recurring", True).execute().data or []
+    except Exception as e:
+        raise DataUnavailable("recurring_suggestions") from e
+
+    def norm(text):
+        return " ".join(str(text or "").split()).lower()
+
+    running = {(norm(t.get("description")), t.get("category_id"))
+               for t in templates if is_active_template(t, today)}
+    groups = {}
+    for r in rows:
+        if r.get("project_id") or r.get("is_recurring") or r.get("recurring_parent_id"):
+            continue
+        desc = norm(r.get("description"))
+        if len(desc) < 2 or (desc, r.get("category_id")) in running:
+            continue
+        groups.setdefault((desc, r.get("category_id"), r.get("user_id")), []).append(r)
+
+    this_month = (today.year, today.month)
+    prev = _add_months(today.replace(day=1), -1)
+    out = []
+    for txs in groups.values():
+        by_month = {}
+        for r in txs:
+            d = date.fromisoformat(str(r["date"])[:10])
+            by_month.setdefault((d.year, d.month), []).append(r)
+        for end in (this_month, (prev.year, prev.month)):
+            end_first = date(end[0], end[1], 1)
+            window = [(m.year, m.month) for m in (_add_months(end_first, -2), _add_months(end_first, -1), end_first)]
+            picked = [by_month.get(m, []) for m in window]
+            if any(len(p) != 1 for p in picked):
+                continue
+            # the series must have stopped there: nothing newer outside the window
+            if end != this_month and by_month.get(this_month):
+                continue
+            amounts = [float(p[0].get("amount") or 0) for p in picked]
+            if min(amounts) <= 0 or max(amounts) > min(amounts) * 1.1:
+                continue
+            row = dict(_format_transactions([picked[-1][0]])[0], months=3)
+            out.append(row)
+            break
+    out.sort(key=lambda r: (r["date"], float(r["amount"])), reverse=True)
+    return out[:limit]
+
+
 def recent_descriptions(family_id: str, viewer_user_id: str, today=None, limit: int = 300) -> list:
     """Descriptions already written, for autocomplete in the "short description"
     field (Matan, 3.10, idea 41). The whole family's, from the last 6 months,
