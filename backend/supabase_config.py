@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+import random
 import threading
 import time
 
@@ -138,7 +139,19 @@ def _keep_connection_warm(client):
 # once caused "Server disconnected" (see `_run_queries` in app.py). Hence a
 # lock: the ping runs only when there is no request, and a request arriving
 # right then waits for it (tens of milliseconds); they never run together.
-WARM_IDLE_SECONDS = 40.0
+#
+# 22.11.2026, an experiment (Matan: "make the app faster"). The pings do keep
+# our connection open, but Supabase's own side cools down too: in its logs a
+# request arriving more than 8 seconds after the previous one took 77ms
+# (median) and 324ms (p90) inside Supabase, against 42ms and 131ms after a gap
+# of 2-8 seconds, and Postgres itself answers the home page in 10-25ms either
+# way. At 40 seconds the four workers also pinged together and then left 40
+# seconds of silence. So: a ping after 10 idle seconds, and each worker on its
+# own beat, which leaves about 3 seconds between pings. ~30,000 trivial
+# requests a day instead of ~7,000. To be measured against the same log query;
+# if the first request after a pause isn't faster, back to 40.
+WARM_IDLE_SECONDS = 10.0
+WARM_CHECK_SECONDS = 2.0
 _warm_lock = threading.Lock()
 _warm_state = {"busy": False, "last": 0.0, "started": False}
 
@@ -194,8 +207,10 @@ def _start_warm_pings(client):
     _warm_state["last"] = time.monotonic()
 
     def loop():
+        # Each worker starts at its own moment, so they don't ping together
+        time.sleep(random.uniform(0, WARM_IDLE_SECONDS))
         while True:
-            time.sleep(10)
+            time.sleep(WARM_CHECK_SECONDS)
             _warm_ping_once(client)
 
     threading.Thread(target=loop, name="sf-warm", daemon=True).start()
