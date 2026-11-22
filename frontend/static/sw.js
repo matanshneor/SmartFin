@@ -93,7 +93,9 @@ self.addEventListener('message', function (e) {
 });
 
 function takePrefetched(request) {
-    if (request.mode !== 'navigate') return null;
+    // A navigation, or the page asking for another tab's content to swap in
+    // without a full load (`sfSwitchTab` in core.js): the same page either way
+    if (request.mode !== 'navigate' && request.headers.get('X-Requested-With') !== 'sf-soft-reload') return null;
     const url = new URL(request.url);
     const key = url.pathname + url.search;
     const hit = prefetched.get(key);
