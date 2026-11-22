@@ -393,7 +393,8 @@
         resetSheetDrag();
         loadDescriptions();
         hideSuggest();
-        modalLastFocused = document.activeElement;
+        // Already open (the draft's "clear"): the way back stays the + behind it
+        if (!overlay.classList.contains('open')) modalLastFocused = document.activeElement;
         if (typeof syncInstallments === 'function') syncInstallments();   // installments: only when adding an expense
         overlay.classList.add('open');
         document.body.style.overflow = 'hidden';
@@ -528,7 +529,25 @@
         fitAmount();
     }
 
+    // ── A new transaction closed half-filled comes back as it was (Matan,
+    // 22.11: "I'm out of the add screen and have to start over") ──
+    // The ✕, a pull down, a tap outside or Escape on a new transaction with an
+    // amount or a description: the form is left as it is, and the next + opens
+    // it again, with a "clear" beside. Half an hour, in the same page; a save,
+    // an edit of another transaction or another type start clean. A scanned
+    // receipt isn't kept: its file is discarded on every close.
+    const DRAFT_MINUTES = 30;
+    let draftAt = 0;
+    const draftNote = document.getElementById('txDraftNote');
+    function showDraftNote(on) { if (draftNote) draftNote.hidden = !on; }
+    function dismissModal() {
+        const keep = !editId && (txAmount.value.trim() !== '' || txDescription.value.trim() !== '');
+        closeModal();
+        if (keep) draftAt = Date.now();
+    }
+
     function closeModal() {
+        draftAt = 0;
         overlay.classList.remove('open');
         document.body.style.overflow = '';
         scanSeq++;                              // a scan still running: no longer any form's
@@ -742,8 +761,17 @@
     // a string counts.
 
     function openAddModal(presetType) {
-        editingInstallment = null;
         const preset = typeof presetType === 'string' ? presetType : null;
+        if (draftAt && Date.now() - draftAt < DRAFT_MINUTES * 60000 && !editId
+                && (!preset || preset === currentType)) {
+            draftAt = 0;
+            showDraftNote(true);
+            openModal();
+            return;
+        }
+        draftAt = 0;
+        showDraftNote(false);
+        editingInstallment = null;
         editSnapshot = null;
         const seriesLink = document.getElementById('txSeriesLink');
         if (seriesLink) seriesLink.hidden = true;
@@ -811,6 +839,8 @@
     }
 
     function openEditModal(tx, triggerEl) {
+        draftAt = 0;
+        showDraftNote(false);
         scanSeq++;
         formSeq++;
         setSubmitBusy(false);                   // a new form isn't "mid-save"; see `finish`
@@ -931,7 +961,11 @@
         openAddModal();
     }
 
-    closeBtn.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', dismissModal);
+    {
+        const clear = document.getElementById('txDraftClear');
+        if (clear) clear.addEventListener('click', function () { openAddModal(); });
+    }
     // A field of the sheet with the keyboard up. Then a tap outside or a pull
     // down puts the keyboard away and nothing more: the sheet, and what was
     // typed in it, stay (Matan, 22.11: "I pull the keyboard down and I'm out
@@ -950,13 +984,13 @@
         const field = typingField();
         if (field) field.blur();
         if (field || (typingAtDown && window.matchMedia('(pointer: coarse)').matches)) { typingAtDown = false; return; }
-        closeModal();
+        dismissModal();
     });
 
     // Escape closes the modal, Tab/Shift+Tab stay inside it (focus trap)
 
     overlay.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { closeModal(); return; }
+        if (e.key === 'Escape') { dismissModal(); return; }
         if (e.key !== 'Tab') return;
         const focusables = getModalFocusables();
         if (!focusables.length) return;
@@ -1029,7 +1063,7 @@
         function dismiss(v) {
             const h = sheet.offsetHeight;
             function offScreen() {
-                closeModal();
+                dismissModal();
                 // The backdrop fades now; the sheet is already off screen. After
                 // the fade, quietly put it back into the CSS closed state, with no
                 // visible motion.
