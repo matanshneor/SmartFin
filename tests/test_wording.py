@@ -149,11 +149,7 @@ def test_recurring_transactions_have_one_name():
     """Matan (1.10): "עסקאות קבועות" across the app: not "עסקה חוזרת" and not "סדרה".
     In every text a user sees."""
     forms = re.compile(r"עסקה חוזרת|עסקאות חוזרות|העסקה הזאת חוזרת|העסקה חוזרת|סדרה|הסדרה|סדרות")
-    # Since 22.11 the settings group is called "עסקאות חוזרות" (Matan: it holds
-    # installments too, so "קבועות" was wrong for it). Only that name, where the
-    # group is titled or pointed to; a single transaction is still "עסקה קבועה".
-    group = re.compile(r"הגדרות ← עסקאות חוזרות|>עסקאות חוזרות<|אין עסקאות חוזרות עדיין")
-    hits = [(name, line) for name, line in _visible_strings() if forms.search(group.sub("", line))]
+    hits = [(name, line) for name, line in _visible_strings() if forms.search(line)]
     assert not hits, hits
 
 
