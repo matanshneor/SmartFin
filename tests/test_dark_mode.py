@@ -1,4 +1,5 @@
-"""Dark mode: manual only, from settings → appearance (Matan, 30.9, round 6, item 4)."""
+"""Dark mode: light, dark or following the phone, from settings → appearance
+(Matan, 30.9, round 6, item 4; "following the phone" since 23.11)."""
 import re
 from pathlib import Path
 
@@ -20,12 +21,17 @@ def test_every_page_sets_the_theme_before_it_paints(page):
     assert "js/theme.js" in head
 
 
-def test_the_theme_is_manual_only():
-    """Matan's decision: not by the phone's setting, only what was chosen."""
+def test_the_theme_follows_the_phone_only_when_asked():
+    """Light until something else is chosen (Matan, 30.9). "לפי הטלפון" is a third
+    choice since 23.11: only then does the phone's setting count, and the colours
+    still come from `data-theme`, never from a media query in the CSS."""
     js = (_ROOT / "frontend/static/js/theme.js").read_text(encoding="utf-8")
-    assert "localStorage.getItem('sf_theme') === 'dark'" in js
-    assert "prefers-color-scheme" not in js
+    assert "const dark = theme === 'dark' || (theme === 'auto' && phone && phone.matches);" in js
+    assert "if (theme === 'dark' || theme === 'auto') apply();" in js, "untouched storage stays light"
+    assert "phone.addEventListener('change'" in js, "the evening switch while the app is open"
     assert "prefers-color-scheme: dark" not in _CSS
+    tpl = (_ROOT / "frontend/templates/settings.html").read_text(encoding="utf-8")
+    assert 'data-theme-choice="auto" aria-pressed="false">לפי הטלפון</button>' in tpl
 
 
 def _dark_block():

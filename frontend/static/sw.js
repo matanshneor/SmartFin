@@ -38,7 +38,7 @@ function offlinePage() {
         // CSP, so an inline line is allowed: js/theme.js may not be cached when
         // there is no network
 
-        '<script>try{if(localStorage.getItem("sf_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>' +
+        '<script>try{var t=localStorage.getItem("sf_theme");if(t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>' +
         '<link rel="stylesheet" href="/static/css/style.css"></head>' +
         '<body class="auth-body"><div class="auth-container">' +
         '<div class="empty-state">' +

@@ -547,10 +547,12 @@
         <div class="settings-group-body">
             <div class="form-group">
                 <label class="form-label" id="themeLabel">מראה</label>
-                {# Manual only: the app is light until dark is chosen (Matan's decision) #}
-                <div class="type-toggle" role="group" aria-labelledby="themeLabel">
+                {# Light until something else is chosen. "לפי הטלפון" (Matan, 23.11):
+                   dark when the phone is, so it switches by itself in the evening. #}
+                <div class="type-toggle" role="group" aria-labelledby="themeLabel" style="grid-template-columns: repeat(3, 1fr);">
                     <button type="button" class="toggle-btn theme-choice" data-theme-choice="light" aria-pressed="true">בהיר</button>
                     <button type="button" class="toggle-btn theme-choice" data-theme-choice="dark" aria-pressed="false">כהה</button>
+                    <button type="button" class="toggle-btn theme-choice" data-theme-choice="auto" aria-pressed="false">לפי הטלפון</button>
                 </div>
             </div>
             <div class="form-group">

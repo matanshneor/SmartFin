@@ -225,8 +225,8 @@
            "smaller and on the same side") #}
         {% if fixed_split %}
         <div class="split-corner">
-            <p><span>קבועות</span> <b>₪{{ fixed_split.fixed | money }}</b></p>
-            <p><span>משתנות</span> <b>₪{{ fixed_split.variable | money }}</b></p>
+            <p><span>קבועות</span> <b>₪{{ fixed_split.fixed | round | int | money }}</b></p>
+            <p><span>משתנות</span> <b>₪{{ fixed_split.variable | round | int | money }}</b></p>
         </div>
         {% endif %}
     </div>
@@ -288,11 +288,11 @@
                    global map by category, with no month and no history. #}
                 <p class="cat-budget-text">
                     {% if item.budget_over %}
-                    חריגה של ₪{{ item.budget_excess | money }} מתוך ₪{{ item.budget | money }}
+                    חריגה של ₪{{ item.budget_excess | round | int | money }} מתוך ₪{{ item.budget | round | int | money }}
                     {% elif is_current %}
-                    נשאר ₪{{ item.budget_left | money }} מתוך ₪{{ item.budget | money }}
+                    נשאר ₪{{ item.budget_left | round | int | money }} מתוך ₪{{ item.budget | round | int | money }}
                     {% else %}
-                    ₪{{ item.total | money }} מתוך תקציב של ₪{{ item.budget | money }}
+                    ₪{{ item.total | round | int | money }} מתוך תקציב של ₪{{ item.budget | round | int | money }}
                     {% endif %}
                 </p>
             </div>
