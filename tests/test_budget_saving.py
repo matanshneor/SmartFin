@@ -28,123 +28,13 @@ pytestmark = pytest.mark.unit
 
 _ROOT = Path(__file__).resolve().parent.parent
 _JS   = _ROOT / "frontend/static/js"
-
 _CAT = "c1"
 
-# A minimal DOM of one category's budget fields, as on the settings page.
-_HARNESS = r"""
-const fs = require('fs'), g = globalThis;
-const listeners = {};
-const CAT = 'c1';
-
-const amountEl = { classList: { contains: c => c === 'budget-amount' },
-                   dataset: { id: CAT, saved: '' }, value: '500', focus() {},
-                   closest: (s) => s === '.budget-amount' ? amountEl
-                                 : (s === '.cat-budget-edit' ? editEl : null) };
-const enabledEl = { checked: true, dataset: { id: CAT },
-                    closest: (s) => s === '.cat-budget-edit' ? editEl : null,
-                    classList: { contains: () => false } };
-const fieldsEl = { hidden: false };
-const saveBtn  = { disabled: false, textContent: 'שמור', dataset: { id: CAT },
-                   closest: (s) => s === '.budget-save' ? saveBtn
-                                 : (s === '.cat-budget-edit' ? editEl : null) };
-const editEl = { querySelector: (s) => ({
-    '.budget-enabled': enabledEl, '.budget-amount': amountEl,
-    '.budget-save': saveBtn, '.cat-budget-fields': fieldsEl }[s] || null) };
-
-const stub = () => ({ style:{}, dataset:{}, textContent:'', innerHTML:'', value:'',
-    checked:false, hidden:false, classList:{add(){},remove(){},toggle(){},contains:()=>false},
-    addEventListener(){}, appendChild(){}, focus(){}, setAttribute(){},
-    closest:()=>stub(), querySelector:()=>stub(), querySelectorAll:()=>[] });
-
-g.document = {
-    getElementById: () => stub(),
-    querySelector: (s) => s.startsWith('.budget-enabled[data-id') ? enabledEl : stub(),
-    querySelectorAll: () => [],
-    createElement: () => stub(),
-    addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); },
-    body: { appendChild() {}, style: {} },
-};
-g.window = g; g.location = { href:'http://x/', reload(){}, pathname:'/settings' };
-g.sessionStorage = { getItem:()=>null, setItem(){}, removeItem(){} };
-g.localStorage   = { getItem:()=>null, setItem(){}, removeItem(){} };
-const sent = [], errors = [];
-g.fetch = (url, opt) => { sent.push({ url, body: opt && opt.body });
-    return Promise.resolve({ ok:true, json:()=>Promise.resolve({ settings:{} }) }); };
-g.showToast=()=>{}; g.appConfirm=()=>Promise.resolve(false); g.sfNetError=()=>'net';
-g.sfData=()=>({}); g.softReload=()=>Promise.resolve(); g.requestAnimationFrame=fn=>fn(0);
-g.matchMedia=()=>({matches:false}); g.SF_PAGE_DATA={}; g.confirm=()=>false;
-
-(0, eval)(fs.readFileSync(process.argv[2], 'utf8'));
-
-// הקלדה בשדה הסכום, ואז לחיצה על "שמור"
-(listeners.input || []).forEach(fn => { try { fn({ target: amountEl }); }
-                                        catch (e) { errors.push(String(e)); } });
-if (process.argv[3] !== 'no-click') {
-    (listeners.click || []).forEach(fn => { try { fn({ target: saveBtn }); }
-                                            catch (e) { errors.push(String(e)); } });
-}
-
-// ההשהיה לפני השמירה היא 600ms
-setTimeout(() => {
-    console.log(JSON.stringify({ listeners: (listeners.input||[]).length, sent, errors }));
-}, 900);
-
-process.on('uncaughtException', (e) => {
-    console.log(JSON.stringify({ listeners: (listeners.input||[]).length, sent,
-                                 errors: errors.concat(String(e)) }));
-    process.exit(0);
-});
-"""
-
-
-def _run(click=True):
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node isn't installed")
-    harness = _ROOT / "tests" / "_budget_harness.js"
-    harness.write_text(_HARNESS, encoding="utf-8")
-    try:
-        out = subprocess.run([node, str(harness), str(_JS / "settings.js"),
-                              "click" if click else "no-click"],
-                             capture_output=True, text=True, timeout=30)
-    finally:
-        harness.unlink(missing_ok=True)
-    assert out.stdout.strip(), f"the harness printed nothing:\n{out.stderr}"
-    return json.loads(out.stdout.strip().splitlines()[-1])
-
-
-# ─── The test that was missing ──────────────────────────────────────────────
-
-def test_saving_a_budget_actually_sends_it_to_the_server():
-    """The heart. Until now this threw a ReferenceError and no request went out."""
-    res = _run()
-
-    assert res["errors"] == [], f"an error was thrown: {res['errors']}"
-    assert len(res["sent"]) == 1, "no request was sent to the server"
-
-
-def test_the_request_goes_to_the_right_place_with_the_right_shape():
-    res = _run()
-    req = res["sent"][0]
-
-    assert req["url"] == "/api/family/settings"
-    assert json.loads(req["body"]) == {"limits": {_CAT: {"amount": 500}}}
-
-
-def test_the_listener_is_registered_at_all():
-    """Control: if the file crashes on load before the budget block, there is no listener."""
-    assert _run()["listeners"] == 1
-
-
-# ─── Explicit saving, and without a needless question ───────────────────────
-
-def test_typing_alone_saves_nothing():
-    """An amount is typed digit by digit. Saving on every keystroke also saves "2"
-    and "20" on the way to "200", i.e. a wrong budget, saved, three times."""
-    res = _run(click=False)
-
-    assert res["sent"] == [], "saved without save being tapped"
+# Since 22.11 a budget is set in one place, the sheet on the month page; the
+# switch, amount box and save button on the settings page are gone, and with
+# them the harness here that ran that block of settings.js. What stays below
+# is what still holds: no separate alert question, the server's default, no
+# call across scopes, and the row in settings that leads to the sheet.
 
 
 def test_there_is_no_separate_alert_question():
@@ -278,18 +168,3 @@ def test_the_switch_reuses_the_existing_component():
 
     assert ".pref-switch input:checked + .pref-slider" in css
     assert ".cat-budget-toggle" not in css, "a redundant local component remains"
-
-
-def test_the_amount_box_is_hidden_until_the_toggle_is_on():
-    """The author's `display: flex` beats the browser's `[hidden]`. As long as the
-    whole block was hidden outside "management mode" this wasn't noticed, and the
-    moment it was revealed, the amount box and the save button appeared for
-    everyone who hadn't turned anything on.
-
-    Exactly the same trap as in the "no connection" bar, where an explicit
-    `[hidden]` was already written."""
-    css = _css()
-
-    assert ".cat-budget-fields[hidden] { display: none; }" in css
-    assert css.index(".cat-budget-fields {") < css.index(".cat-budget-fields[hidden]"), \
-        "the explicit rule must come after, otherwise it doesn't win"

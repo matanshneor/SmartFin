@@ -141,9 +141,10 @@ def test_a_category_is_one_row_with_its_budget_switch():
     the category's own row."""
     tpl = _tpl("settings.html")
     assert '<span class="cat-system-badge">' not in tpl
-    assert "display: contents" in _rule(".cat-budget-edit")
-    assert "flex-basis: 100%" in _rule(".cat-budget-fields")
-    assert "#categoriesArea.managing .cat-budget-label { display: none; }" in _CSS
+    # since 22.11 the row carries a link to the month page's budget sheet instead
+    # of the switch and its fields (one place to set a budget)
+    assert 'class="cat-budget-link' in tpl
+    assert "#categoriesArea.managing .cat-budget-link { display: none; }" in _CSS
 
 
 def test_saving_a_budget_says_budget():
