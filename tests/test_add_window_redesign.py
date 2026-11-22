@@ -68,9 +68,13 @@ def test_the_details_are_one_block():
 
 
 def test_recurring_is_a_switch():
-    assert "transform: translateX(-20px)" in _rule(
-        "#modalOverlay .recurring-group .checkbox-input:checked + .checkbox-custom::after")
-    assert "var(--toggle-off)" in _rule("#modalOverlay .recurring-group .checkbox-custom")
+    # since 22.11 it is the settings switch itself (`.pref-switch`), not a second
+    # copy of its CSS under #modalOverlay
+    base = (_ROOT / "frontend/templates/base.html").read_text(encoding="utf-8")
+    for field in ("txRecurring", "txInstallments"):
+        assert f'<span class="pref-switch"><input type="checkbox" id="{field}" class="checkbox-input"><span class="pref-slider"></span></span>' in base
+    assert "#modalOverlay .recurring-group .checkbox-custom" not in _CSS
+    assert "transform: translateX(-20px)" in _rule(".pref-switch input:checked + .pref-slider::before")
 
 
 def test_the_save_button_is_dark_for_every_type():

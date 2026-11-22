@@ -250,10 +250,6 @@ function applyCategoryName(row, name, icon) {
     row.dataset.icon = icon;
     row.querySelector('.cat-row-name').textContent = name;
     row.querySelector('.cat-row-icon').textContent = icon;
-    const sw = row.querySelector('.budget-enabled');
-    if (sw) sw.setAttribute('aria-label', 'קביעת תקציב חודשי ל' + name);
-    const amount = row.querySelector('.budget-amount');
-    if (amount) amount.setAttribute('aria-label', 'תקציב חודשי ל' + name);
 }
 
 function forgetCategories() {
@@ -1284,107 +1280,6 @@ attrSwitches.forEach(function (sw) {
             });
         });
     }
-})();
-
-
-/* ─── A target budget per category ─────────────────────────────────────────
- *
- * Two separate decisions, on purpose: whether there is a budget, and if so,
- * whether to alert. Some families want to see "₪1,800 of ₪2,000" on screen
- * without the app nagging them about it.
- *
- * The bar already on the month page measures the category's share of total
- * expenses ("groceries are 35% of expenses"). A budget measures against the
- * family's decision, and that is the question people really ask.
- */
-(function () {
-
-    function fieldsFor(id) {
-        const box = document.querySelector('.budget-enabled[data-id="' + id + '"]');
-        return box && box.closest('.cat-budget-edit');
-    }
-
-    function amountOf(wrap) {
-        const raw = wrap.querySelector('.budget-amount').value.replace(/,/g, '').trim();   // "1,500" (`sfThousands`)
-        const num = Number(raw);
-        return (raw && isFinite(num) && num > 0) ? num : null;
-    }
-
-    /* The save button is enabled only when there is something to save. A button
-     * that looks available and does nothing teaches people to ignore it. */
-    function syncButton(wrap) {
-        const btn = wrap.querySelector('.budget-save');
-        if (btn) btn.disabled = amountOf(wrap) === null;
-    }
-
-    /* `alert` is no longer sent, and the server defaults to `True`.
-     *
-     * There used to be a second checkbox here, "alert on overage", as a decision
-     * separate from "has a budget". In practice it was a distinction without a
-     * difference: whoever bothered to set a budget wants to know when they went
-     * over it; otherwise it is just a number on the screen. Fewer questions, the
-     * same result. */
-    function save(id, revert) {
-        const wrap = fieldsFor(id);
-        if (!wrap) return;
-        const on    = wrap.querySelector('.budget-enabled').checked;
-        const value = on ? amountOf(wrap) : null;
-        const patch = {};
-        patch[id] = value === null ? null : { amount: value };
-        savePrefs({ limits: patch }, revert);
-    }
-
-    document.addEventListener('change', function (e) {
-        const box = e.target.closest('.budget-enabled');
-        if (!box) return;
-        const wrap = box.closest('.cat-budget-edit');
-        wrap.querySelector('.cat-budget-fields').hidden = !box.checked;
-        if (box.checked) {
-            syncButton(wrap);
-            wrap.querySelector('.budget-amount').focus();
-            return;                 // nothing to save until an amount is entered and "save" is tapped
-        }
-        // Turning off is an unambiguous action: nothing to type, so it is saved
-        // immediately
-
-        const was = true;
-        save(box.dataset.id, function () {
-            box.checked = was;
-            wrap.querySelector('.cat-budget-fields').hidden = !was;
-        });
-    });
-
-    document.addEventListener('input', function (e) {
-        const amount = e.target.closest('.budget-amount');
-        if (amount) syncButton(amount.closest('.cat-budget-edit'));
-    });
-
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.budget-save');
-        if (!btn || btn.disabled) return;
-        btn.disabled = true;
-        const label = btn.textContent;
-        btn.textContent = 'שומר…';
-        save(btn.dataset.id, function () { /* the error is shown in a toast */ });
-        // `savePrefs` doesn't return a promise, so release after the request
-        // went out
-
-        setTimeout(function () {
-            btn.textContent = label;
-            syncButton(btn.closest('.cat-budget-edit'));
-        }, 700);
-    });
-
-    // Enter in the amount field = tapping "save"
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key !== 'Enter') return;
-        const amount = e.target.closest('.budget-amount');
-        if (!amount) return;
-        e.preventDefault();
-        const btn = amount.closest('.cat-budget-edit').querySelector('.budget-save');
-        if (btn && !btn.disabled) btn.click();
-    });
 })();
 
 

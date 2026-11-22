@@ -117,9 +117,9 @@ def test_every_call_to_saveprefs_passes_a_way_back():
     # The first call is the definition itself (`function savePrefs(patch, revert)`)
     calls = _call_args(body, "savePrefs")[1:]
 
-    # Attribution and budgets. Alerts and workplace were removed from settings
-    # (Matan, 11.10)
-    assert len(calls) >= 2, f"only {len(calls)} calls were found: the test probably isn't finding them"
+    # Attribution. Alerts and workplace were removed from settings (Matan,
+    # 11.10), and budgets moved to the month page's sheet (22.11)
+    assert len(calls) >= 1, f"only {len(calls)} calls were found: the test probably isn't finding them"
     for args in calls:
         # Any second argument: an inline function, or the name of one passed in.
         # What is checked is that there is a revert path, not how it is written.
