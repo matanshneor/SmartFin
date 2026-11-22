@@ -25,6 +25,26 @@
    name (`icon-picker.js`) #}
 <section class="chart-card">
     <form class="add-cat-form" id="newProjectForm" novalidate>
+        {# Which kind of project (Matan, 22.11): it decides what belongs to it and
+           what its amount means. The three "what to track" checkboxes it
+           replaced are still here, hidden: the cards set them. #}
+        <div class="form-group">
+            <span class="form-label" id="projectKindLabel">איזה פרויקט זה?</span>
+            <div class="kind-cards" role="radiogroup" aria-labelledby="projectKindLabel" id="projectKind">
+                <button type="button" class="kind-card" role="radio" data-kind="expense" aria-checked="true">
+                    <span class="kind-card-icon" aria-hidden="true">🧾</span>
+                    <span class="kind-card-name">פרויקט הוצאות</span>
+                    <span class="kind-card-text">תקציב נפרד לדבר אחד גדול — טיול, שיפוץ, אירוע.</span>
+                    <span class="kind-card-rule">משייכים הוצאות והכנסות</span>
+                </button>
+                <button type="button" class="kind-card" role="radio" data-kind="savings" aria-checked="false">
+                    <span class="kind-card-icon" aria-hidden="true">🎯</span>
+                    <span class="kind-card-name">פרויקט חיסכון</span>
+                    <span class="kind-card-text">חוסכים לקראת יעד — רכב, דירה, קרן.</span>
+                    <span class="kind-card-rule">משייכים רק חיסכון</span>
+                </button>
+            </div>
+        </div>
         <div class="form-group">
             <label class="form-label" for="projectName">אייקון ושם</label>
             <div class="add-cat-row">
@@ -38,7 +58,7 @@
                       placeholder="למשל: טיול משפחתי ליפן, קיץ 2026"></textarea>
         </div>
         <div class="form-group">
-            <label class="form-label" for="projectBudget">תקציב יעד (אופציונלי)</label>
+            <label class="form-label" for="projectBudget" id="projectBudgetLabel">תקציב (אופציונלי)</label>
             <div class="amount-input-wrap">
                 <span class="amount-currency">₪</span>
                 <input class="form-input amount-input" type="number" inputmode="numeric" id="projectBudget" placeholder="0" min="0" step="1" data-thousands>
@@ -52,7 +72,7 @@
             </div>
             <p class="field-hint">פרויקט אישי גלוי רק למי שיצר אותו — בלי תיוג "של מי", ובלי גישה לשאר בני המשפחה. תמיד אפשר להפוך אותו למשותף מאוחר יותר</p>
         </div>
-        <div class="form-group">
+        <div class="form-group" hidden>
             <label class="form-label">אילו מחלקות לעקוב?</label>
             <div class="track-row">
             <label class="checkbox-label">
@@ -61,7 +81,7 @@
                 <span class="checkbox-text">הוצאות</span>
             </label>
             <label class="checkbox-label">
-                <input type="checkbox" id="projectTrackIncome" class="checkbox-input">
+                <input type="checkbox" id="projectTrackIncome" class="checkbox-input" checked>
                 <span class="checkbox-custom"></span>
                 <span class="checkbox-text">הכנסות</span>
             </label>

@@ -480,15 +480,15 @@ def test_the_target_bar_sits_under_the_squares(target, spent, pct, danger):
     from backend.app import app
     html = _read("frontend/templates/project_detail.html")
     assert "התקדמות מול היעד</h2>" not in html
-    start = html.index("{% if project.budget_target %}\n{% set used_pct")
+    start = html.index("{% if project.budget_target %}\n{% set is_saving")
     end = html.index("{% endif %}", html.index('class="balance-bar-legend"', start)) + len("{% endif %}")
     assert html.index('<div class="hero-totals"') < start < html.index("{% endblock %}", start)
     out = app.jinja_env.from_string(html[start:end]).render(
-        project={"budget_target": target, "spent": spent})
+        project={"budget_target": target, "spent": spent, "track_expense": True})
     if pct is None:
         assert "hero-bar" not in out
         return
-    assert f"{pct}% מהיעד נוצל</span>" in out
+    assert f"{pct}% מהתקציב נוצל</span>" in out
     assert f"width: {min(pct, 100)}%;" in out
     assert ("danger" in out) == danger
 

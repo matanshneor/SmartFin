@@ -34,11 +34,19 @@ _FAM, _ME = "f" * 8, "m" * 8
 
 # ─── The list: names only ────────────────────────────────────────────────────
 
-def test_finished_projects_show_no_amounts():
-    """A finished project: only the name. (For active ones: "כמה נשאר", Matan 12.10:
-    below.)"""
-    finished = _LIST[_LIST.index('id="finishedProjects"'):]
-    assert "₪" not in finished and "money" not in finished
+def test_finished_projects_show_how_they_ended():
+    """A finished project: its name and how it ended, "₪42,000 מתוך ₪40,000" (Matan,
+    22.11; until then only the name). One with nothing in it: the name alone."""
+    from backend.app import app
+    done = _proj(id="d1", name="חתונה", budget_target=40000.0, spent=42000.0, archived=True)
+    empty = _proj(id="d2", name="ריק", archived=True)
+    with app.test_request_context("/projects"):
+        html = app.jinja_env.get_template("projects.html").render(
+            active_page="projects", user={"id": "x", "name": "מתן", "avatar_initial": "מ"},
+            projects=[], finished_projects=[done, empty])
+    finished = html[html.index('id="finishedProjects"'):]
+    assert '<span class="finished-row-sum">₪42,000 מתוך ₪40,000</span>' in finished
+    assert finished.count("finished-row-sum") == 1
     assert "hero-totals" not in _LIST and "הוצאתם" not in _LIST
 
 
@@ -57,17 +65,87 @@ def _proj(**kw):
     return {**base, **kw}
 
 
-def test_a_tile_with_a_target_says_how_much_is_left():
-    """Matan (12.10), reversing 5.10: "נשארו ₪7,800 מתוך ₪12,000", and a bar, as on
-    the project page."""
+def test_a_tile_with_a_target_says_what_went_out_and_what_is_left():
+    """The sentence and the bar say the same thing (Matan, 22.11): what went out,
+    then what is left. Until then the sentence said "left" over a bar of "used"."""
     html = _render_tiles([_proj(budget_target=12000.0, spent=4200.0)])
-    assert "נשארו <b>₪7,800</b> מתוך ₪12,000" in html
+    assert "יצאו <b>₪4,200</b> מתוך ₪12,000 · נשארו <b>₪7,800</b>" in html
     assert 'class="project-tile-bar"' in html and "width: 35%;" in html
+    assert '<span class="project-tile-pct">35%</span>' in html
 
 
 def test_a_tile_over_its_target_says_so():
     html = _render_tiles([_proj(budget_target=1000.0, spent=1250.0)])
-    assert "חריגה של <b>₪250</b>" in html and "width: 100%;" in html and 'class="danger"' in html
+    assert "width: 100%;" in html and 'class="danger"' in html
+    assert '<span class="project-tile-tag is-over">חריגה של ₪250</span>' in html
+    assert '<span class="project-tile-pct is-over">125%</span>' in html
+
+
+def test_a_savings_project_counts_what_was_saved():
+    """Matan (22.11): "קרן לרכב" said "נשארו ₪60,000 מתוך ₪60,000" with an empty bar,
+    as if it were a budget nobody touched. In a savings project the amount is a
+    goal: what was saved, of it, and a bar that fills."""
+    html = _render_tiles([_proj(track_expense=False, track_savings=True,
+                                budget_target=60000.0, saved=15000.0)])
+    assert "נחסכו <b>₪15,000</b> מתוך ₪60,000" in html
+    assert 'class="saving" style="width: 25%;"' in html
+    assert '<span class="project-tile-tag">חיסכון</span>' in html
+    assert "נשארו" not in html and "חריגה" not in html
+
+
+def test_the_plus_on_a_tile_adds_into_that_project():
+    html = _render_tiles([_proj(id="p9")])
+    assert 'data-add-to-project="p9"' in html
+    js = (_JS / "transactions.js").read_text(encoding="utf-8")
+    assert "addToProject = btn.dataset.addToProject;" in js
+    # A button inside a link isn't valid: the tile is a div, the link covers it
+    assert '<div class="project-tile tint-0" data-id="p9">' in html
+
+
+def test_the_kind_chosen_in_the_form_decides_what_belongs():
+    """Matan (22.11): a savings project takes only savings; an expense project,
+    expenses and income. The server sets the three flags from the kind, whatever
+    else the form sent."""
+    from backend.app import _parse_project_body, project_kind
+    saving, _ = _parse_project_body({"name": "קרן", "kind": "savings", "track_expense": True})
+    assert (saving["track_expense"], saving["track_income"], saving["track_savings"]) == (False, False, True)
+    spending, _ = _parse_project_body({"name": "טיול", "kind": "expense", "track_savings": True})
+    assert (spending["track_expense"], spending["track_income"], spending["track_savings"]) == (True, True, False)
+    assert project_kind(saving) == "savings" and project_kind(spending) == "expense"
+    # An older project tracking both stays an expense project, as it was shown
+    assert project_kind({"track_expense": True, "track_savings": True}) == "expense"
+    # An older tab that sends no kind: the flags as they are
+    old, _ = _parse_project_body({"name": "ישן", "track_expense": True, "track_savings": True})
+    assert old["track_savings"] is True and old["track_income"] is False
+
+
+def test_the_kind_does_not_change_once_there_are_transactions():
+    from backend import app as app_module
+    src = (_ROOT / "backend/app.py").read_text(encoding="utf-8")
+    block = src[src.index("def update_project_route"):]
+    block = block[:block.index("\n@app.route")]
+    assert 'project_kind(current) != project_kind(fields) and current.get("transactions")' in block
+    assert block.index("project_kind(current)") < block.index("db.update_project(")
+    assert "disabled{% endif %}" in _EDIT and "kind_locked = project.transactions | length > 0" in _EDIT
+
+
+def test_last_movement_is_said_in_words():
+    from datetime import date
+    from backend.app import days_ago_label
+    today = date(2026, 11, 22)
+    assert [days_ago_label(d, today) for d in ("2026-11-22", "2026-11-21", "2026-11-15", "2026-11-01", "2026-09-20", "2026-07-01", None)] \
+        == ["היום", "אתמול", "לפני 7 ימים", "לפני 3 שבועות", "לפני חודשיים", "לפני 4 חודשים", ""]
+
+
+def test_the_top_of_the_page_sums_the_projects():
+    from backend.app import _projects_summary
+    s = _projects_summary([
+        _proj(budget_target=12000.0, spent=8200.0),
+        _proj(budget_target=45000.0, spent=28300.0),
+        _proj(spent=500.0),                                             # no amount: not counted
+        _proj(track_expense=False, track_savings=True, budget_target=60000.0, saved=15000.0),
+    ])
+    assert s == {"count": 4, "budget": 57000.0, "left": 20500.0, "goal": 60000.0, "saved": 15000.0}
 
 
 def test_a_tile_without_a_target_says_what_went_out():
@@ -315,7 +393,9 @@ def test_the_budget_field_is_called_the_same_thing_in_both_places():
     things."""
     for name, html in (("עריכה", _EDIT), ("פרויקט", _DETAIL)):
         shown = _visible(html)
-        assert "תקציב יעד" in shown, f"the new name doesn't appear in {name}"
+        # Since 22.11 the name follows the project's kind: "תקציב" in an expense
+        # project, "יעד חיסכון" in a savings project
+        assert "תקציב" in shown and "יעד חיסכון" in shown, f"the names don't appear in {name}"
         assert "יעד תקציב" not in shown, f"the old name is still shown in {name}"
 
 
@@ -433,13 +513,15 @@ def test_four_colours_always_in_the_same_order():
     """Blue, peach, pink, green, and again (Matan, 5.10). By position in the list, so
     two identical ones never touch, even in two columns."""
     from backend.app import app
-    projects = [{"id": f"p{i}", "name": f"פרויקט {i}", "icon": "🎯", "description": None,
-                 "is_personal": False} for i in range(6)]
+    projects = [_proj(id=f"p{i}", name=f"פרויקט {i}", icon="🎯") for i in range(6)]
     with app.test_request_context():
         html = app.jinja_env.from_string(_LIST).blocks["content"]
         html = "".join(html(app.jinja_env.from_string(_LIST).new_context(
             {"projects": projects, "finished_projects": []})))
     tints = [int(t) for t in re.findall(r'class="project-tile tint-(\d)"', html)]
+    # On the icon only, since 22.11: the tile itself is white
+    assert "background: var(--tile-tint, var(--color-input));" in (
+        _ROOT / "frontend/static/css/style.css").read_text(encoding="utf-8")
     assert tints == [0, 1, 2, 3, 0, 1]
     css = (_ROOT / "frontend/static/css/style.css").read_text(encoding="utf-8")
     assert "--tint-4" not in css, "only four colours"

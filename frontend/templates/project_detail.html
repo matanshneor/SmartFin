@@ -65,9 +65,21 @@
         <p class="kpi-value savings" data-countup="{{ project.savings | round | int }}">₪{{ project.savings | round | int | money }}</p>
     </div>
     {% endif %}
-    {% if project.budget_target %}
+    {# The amount means what the project's kind says (Matan, 22.11): a goal to
+       reach in a savings project, a ceiling in an expense project #}
+    {% if project.budget_target and project_kind(project) == 'savings' %}
+    {% set missing = project.budget_target - project.savings %}
     <div class="kpi-chip">
-        <p class="kpi-label">תקציב יעד</p>
+        <p class="kpi-label">יעד חיסכון</p>
+        <p class="kpi-value">₪{{ project.budget_target | round | int | money }}</p>
+    </div>
+    <div class="kpi-chip">
+        <p class="kpi-label">{% if missing > 0 %}חסר ליעד{% else %}מעבר ליעד{% endif %}</p>
+        <p class="kpi-value{% if missing <= 0 %} surplus{% endif %}">₪{{ (missing | abs) | round | int | money }}</p>
+    </div>
+    {% elif project.budget_target %}
+    <div class="kpi-chip">
+        <p class="kpi-label">תקציב</p>
         <p class="kpi-value">₪{{ project.budget_target | round | int | money }}</p>
     </div>
     <div class="kpi-chip">
@@ -80,14 +92,16 @@
    separate card that repeated the same numbers (Matan, 1.10, option B). Only
    when there is a target budget. #}
 {% if project.budget_target %}
-{% set used_pct = ((project.spent / project.budget_target) * 100) | round | int %}
+{% set is_saving = project_kind(project) == 'savings' %}
+{% set used_pct = (((project.savings if is_saving else project.spent) / project.budget_target) * 100) | round | int %}
+{% set bar_text = (used_pct ~ '% מהיעד נחסך') if is_saving else (used_pct ~ '% מהתקציב נוצל') %}
 <div class="hero-bar">
     <div class="balance-bar-track" role="progressbar" aria-valuenow="{{ used_pct }}"
-         aria-valuemin="0" aria-valuemax="100" aria-label="{{ used_pct }}% מהיעד נוצל">
-        <div class="balance-bar-fill {% if project.spent > project.budget_target %}danger{% endif %}"
+         aria-valuemin="0" aria-valuemax="100" aria-label="{{ bar_text }}">
+        <div class="balance-bar-fill {% if is_saving %}saving{% elif project.spent > project.budget_target %}danger{% endif %}"
              style="width: {{ [used_pct, 100] | min }}%;"></div>
     </div>
-    <div class="balance-bar-legend"><span>{{ used_pct }}% מהיעד נוצל</span></div>
+    <div class="balance-bar-legend"><span>{{ bar_text }}</span></div>
 </div>
 {% endif %}
 {% endblock %}

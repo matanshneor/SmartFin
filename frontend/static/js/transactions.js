@@ -101,6 +101,7 @@
     }
     let membersCache  = null;
     let projectsCache = null;
+    let addToProject = null;      // the project the next add sheet opens on (the + on its tile)
     let projectsLoading = null;   // the request on its way, if any
     let projectCategoriesCache = {}; // key: "<projectId>:<type>"
     let categoryGridIsProject = false; // whether the current category grid shows project or family categories
@@ -840,9 +841,13 @@
                 // type is one it tracks: an income-only project doesn't open on
                 // "expense" (idea 8)
 
+                // Or the + on a project's tile in the list (`addToProject`, Matan
+                // 22.11): that project, whatever page this is
                 const here = document.getElementById('sfPageProject');
-                const project = here && (projectsCache || [])
-                    .find(function (p) { return p.id === here.dataset.projectId && !p.archived; });
+                const wanted = addToProject || (here && here.dataset.projectId);
+                addToProject = null;
+                const project = wanted && (projectsCache || [])
+                    .find(function (p) { return p.id === wanted && !p.archived; });
                 const type = preset ? preset
                            : !project || project.track_expense ? 'expense'
                            : project.track_income ? 'income' : 'savings';
@@ -976,6 +981,16 @@
     }
 
     fabBtn.addEventListener('click', openAddModal);
+    // The + on a project's tile in the projects list: a new transaction straight
+    // into that project. Delegated: the list is replaced on a soft refresh.
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest && e.target.closest('[data-add-to-project]');
+        if (!btn) return;
+        e.preventDefault();
+        draftAt = 0;                         // this project, not a draft left from another
+        addToProject = btn.dataset.addToProject;
+        openAddModal();
+    });
     // "+ add" on an empty row on the month page: the sheet opens on the row's
     // type. Delegated from document: a soft refresh replaces the row.
 
