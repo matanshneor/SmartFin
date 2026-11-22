@@ -1328,13 +1328,19 @@ attrSwitches.forEach(function (sw) {
             b.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
     }
-    show(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+    // What was chosen, not what is on screen now: "following the phone" can be
+    // either colour
+    let saved = null;
+    try { saved = localStorage.getItem('sf_theme'); } catch (e) { /* as on screen */ }
+    show(saved === 'auto' ? 'auto'
+        : document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
     buttons.forEach(function (b) {
         b.addEventListener('click', function () {
             const theme = b.dataset.themeChoice;
-            if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-            else document.documentElement.removeAttribute('data-theme');
             try { localStorage.setItem('sf_theme', theme); } catch (e) { /* not remembered: for this page only */ }
+            if (window.sfApplyTheme) window.sfApplyTheme();
+            else if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+            else document.documentElement.removeAttribute('data-theme');
             show(theme);
         });
     });
