@@ -2316,7 +2316,8 @@
 
     function plainAmount(v) {
         const n = Number(v);
-        return isFinite(n) ? String(n) : v;
+        // "86.50", not "86.5": agorot always in two digits, as in the lists
+        return isFinite(n) ? (n % 1 ? n.toFixed(2) : String(n)) : v;
     }
 
     // ── Autocomplete from earlier descriptions (Matan, 3.10, idea 41) ──

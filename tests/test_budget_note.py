@@ -86,5 +86,6 @@ def test_the_edit_window_shows_87_not_87_point_0():
     fn = fn[:fn.index("\n    }") + 6]
     out = subprocess.run(["node", "-e", fn + "\nconsole.log(JSON.stringify(['87.0','87.5','1200.00','abc'].map(plainAmount)))"],
                          capture_output=True, text=True, check=True).stdout
-    assert out.strip() == '["87","87.5","1200","abc"]'
+    # agorot in two digits, as in the lists (audit, 22.11): "87.50", not "87.5"
+    assert out.strip() == '["87","87.50","1200","abc"]'
     assert "txAmount.value       = plainAmount(tx.amount);" in js

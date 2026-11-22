@@ -3960,6 +3960,12 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
 }
 
 .pref-switch input:checked + .pref-slider { background: var(--color-gold); }
+/* Off is hollow, on is filled (audit, 22.11): a grey-brown track next to a gold
+   one read as "on" at a glance. The outline keeps the 3:1 edge contrast. */
+.pref-switch input:not(:checked) + .pref-slider { background: transparent; box-shadow: inset 0 0 0 2px var(--toggle-off); }
+.pref-switch input:not(:checked) + .pref-slider::before { background: var(--toggle-off); box-shadow: none; }
+#modalOverlay .recurring-group .checkbox-input:not(:checked) + .checkbox-custom { background: transparent; box-shadow: inset 0 0 0 2px var(--toggle-off); }
+#modalOverlay .recurring-group .checkbox-input:not(:checked) + .checkbox-custom::after { background: var(--toggle-off); box-shadow: none; }
 .pref-switch input:checked + .pref-slider::before { transform: translateX(-20px); }
 .pref-switch input:disabled + .pref-slider { opacity: 0.4; cursor: not-allowed; }
 .pref-switch input:focus-visible + .pref-slider { outline: 2px solid var(--color-gold-bright); outline-offset: 2px; }
@@ -5649,6 +5655,7 @@ body.tx-screen-open { overflow: hidden; }
 /* In a narrow row "תשלום 3 מתוך 12" was cut to "תשלום 3 …" (Matan, 21.11): it
    gets a line of its own under the description, which alone is shortened. */
 .cat-tx-desc .installment-tag { display: table; margin-top: 3px; padding-inline: 0; }
+.recurring-next .installment-tag { padding: 0; }
 
 .installments-group[hidden] { display: none; }
 /* `hidden` inside the sheet really hides (Matan, 22.11): `.detail-row` and the
@@ -5661,7 +5668,7 @@ body.tx-screen-open { overflow: hidden; }
 .installments-fields { display: flex; align-items: center; gap: 10px; flex: 1 1 100%; margin-top: 8px; }
 .installments-fields[hidden] { display: none; }
 .installments-count { width: 72px; text-align: center; font-weight: 700; }
-.installments-hint { font-size: var(--text-md); color: var(--color-text-muted); }
+.installments-hint { flex: 1; min-width: 0; font-size: var(--text-md); color: var(--color-text-muted); text-wrap: balance; }
 
 
 /* "what's new" (Matan, 12.10) */
@@ -5903,8 +5910,12 @@ body.tx-screen-open { overflow: hidden; }
 .yr-card { padding: 16px; border-radius: var(--radius); background: var(--color-card); box-shadow: var(--shadow-card); }
 .yr-card-title { margin: 0 0 12px; font-size: 1rem; font-weight: 700; color: var(--color-text); }
 .yr-bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: end; height: 96px; margin-bottom: 12px; }
-.yr-bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
-.yr-bar i { display: block; width: 100%; border-radius: 4px 4px 2px 2px; background: rgba(var(--ink-rgb), 0.12); }
+.yr-bars { align-items: stretch; }
+/* A grid, not a flex column: the bar's height is a percentage of the row above
+   the label. In the flex column every bar over ~78% was squeezed to the same
+   height, so the chart showed nothing (audit, 22.11). */
+.yr-bar { display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; height: 100%; gap: 4px; }
+.yr-bar i { display: block; align-self: end; width: 100%; border-radius: 4px 4px 2px 2px; background: rgba(var(--ink-rgb), 0.12); }
 .yr-bar.is-high i { background: var(--color-expense); }
 .yr-bar.is-best i { background: var(--color-gold); }
 .yr-bar span { font-size: var(--text-2xs); color: var(--color-text-muted); }

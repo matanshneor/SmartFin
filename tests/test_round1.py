@@ -294,3 +294,16 @@ def test_series_delete_is_one_question_with_three_answers():
     core = _read(_JS / "core.js")
     assert "closeConfirm('extra')" in core
     assert 'id="confirmExtra"' in _read(_T / "base.html")
+
+
+def test_audit_fixes_of_22_11():
+    # year recap: the bar's height is a share of the row above its label
+    assert ".yr-bar { display: grid; grid-template-rows: minmax(0, 1fr) auto;" in _CSS
+    # project budget "12000", not "12000.0"
+    assert "{{ b | int if b == b | int else b }}" in _read(_T / "project_edit.html")
+    # an installment purchase is named in the recurring list
+    assert "{{ tx.installments }} תשלומים</span>" in _read(_T / "settings.html")
+    # the same row of checkboxes when creating a project as when editing one
+    assert '<div class="track-row">' in _read(_T / "project_new.html")
+    # a switch that is off is hollow
+    assert ".pref-switch input:not(:checked) + .pref-slider { background: transparent;" in _CSS

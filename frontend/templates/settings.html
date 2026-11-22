@@ -431,6 +431,11 @@
                             {# "הבא: 1.11": when it is charged again (Matan, 12.10) #}
                             {% set next_label = (next_charges or {}).get(tx.id) %}
                             {% if next_label %}<p class="recurring-next">{{ next_label }}</p>{% endif %}
+                            {# An installment purchase isn't a standing order: how many
+                               payments, and when it ends (audit, 22.11) #}
+                            {% if tx.installments %}
+                            <p class="recurring-next"><span class="installment-tag">{{ tx.installments }} תשלומים</span>{% if tx.recurring_end_date %} · עד {{ hebrew_months[tx.recurring_end_date[5:7] | int] }} {{ tx.recurring_end_date[:4] }}{% endif %}</p>
+                            {% endif %}
                             {# "₪5,000 ← ₪5,500 מאוקטובר": the latest change in the amount (Matan, 3.10, idea 40) #}
                             {% set change = (price_changes or {}).get(tx.id) %}
                             {% if change %}
