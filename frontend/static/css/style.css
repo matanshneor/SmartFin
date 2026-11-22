@@ -119,7 +119,7 @@
     --radius-sheet:        26px;
     --radius-pill:         999px;
     /* Type, rem so the text-size setting scales it */
-    --text-2xs:            0.72rem;
+    --text-2xs:            0.75rem;    /* 12px: the smallest text in the app (audit, 22.11; was 11.5) */
     --text-xs:             0.75rem;
     --text-sm:             0.8125rem;
     --text-md:             0.875rem;
@@ -5666,6 +5666,11 @@ body.tx-screen-open { overflow: hidden; }
    gets a line of its own under the description, which alone is shortened. */
 .cat-tx-desc .installment-tag { display: table; margin-top: 3px; padding-inline: 0; }
 .recurring-next .installment-tag { padding: 0; }
+.empty-cta { margin-top: 14px; padding-inline: 22px; }
+/* A row that opens something is at least 44px tall (audit, 22.11): the
+   transaction rows in the week card and under a category were 33-35px, easy to
+   miss with a finger. */
+.cat-tx-row, .week-detail-list li.week-tx, .legend-item { min-height: 44px; }
 
 .installments-group[hidden] { display: none; }
 /* `hidden` inside the sheet really hides (Matan, 22.11): `.detail-row` and the

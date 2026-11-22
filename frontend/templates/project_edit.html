@@ -55,7 +55,7 @@
             <label class="form-label" for="editProjectBudget">תקציב יעד (אופציונלי)</label>
             <div class="amount-input-wrap">
                 <span class="amount-currency">₪</span>
-                <input class="form-input amount-input" type="number" inputmode="numeric" id="editProjectBudget" min="0" step="1"
+                <input class="form-input amount-input" type="number" inputmode="numeric" id="editProjectBudget" min="0" step="1" data-thousands
                        aria-describedby="budgetTargetHint"
                        value="{% if project.budget_target is not none %}{% set b = project.budget_target | float %}{{ b | int if b == b | int else b }}{% endif %}">
             </div>

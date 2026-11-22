@@ -1305,7 +1305,7 @@ attrSwitches.forEach(function (sw) {
     }
 
     function amountOf(wrap) {
-        const raw = wrap.querySelector('.budget-amount').value.trim();
+        const raw = wrap.querySelector('.budget-amount').value.replace(/,/g, '').trim();   // "1,500" (`sfThousands`)
         const num = Number(raw);
         return (raw && isFinite(num) && num > 0) ? num : null;
     }

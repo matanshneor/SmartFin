@@ -2433,10 +2433,14 @@ def _recurring_occurrences(template: dict, until) -> list:
     freq = template.get("recurring_frequency") or "monthly_1"
 
     out = []
-    if freq in ("monthly_1", "monthly_15", "monthly_same"):
+    if freq in ("monthly_1", "monthly_15", "monthly_same", "bimonthly", "yearly"):
         # monthly_same repeats every month on the day-of-month of the source
-        # date (e.g. the 23rd); monthly_1/15 are fixed to the 1st or the 15th
+        # date (e.g. the 23rd); monthly_1/15 are fixed to the 1st or the 15th.
+        # bimonthly and yearly (Matan, 22.11: arnona, water and electricity
+        # come every two months, insurance once a year) keep the source day
+        # too, every 2 or 12 months.
         target_day = {"monthly_1": 1, "monthly_15": 15}.get(freq, start.day)
+        step_months = {"bimonthly": 2, "yearly": 12}.get(freq, 1)
         # Start from the start month itself: an occurrence in the same month
         # after the start date counts
         y, m = start.year, start.month
@@ -2448,9 +2452,9 @@ def _recurring_occurrences(template: dict, until) -> list:
                 break
             if d > start:
                 out.append(d)
-            m += 1
-            if m > 12:
-                m, y = 1, y + 1
+            m += step_months
+            while m > 12:
+                m, y = m - 12, y + 1
     else:
         step = timedelta(days=7 if freq == "weekly" else 14)
         d = start + step

@@ -326,3 +326,30 @@ def test_installments_have_their_own_list_and_colours_a_swatch():
     assert 'class="color-swatch owner-{{ idx }}"' in st
     tx = _read(_JS / "transactions.js")
     assert "' · נשארו ₪' + window.sfMoney(editingInstallment.left)" in tx
+
+
+def test_bimonthly_and_yearly_frequencies():
+    # Matan, 22.11: arnona/water/electricity every two months, insurance yearly
+    from datetime import date
+    from backend.supabase_config import _recurring_occurrences as occ
+    from backend.app import _FREQUENCIES
+    assert {"bimonthly", "yearly"} <= set(_FREQUENCIES)
+    two = occ({"date": "2026-01-31", "recurring_frequency": "bimonthly"}, date(2026, 12, 31))
+    assert [d.isoformat() for d in two] == ["2026-03-31", "2026-05-31", "2026-07-31", "2026-09-30", "2026-11-30"]
+    year = occ({"date": "2024-02-29", "recurring_frequency": "yearly"}, date(2028, 3, 1))
+    assert [d.isoformat() for d in year] == ["2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29"]
+    # monthly is unchanged
+    month = occ({"date": "2026-10-23", "recurring_frequency": "monthly_same"}, date(2027, 1, 31))
+    assert [d.isoformat() for d in month] == ["2026-11-23", "2026-12-23", "2027-01-23"]
+    base = _read(_T / "base.html")
+    assert '<option value="bimonthly">' in base and '<option value="yearly">' in base
+
+
+def test_second_audit_round_of_22_11():
+    assert ".cat-tx-row, .week-detail-list li.week-tx, .legend-item { min-height: 44px; }" in _CSS
+    assert "--text-2xs:            0.75rem;" in _CSS
+    core = _read(_JS / "core.js")
+    assert "window.sfThousands = function (input) {" in core
+    for name in ("project_edit.html", "project_new.html", "settings.html"):
+        assert "data-thousands" in _read(_T / name), name
+    assert 'data-add-type="expense"' in _read(_T / "months.html")

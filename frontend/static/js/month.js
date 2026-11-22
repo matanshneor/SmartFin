@@ -628,6 +628,7 @@ window.addEventListener('sf:refreshed', paint);
             input.step = '1';
             input.placeholder = 'אין';
             input.value = r.budget ? Math.round(r.budget) : '';
+            if (window.sfThousands) window.sfThousands(input);   // "3,200"
             input.defaultValue = input.value;               // "save" is disabled until something changes (Matan, 13.10)
             input.dataset.cat = r.category_id;
             input.dataset.old = r.budget ? String(Math.round(r.budget)) : '';
@@ -657,7 +658,7 @@ window.addEventListener('sf:refreshed', paint);
             const limits = {};
             let bad = false;
             sheet.querySelectorAll('input[data-cat]').forEach(function (inp) {
-                const v = inp.value.trim();
+                const v = inp.value.replace(/,/g, '').trim();
                 if (v === inp.dataset.old) return;
                 if (v === '' || Number(v) === 0) { limits[inp.dataset.cat] = null; return; }
                 const n = Number(v);

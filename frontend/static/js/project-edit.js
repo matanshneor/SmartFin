@@ -35,6 +35,7 @@ function fieldValues() {
         return el.type === 'checkbox' ? el.checked : el.value;
     }).join('\u0001');
 }
+if (window.sfThousands) window.sfThousands(fields.budget);
 const initialFields = fieldValues();
 
 function json(r) {
@@ -364,7 +365,7 @@ document.addEventListener('click', function (e) {
 function saveSteps() {
     const steps = [];
     const name = fields.name.value.trim();
-    const budgetVal = fields.budget.value;
+    const budgetVal = fields.budget.value.replace(/,/g, '').trim();
     steps.push(function () {
         return call('PUT', '/api/projects/' + projectId, {
             name: name,

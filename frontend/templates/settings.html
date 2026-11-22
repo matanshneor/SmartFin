@@ -88,7 +88,7 @@
                                and "20" on the way to "200". A button says when
                                you are done. #}
                             <div class="cat-budget-fields" {% if not limit %}hidden{% endif %}>
-                                <input class="form-input budget-amount" type="number" min="1" step="1"
+                                <input class="form-input budget-amount" type="number" min="1" step="1" data-thousands
                                        inputmode="decimal" placeholder="₪ לחודש"
                                        data-id="{{ cat.id }}"
                                        value="{{ limit.amount | round | int if limit else '' }}"
@@ -394,8 +394,8 @@
                option A). Tapping a row opens editing, and there "remove the
                recurring transaction" stops the series (`transactions.js`); a
                swipe left does the same. The amounts in the summary are
-               monthly: weekly ×52/12, biweekly ×26/12. #}
-            {% set per_month = {'weekly': 52 / 12, 'biweekly': 26 / 12} %}
+               monthly: weekly ×52/12, biweekly ×26/12, bimonthly ÷2, yearly ÷12. #}
+            {% set per_month = {'weekly': 52 / 12, 'biweekly': 26 / 12, 'bimonthly': 1 / 2, 'yearly': 1 / 12} %}
             {% set rec_groups = [('income', 'נכנס כל חודש', 'הכנסות'),
                                  ('expense', 'יוצא כל חודש', 'הוצאות'),
                                  ('savings', 'נחסך כל חודש', 'חיסכון')] %}
@@ -434,7 +434,8 @@
                             <p class="recurring-name">{{ tx.description or tx.category_name }}</p>
                             {# "הבא: 1.11": when it is charged again (Matan, 12.10) #}
                             {% set next_label = (next_charges or {}).get(tx.id) %}
-                            {% if next_label %}<p class="recurring-next">{{ next_label }}</p>{% endif %}
+                            {% set freq_word = {'weekly': 'כל שבוע', 'biweekly': 'כל שבועיים', 'bimonthly': 'כל חודשיים', 'yearly': 'כל שנה'}.get(tx.recurring_frequency) %}
+                            {% if next_label %}<p class="recurring-next">{{ next_label }}{% if freq_word %} · {{ freq_word }}{% endif %}</p>{% endif %}
                             {# An installment purchase isn't a standing order: how many
                                payments, and when it ends (audit, 22.11) #}
                             {% if tx.installments %}

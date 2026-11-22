@@ -153,7 +153,9 @@
 <div class="empty-state" style="margin: 24px 16px;">
     {{ empty_illus("calendar") }}
     <p class="empty-text">אין נתונים היסטוריים עדיין</p>
-    <p class="empty-sub">הוסיפו עסקאות כדי לראות את ההיסטוריה</p>
+    <p class="empty-sub">אחרי שתוסיפו עסקאות, יופיעו כאן החודשים זה מול זה</p>
+    {# A way forward from an empty page (audit, 22.11) #}
+    <button type="button" class="btn-sm btn-primary empty-cta" data-add-type="expense" aria-haspopup="dialog">הוספת עסקה ראשונה</button>
 </div>
 
 {% endif %}

@@ -2415,7 +2415,7 @@ def update_project_route(project_id):
     if ok is None:
         return jsonify({"error": "הפרויקט לא נמצא — ייתכן שנמחק בינתיים"}), 404
     if not ok:
-        return jsonify({"error": "עדכון נכשל"}), 500
+        return jsonify({"error": "העדכון נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", **fields})
 
 
@@ -2620,7 +2620,7 @@ def update_project_category_route(project_id, cat_id):
         return jsonify({"error": "נא להזין שם קטגוריה"}), 422
     ok = db.update_project_category(cat_id, project_id, user["family_id"], name, icon)
     if not ok:
-        return jsonify({"error": "עדכון נכשל"}), 500
+        return jsonify({"error": "העדכון נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", "name": name, "icon": icon})
 
 
@@ -3016,7 +3016,7 @@ def reset_account_route():
     )
     if err:
         logger.error("reset_transactions route: %s", err)
-        return jsonify({"error": "האיפוס נכשל"}), 500
+        return jsonify({"error": "האיפוס נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", "deleted": deleted})
 
 
@@ -3287,7 +3287,7 @@ def _retro_occurrences(body, tx_date, already=None):
 # that `_recurring_occurrences` reads as `monthly_1` and produces rows from on
 # the 1st of every month, while the frequency picker in the UI shows empty. An
 # unknown string was stopped only by the CHECK and came back as a 500.
-_FREQUENCIES = ("monthly_same", "monthly_1", "monthly_15", "weekly", "biweekly")
+_FREQUENCIES = ("monthly_same", "monthly_1", "monthly_15", "weekly", "biweekly", "bimonthly", "yearly")
 
 
 def _validated_frequency(body):
@@ -4444,7 +4444,7 @@ def update_category(cat_id):
         return jsonify({"error": "נא להזין שם קטגוריה"}), 422
     ok = db.update_category(cat_id, user["family_id"], name, icon)
     if not ok:
-        return jsonify({"error": "עדכון נכשל"}), 500
+        return jsonify({"error": "העדכון נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok", "name": name, "icon": icon})
 
 
@@ -4546,7 +4546,7 @@ def reorder_categories_route():
         return jsonify({"error": "קלט לא תקין"}), 422
     ok = db.reorder_categories(user["family_id"], type_, order)
     if not ok:
-        return jsonify({"error": "עדכון הסדר נכשל"}), 500
+        return jsonify({"error": "עדכון הסדר נכשל — נסו שוב"}), 500
     return jsonify({"status": "ok"})
 
 
