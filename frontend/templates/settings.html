@@ -64,39 +64,18 @@
                             </button>
                         </div>
 
-                        {# A target budget: expenses only. That is what gets limited; a budget for
-                           income or savings means nothing.
-                           Always visible, with no "management mode": it is the
-                           app's central setting and not a list-management
-                           action. #}
+                        {# A target budget: expenses only. Set in one place (Matan, 22.11): the
+                           sheet on the month page, where this month's spending
+                           sits beside each amount and one save covers them
+                           all. Here the row shows the budget and opens that
+                           sheet. Until then the same thing was set in two
+                           screens. #}
                         {% if type_key == 'expense' %}
-                                                <div class="cat-budget-edit">
-                            {# Exactly the same switch as in the rest of settings (pref-switch), and
-                               not a checkbox: this turns an option on/off. #}
-                            {# On the category's own row (design pass, 11.11): "תקציב" and the switch
-                               at the end of the line; amount and save drop below only once
-                               it is on. The list was 5.6 screens long. #}
-                            <span class="cat-budget-label"><span aria-hidden="true">תקציב</span><span class="sr-only">קביעת תקציב חודשי</span></span>
-                            <label class="pref-switch">
-                                <input type="checkbox" class="budget-enabled" data-id="{{ cat.id }}"
-                                       {% if limit %}checked{% endif %}
-                                       aria-label="קביעת תקציב חודשי ל{{ cat.name }}">
-                                <span class="pref-slider"></span>
-                            </label>
-                            {# Saving is explicit and not automatic: an amount is typed digit by
-                               digit, and saving on every keystroke also saves "2"
-                               and "20" on the way to "200". A button says when
-                               you are done. #}
-                            <div class="cat-budget-fields" {% if not limit %}hidden{% endif %}>
-                                <input class="form-input budget-amount" type="number" min="1" step="1" data-thousands
-                                       inputmode="decimal" placeholder="₪ לחודש"
-                                       data-id="{{ cat.id }}"
-                                       value="{{ limit.amount | round | int if limit else '' }}"
-                                       aria-label="תקציב חודשי ל{{ cat.name }}">
-                                <button type="button" class="btn-sm btn-primary budget-save"
-                                        data-id="{{ cat.id }}" disabled>שמירה</button>
-                            </div>
-                        </div>
+                        <a class="cat-budget-link{% if limit %} has-budget{% endif %}" href="{{ url_for('month_view') }}?budgets=1"
+                           aria-label="{% if limit %}תקציב חודשי ל{{ cat.name }}: {{ limit.amount | round | int | money }} שקלים, שינוי{% else %}קביעת תקציב חודשי ל{{ cat.name }}{% endif %}">
+                            {%- if limit %}תקציב ₪{{ limit.amount | round | int | money }}{% else %}קביעת תקציב{% endif -%}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                        </a>
                         {% endif %}
                     </li>
 {% endmacro %}

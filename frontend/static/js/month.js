@@ -533,25 +533,76 @@ window.addEventListener('sf:refreshed', paint);
  * `data-countup` and not the text: mid count-up the text is an intermediate
  * number. */
 (function () {
-    let bar = null, observer = null;
+    let wrap = null, bar = null, nav = null, observer = null;
+    const SECTIONS = [['expense-breakdown', 'הוצאות'], ['income-breakdown', 'הכנסות'],
+                      ['savings-breakdown', 'חיסכון'], ['allTx', 'עסקאות'], ['month-projects', 'פרויקטים']];
+
+    // The shortcut of the section now under the bar is marked
+    function markSection() {
+        if (!wrap || wrap.hidden || !nav) return;
+        const line = wrap.offsetHeight + 24;
+        let current = null;
+        nav.querySelectorAll('[data-jump]').forEach(function (chip) {
+            const el = document.getElementById(chip.dataset.jump);
+            if (el && el.getBoundingClientRect().top <= line) current = chip;
+        });
+        // The last section can't reach the bar: at the end of the page it is the one
+        const chips = nav.querySelectorAll('[data-jump]');
+        if (chips.length && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+            current = chips[chips.length - 1];
+        }
+        nav.querySelectorAll('[data-jump]').forEach(function (chip) {
+            const on = chip === current;
+            chip.classList.toggle('is-current', on);
+            if (on) chip.setAttribute('aria-current', 'true'); else chip.removeAttribute('aria-current');
+        });
+    }
 
     function build() {
         if (observer) { observer.disconnect(); observer = null; }
         const net = document.querySelector('.month-net');
         const title = document.querySelector('.hero-title');
-        if (!net || !title || !('IntersectionObserver' in window)) { if (bar) bar.hidden = true; return; }
-        if (!bar) {
+        if (!net || !title || !('IntersectionObserver' in window)) { if (wrap) wrap.hidden = true; return; }
+        const calm = function () { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; };
+        if (!wrap) {
+            // The bar: the month and its balance (a tap goes back up), and under
+            // them shortcuts to the page's sections (Matan, 22.11: the page is
+            // six screens long, and "all transactions" was at the far end)
+            wrap = document.createElement('div');
+            wrap.className = 'month-sticky';
+            wrap.hidden = true;
             bar = document.createElement('button');
             bar.type = 'button';
-            bar.className = 'month-sticky';
-            bar.hidden = true;
+            bar.className = 'month-sticky-top';
             bar.setAttribute('aria-label', 'חזרה לראש החודש');
             bar.addEventListener('click', function () {
-                const calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' });
+                window.scrollTo({ top: 0, behavior: calm() ? 'auto' : 'smooth' });
             });
-            document.body.appendChild(bar);
+            nav = document.createElement('nav');
+            nav.className = 'month-sticky-nav';
+            nav.setAttribute('aria-label', 'קפיצה לחלק בעמוד');
+            nav.addEventListener('click', function (e) {
+                const chip = e.target.closest('[data-jump]');
+                const target = chip && document.getElementById(chip.dataset.jump);
+                if (!target) return;
+                // `scroll-margin-top` on the sections (style.css) clears the bar
+                target.scrollIntoView({ block: 'start', behavior: calm() ? 'auto' : 'smooth' });
+            });
+            wrap.append(bar, nav);
+            document.body.appendChild(wrap);
+            window.addEventListener('scroll', markSection, { passive: true });
         }
+        nav.innerHTML = '';
+        SECTIONS.forEach(function (s) {
+            if (!document.getElementById(s[0])) return;
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'month-jump';
+            chip.dataset.jump = s[0];
+            chip.textContent = s[1];
+            nav.appendChild(chip);
+        });
+        nav.hidden = nav.children.length < 2;
         const valueEl = net.querySelector('.month-net-value');
         let value = valueEl ? valueEl.textContent.trim() : '';
         if (valueEl && valueEl.dataset.countup) {
@@ -571,7 +622,8 @@ window.addEventListener('sf:refreshed', paint);
             // hasn't reached the screen yet
 
             const e = entries[0];
-            bar.hidden = e.isIntersecting || e.boundingClientRect.top > 0;
+            wrap.hidden = e.isIntersecting || e.boundingClientRect.top > 0;
+            markSection();
         });
         observer.observe(net);
     }
@@ -708,6 +760,16 @@ window.addEventListener('sf:refreshed', paint);
         }
         const btn = document.getElementById('budgetsOpen');
         if (btn) btn.focus({ preventScroll: true });
+    }
+
+    // From settings (`?budgets=1`): the sheet opens by itself, and the parameter
+    // leaves the address so a refresh doesn't open it again (Matan, 22.11)
+    if (window.location && new URLSearchParams(window.location.search || '').get('budgets') === '1') {
+        history.replaceState(null, '', window.location.pathname);
+        setTimeout(function () {
+            const btn = document.getElementById('budgetsOpen');
+            if (btn) btn.click();
+        }, 350);
     }
 
     document.addEventListener('click', function (e) {
