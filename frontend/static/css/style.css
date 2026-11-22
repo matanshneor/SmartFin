@@ -4951,15 +4951,17 @@ input.emoji-input[data-free-typing] { cursor: text; caret-color: auto; }
     padding: calc(env(safe-area-inset-top, 0px) + 10px) 18px 8px;
     background: transparent; color: inherit; border: 0; font: inherit; text-align: start; cursor: pointer;
 }
-/* Shortcuts to the page's sections (Matan, 22.11). One row that scrolls
-   sideways if it has to; 36px chips with a 44px tap height. */
-.month-sticky-nav { display: flex; gap: 6px; padding: 0 14px 10px; overflow-x: auto; scrollbar-width: none; }
-.month-sticky-nav::-webkit-scrollbar { display: none; }
+/* Shortcuts to the page's sections (Matan, 22.11). All of them in one row, in
+   equal columns, with nothing to scroll sideways (Matan: "in one screen"); the
+   label shrinks to fit a narrow phone or extra-large text. 36px chips with a
+   44px tap height. */
+.month-sticky-nav { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 5px; padding: 0 12px 10px; }
 .month-sticky-nav[hidden] { display: none; }
 .month-jump {
-    position: relative; flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: var(--radius-pill);
+    position: relative; min-width: 0; min-height: 36px; padding: 0 2px; border-radius: var(--radius-pill);
     border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06);
-    color: var(--hero-text); font: inherit; font-size: var(--text-md); font-weight: 600; cursor: pointer;
+    color: var(--hero-text); font: inherit; font-size: clamp(12px, 3.6vw, 14px); font-weight: 600; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: clip;
 }
 .month-jump::before { content: ""; position: absolute; inset: -4px 0; }
 .month-jump.is-current { background: var(--color-gold); border-color: var(--color-gold); color: #FFFFFF; }
