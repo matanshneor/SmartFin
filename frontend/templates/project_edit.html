@@ -52,7 +52,7 @@
                       placeholder="למשל: טיול משפחתי ליפן, קיץ 2026">{{ project.description or '' }}</textarea>
         </div>
         <div class="form-group">
-            <label class="form-label" for="editProjectBudget">תקציב יעד (אופציונלי)</label>
+            <label class="form-label" for="editProjectBudget" id="editProjectBudgetLabel">{{ 'יעד חיסכון' if project_kind(project) == 'savings' else 'תקציב' }} (אופציונלי)</label>
             <div class="amount-input-wrap">
                 <span class="amount-currency">₪</span>
                 <input class="form-input amount-input" type="number" inputmode="numeric" id="editProjectBudget" min="0" step="1" data-thousands
@@ -62,12 +62,36 @@
             {# The field stood without a single word of explanation: two words and a box
                for an amount, without saying whether it is a ceiling, a
                forecast or money already set aside. #}
-            <p class="field-hint" id="budgetTargetHint">
-                כמה תכננתם להוציא. בעמוד הפרויקט יופיע פס שמראה כמה
-                מהסכום כבר נוצל — בלי לחסום כלום.
+            <p class="field-hint" id="budgetTargetHint" data-expense="כמה תכננתם להוציא. בעמוד הפרויקט יופיע פס שמראה כמה מהסכום כבר נוצל — בלי לחסום כלום." data-savings="לאיזה סכום אתם חוסכים. בעמוד הפרויקט יופיע פס שמתמלא ככל שהחיסכון גדל.">
+                {%- if project_kind(project) == 'savings' -%}
+                לאיזה סכום אתם חוסכים. בעמוד הפרויקט יופיע פס שמתמלא ככל שהחיסכון גדל.
+                {%- else -%}
+                כמה תכננתם להוציא. בעמוד הפרויקט יופיע פס שמראה כמה מהסכום כבר נוצל — בלי לחסום כלום.
+                {%- endif -%}
             </p>
         </div>
+        {# The project's kind (Matan, 22.11), in place of the three "what to track"
+           checkboxes: they stay, hidden, and the cards set them. The kind
+           changes only while the project is empty; the server checks it too. #}
+        {% set kind = project_kind(project) %}
+        {% set kind_locked = project.transactions | length > 0 %}
         <div class="form-group">
+            <span class="form-label" id="editProjectKindLabel">איזה פרויקט זה?</span>
+            <div class="kind-cards" role="radiogroup" aria-labelledby="editProjectKindLabel" id="editProjectKind">
+                <button type="button" class="kind-card" role="radio" data-kind="expense" aria-checked="{{ 'true' if kind == 'expense' else 'false' }}"{% if kind_locked %} disabled{% endif %}>
+                    <span class="kind-card-icon" aria-hidden="true">🧾</span>
+                    <span class="kind-card-name">פרויקט הוצאות</span>
+                    <span class="kind-card-rule">משייכים הוצאות והכנסות</span>
+                </button>
+                <button type="button" class="kind-card" role="radio" data-kind="savings" aria-checked="{{ 'true' if kind == 'savings' else 'false' }}"{% if kind_locked %} disabled{% endif %}>
+                    <span class="kind-card-icon" aria-hidden="true">🎯</span>
+                    <span class="kind-card-name">פרויקט חיסכון</span>
+                    <span class="kind-card-rule">משייכים רק חיסכון</span>
+                </button>
+            </div>
+            {% if kind_locked %}<p class="field-hint">אי אפשר להחליף בין הוצאות לחיסכון אחרי שיש בפרויקט עסקאות.</p>{% endif %}
+        </div>
+        <div class="form-group" hidden>
             <label class="form-label">אילו מחלקות לעקוב?</label>
             <div class="track-row">
             <label class="checkbox-label">

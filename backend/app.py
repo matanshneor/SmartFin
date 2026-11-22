@@ -283,6 +283,44 @@ app.jinja_env.filters["count_of"] = count_of
 app.jinja_env.filters["day_label"] = lambda d: day_label(d, clock.today())
 
 
+def project_kind(p) -> str:
+    """A project is one of two kinds (Matan, 22.11): `savings`, saving towards a
+    goal, only savings belong to it, and its amount is a goal to reach; or
+    `expense`, a budget for one big thing, expenses and income belong to it, and
+    its amount is a ceiling. Derived from what it tracks, with no column of its
+    own: an older project that tracks both is an expense project, as it was
+    always shown."""
+    get = p.get if hasattr(p, "get") else lambda k, d=None: getattr(p, k, d)
+    return "savings" if get("track_savings") and not get("track_expense") else "expense"
+
+
+def days_ago_label(d, today=None) -> str:
+    """"היום" / "אתמול" / "לפני 18 ימים" / "לפני 3 חודשים", for the last movement
+    in a project. Empty when there is no date."""
+    if not d:
+        return ""
+    if isinstance(d, str):
+        try:
+            d = date.fromisoformat(d[:10])
+        except ValueError:
+            return ""
+    days = ((today or clock.today()) - d).days
+    if days <= 0:
+        return "היום"
+    if days == 1:
+        return "אתמול"
+    if days < 14:
+        return f"לפני {days} ימים"
+    if days < 60:
+        return f"לפני {days // 7} שבועות"
+    months = days // 30
+    return "לפני חודשיים" if months == 2 else f"לפני {months} חודשים"
+
+
+app.jinja_env.globals["project_kind"] = project_kind
+app.jinja_env.filters["days_ago"] = days_ago_label
+
+
 @app.context_processor
 def _versioned_static():
     """Overrides url_for for static assets only.
@@ -2123,7 +2161,8 @@ def projects():
     if len(project_list) > 1:
         project_list = sorted(project_list, key=lambda p: last.get(p["id"]) or "", reverse=True)
     return render_template("projects.html", active_page="projects", user=user,
-                           projects=project_list, finished_projects=finished)
+                           projects=project_list, finished_projects=finished,
+                           last_activity=last or {}, summary=_projects_summary(project_list))
 
 
 def _member_names(family_id) -> dict:
@@ -2217,6 +2256,23 @@ def project_edit(project_id):
                                                              _member_names(family_id)))
 
 
+def _projects_summary(projects) -> dict:
+    """The line at the top of the projects page (Matan, 22.11): how much is left
+    of the budgets, and how much was saved towards the goals. Only projects that
+    have an amount count: without one there is nothing to be left of."""
+    budget = spent = goal = saved = 0.0
+    for p in projects:
+        target = p.get("budget_target")
+        if project_kind(p) == "savings":
+            saved += p.get("saved") or 0
+            goal += target or 0
+        elif target:
+            budget += target
+            spent += p.get("spent") or 0
+    return {"count": len(projects), "budget": budget, "left": budget - spent,
+            "goal": goal, "saved": saved}
+
+
 def _parse_project_body(body: dict):
     """Parses and validates the fields shared by creating/updating a project
     (name/target/tracked types only, not ownership: that is set separately in
@@ -2244,6 +2300,14 @@ def _parse_project_body(body: dict):
     track_expense = bool(body.get("track_expense", True))
     track_income  = bool(body.get("track_income", False))
     track_savings = bool(body.get("track_savings", False))
+    # The kind chosen in the form (Matan, 22.11) decides what belongs to the
+    # project: only savings, or expenses and income. Without it (an older tab),
+    # the three flags as sent.
+    kind = body.get("kind")
+    if kind == "savings":
+        track_expense, track_income, track_savings = False, False, True
+    elif kind == "expense":
+        track_expense, track_income, track_savings = True, True, False
     if not (track_expense or track_income or track_savings):
         return None, "נא לבחור לפחות מחלקה אחת למעקב"
 
@@ -2412,6 +2476,14 @@ def update_project_route(project_id):
     fields, err = _parse_project_body(body)
     if err:
         return jsonify({"error": err}), 422
+    # The kind changes only while the project is empty: afterwards its
+    # transactions would be left with a kind the project no longer takes
+    try:
+        current = db.get_project_detail(project_id, user["family_id"], user["id"])
+    except db.DataUnavailable:
+        current = None
+    if current and project_kind(current) != project_kind(fields) and current.get("transactions"):
+        return jsonify({"error": "אי אפשר להחליף בין הוצאות לחיסכון אחרי שיש בפרויקט עסקאות"}), 422
     ok = db.update_project(project_id, user["family_id"], **fields)
     if ok is None:
         return jsonify({"error": "הפרויקט לא נמצא — ייתכן שנמחק בינתיים"}), 404

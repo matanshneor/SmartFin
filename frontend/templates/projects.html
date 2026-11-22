@@ -3,18 +3,39 @@
 {% block title %}SmartFin – פרויקטים{% endblock %}
 
 {% block hero %}
-<div class="hero-top">
-    <div>
-        <h1 class="hero-title">פרויקטים</h1>
-        {# Matan (3.10): make it clear that project money doesn't go into the month's
-           balance. One line (design pass, 11.11): the subtitle went, since the
-           "new project" card under it says what a project is. #}
-        <p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש</p>
-    </div>
+<div class="hero-top projects-hero-top">
+    <h1 class="hero-title">פרויקטים</h1>
+    {# "New project" up here, small (Matan, 22.11): it used to be a tile the size
+       of a whole project at the end of the list #}
+    {% if projects %}
+    <a class="projects-new-btn" id="newProjectBtn" href="{{ url_for('project_new') }}">＋ פרויקט חדש</a>
+    {% endif %}
 </div>
+{# What is left of all the budgets and what was saved towards the goals, in
+   one place (Matan, 22.11). Only what has an amount is counted. #}
+{% if projects and summary is defined and (summary.budget or summary.goal or summary.saved) %}
+<div class="projects-summary">
+    <p class="projects-summary-count">{{ summary.count | count_of('פרויקט פעיל אחד', 'פרויקטים פעילים') }}</p>
+    {% if summary.budget %}
+    <p class="projects-summary-main{% if summary.left < 0 %} is-over{% endif %}">
+        {%- if summary.left >= 0 %}נשארו ₪{{ summary.left | round | int | money }}{% else %}חריגה של ₪{{ (summary.left | abs) | round | int | money }}{% endif -%}
+    </p>
+    <p class="projects-summary-sub">מתוך תקציב של ₪{{ summary.budget | round | int | money }}
+        {%- if summary.saved %} · נחסכו ₪{{ summary.saved | round | int | money }} ליעדים{% endif %}</p>
+    {% else %}
+    <p class="projects-summary-main">נחסכו ₪{{ summary.saved | round | int | money }}</p>
+    {% if summary.goal %}<p class="projects-summary-sub">מתוך יעדים של ₪{{ summary.goal | round | int | money }}</p>{% endif %}
+    {% endif %}
+</div>
+{% endif %}
+{# Matan (3.10): make it clear that project money doesn't go into the month's
+   balance #}
+<p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש</p>
 {% endblock %}
 
 {% block content %}
+{# Rendered on its own in places (tests, a fallback): nothing known then #}
+{% set last_activity = last_activity if last_activity is defined else {} %}
 
 {# A box per project, in its own tint (Matan, 5.10).
 
@@ -28,35 +49,64 @@
    reversed the decision of 5.10). With a target: left of the target, and a bar.
    Without a target: how much went out (or was saved, in a savings project). A
    project with nothing in it yet: no line. #}
-{% macro tile_progress(p) %}
+{# What the amount means follows the project's kind (Matan, 22.11): in a
+   savings project it is a goal to reach ("saved X of Y", a green bar that
+   fills as money goes in); in an expense project it is a ceiling ("X went out
+   of Y · Z left"). The sentence and the bar say the same thing: both show what
+   was done, not what is left. #}
+{% macro tile_numbers(p) %}
+{% set kind = project_kind(p) %}
+{% set done = p.saved if kind == 'savings' else p.spent %}
 {% if p.budget_target %}
-{% set left = p.budget_target - p.spent %}
-{% set used_pct = ((p.spent / p.budget_target) * 100) | round | int %}
+{% set pct = ((done / p.budget_target) * 100) | round | int %}
+{% set over = kind == 'expense' and done > p.budget_target %}
 <span class="project-tile-sub project-tile-progress">
-    {%- if left >= 0 -%}
-    נשארו <b>₪{{ left | money }}</b> מתוך ₪{{ p.budget_target | money }}
+    {%- if kind == 'savings' -%}
+    נחסכו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
+    {%- elif over -%}
+    יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
     {%- else -%}
-    <span class="deficit">חריגה של <b>₪{{ (left | abs) | money }}</b></span> מתוך ₪{{ p.budget_target | money }}
+    יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }} · נשארו <b>₪{{ (p.budget_target - done) | round | int | money }}</b>
     {%- endif -%}
 </span>
-<span class="project-tile-bar" aria-hidden="true"><span class="{% if left < 0 %}danger{% endif %}" style="width: {{ [used_pct, 100] | min }}%;"></span></span>
-{% elif p.track_expense and p.spent > 0 %}
-<span class="project-tile-sub project-tile-progress">יצאו <b>₪{{ p.spent | money }}</b> עד עכשיו</span>
-{% elif p.track_savings and p.saved > 0 %}
-<span class="project-tile-sub project-tile-progress">נחסכו <b>₪{{ p.saved | money }}</b> עד עכשיו</span>
+<span class="project-tile-bar" aria-hidden="true"><span class="{% if over %}danger{% elif kind == 'savings' %}saving{% endif %}" style="width: {{ [pct, 100] | min }}%;"></span></span>
+{% elif kind == 'savings' and p.saved > 0 %}
+<span class="project-tile-sub project-tile-progress">נחסכו <b>₪{{ p.saved | round | int | money }}</b> עד עכשיו</span>
+{% elif kind == 'expense' and p.spent > 0 %}
+<span class="project-tile-sub project-tile-progress">יצאו <b>₪{{ p.spent | round | int | money }}</b> עד עכשיו</span>
 {% endif %}
 {% endmacro %}
 
+{# The link covers the whole tile (`::after`); the + is a button of its own
+   above it: one tap adds a transaction straight into this project (Matan,
+   22.11). A button inside a link isn't valid HTML. #}
 {% macro tile(p, i) %}
-<a class="project-tile tint-{{ i % 4 }}" href="{{ url_for('project_detail', project_id=p.id) }}" data-id="{{ p.id }}">
+{% set kind = project_kind(p) %}
+{% set done = p.saved if kind == 'savings' else p.spent %}
+{% set pct = ((done / p.budget_target) * 100) | round | int if p.budget_target else none %}
+{% set over = kind == 'expense' and p.budget_target and done > p.budget_target %}
+{% set last = last_activity.get(p.id) %}
+<div class="project-tile tint-{{ i % 4 }}{% if over %} is-over{% endif %}" data-id="{{ p.id }}">
     <span class="project-tile-icon" aria-hidden="true">{{ p.icon or '🎯' }}</span>
     <span class="project-tile-body">
-        <span class="project-tile-name">{{ p.name }}</span>
+        <span class="project-tile-head">
+            <a class="project-tile-name project-tile-link" href="{{ url_for('project_detail', project_id=p.id) }}">{{ p.name }}</a>
+            {% if pct is not none %}<span class="project-tile-pct{% if over %} is-over{% endif %}">{{ pct }}%</span>{% endif %}
+        </span>
         {% if p.description %}<span class="project-tile-sub">{{ p.description }}</span>{% endif %}
-        {{ tile_progress(p) }}
+        {{ tile_numbers(p) }}
+        <span class="project-tile-foot">
+            <span class="project-tile-tags">
+                {% if over %}<span class="project-tile-tag is-over">חריגה של ₪{{ (done - p.budget_target) | round | int | money }}</span>{% endif %}
+                {% if p.is_personal %}<span class="project-tile-tag">{{ ui_icon("lock") }} אישי</span>{% endif %}
+                {% if kind == 'savings' %}<span class="project-tile-tag">חיסכון</span>{% endif %}
+                {% if last %}<span class="project-tile-last">{{ 'הפקדה אחרונה' if kind == 'savings' else 'עסקה אחרונה' }}: {{ last | days_ago }}</span>{% endif %}
+            </span>
+            <button type="button" class="project-tile-add" data-add-to-project="{{ p.id }}"
+                    aria-label="הוספת עסקה ל{{ p.name }}">＋</button>
+        </span>
     </span>
-    {% if p.is_personal %}<span class="project-tile-tag">{{ ui_icon("lock") }} אישי</span>{% endif %}
-</a>
+</div>
 {% endmacro %}
 
 <section class="projects-gallery" id="activeProjects" aria-label="פרויקטים פעילים">
@@ -67,10 +117,6 @@
     {% if projects | length == 1 %}<span id="sfPageProject" data-project-id="{{ projects[0].id }}" hidden></span>{% endif %}
     <div class="project-grid" id="projectsList">
         {% for p in projects %}{{ tile(p, loop.index0) }}{% endfor %}
-        <a class="project-tile project-tile-new" id="newProjectBtn" href="{{ url_for('project_new') }}">
-            <span class="project-tile-plus" aria-hidden="true">＋</span>
-            <span class="project-tile-name">פרויקט חדש</span>
-        </a>
     </div>
     {% else %}
     {# No active projects: not "there's nothing", an invitation to start, with ideas #}
@@ -101,10 +147,16 @@
 {% if finished_projects %}
 <section class="finished-projects" id="finishedProjects">
     <h2 class="projects-section-title">הסתיימו</h2>
-    <div class="finished-chips">
+    {# With how it ended, not a name alone (Matan, 22.11) #}
+    <div class="finished-list">
         {% for p in finished_projects %}
-        <a class="finished-chip" href="{{ url_for('project_detail', project_id=p.id) }}">
-            <span aria-hidden="true">{{ p.icon or '🎯' }}</span> {{ p.name }}
+        {% set kind = project_kind(p) %}
+        {% set done = p.saved if kind == 'savings' else p.spent %}
+        <a class="finished-row" href="{{ url_for('project_detail', project_id=p.id) }}">
+            <span class="finished-row-name"><span aria-hidden="true">{{ p.icon or '🎯' }}</span> {{ p.name }}</span>
+            {% if done or p.budget_target %}
+            <span class="finished-row-sum">₪{{ done | round | int | money }}{% if p.budget_target %} מתוך ₪{{ p.budget_target | round | int | money }}{% endif %}</span>
+            {% endif %}
         </a>
         {% endfor %}
     </div>

@@ -159,7 +159,7 @@ def test_finished_projects_are_small_but_still_open(client):
     finished = html[html.index('id="finishedProjects"'):]
     finished = finished[:finished.index("</section>")]
     assert 'class="project-tile tint-' in active
-    assert "project-tile" not in finished and 'class="finished-chip"' in finished
+    assert "project-tile" not in finished and 'class="finished-row"' in finished
     assert f'href="/projects/{_P_DONE}"' in finished
 
 

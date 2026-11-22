@@ -18,6 +18,23 @@ let isPersonal = false;
     });
 });
 
+// The kind of project (Matan, 22.11): one of two cards. It sets what belongs
+// to the project (the three hidden checkboxes) and what the amount is called.
+let kind = 'expense';
+const kindCards = document.querySelectorAll('#projectKind .kind-card');
+function setKind(next) {
+    kind = next;
+    kindCards.forEach(function (c) { c.setAttribute('aria-checked', c.dataset.kind === kind ? 'true' : 'false'); });
+    document.getElementById('projectTrackExpense').checked = kind === 'expense';
+    document.getElementById('projectTrackIncome').checked  = kind === 'expense';
+    document.getElementById('projectTrackSavings').checked = kind === 'savings';
+    document.getElementById('projectBudgetLabel').textContent =
+        kind === 'savings' ? 'יעד חיסכון (אופציונלי)' : 'תקציב (אופציונלי)';
+    const name = document.getElementById('projectName');
+    name.placeholder = kind === 'savings' ? 'לדוגמה: קרן לרכב' : 'לדוגמה: טיול ליפן';
+}
+kindCards.forEach(function (c) { c.addEventListener('click', function () { setKind(c.dataset.kind); }); });
+
 form.addEventListener('submit', function (e) {
     e.preventDefault();
     errorEl.textContent = '';
@@ -45,6 +62,7 @@ form.addEventListener('submit', function (e) {
             description: description,
             budget_target: budgetVal ? parseFloat(budgetVal) : null,
             is_personal: isPersonal,
+            kind: kind,
             track_expense: trackExpense,
             track_income: trackIncome,
             track_savings: trackSavings,

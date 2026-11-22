@@ -186,6 +186,26 @@ function syncSave() { saveBtn.disabled = !isDirty(); }
 editForm.addEventListener('input', syncSave);
 editForm.addEventListener('change', syncSave);
 
+// The project's kind (Matan, 22.11): the two cards set the three hidden "what to
+// track" checkboxes, and what the amount is called. Disabled once the project
+// has transactions (the template), and the server refuses the change then too.
+document.querySelectorAll('#editProjectKind .kind-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+        const kind = card.dataset.kind;
+        document.querySelectorAll('#editProjectKind .kind-card').forEach(function (c) {
+            c.setAttribute('aria-checked', c === card ? 'true' : 'false');
+        });
+        fields.trackExpense.checked = kind === 'expense';
+        fields.trackIncome.checked  = kind === 'expense';
+        fields.trackSavings.checked = kind === 'savings';
+        const label = document.getElementById('editProjectBudgetLabel');
+        if (label) label.textContent = (kind === 'savings' ? 'יעד חיסכון' : 'תקציב') + ' (אופציונלי)';
+        const hint = document.getElementById('budgetTargetHint');
+        if (hint && hint.dataset[kind]) hint.textContent = hint.dataset[kind];
+        editForm.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+});
+
 function render() {
     syncSave();
     updateCount();
