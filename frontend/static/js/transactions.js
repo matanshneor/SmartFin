@@ -594,14 +594,19 @@
             const typing = overlay.classList.contains('open') && a && a !== modalSheetEl
                 && modalSheetEl.contains(a) && a.matches('input, textarea, select');
             const covered = window.innerHeight - vv.height > 60;
+            // On a phone the page behind isn't drawn from the moment a field
+            // takes focus, before the keyboard is even up: see `sheet-typing`
+            // in the CSS
+            document.documentElement.classList.toggle('sheet-typing',
+                !!typing && window.matchMedia('(pointer: coarse)').matches);
+            seenActive = a; seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
+            if (typing && !watching) { watching = true; requestAnimationFrame(watch); }
             if (typing && covered) {
                 overlay.style.top = Math.round(vv.offsetTop) + 'px';
                 overlay.style.bottom = 'auto';
                 overlay.style.height = Math.round(vv.height) + 'px';
                 overlay.style.setProperty('--sheet-room', Math.round(vv.height) + 'px');
                 overlay.classList.add('kb-fit');
-                seenTop = Math.round(vv.offsetTop); seenHeight = Math.round(vv.height);
-                if (!fitted) requestAnimationFrame(watch);
                 fitted = true;
                 // The sheet just got shorter: the field being typed in stays
                 // in sight, at once — before iOS draws its caret elsewhere
@@ -618,11 +623,14 @@
         // the page under the sheet, the keyboard's bar changing): the sheet
         // stayed a step behind and the page showed between Save and the
         // keyboard (Matan, 22.11). While fitted, look every frame.
-        let seenTop = 0, seenHeight = 0;
+        // The same look also catches a focus that left with no event: the page
+        // behind (`sheet-typing`) must come back.
+        let seenTop = 0, seenHeight = 0, seenActive = null, watching = false;
         function watch() {
-            if (!fitted) return;
-            if (Math.round(vv.offsetTop) !== seenTop || Math.round(vv.height) !== seenHeight) fit();
-            if (fitted) requestAnimationFrame(watch);
+            if (Math.round(vv.offsetTop) !== seenTop || Math.round(vv.height) !== seenHeight
+                || document.activeElement !== seenActive) fit();
+            if (fitted || document.documentElement.classList.contains('sheet-typing')) requestAnimationFrame(watch);
+            else watching = false;
         }
         // Save is stuck to the bottom while there is still content below it: then
         // the strip under it is covered (see `.is-stuck` in the CSS)
