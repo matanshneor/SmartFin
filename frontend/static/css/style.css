@@ -5714,11 +5714,6 @@ body.tx-screen-open { overflow: hidden; }
 .cat-tx-desc .installment-tag { display: table; margin-top: 3px; padding-inline: 0; }
 .recurring-next .installment-tag { padding: 0; }
 .empty-cta { margin-top: 14px; padding-inline: 22px; }
-/* "This expense repeats" (Matan, 22.11): the alert card with a button under the text */
-.recur-suggest { margin-bottom: 14px; }
-.recur-suggest .alert-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-inline-end: 44px; }
-.recur-suggest .alert-dismiss { top: 8px; translate: none; }
-.recur-suggest-yes { min-height: 36px; padding-inline: 16px; }
 .switch-hint { display: block; margin-top: 2px; font-size: var(--text-sm); font-weight: 400; color: var(--color-text-muted); }
 /* A row that opens something is at least 44px tall (audit, 22.11): the
    transaction rows in the week card and under a category were 33-35px, easy to
