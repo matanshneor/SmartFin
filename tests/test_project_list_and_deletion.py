@@ -34,20 +34,31 @@ _FAM, _ME = "f" * 8, "m" * 8
 
 # ─── The list: names only ────────────────────────────────────────────────────
 
-def test_finished_projects_show_how_they_ended():
-    """A finished project: its name and how it ended, "₪42,000 מתוך ₪40,000" (Matan,
-    22.11; until then only the name). One with nothing in it: the name alone."""
+def test_finished_projects_show_their_final_cost():
+    """A finished project: its name and its final cost, the expenses minus what
+    came in, as at the top of its own page (Matan, 23.11; a day earlier the row
+    showed the expenses alone). One with nothing in it: the name alone."""
     from backend.app import app
-    done = _proj(id="d1", name="חתונה", budget_target=40000.0, spent=42000.0, archived=True)
-    empty = _proj(id="d2", name="ריק", archived=True)
+    rows = [
+        _proj(id="d1", name="ירח דבש", spent=55363.0, income=10000.0, track_income=True, archived=True),
+        _proj(id="d2", name="רק הוצאות", spent=2740.0, archived=True),
+        _proj(id="d3", name="מכירה", spent=1000.0, income=4000.0, track_income=True, archived=True),
+        _proj(id="d4", name="קרן", track_expense=False, track_savings=True, saved=18000.0, archived=True),
+        _proj(id="d5", name="ריק", archived=True),
+    ]
     with app.test_request_context("/projects"):
         html = app.jinja_env.get_template("projects.html").render(
             active_page="projects", user={"id": "x", "name": "מתן", "avatar_initial": "מ"},
-            projects=[], finished_projects=[done, empty])
+            projects=[], finished_projects=rows)
     finished = html[html.index('id="finishedProjects"'):]
-    assert '<span class="finished-row-sum">₪42,000 מתוך ₪40,000</span>' in finished
-    assert finished.count("finished-row-sum") == 1
+    sums = re.findall(r'<span class="finished-row-sum">([^<]*)</span>', finished)
+    assert sums == ["עלות ₪45,363", "עלות ₪2,740", "+₪3,000", "נחסכו ₪18,000"]
     assert "hero-totals" not in _LIST and "הוצאתם" not in _LIST
+
+    # The list's rows carry the income the cost is computed from
+    src = (_ROOT / "backend/supabase_config.py").read_text(encoding="utf-8")
+    block = src[src.index("def projects_from_rows"):]
+    assert '"income": round(t["income"], 2),' in block[:block.index("\ndef ")]
 
 
 def _render_tiles(projects):
@@ -60,7 +71,7 @@ def _render_tiles(projects):
 
 def _proj(**kw):
     base = {"id": "p1", "name": "טיול", "description": None, "icon": "✈️", "is_personal": False,
-            "budget_target": None, "spent": 0.0, "saved": 0.0, "amount": 0.0,
+            "budget_target": None, "spent": 0.0, "saved": 0.0, "income": 0.0, "amount": 0.0,
             "track_expense": True, "track_income": False, "track_savings": False}
     return {**base, **kw}
 

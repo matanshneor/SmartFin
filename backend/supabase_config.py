@@ -3351,6 +3351,9 @@ def projects_from_rows(projects: list, totals: dict, viewer_user_id: str) -> lis
             # calculation as on the project page (`spent` = expenses only)
             "spent": round(t["expense"], 2),
             "saved": round(t["savings"], 2),
+            # For a finished project's line in the list: its final cost is the
+            # expenses minus what came in (Matan, 23.11)
+            "income": round(t["income"], 2),
             "track_expense": p.get("track_expense", True),
             "track_income": p.get("track_income", False),
             "track_savings": p.get("track_savings", False),

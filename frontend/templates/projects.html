@@ -157,15 +157,25 @@
 {% if finished_projects %}
 <section class="finished-projects" id="finishedProjects">
     <h2 class="projects-section-title">הסתיימו</h2>
-    {# With how it ended, not a name alone (Matan, 22.11) #}
+    {# With how it ended, not a name alone (Matan, 22.11). The number is the
+       project's final cost, as at the top of its own page: the expenses minus
+       what came in, and not the expenses alone (Matan, 23.11: a trip that cost
+       ₪55,363 and got ₪10,000 back cost ₪45,363). More came in than went out:
+       "+₪X". A savings project: what was saved. #}
     <div class="finished-list">
         {% for p in finished_projects %}
         {% set kind = project_kind(p) %}
-        {% set done = p.saved if kind == 'savings' else p.spent %}
+        {% set net = ((p.income or 0) - (p.spent or 0)) | round(2) %}
         <a class="finished-row" href="{{ url_for('project_detail', project_id=p.id) }}">
             <span class="finished-row-name"><span aria-hidden="true">{{ p.icon or '🎯' }}</span> {{ p.name }}</span>
-            {% if done or p.budget_target %}
-            <span class="finished-row-sum">₪{{ done | round | int | money }}{% if p.budget_target %} מתוך ₪{{ p.budget_target | round | int | money }}{% endif %}</span>
+            {% if kind == 'savings' %}
+            {% if p.saved %}<span class="finished-row-sum">נחסכו ₪{{ p.saved | round | int | money }}</span>{% endif %}
+            {% elif net < 0 %}
+            <span class="finished-row-sum">עלות ₪{{ (net | abs) | round | int | money }}</span>
+            {% elif net > 0 %}
+            <span class="finished-row-sum">+₪{{ net | round | int | money }}</span>
+            {% elif p.spent %}
+            <span class="finished-row-sum">₪0</span>
             {% endif %}
         </a>
         {% endfor %}
