@@ -3574,7 +3574,7 @@ def update_transaction(tx_id):
             if db.is_recurring_instance(tx_id, user["family_id"]):
                 return jsonify({
                     "error": "זו עסקה קבועה. כדי לשנות אותה מהחודש הנוכחי והלאה, "
-                             "ערכו אותה דרך ההגדרות ← עסקאות קבועות.",
+                             "ערכו אותה דרך ההגדרות ← עסקאות חוזרות.",
                 }), 422
         except db.DataUnavailable:
             # Unknown. A duplicate series is damage that can't be undone; a
