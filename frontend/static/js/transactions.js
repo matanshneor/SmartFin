@@ -697,7 +697,7 @@
             note.id = 'recurringLockNote';
             note.className = 'field-hint';
             note.textContent = 'זו עסקה קבועה. '
-                             + 'לשינוי שלה מהחודש הנוכחי והלאה — הגדרות ← עסקאות קבועות.';
+                             + 'לשינוי שלה מהחודש הנוכחי והלאה — הגדרות ← עסקאות קבועות ותשלומים.';
             group.appendChild(note);
         } else if (!locked && note) {
             note.remove();
