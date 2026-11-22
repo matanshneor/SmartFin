@@ -5288,6 +5288,8 @@ div.project-tile:active { transform: none; }
     margin-top: 14px; padding: 12px 16px; border-radius: var(--radius);
     background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1);
 }
+/* Several projects: only how many (their money isn't summed) */
+.projects-count { margin: 6px 0 0; font-size: var(--text-md); color: var(--hero-text-muted); }
 .projects-summary-count, .projects-summary-sub { margin: 0; font-size: var(--text-xs); color: var(--hero-text-muted); }
 .projects-summary-main { margin: 2px 0; font-size: var(--text-xl); font-weight: 700; line-height: 1.25; color: var(--hero-gold, #E0B84A); font-variant-numeric: tabular-nums; }
 .projects-summary-main.is-over { color: #F2A0A8; }

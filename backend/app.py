@@ -2162,7 +2162,7 @@ def projects():
         project_list = sorted(project_list, key=lambda p: last.get(p["id"]) or "", reverse=True)
     return render_template("projects.html", active_page="projects", user=user,
                            projects=project_list, finished_projects=finished,
-                           last_activity=last or {}, summary=_projects_summary(project_list))
+                           last_activity=last or {})
 
 
 def _member_names(family_id) -> dict:
@@ -2254,23 +2254,6 @@ def project_edit(project_id):
                            project=project,
                            others_note=_others_contributions(project, user["id"],
                                                              _member_names(family_id)))
-
-
-def _projects_summary(projects) -> dict:
-    """The line at the top of the projects page (Matan, 22.11): how much is left
-    of the budgets, and how much was saved towards the goals. Only projects that
-    have an amount count: without one there is nothing to be left of."""
-    budget = spent = goal = saved = 0.0
-    for p in projects:
-        target = p.get("budget_target")
-        if project_kind(p) == "savings":
-            saved += p.get("saved") or 0
-            goal += target or 0
-        elif target:
-            budget += target
-            spent += p.get("spent") or 0
-    return {"count": len(projects), "budget": budget, "left": budget - spent,
-            "goal": goal, "saved": saved}
 
 
 def _parse_project_body(body: dict):

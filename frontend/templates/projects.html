@@ -11,22 +11,32 @@
     <a class="projects-new-btn" id="newProjectBtn" href="{{ url_for('project_new') }}">＋ פרויקט חדש</a>
     {% endif %}
 </div>
-{# What is left of all the budgets and what was saved towards the goals, in
-   one place (Matan, 22.11). Only what has an amount is counted. #}
-{% if projects and summary is defined and (summary.budget or summary.goal or summary.saved) %}
+{# One project: its own numbers up here. Several: only how many there are
+   (Matan, 22.11: "the money of different projects together means nothing").
+   The first version of this summed all the budgets and all the savings. #}
+{% if projects | length == 1 %}
+{% set p = projects[0] %}
+{% set kind = project_kind(p) %}
+{% set done = p.saved if kind == 'savings' else p.spent %}
+{% if p.budget_target or done %}
 <div class="projects-summary">
-    <p class="projects-summary-count">{{ summary.count | count_of('פרויקט פעיל אחד', 'פרויקטים פעילים') }}</p>
-    {% if summary.budget %}
-    <p class="projects-summary-main{% if summary.left < 0 %} is-over{% endif %}">
-        {%- if summary.left >= 0 %}נשארו ₪{{ summary.left | round | int | money }}{% else %}חריגה של ₪{{ (summary.left | abs) | round | int | money }}{% endif -%}
+    <p class="projects-summary-count">{{ p.name }}</p>
+    {% if kind == 'savings' %}
+    <p class="projects-summary-main">נחסכו ₪{{ done | round | int | money }}</p>
+    {% if p.budget_target %}<p class="projects-summary-sub">מתוך יעד של ₪{{ p.budget_target | round | int | money }}</p>{% endif %}
+    {% elif p.budget_target %}
+    {% set left = p.budget_target - done %}
+    <p class="projects-summary-main{% if left < 0 %} is-over{% endif %}">
+        {%- if left >= 0 %}נשארו ₪{{ left | round | int | money }}{% else %}חריגה של ₪{{ (left | abs) | round | int | money }}{% endif -%}
     </p>
-    <p class="projects-summary-sub">מתוך תקציב של ₪{{ summary.budget | round | int | money }}
-        {%- if summary.saved %} · נחסכו ₪{{ summary.saved | round | int | money }} ליעדים{% endif %}</p>
+    <p class="projects-summary-sub">מתוך תקציב של ₪{{ p.budget_target | round | int | money }}</p>
     {% else %}
-    <p class="projects-summary-main">נחסכו ₪{{ summary.saved | round | int | money }}</p>
-    {% if summary.goal %}<p class="projects-summary-sub">מתוך יעדים של ₪{{ summary.goal | round | int | money }}</p>{% endif %}
+    <p class="projects-summary-main">יצאו ₪{{ done | round | int | money }}</p>
     {% endif %}
 </div>
+{% endif %}
+{% elif projects %}
+<p class="projects-count">{{ projects | length }} פרויקטים פעילים</p>
 {% endif %}
 {# Matan (3.10): make it clear that project money doesn't go into the month's
    balance #}

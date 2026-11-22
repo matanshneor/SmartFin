@@ -137,15 +137,26 @@ def test_last_movement_is_said_in_words():
         == ["היום", "אתמול", "לפני 7 ימים", "לפני 3 שבועות", "לפני חודשיים", "לפני 4 חודשים", ""]
 
 
-def test_the_top_of_the_page_sums_the_projects():
-    from backend.app import _projects_summary
-    s = _projects_summary([
-        _proj(budget_target=12000.0, spent=8200.0),
-        _proj(budget_target=45000.0, spent=28300.0),
-        _proj(spent=500.0),                                             # no amount: not counted
-        _proj(track_expense=False, track_savings=True, budget_target=60000.0, saved=15000.0),
-    ])
-    assert s == {"count": 4, "budget": 57000.0, "left": 20500.0, "goal": 60000.0, "saved": 15000.0}
+def test_several_projects_are_counted_but_their_money_is_not_summed():
+    """Matan (22.11): "the money of different projects together means nothing".
+    Several projects: only how many. One project: its own numbers."""
+    many = _render_tiles([_proj(id="a", budget_target=12000.0, spent=8200.0),
+                          _proj(id="b", budget_target=45000.0, spent=28300.0),
+                          _proj(id="c", track_expense=False, track_savings=True,
+                                budget_target=60000.0, saved=15000.0)])
+    assert '<p class="projects-count">3 פרויקטים פעילים</p>' in many
+    assert "projects-summary" not in many and "20,500" not in many and "57,000" not in many
+
+    one = _render_tiles([_proj(name="טיול", budget_target=12000.0, spent=8200.0)])
+    assert "projects-count" not in one
+    assert '<p class="projects-summary-count">טיול</p>' in one
+    assert "נשארו ₪3,800" in one and "מתוך תקציב של ₪12,000" in one
+
+    saving = _render_tiles([_proj(track_expense=False, track_savings=True,
+                                  budget_target=60000.0, saved=15000.0)])
+    assert "נחסכו ₪15,000" in saving and "מתוך יעד של ₪60,000" in saving
+
+    assert "_projects_summary" not in (_ROOT / "backend/app.py").read_text(encoding="utf-8")
 
 
 def test_a_tile_without_a_target_says_what_went_out():
