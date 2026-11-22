@@ -101,6 +101,7 @@
     }
     let membersCache  = null;
     let projectsCache = null;
+    let projectsLoading = null;   // the request on its way, if any
     let projectCategoriesCache = {}; // key: "<projectId>:<type>"
     let categoryGridIsProject = false; // whether the current category grid shows project or family categories
 
@@ -218,8 +219,38 @@
         // Finished projects too, marked: an old transaction in one that is
         // being edited stays in it
 
-        return window.sfFetchList('/api/projects?include_archived=1')
-            .then(function (projects) { projectsCache = projects; return projects; });
+        // One request, also when the list is asked for again while it is on
+        // its way (the early fetch below, then the + itself)
+        if (!projectsLoading) {
+            projectsLoading = window.sfFetchList('/api/projects?include_archived=1')
+                .then(function (projects) { projectsCache = projects; return projects; })
+                .finally(function () { projectsLoading = null; });
+        }
+        return projectsLoading;
+    }
+
+    // The + waited for this list on its first tap in every page: 100-290ms on
+    // the server plus the way there, with the sheet not opening meanwhile
+    // (Matan, 22.11: "make the app faster"). The categories and the members
+    // already arrive inside the page; the projects cost two more queries, so
+    // they are fetched on their own once the page is at rest, and again the
+    // moment a finger lands on the +. A failure here is silent: the tap itself
+    // asks again and shows the error.
+    function warmProjects() {
+        if (!fabBtn || projectsCache) return;
+        loadProjects().catch(function () {});
+    }
+    if (fabBtn) {
+        fabBtn.addEventListener('pointerdown', warmProjects, { passive: true });
+        const saveData = navigator.connection && navigator.connection.saveData;
+        if (!saveData) {
+            const later = function () {
+                if (window.requestIdleCallback) window.requestIdleCallback(warmProjects, { timeout: 3000 });
+                else setTimeout(warmProjects, 800);
+            };
+            if (document.readyState === 'complete') later();
+            else window.addEventListener('load', later, { once: true });
+        }
     }
 
     function loadProjectCategories(projectId, type) {
