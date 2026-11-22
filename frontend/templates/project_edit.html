@@ -8,7 +8,9 @@
    a button that didn't belong there.
    The element stays on the page because `transactions.js` binds to it
    directly; it is only hidden. #}
-{% block body_class %}no-fab{% endblock %}
+{# No bottom menu here either (Matan, 23.11), like the new-project screen: the
+   save bar sits where it was #}
+{% block body_class %}no-fab no-nav{% endblock %}
 
 {% block hero %}
 <div class="hero-top">

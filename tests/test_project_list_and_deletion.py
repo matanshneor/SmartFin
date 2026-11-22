@@ -463,7 +463,7 @@ def test_the_budget_field_explains_what_it_does():
 
 def test_the_floating_plus_is_gone_from_the_settings_screen():
     """It covered the delete button."""
-    assert "{% block body_class %}no-fab{% endblock %}" in _EDIT
+    assert "{% block body_class %}no-fab no-nav{% endblock %}" in _EDIT
     assert "{% block body_class %}{% endblock %}" in _BASE, \
         "the body doesn't carry the block, so the class never arrives"
     assert "body.no-fab .fab" in _CSS
@@ -706,3 +706,8 @@ def test_creating_a_project_has_its_own_bar_and_no_bottom_menu():
     assert "body.no-nav:has(> .bottom-nav)::after { content: none; }" in css
     assert "document.querySelector('button[form=\"newProjectForm\"]')" in js
     assert "window.matchMedia('(pointer: coarse)').matches" in js
+
+
+def test_editing_a_project_has_no_bottom_menu_either():
+    assert "{% block body_class %}no-fab no-nav{% endblock %}" in _EDIT
+    assert 'class="project-save-bar"' in _EDIT
