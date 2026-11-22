@@ -5072,6 +5072,8 @@ body > .color-sheet { z-index: var(--z-picker); }
 .budget-sheet-amount { flex: none; width: 128px; }
 .budget-sheet-amount .amount-input { font-size: 1rem; padding-block: 8px; }
 .budget-sheet-actions { margin-top: 4px; }
+/* Keyboard open on iPhone (`core.js`): the sheet lives in the visible screen */
+.color-sheet.kb-fit .color-sheet-card { max-height: 100%; padding-bottom: 12px; }
 
 /* "This week" on the home page (Matan, 30.9) */
 .week-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
