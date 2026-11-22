@@ -4788,11 +4788,11 @@ body.settings-page .settings-groups { flex: 1 0 auto; }
 
 /* The id selector is needed to beat `.category-row:first-child`, which resets it. */
 #projectCategoriesArea .category-row:first-child,
+#categoriesArea .category-row:first-child { padding-top: 10px; }
+
 /* No bar on this screen (`no-nav`): no fade either. It covered the screen's own
    bar of actions, which sits where the menu was. */
 body.no-nav:has(> .bottom-nav)::after { content: none; }
-
-#categoriesArea .category-row:first-child { padding-top: 10px; }
 
 /* Pull down to refresh in the installed app (Matan, 30.9, idea 14; like on
    iPhone, 13.10): the dark band revealed above the page as it comes down, and
