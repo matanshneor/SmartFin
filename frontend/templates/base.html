@@ -177,6 +177,12 @@
                    recurring transaction: what it is, and how to reach the
                    template itself. The link goes to recurring transactions in
                    settings, where it opens for editing. #}
+                {# A new transaction closed half-filled came back as it was (Matan,
+                   22.11); "clear" starts an empty one (transactions.js) #}
+                <p class="tx-draft-note" id="txDraftNote" hidden>
+                    <span>המשך ממה שמילאת</span>
+                    <button type="button" class="tx-draft-clear" id="txDraftClear">ניקוי</button>
+                </p>
                 <a class="tx-series-link" id="txSeriesLink" href="{{ url_for('settings') }}" hidden>
                     {{ ui_icon("repeat") }}<span id="txSeriesText">חלק מעסקה קבועה · עריכה לכל החודשים</span>
                 </a>

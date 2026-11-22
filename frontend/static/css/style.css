@@ -2195,6 +2195,17 @@ a.submit-btn {
 /* "הוזנה ע״י אור · אתמול 18:32": in the edit sheet's header row (Matan, 3.10 / 5.10) */
 .tx-entered-meta { margin: 0; text-align: end; font-size: var(--text-2xs); line-height: 1.3; color: var(--color-text-muted); max-width: 45%; }
 .tx-entered-meta[hidden] { display: none; }
+/* "Continuing what you filled in" + clear, on a draft that came back (Matan, 22.11) */
+.tx-draft-note {
+    margin: 8px 0 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 4px 6px 4px 12px; border-radius: var(--radius-sm, 12px);
+    background: var(--color-input); font-size: var(--text-md); color: var(--color-text-soft);
+}
+.tx-draft-note[hidden] { display: none; }
+.tx-draft-clear {
+    border: 0; background: transparent; font: inherit; font-weight: 600;
+    color: var(--color-gold-text); min-height: 36px; padding-inline: 10px; cursor: pointer;
+}
 
 .edit-mode-actions {
     display: flex;
