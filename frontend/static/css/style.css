@@ -4873,6 +4873,18 @@ body.search-open { overflow: hidden; }
     width: 40px; height: 40px; border-radius: 50%; border: 0; flex: none;
     background: var(--color-input); color: var(--color-text-soft); font-size: 1rem;
 }
+/* Search filters (Matan, 22.11) */
+.search-filter-bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.search-filter-toggle { min-height: 36px; }
+.search-filter-clear { border: 0; background: transparent; font: inherit; font-size: var(--text-md); font-weight: 600; color: var(--color-gold-text); min-height: 36px; padding-inline: 6px; cursor: pointer; }
+.search-filter-clear[hidden], .search-filters[hidden], .search-filter-row[hidden] { display: none; }
+.search-filters { margin-top: 8px; padding: 12px 14px; border-radius: 14px; background: var(--color-card); border: var(--border-subtle); display: flex; flex-direction: column; gap: 10px; }
+.search-filter-row { display: flex; align-items: center; gap: 10px; }
+.search-filter-label { flex: 0 0 44px; font-size: var(--text-md); font-weight: 600; color: var(--color-text-soft); }
+.search-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.search-chips .date-chip { min-height: 36px; padding-inline: 12px; }
+.search-amounts { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-md); color: var(--color-text-muted); }
+.search-amounts .form-input { width: 104px; min-width: 0; padding-block: 8px; font-size: max(1rem, 16px); }
 .search-summary { margin: 12px 4px 4px; font-size: var(--text-md); color: var(--color-text-muted); }
 .search-results {
     flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;

@@ -2278,7 +2278,8 @@ def search_route():
                         "totals": {"expense": 0, "income": 0, "savings": 0}})
     q = (request.args.get("q") or "")[:80]
     return jsonify(db.search_transactions(user["family_id"], user["id"], q,
-                                          settings=family_settings()))
+                                          settings=family_settings(),
+                                          filters=db.search_filters(request.args)))
 
 
 @app.route("/api/descriptions")

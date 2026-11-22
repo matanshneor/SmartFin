@@ -108,3 +108,31 @@ def test_the_route_answers_json(monkeypatch):
     body = res.get_json()
     assert body["count"] == 1 and body["results"][0]["id"] == "a"
     assert body["results"][0]["category_name"] == "רכב"
+
+
+# ─── Filters (Matan, 22.11): whose, when, how much ───────────────────────────
+
+def _mine(row, user):
+    return dict(row, user_id=user)
+
+
+def test_filters_narrow_the_results_and_work_without_text(monkeypatch):
+    rows = [_mine(_tx("a", "2026-09-12", 690, "ביטוח רכב"), "u-dan"),
+            _mine(_tx("b", "2026-11-03", 90, "דלק"), "u-dan"),
+            _tx("c", "2026-11-05", 320, "סופר"),                       # shared
+            _mine(_tx("d", "2026-11-08", 1500, "ביטוח דירה"), _ME)]
+    ids = lambda r: [t["id"] for t in r["results"]]
+    assert ids(_search(rows, "", monkeypatch, filters={"who": "u-dan"})) == ["b", "a"]
+    assert ids(_search(rows, "", monkeypatch, filters={"who": "shared"})) == ["c"]
+    assert ids(_search(rows, "", monkeypatch, filters={"from": "2026-11-01"})) == ["d", "c", "b"]
+    assert ids(_search(rows, "", monkeypatch, filters={"min": 300, "max": 700})) == ["c", "a"]
+    # text and a filter together
+    assert ids(_search(rows, "ביטוח", monkeypatch, filters={"who": "u-dan"})) == ["a"]
+    # no text and no filter: still nothing
+    assert _search(rows, "", monkeypatch)["results"] == []
+
+
+def test_bad_filter_values_are_dropped():
+    f = db.search_filters({"who": " u1 ", "from": "2026-13-40", "to": "2026-11-30", "min": "abc", "max": "1,500"})
+    assert f == {"who": "u1", "to": "2026-11-30", "max": 1500.0}
+    assert db.search_filters({}) == {}

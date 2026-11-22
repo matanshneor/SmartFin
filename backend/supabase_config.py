@@ -1670,8 +1670,37 @@ def recent_descriptions(family_id: str, viewer_user_id: str, today=None, limit: 
     return [spelled[k] for k, _ in counts.most_common(limit)]
 
 
+def search_filters(args) -> dict:
+    """The search filters from the request (Matan, 22.11): whose, a date range
+    and an amount range. Anything malformed is dropped, not an error: a filter
+    is a narrowing, and a bad one narrows nothing."""
+    from datetime import date
+    out = {}
+    who = (args.get("who") or "").strip()[:64]
+    if who:
+        out["who"] = who
+    for key in ("from", "to"):
+        raw = (args.get(key) or "").strip()[:10]
+        if raw:
+            try:
+                out[key] = date.fromisoformat(raw).isoformat()
+            except ValueError:
+                logger.warning("search_filters: bad date %r", raw)
+    for key in ("min", "max"):
+        raw = (args.get(key) or "").replace(",", "").strip()[:14]
+        if raw:
+            try:
+                n = float(raw)
+            except ValueError:
+                logger.warning("search_filters: bad amount %r", raw)
+                continue
+            if n == n and 0 <= n < 1e12:
+                out[key] = n
+    return out
+
+
 def search_transactions(family_id: str, viewer_user_id: str, q: str,
-                        settings: dict = None, limit: int = 100) -> dict:
+                        settings: dict = None, limit: int = 100, filters: dict = None) -> dict:
     """Search across all months (Matan, 30.9, round 6, item 2).
 
     Searches the description, category name, workplace and project name. A
@@ -1681,16 +1710,22 @@ def search_transactions(family_id: str, viewer_user_id: str, q: str,
     family's scale (thousands of rows) this is one light query.
 
     `count` and `totals` cover everything found; `results` up to `limit`,
-    newest first."""
+    newest first.
+
+    `filters` (`search_filters`) narrow the results: `who` (a member's id, or
+    "shared"), `from`/`to` (dates) and `min`/`max` (amounts). With a filter the
+    text may be empty: "everything of Daniel's since September"."""
     empty = {"results": [], "count": 0, "truncated": False,
              "totals": {"expense": 0.0, "income": 0.0, "savings": 0.0}}
+    filters = filters or {}
     needle = " ".join((q or "").split()).lower()
     amount = None
     try:
         amount = float(needle.replace(",", "").replace("₪", ""))
     except ValueError:
         pass
-    if len(needle) < 2 and amount is None:
+    match_all = not needle and bool(filters)
+    if len(needle) < 2 and amount is None and not match_all:
         return empty
     client = get_client()
     if not client:
@@ -1704,7 +1739,30 @@ def search_transactions(family_id: str, viewer_user_id: str, q: str,
     except Exception as e:
         raise DataUnavailable("search_transactions") from e
 
+    def passes(r):
+        who = filters.get("who")
+        if who == "shared":
+            if r.get("user_id"):
+                return False
+        elif who and r.get("user_id") != who:
+            return False
+        day = str(r.get("date") or "")[:10]
+        if filters.get("from") and day < filters["from"]:
+            return False
+        if filters.get("to") and day > filters["to"]:
+            return False
+        value = float(r.get("amount") or 0)
+        if filters.get("min") is not None and value < filters["min"] - 0.005:
+            return False
+        if filters.get("max") is not None and value > filters["max"] + 0.005:
+            return False
+        return True
+
     def hit(r):
+        if not passes(r):
+            return False
+        if match_all:
+            return True
         if amount is not None and abs(float(r.get("amount") or 0) - amount) < 0.005:
             return True
         cat = (r.get("project_categories") if r.get("project_category_id") else r.get("categories")) or {}
