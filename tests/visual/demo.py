@@ -267,7 +267,11 @@ def _tables(scenario, today, profiles, categories, projects, project_categories,
         "invite_code": "K7M2QX",
         "invite_code_expires_at": (datetime(today.year, today.month, today.day, 12) + timedelta(days=5)).isoformat() + "+00:00",
         "manager_id": ME, "created_at": "2025-09-01T08:00:00+00:00",
-        "settings": {"limits": limits, "pinned_projects": pinned},
+        "settings": {"limits": limits, "pinned_projects": pinned,
+                     # As the recurring engine would have left it: a charge is due
+                     # tomorrow, so the home page looks for "צפוי השבוע"
+                     "recurring_next": {"due": (today + timedelta(days=1)).isoformat(),
+                                        "checked": today.isoformat()}},
     }
     return {"families": [family], "profiles": profiles, "categories": categories, "projects": projects,
             "project_categories": project_categories, "transactions": txs, "receipt_scans": [],

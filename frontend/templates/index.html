@@ -278,26 +278,34 @@
 {% include "_week_card.html" %}
 {% endif %}
 
-{# "מה יורד השבוע" (Matan, 23.11): the recurring transactions and installments
-   still to come this week, up to Saturday, under "השבוע" and for the same week. One line each: the day, what, how much.
-   A tap opens the series in settings. Only when something is due. #}
+{# "צפוי השבוע" (Matan, 23.11; in three parts and with incomes since 24.11): the
+   recurring transactions and installments still to come this week, up to
+   Saturday, under "השבוע" and for the same week. What comes in, what goes out
+   and what goes to savings, each with its own total and in the order of its
+   dates, along a line (the nearest, tomorrow, is the full gold dot). A tap
+   opens the series in settings. Only when something is due. #}
 {% if upcoming %}
 <section class="chart-card upcoming-card" aria-labelledby="upcomingTitle">
-    <div class="upcoming-head">
-        <h2 class="chart-title" id="upcomingTitle">מה יורד השבוע</h2>
-        <span class="upcoming-total">סה״כ <b>₪{{ upcoming.total | round | int | money }}</b></span>
+    <h2 class="chart-title" id="upcomingTitle">צפוי השבוע</h2>
+    {% for part in upcoming.parts %}
+    <div class="upcoming-part">
+        <p class="upcoming-part-head">
+            <span>{{ part.title }}</span>
+            <b class="upcoming-part-total is-{{ part.kind }}">{% if part.kind == 'income' %}+{% endif %}₪{{ part.total | round | int | money }}</b>
+        </p>
+        <ul class="upcoming-list">
+            {% for item in part['items'] %}
+            <li>
+                <a class="upcoming-row{% if item.soon %} is-soon{% endif %}" href="{{ url_for('settings') }}?series={{ item.id }}">
+                    <span class="upcoming-day">{{ item.day }}</span>
+                    <span class="upcoming-name"><span aria-hidden="true">{{ item.icon }}</span> {{ item.name }}</span>
+                    <span class="upcoming-amount">₪{{ item.amount | money }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
     </div>
-    <ul class="upcoming-list">
-        {% for item in upcoming['items'] %}
-        <li>
-            <a class="upcoming-row" href="{{ url_for('settings') }}?series={{ item.id }}">
-                <span class="upcoming-day{% if item.soon %} is-soon{% endif %}">{{ item.day }}</span>
-                <span class="upcoming-name"><span aria-hidden="true">{{ item.icon }}</span> {{ item.name }}</span>
-                <span class="upcoming-amount">₪{{ item.amount | money }}</span>
-            </a>
-        </li>
-        {% endfor %}
-    </ul>
+    {% endfor %}
 </section>
 {% endif %}
 
