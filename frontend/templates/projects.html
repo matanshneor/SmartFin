@@ -67,7 +67,7 @@
 {# What the amount means follows the project's kind (Matan, 22.11): in a
    savings project it is a goal to reach ("saved X of Y", a green bar that
    fills as money goes in); in an expense project it is a ceiling ("X went out
-   of Y · Z left"). The sentence and the bar say the same thing: both show what
+   of Y"). The sentence and the bar say the same thing: both show what
    was done, not what is left. #}
 {% macro tile_numbers(p) %}
 {% set kind = project_kind(p) %}
@@ -78,10 +78,10 @@
 <span class="project-tile-sub project-tile-progress">
     {%- if kind == 'savings' -%}
     נחסכו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
-    {%- elif over -%}
-    יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
     {%- else -%}
-    יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }} · נשארו <b>₪{{ (p.budget_target - done) | round | int | money }}</b>
+    {# Without "Z left" (Matan, 24.11), as on the home page: the percent and
+       the bar already say it #}
+    יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
     {%- endif -%}
 </span>
 <span class="project-tile-bar" aria-hidden="true"><span class="{% if over %}danger{% elif kind == 'savings' %}saving{% endif %}" style="width: {{ [pct, 100] | min }}%;"></span></span>

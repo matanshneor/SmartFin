@@ -4583,12 +4583,12 @@ def budget_alerts(breakdown: list) -> list:
             continue
         out.append({
             "severity": "warning",
+            # One line (Matan, 24.11): only by how much, in whole shekels. It read
+            # "₪1,113.29 מתוך תקציב של ₪600 — חריגה של ₪513.29" and broke in two
+            # even after rounding; the spending and the budget are one tap away,
+            # on the category the alert opens.
             "text": (f'{row.get("icon") or "📦"} {row["name"]}: '
-                     # Whole shekels (Matan, 23.11): "₪1,113.29 מתוך תקציב של ₪600 —
-                     # חריגה של ₪513.29" broke into two lines. The exact amounts
-                     # are in the list of transactions.
-                     f'₪{format_money(round(row["total"]))} מתוך תקציב של ₪{format_money(round(row["budget"]))} '
-                     f'— חריגה של ₪{format_money(round(row["budget_excess"]))}'),
+                     f'חריגה של ₪{format_money(round(row["budget_excess"]))}'),
             "target": category_anchor(row.get("category_id")),
         })
     return out

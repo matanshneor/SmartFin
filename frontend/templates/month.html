@@ -243,7 +243,7 @@
                 <span class="legend-icon">{{ item.icon }}</span>
                 <span class="legend-name">{{ item.name }}</span>
                 <span class="legend-pct">{{ item.pct }}%</span>
-                <span class="legend-amount">₪{{ item.total | money }}</span>
+                <span class="legend-amount">₪{{ item.total | round | int | money }}</span>
                 <span class="expand-chevron" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18" transform="rotate(90 12 12)"/></svg>
                 </span>
@@ -254,7 +254,7 @@
                 <span class="legend-icon">{{ item.icon }}</span>
                 <span class="legend-name">{{ item.name }}</span>
                 <span class="legend-pct">{{ item.pct }}%</span>
-                <span class="legend-amount">₪{{ item.total | money }}</span>
+                <span class="legend-amount">₪{{ item.total | round | int | money }}</span>
             </div>
             {% endif %}
         </li>
@@ -268,7 +268,7 @@
                 <span class="legend-icon">{{ item.icon }}</span>
                 <span class="legend-name">{{ item.name }}</span>
                 <span class="legend-pct">{{ item.pct }}%</span>
-                <span class="legend-amount">₪{{ item.total | money }}</span>
+                <span class="legend-amount">₪{{ item.total | round | int | money }}</span>
                 {% if cat_txs %}
                 <span class="expand-chevron" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -288,7 +288,7 @@
                    global map by category, with no month and no history. #}
                 <p class="cat-budget-text">
                     {% if item.budget_over %}
-                    חריגה של ₪{{ item.budget_excess | round | int | money }} מתוך ₪{{ item.budget | round | int | money }}
+                    ₪{{ item.budget_excess | round | int | money }} מעל התקציב של ₪{{ item.budget | round | int | money }}
                     {% elif is_current %}
                     נשאר ₪{{ item.budget_left | round | int | money }} מתוך ₪{{ item.budget | round | int | money }}
                     {% else %}
@@ -383,7 +383,7 @@
                 <span class="legend-icon">{{ src.icon }}</span>
                 <span class="legend-name">{{ src.label }}</span>
                 <span class="legend-pct">{{ src.pct }}%</span>
-                <span class="legend-amount">₪{{ src.total | money }}</span>
+                <span class="legend-amount">₪{{ src.total | round | int | money }}</span>
                 <span class="expand-chevron" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </span>
@@ -417,7 +417,7 @@
                 <span class="legend-icon">{{ item.icon }}</span>
                 <span class="legend-name">{{ item.name }}</span>
                 <span class="legend-pct">פרויקט</span>
-                <span class="legend-amount">₪{{ item.total | money }}</span>
+                <span class="legend-amount">₪{{ item.total | round | int | money }}</span>
             {% if item.project_id %}</a>{% else %}</div>{% endif %}
         </li>
         {% endfor %}
@@ -459,7 +459,7 @@
                 <span class="legend-icon">{{ item.icon }}</span>
                 <span class="legend-name">{{ item.name }}</span>
                 <span class="legend-pct">{{ item.share }}%</span>
-                <span class="legend-amount">₪{{ item.total | money }}</span>
+                <span class="legend-amount">₪{{ item.total | round | int | money }}</span>
                 {% if cat_txs %}<span class="expand-chevron" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </span>{% endif %}
@@ -495,7 +495,7 @@
                 <span class="legend-icon">{{ item.icon }}</span>
                 <span class="legend-name">{{ item.name }}</span>
                 <span class="legend-pct">פרויקט</span>
-                <span class="legend-amount">₪{{ item.total | money }}</span>
+                <span class="legend-amount">₪{{ item.total | round | int | money }}</span>
             {% if item.project_id %}</a>{% else %}</div>{% endif %}
         </li>
         {% endfor %}
@@ -651,9 +651,11 @@
                    look "cheaper", and ₪0 on a two-way project hides both sides.
                    Most projects have only expenses, so it is one number. #}
                 <span class="legend-amount">
-                    {% if proj.expense %}<span class="pm-amount expense">-₪{{ proj.expense | money }}</span>{% endif %}
-                    {% if proj.income %}<span class="pm-amount income">+₪{{ proj.income | money }}</span>{% endif %}
-                    {% if proj.savings %}<span class="pm-amount savings">₪{{ proj.savings | money }}</span>{% endif %}
+                    {# In words, as on the projects page (Matan, 24.11): a bare "-₪454"
+                       didn't say whether it went out, came in or was saved #}
+                    {% if proj.expense %}<span class="pm-amount expense"><small>יצאו</small> ₪{{ proj.expense | round | int | money }}</span>{% endif %}
+                    {% if proj.income %}<span class="pm-amount income"><small>נכנסו</small> ₪{{ proj.income | round | int | money }}</span>{% endif %}
+                    {% if proj.savings %}<span class="pm-amount savings"><small>נחסכו</small> ₪{{ proj.savings | round | int | money }}</span>{% endif %}
                 </span>
                 <span class="expand-chevron" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>

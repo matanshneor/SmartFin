@@ -254,9 +254,12 @@
             {%- if kind == 'savings' -%}
             נחסכו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
             {%- elif over -%}
-            <span class="deficit">חריגה של <b>₪{{ (done - p.budget_target) | round | int | money }}</b></span> מתוך ₪{{ p.budget_target | round | int | money }}
+            <span class="deficit"><b>₪{{ (done - p.budget_target) | round | int | money }}</b> מעל התקציב</span> של ₪{{ p.budget_target | round | int | money }}
             {%- else -%}
-            יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }} · נשארו <b>₪{{ (p.budget_target - done) | round | int | money }}</b>
+            {# Shorter than on the project's tile (Matan, 24.11): with the + beside
+               it the full sentence, with what is left, broke before its last
+               number. What went out, of how much: what the bar shows. #}
+            יצאו <b>₪{{ done | round | int | money }}</b> מתוך ₪{{ p.budget_target | round | int | money }}
             {%- endif -%}
         </span>
         <span class="project-tile-bar" aria-hidden="true"><span class="{% if over %}danger{% elif kind == 'savings' %}saving{% endif %}" style="width: {{ [pinned_pct, 100] | min }}%;"></span></span>
