@@ -5171,15 +5171,17 @@ body > .color-sheet { z-index: var(--z-picker); }
 /* An empty week: one row instead of an empty chart (Matan, 18.10) */
 .week-empty-state {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--color-input);
+    margin-top: 10px; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--color-input);
 }
 .week-empty-text { min-width: 0; }
-.week-empty-title { margin: 0; font-size: var(--text-body); font-weight: 600; }
-.week-empty-sub { margin: 2px 0 0; font-size: var(--text-sm); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+/* A lower row (Matan, 24.11): the text a size down and regular, and "add" as
+   gold words, not a button the size of the row. Still a 44px touch target. */
+.week-empty-title { margin: 0; font-size: var(--text-md); font-weight: 400; }
+.week-empty-sub { margin: 1px 0 0; font-size: var(--text-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .week-empty-add {
-    flex: none; min-height: 44px; padding: 0 14px; border-radius: var(--radius-sm);
-    border: 1px solid var(--color-gold-border); background: var(--color-gold-dim);
-    color: var(--color-gold-text); font: inherit; font-size: var(--text-md); font-weight: 600; cursor: pointer;
+    flex: none; min-height: 44px; padding: 0 2px; white-space: nowrap;
+    border: 0; background: transparent;
+    color: var(--color-gold-text); font: inherit; font-size: var(--text-md); font-weight: 700; cursor: pointer;
 }
 
 /* The sheet with a category's expenses in a month: the comparison page
@@ -6160,8 +6162,7 @@ html.past-hero body:has(> .page-hero) { background-color: var(--color-bg); }
 .duplicate-tx-btn,
 .delete-tx-btn,
 .install-bar-go,
-.yr-done,
-.week-empty-add {
+.yr-done {
     min-height: var(--btn-h-md);
     padding-block: 0;
     display: inline-flex; align-items: center; justify-content: center;
