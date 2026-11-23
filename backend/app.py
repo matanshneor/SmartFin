@@ -286,6 +286,10 @@ app.jinja_env.filters["day_label"] = lambda d: day_label(d, clock.today())
 _WEEKDAY_LETTERS = ["ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳", "א׳"]      # `date.weekday()`: Monday is 0
 
 
+# The parts of "צפוי השבוע", in the order they are shown
+_UPCOMING_PARTS = {"income": "הכנסות", "expense": "הוצאות", "savings": "חיסכון"}
+
+
 def _week_end(today):
     """The Saturday that closes this week: the week of the home page runs Sunday
     to Saturday (the "השבוע" card)."""
@@ -293,24 +297,27 @@ def _week_end(today):
 
 
 def upcoming_charges(templates, today) -> dict:
-    """"מה יורד השבוע" on the home page (Matan, 23.11): the recurring transactions
-    and installments still to be charged this week, tomorrow first, up to and
-    including Saturday: the same week as the "השבוע" card above it. Today's are
-    already recorded and counted there.
+    """"צפוי השבוע" on the home page (Matan, 23.11): the recurring transactions and
+    installments still to come this week, up to and including Saturday: the
+    same week as the "השבוע" card above it. Today's are already recorded and
+    counted there.
+
+    In three parts, each in the order of its dates and with a total of its own
+    (Matan, 24.11): what comes in, what goes out, and what goes to savings. One
+    sum of all three would say nothing, and ₪10,000 of deposits made a quiet
+    week look like an expensive one. No project money: the home page doesn't
+    count it anywhere.
 
     The first day it showed the next seven days, and on a Tuesday the charges
     of the 1st, a week ahead and outside the week written above, read "ג׳" like
-    today (Matan, 24.11: "it looks like a mistake").
-
-    Money that leaves the month only: no income, and no project money, which
-    the home page doesn't count anywhere. An installment after the first is the
-    regular payment (`installment_plan`), not the template's amount, which
-    carries the remainder."""
+    today. An installment after the first is the regular payment
+    (`installment_plan`), not the template's amount, which carries the
+    remainder."""
     tomorrow = today + timedelta(days=1)
     last = _week_end(today)
     items = []
     for t in templates or []:
-        if t.get("type") == "income" or t.get("project_id") or not db.is_active_template(t, today):
+        if t.get("type") not in _UPCOMING_PARTS or t.get("project_id") or not db.is_active_template(t, today):
             continue
         when = db.next_recurring_date(t, tomorrow)
         if when is None or when > last:
@@ -322,7 +329,7 @@ def upcoming_charges(templates, today) -> dict:
                 amount = plan["base"]
         days = (when - today).days
         items.append({
-            "id": t["id"], "date": when,
+            "id": t["id"], "type": t["type"], "date": when,
             "day": "מחר" if days == 1 else _WEEKDAY_LETTERS[when.weekday()],
             "soon": days == 1,
             "icon": t.get("category_icon") or "📦",
@@ -330,7 +337,13 @@ def upcoming_charges(templates, today) -> dict:
             "amount": amount,
         })
     items.sort(key=lambda i: (i["date"], -i["amount"]))
-    return {"items": items, "total": sum(i["amount"] for i in items)}
+    parts = []
+    for kind, title in _UPCOMING_PARTS.items():
+        rows = [i for i in items if i["type"] == kind]
+        if rows:
+            parts.append({"kind": kind, "title": title, "items": rows,
+                          "total": sum(i["amount"] for i in rows)})
+    return {"parts": parts}
 
 
 def _upcoming_for_home(family_id, user_id, settings, today):
@@ -352,7 +365,7 @@ def _upcoming_for_home(family_id, user_id, settings, today):
     except db.DataUnavailable:
         return None                         # a card of its own: the home page stands without it
     out = upcoming_charges(templates, today)
-    return out if out["items"] else None
+    return out if out["parts"] else None
 
 
 def project_kind(p) -> str:
