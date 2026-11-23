@@ -120,7 +120,7 @@ def test_an_overrun_reads_the_same_either_way():
     over_then = _render(_breakdown(spent=2300), is_current=False)
 
     for html in (over_now, over_then):
-        assert _budget_text(html) == "חריגה של ₪300 מתוך ₪2,000"
+        assert _budget_text(html) == "₪300 מעל התקציב של ₪2,000"
 
 
 def test_a_closed_month_shows_the_sentence_without_a_bar():

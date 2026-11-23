@@ -76,11 +76,13 @@ def _proj(**kw):
     return {**base, **kw}
 
 
-def test_a_tile_with_a_target_says_what_went_out_and_what_is_left():
-    """The sentence and the bar say the same thing (Matan, 22.11): what went out,
-    then what is left. Until then the sentence said "left" over a bar of "used"."""
+def test_a_tile_with_a_target_says_what_went_out_of_how_much():
+    """The sentence and the bar say the same thing (Matan, 22.11): what went
+    out. Without "Z left" since 24.11, as on the home page: the percent and the
+    bar already say it."""
     html = _render_tiles([_proj(budget_target=12000.0, spent=4200.0)])
-    assert "יצאו <b>₪4,200</b> מתוך ₪12,000 · נשארו <b>₪7,800</b>" in html
+    assert "יצאו <b>₪4,200</b> מתוך ₪12,000" in html
+    assert "נשארו <b>" not in html
     assert 'class="project-tile-bar"' in html and "width: 35%;" in html
     assert '<span class="project-tile-pct">35%</span>' in html
 
