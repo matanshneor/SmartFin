@@ -284,25 +284,36 @@ app.jinja_env.filters["day_label"] = lambda d: day_label(d, clock.today())
 
 
 _WEEKDAY_LETTERS = ["ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳", "א׳"]      # `date.weekday()`: Monday is 0
-UPCOMING_DAYS = 7
+
+
+def _week_end(today):
+    """The Saturday that closes this week: the week of the home page runs Sunday
+    to Saturday (the "השבוע" card)."""
+    return today + timedelta(days=(5 - today.weekday()) % 7)
 
 
 def upcoming_charges(templates, today) -> dict:
     """"מה יורד השבוע" on the home page (Matan, 23.11): the recurring transactions
-    and installments that will be charged in the next seven days, tomorrow
-    first. Today's are already recorded and counted in "השבוע" above it.
+    and installments still to be charged this week, tomorrow first, up to and
+    including Saturday: the same week as the "השבוע" card above it. Today's are
+    already recorded and counted there.
+
+    The first day it showed the next seven days, and on a Tuesday the charges
+    of the 1st, a week ahead and outside the week written above, read "ג׳" like
+    today (Matan, 24.11: "it looks like a mistake").
 
     Money that leaves the month only: no income, and no project money, which
     the home page doesn't count anywhere. An installment after the first is the
     regular payment (`installment_plan`), not the template's amount, which
     carries the remainder."""
     tomorrow = today + timedelta(days=1)
+    last = _week_end(today)
     items = []
     for t in templates or []:
         if t.get("type") == "income" or t.get("project_id") or not db.is_active_template(t, today):
             continue
         when = db.next_recurring_date(t, tomorrow)
-        if when is None or (when - today).days > UPCOMING_DAYS:
+        if when is None or when > last:
             continue
         amount = float(t.get("amount") or 0)
         if t.get("installments") and t.get("installment_total") and str(t.get("date"))[:10] != when.isoformat():
@@ -323,7 +334,7 @@ def upcoming_charges(templates, today) -> dict:
 
 
 def _upcoming_for_home(family_id, user_id, settings, today):
-    """The templates are fetched only when a charge is due within the week: the
+    """The templates are fetched only when a charge is due by Saturday: the
     family's settings already hold the date of the next one (`recurring_next`,
     kept by the recurring engine), so most days this costs the home page nothing."""
     nxt = (settings or {}).get("recurring_next")
@@ -333,8 +344,8 @@ def _upcoming_for_home(family_id, user_id, settings, today):
     except ValueError:
         due = None
     # No date of a next charge (no recurring transactions, or the engine hasn't
-    # looked yet), or one further than a week away: nothing to show
-    if due is None or (due - today).days > UPCOMING_DAYS:
+    # looked yet), or one after this week: nothing to show
+    if due is None or due > _week_end(today):
         return None
     try:
         templates = _timed("upcoming", lambda: db.get_recurring_transactions(family_id, user_id, settings))

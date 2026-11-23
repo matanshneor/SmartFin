@@ -1,5 +1,5 @@
 """"מה יורד השבוע" on the home page (Matan, 23.11): the recurring transactions and
-installments of the next seven days, one line each, under "השבוע"."""
+installments still to come this week, up to Saturday, one line each, under "השבוע"."""
 from datetime import date
 from pathlib import Path
 
@@ -23,15 +23,27 @@ def _tpl(**kw):
     return {**base, **kw}
 
 
-def test_the_next_seven_days_tomorrow_first():
+def test_the_rest_of_this_week_tomorrow_first():
     out = upcoming_charges([
-        _tpl(id="rent", amount=5400.0, date="2026-01-23"),                      # tomorrow
-        _tpl(id="gym", amount=120.0, description="חדר כושר", date="2026-02-28"),  # Saturday
-        _tpl(id="far", amount=50.0, date="2026-01-10"),                         # 10.12: too far
+        _tpl(id="rent", amount=5400.0, date="2026-01-23"),                      # tomorrow, Monday
+        _tpl(id="gym", amount=120.0, description="חדר כושר", date="2026-02-28"),  # Saturday: the last day
+        _tpl(id="next", amount=50.0, date="2026-01-29"),                        # Sunday 29.11: next week
         _tpl(id="today", amount=70.0, date="2026-01-22"),                       # today: already recorded
     ], _TODAY)
     assert [(i["id"], i["day"], i["soon"]) for i in out["items"]] == [("rent", "מחר", True), ("gym", "ש׳", False)]
     assert out["total"] == 5520.0
+
+
+def test_a_charge_a_week_ahead_is_not_this_week():
+    """Matan's phone, Tuesday 24.11: the charges of 1.12, seven days ahead, showed
+    as "ג׳" under a week card that said 22.11–28.11."""
+    tuesday = date(2026, 11, 24)
+    first = _tpl(id="fund", type="savings", date="2026-01-01", recurring_frequency="monthly_1")
+    assert upcoming_charges([first], tuesday)["items"] == []
+    # From Sunday 29.11 it belongs to the week
+    assert [i["day"] for i in upcoming_charges([first], date(2026, 11, 29))["items"]] == ["ג׳"]
+    # Saturday: nothing is left of the week
+    assert upcoming_charges([_tpl(date="2026-01-29")], date(2026, 11, 28))["items"] == []
 
 
 def test_only_money_that_leaves_the_month():
@@ -56,11 +68,11 @@ def test_the_templates_are_fetched_only_when_a_charge_is_due(monkeypatch):
     calls = []
     monkeypatch.setattr(db, "get_recurring_transactions", lambda *a, **k: calls.append(1) or [_tpl()])
     with app_module.app.test_request_context("/"):
-        far = {"recurring_next": {"due": "2026-12-15", "checked": "2026-11-22"}}
+        far = {"recurring_next": {"due": "2026-11-29", "checked": "2026-11-22"}}     # next Sunday
         assert app_module._upcoming_for_home("f", "u", far, _TODAY) is None
         assert app_module._upcoming_for_home("f", "u", {}, _TODAY) is None
         assert app_module._upcoming_for_home("f", "u", {"recurring_next": {"due": None, "checked": "2026-11-22"}}, _TODAY) is None
-        assert calls == [], "no query when nothing is due within the week"
+        assert calls == [], "no query when nothing is due by Saturday"
         near = {"recurring_next": {"due": "2026-11-23", "checked": "2026-11-22"}}
         assert app_module._upcoming_for_home("f", "u", near, _TODAY)["items"][0]["day"] == "מחר"
         assert calls == [1]

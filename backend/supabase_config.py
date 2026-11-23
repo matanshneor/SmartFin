@@ -148,8 +148,13 @@ def _keep_connection_warm(client):
 # way. At 40 seconds the four workers also pinged together and then left 40
 # seconds of silence. So: a ping after 10 idle seconds, and each worker on its
 # own beat, which leaves about 3 seconds between pings. ~30,000 trivial
-# requests a day instead of ~7,000. To be measured against the same log query;
-# if the first request after a pause isn't faster, back to 40.
+# requests a day instead of ~7,000.
+#
+# Measured a day later (23.11, Supabase edge logs, 24h against 24h): the first
+# request after a pause of a minute or more did not get faster (88 → 150ms
+# median, 18 against 54 such requests: not what cools down there), but requests
+# in the middle of use did (p90 101 → 56ms), and the pings themselves answer in
+# 20ms instead of 46. Matan decided to keep it.
 WARM_IDLE_SECONDS = 10.0
 WARM_CHECK_SECONDS = 2.0
 _warm_lock = threading.Lock()
