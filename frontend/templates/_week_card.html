@@ -96,7 +96,7 @@
     {% for d in week.days %}{% if not (d.future and not d.total and not d.recurring) %}
     {# A day with nothing: one line, the day and "לא בוצעו עסקאות", without ₪0 #}
     <div class="week-detail" data-day="{{ loop.index0 }}"{% if not (d.transactions or d.recurring) %} data-empty{% endif %} {% if not d.selected %}hidden{% endif %}>
-        <p class="week-detail-head"><span>{{ 'היום' if d.today else 'יום ' ~ d.label }} · {{ d.day }}.{{ d.month }}</span>{% if d.total %}<span>₪{{ d.total | money }}</span>{% endif %}</p>
+        <p class="week-detail-head"><span>{{ 'היום' if d.today else 'יום ' ~ d.label }} · {{ d.day }}.{{ d.month }}</span>{% if d.total %}<span>₪{{ d.total | round | int | money }}</span>{% endif %}</p>
         {% if d.transactions or d.recurring %}
         <ul class="week-detail-list">
             {# Whose each transaction is, the same tag as in the recent list and

@@ -101,7 +101,7 @@ def test_the_week_card_is_lower():
 
 def test_an_empty_day_is_one_line_without_zero():
     tpl = _tpl("_week_card.html")
-    assert "data-empty" in tpl and "{% if d.total %}<span>₪{{ d.total | money }}</span>{% endif %}" in tpl
+    assert "data-empty" in tpl and "{% if d.total %}<span>₪{{ d.total | round | int | money }}</span>{% endif %}" in tpl
     assert "display: none" in _rule(".week-detail[hidden]")
 
 

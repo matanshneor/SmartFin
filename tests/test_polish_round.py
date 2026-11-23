@@ -76,8 +76,9 @@ def test_the_months_page_says_it_in_words():
             today_year=2026, today_month=10, _HEBREW_MONTHS=[""] * 13, verdict=v)
     line = re.sub(r"\s+", " ", html[html.index('<p class="trend-verdict">'):])
     line = line[:line.index("</p>")]
-    assert "בספטמבר הוצאתם <b>₪11,700</b>" in line
-    assert '<b class="deficit">8% יותר</b> מהממוצע של 3 החודשים שלפניו' in line and "(₪11,500)" in line
+    # Short and without brackets since 24.11 (Matan): the sentence broke into three lines
+    assert "ספטמבר: <b>₪11,700</b> · ממוצע 3 חודשים: ₪11,500" in line
+    assert '<b class="deficit">8% יותר</b>' in line and "(" not in line
 
 
 # ─── 12 · No keyboard on open on a phone ────────────────────────────────
