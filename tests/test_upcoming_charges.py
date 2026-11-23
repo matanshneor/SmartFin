@@ -63,7 +63,7 @@ def test_three_parts_each_with_its_own_total():
         _tpl(id="ended", date="2026-01-24", recurring_end_date="2026-10-24"),
     ], _TODAY)
     assert [(p["kind"], p["title"], p["total"]) for p in out["parts"]] == [
-        ("income", "נכנס", 14000.0), ("expense", "יורד", 5470.0), ("savings", "לחיסכון", 5000.0)]
+        ("income", "הכנסות", 14000.0), ("expense", "הוצאות", 5470.0), ("savings", "חיסכון", 5000.0)]
     assert [i["id"] for i in _rows(out)] == ["rent", "net"], "each part in the order of its dates"
     assert "total" not in out, "no sum of all three"
     # A part with nothing in it isn't there

@@ -287,7 +287,7 @@ _WEEKDAY_LETTERS = ["ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳", "א׳"]     
 
 
 # The parts of "צפוי השבוע", in the order they are shown
-_UPCOMING_PARTS = {"income": "נכנס", "expense": "יורד", "savings": "לחיסכון"}
+_UPCOMING_PARTS = {"income": "הכנסות", "expense": "הוצאות", "savings": "חיסכון"}
 
 
 def _week_end(today):
