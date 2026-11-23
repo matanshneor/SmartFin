@@ -52,16 +52,17 @@ def test_the_browser_says_exactly_what_the_server_says():
     assert browser == server, list(zip(_CASES, server, browser))
 
 
-def test_the_month_page_shows_agorot_and_totals_add_up(month_page):
-    """Three purchases of 10.40: each ₪10.40, and the category ₪31.20, not
-    10/10/10 and 31."""
+def test_the_month_page_keeps_agorot_on_purchases_and_rounds_the_category(month_page):
+    """Three purchases of 10.40: each stays ₪10.40. The category's total is a whole
+    shekel since 24.11 (Matan: ₪930.66 beside ₪518 made a ragged column, and the
+    budget line under it was already whole); until then it showed ₪31.20. It is
+    the rounded sum, ₪31, never the sum of rounded purchases."""
     rows = [{**_row(f"קנייה{n}", project=False), "id": f"k{n}", "amount": 10.40} for n in range(3)]
 
     html = month_page(rows)
 
     assert html.count("₪10.40") >= 3
-    assert "₪31.20" in html
-    # Every row and breakdown stays exact. Since 11.11 (Matan) the summary tiles
-    # and the totals inside the charts are whole shekels, like the home
-    # balance, so ₪31 may appear there; a single purchase never rounds.
+    assert '<span class="legend-amount">₪31</span>' in html
+    assert '<span class="legend-amount">₪31.20</span>' not in html
+    # A single purchase never rounds
     assert "₪10<" not in html
