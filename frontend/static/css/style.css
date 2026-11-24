@@ -3399,6 +3399,35 @@ a.btn-sm { display: inline-flex; align-items: center; justify-content: center; t
     color: var(--color-text-muted);
 }
 
+/* How much of the budget is used, under the sentence (Matan, 24.11) */
+.cat-budget-bar {
+    display: block;
+    height: 4px;
+    margin-top: 6px;
+    border-radius: var(--radius-pill);
+    background: rgba(var(--ink-rgb), 0.08);
+    overflow: hidden;
+}
+.cat-budget-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--color-gold);
+}
+.cat-budget.over .cat-budget-bar > span { background: var(--color-expense); }
+
+/* A quiet action beside a heading: text, not a button (Matan, 24.11) */
+.title-link {
+    border: 0;
+    background: none;
+    padding: 6px 0;
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-gold-text);
+    cursor: pointer;
+}
+
 /* overage: the sentence in red */
 .cat-budget.over .cat-budget-text { color: var(--color-expense); font-weight: 600; }
 

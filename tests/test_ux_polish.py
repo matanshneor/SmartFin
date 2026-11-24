@@ -85,7 +85,7 @@ def test_the_budget_button_only_appears_in_the_current_month():
     html = _read("frontend/templates/month.html")
     before = html[:html.index('id="budgetsOpen"')]
 
-    assert before.rstrip().endswith('<button type="button" class="btn-sm btn-ghost"')
+    assert before.rstrip().endswith('<button type="button" class="title-link"')
     assert before[before.rindex("{%"):].startswith("{% if is_current %}")
 
 

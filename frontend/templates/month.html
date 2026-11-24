@@ -41,19 +41,9 @@
     </div>
 </div>
 
-{# A magnetic month strip: scroll sideways, it stops aligned, a tap enters the month #}
-{% if strip_months | length > 1 %}
-<nav class="month-strip" id="monthStrip" aria-label="מעבר בין חודשים">
-    {% for m in strip_months %}
-    <a class="month-chip {% if m.year == year and m.month == month %}is-current{% endif %}"
-       href="{{ url_for('month_view', year=m.year, month=m.month) }}"
-       {% if m.year == year and m.month == month %}aria-current="page"{% endif %}>
-        <span class="month-chip-name">{{ hebrew_months[m.month] }}</span>
-        <span class="month-chip-year">{{ m.year }}</span>
-    </a>
-    {% endfor %}
-</nav>
-{% endif %}
+{# No month strip here any more (Matan, 24.11): the title, the arrows and the
+   strip were three ways to say and change the month. The arrows and a swipe
+   stay; any month is one tap away in the table on the comparison page. #}
 
 {# Tapping income/expenses/savings leads to their breakdown below (Matan's
    request, 30.9). In an empty month the breakdowns aren't shown, and then there
@@ -203,7 +193,7 @@
     <div class="chart-title-row">
         <h2 class="chart-title">הוצאות לפי קטגוריה</h2>
         {% if is_current %}
-        <button type="button" class="btn-sm btn-ghost" id="budgetsOpen" aria-haspopup="dialog">קביעת תקציבים</button>
+        <button type="button" class="title-link" id="budgetsOpen" aria-haspopup="dialog">קביעת תקציבים</button>
         {% endif %}
     </div>
     {% if is_current %}
@@ -278,8 +268,9 @@
 
             {# A target budget, if the family set one for this category. The percentage
                above measures the category's share of total expenses; this
-               measures against the decision. Only the sentence, no bar (Matan,
-               13.10: "the line isn't useful or informative"). #}
+               measures against the decision. The sentence, and a thin bar
+               under it (Matan, 24.11; on 13.10 he took a bar out as "not
+               useful": that one stood alone, without the sentence). #}
             {% if item.budget %}
             <div class="cat-budget {% if item.budget_over %}over{% endif %}">
                 {# A finished month has no "left": there is nothing more to spend. This
@@ -295,6 +286,7 @@
                     ₪{{ item.total | round | int | money }} מתוך תקציב של ₪{{ item.budget | round | int | money }}
                     {% endif %}
                 </p>
+                <span class="cat-budget-bar" aria-hidden="true"><span style="width: {{ [item.budget_pct or 0, 100] | min }}%;"></span></span>
             </div>
             {% endif %}
             {% if cat_txs %}

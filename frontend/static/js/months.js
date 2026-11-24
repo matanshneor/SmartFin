@@ -176,7 +176,7 @@ if (catTrend && catTrend.categories.length && catCanvas) {
             ctx.textAlign = 'center';
             meta.data.forEach(function (bar, i) {
                 const v = chart.data.datasets[0].data[i];
-                if (v > 0) ctx.fillText(Math.round(v).toLocaleString('en-US'), bar.x, bar.y - 6);
+                if (v > 0) ctx.fillText('₪' + Math.round(v).toLocaleString('en-US'), bar.x, bar.y - 6);
             });
             ctx.restore();
         },
