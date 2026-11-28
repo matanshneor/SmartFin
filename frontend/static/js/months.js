@@ -478,6 +478,15 @@ document.addEventListener('click', function (e) {
 const holder = document.getElementById('monthsView');
 if (!holder) { sfMonthsCharts(SF_MONTHS_VIEW); return; }
 
+// Opening the page, or arriving from another tab without a full load? The
+// first is an entrance (`motion.js` brings the cards in); the second is what
+// the server-built page got after a tab switch: `sf:refreshed`.
+const opening = document.readyState === 'loading';
+function announce() {
+    window.dispatchEvent(opening ? new CustomEvent('sf:view-entered', { detail: { root: holder } })
+                                 : new CustomEvent('sf:refreshed'));
+}
+
 const byId = id => document.getElementById(id);
 const make = (tag, cls, text) => {
     const el = document.createElement(tag);
@@ -563,11 +572,12 @@ function load() {
         .then(function (view) {
             if (!view) return;
             holder.removeAttribute('aria-busy');
-            if (view.empty) { byId('monthsEmpty').hidden = false; return; }
+            if (view.empty) { byId('monthsEmpty').hidden = false; announce(); return; }
             fill(view);
             // Shown before drawing: Chart.js measures the canvas, and a hidden one is 0×0
             byId('monthsBody').hidden = false;
             sfMonthsCharts(view);
+            announce();
         })
         .catch(failed);
 }

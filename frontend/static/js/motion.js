@@ -110,9 +110,24 @@
         });
     }
 
-    function runStagger() {
+    /* A page that loads its own data (the frontend/backend split) has nothing
+     * to bring in when the document is ready: its cards are still hidden, or
+     * not built yet. They enter when the data arrives (`sf:view-entered`), and
+     * until then they are left alone; otherwise the entrance ran on hidden
+     * cards, and the ones below the screen never got theirs. `entered`: a card
+     * enters once, whichever of the two moments comes first. */
+    const WAITING = '[data-view-url][aria-busy="true"]';
+    const entered = new WeakSet();
+
+    function runStagger(root) {
         if (reduceMotion) return;
-        const all = Array.prototype.slice.call(document.querySelectorAll(REVEAL));
+        const all = Array.prototype.slice.call((root || document).querySelectorAll(REVEAL))
+            // Inside a view only what it chose to show: its error and empty states
+            // wait hidden in the page, and must not take a place in the stagger
+            .filter(function (el) {
+                return !entered.has(el) && !el.closest(WAITING) && (!root || el.getClientRects().length);
+            });
+        all.forEach(function (el) { entered.add(el); });
         const below = all.filter(belowTheFold);
         // Only what was in the original entrance list and is visible now, as before
 
@@ -167,6 +182,14 @@
      * Deliberately not `runStagger`: an entrance animation belongs to entering
      * the page, not to an in-place update. Every card entering again on every
      * transaction added is noise. */
+    // The data of a self-loading page arrived as the page was opening: this is
+    // its entrance, the same three as above, for what it just built
+    window.addEventListener('sf:view-entered', function (e) {
+        runCountUps();
+        runStagger(e.detail && e.detail.root);
+        runBars();
+    });
+
     window.addEventListener('sf:refreshed', function () {
         runCountUps();
         runBars();

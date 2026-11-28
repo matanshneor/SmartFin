@@ -24,7 +24,7 @@ restrained charts and motion.
 ```
 SmartFin/
 ├── backend/
-│   ├── app.py                  # all 88 routes: pages, API, auth, hardening
+│   ├── app.py                  # all 89 routes: pages, API, auth, hardening
 │   ├── clock.py                # Asia/Jerusalem — every "today" in the app comes from here
 │   ├── money.py                # the one rule for showing an amount (agorot only when present)
 │   ├── wording.py              # Hebrew counts, percentages that sum to 100, day labels, month names
@@ -36,8 +36,9 @@ SmartFin/
 │   │                           # project_detail, project_edit, login, onboarding,
 │   │                           # reset_password, landing, privacy, terms, error,
 │   │                           # and the partials _week_card, _notice;
-│   │                           # months_view is months as a fixed page that loads
-│   │                           # its own data (see "Splitting frontend and backend")
+│   │                           # months_view and projects_view are the same screens
+│   │                           # as fixed pages that load their own data (see
+│   │                           # "Splitting frontend and backend")
 │   └── static/
 │       ├── css/style.css       # the entire stylesheet
 │       ├── js/                 # one script per page/feature; vendor/ holds Chart.js
@@ -280,7 +281,15 @@ Both versions live side by side behind `SF_API_SCREENS` and
 family first and can be taken back by changing a variable. When a screen is open
 to everyone and stable, its old template is deleted.
 
-Converted so far: `months`.
+Two things every converted page relies on:
+
+- **Refreshing in place.** `softReload` used to fetch the page's HTML again and
+  swap it in. A fixed page's HTML never changes, so its script registers a
+  redraw under its holder's id (`window.sfViews`), and `softReload` calls that.
+- **Entrance animations.** The cards of a fixed page enter when its data arrives
+  (`sf:view-entered`), not when the document is ready (`motion.js`).
+
+Converted so far: `months`, `projects` (the list).
 
 ## Before you change anything
 

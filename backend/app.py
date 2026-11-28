@@ -2171,7 +2171,7 @@ def month_csv():
 #   · `SF_API_SCREENS`          the screens open to everyone: `months,projects`, or `*`
 #   · `SF_API_SCREENS_PREVIEW`  family ids that get every converted screen
 # With neither set nothing changes: every page is rendered as it always was.
-_API_SCREENS = frozenset({"months"})
+_API_SCREENS = frozenset({"months", "projects"})
 
 
 def _env_list(name: str) -> set:
@@ -2321,11 +2321,9 @@ def api_screen_months():
     return jsonify(_months_payload(_months_view(get_current_user())))
 
 
-@app.route("/projects")
-@login_required
-def projects():
-    """The projects page: a budget per project (trip, renovation, event and more)."""
-    user      = get_current_user()
+def _projects_view(user) -> dict:
+    """Everything the projects list shows: read by the page built on the server
+    and by `/api/screens/projects`."""
     family_id = user["family_id"]
     # One trip to the database (Matan, 13.10): `get_projects_page`; if
     # unavailable, as before
@@ -2349,9 +2347,108 @@ def projects():
     # (newest first). `sorted` is stable, so both orders are kept.
     if len(project_list) > 1:
         project_list = sorted(project_list, key=lambda p: last.get(p["id"]) or "", reverse=True)
-    return render_template("projects.html", active_page="projects", user=user,
-                           projects=project_list, finished_projects=finished,
-                           last_activity=last or {})
+    return dict(projects=project_list, finished_projects=finished, last_activity=last or {})
+
+
+def _projects_payload(view: dict) -> dict:
+    """The projects list as data, for the page that draws itself.
+
+    Every sentence is sent ready to show. What a project's amount means follows
+    its kind (a goal to reach, or a ceiling), and that decision, with its
+    rounding, stays in one language: the same expressions as `projects.html`,
+    in the same order."""
+    def shekels(value) -> str:               # `| round | int | money`
+        return "₪" + format_money(int(round(value)))
+
+    def done_of(p, kind):
+        return p["saved"] if kind == "savings" else p["spent"]
+
+    active, last_activity = view["projects"] or [], view["last_activity"] or {}
+
+    hero = {"new_button": bool(active), "count": None, "summary": None}
+    if len(active) == 1:
+        p = active[0]
+        kind = project_kind(p)
+        done, target = done_of(p, kind), p.get("budget_target")
+        if target or done:
+            summary = {"name": p["name"], "over": False, "sub": None}
+            if kind == "savings":
+                summary["main"] = f"נחסכו {shekels(done)}"
+                if target:
+                    summary["sub"] = f"מתוך יעד של {shekels(target)}"
+            elif target:
+                left = target - done
+                summary["over"] = left < 0
+                summary["main"] = f"נשארו {shekels(left)}" if left >= 0 else f"חריגה של {shekels(abs(left))}"
+                summary["sub"] = f"מתוך תקציב של {shekels(target)}"
+            else:
+                summary["main"] = f"יצאו {shekels(done)}"
+            hero["summary"] = summary
+    elif active:
+        hero["count"] = f"{len(active)} פרויקטים פעילים"
+
+    tiles = []
+    for i, p in enumerate(active):
+        kind = project_kind(p)
+        done, target = done_of(p, kind), p.get("budget_target")
+        pct = int(round(done / target * 100)) if target else None
+        over = bool(kind == "expense" and target and done > target)
+        numbers = bar = None
+        if target:
+            numbers = {"lead": "נחסכו" if kind == "savings" else "יצאו", "amount": shekels(done),
+                       "tail": f"מתוך {shekels(target)}"}
+            bar = {"width": min(pct, 100), "kind": "danger" if over else "saving" if kind == "savings" else ""}
+        elif kind == "savings" and p["saved"] > 0:
+            numbers = {"lead": "נחסכו", "amount": shekels(p["saved"]), "tail": "עד עכשיו"}
+        elif kind == "expense" and p["spent"] > 0:
+            numbers = {"lead": "יצאו", "amount": shekels(p["spent"]), "tail": "עד עכשיו"}
+        last = last_activity.get(p["id"])
+        tiles.append({
+            "id": p["id"], "tint": i % 4, "icon": p.get("icon") or "🎯", "name": p["name"],
+            "href": url_for("project_detail", project_id=p["id"]),
+            "description": p.get("description") or None,
+            "pct": pct, "over": over, "numbers": numbers, "bar": bar,
+            "over_tag": f"חריגה של {shekels(done - target)}" if over else None,
+            "personal": bool(p.get("is_personal")), "savings": kind == "savings",
+            "last": (f"{'הפקדה אחרונה' if kind == 'savings' else 'עסקה אחרונה'}: {days_ago_label(last)}"
+                     if last else None),
+            "add_label": f"הוספת עסקה ל{p['name']}",
+        })
+
+    finished = []
+    for p in view["finished_projects"] or []:
+        net = round((p.get("income") or 0) - (p.get("spent") or 0), 2)
+        if project_kind(p) == "savings":
+            total = f"נחסכו {shekels(p['saved'])}" if p.get("saved") else None
+        elif net < 0:
+            total = f"עלות {shekels(abs(net))}"
+        elif net > 0:
+            total = f"+{shekels(net)}"
+        else:
+            total = "₪0" if p.get("spent") else None
+        finished.append({"icon": p.get("icon") or "🎯", "name": p["name"], "sum": total,
+                         "href": url_for("project_detail", project_id=p["id"])})
+
+    return {"hero": hero, "tiles": tiles, "finished": finished,
+            # One active project: + opens a form with it already selected
+            "single_id": active[0]["id"] if len(active) == 1 else None}
+
+
+@app.route("/projects")
+@login_required
+def projects():
+    """The projects page: a budget per project (trip, renovation, event and more)."""
+    user = get_current_user()
+    if _api_screen("projects"):
+        return render_template("projects_view.html", active_page="projects", user=user)
+    return render_template("projects.html", active_page="projects", user=user, **_projects_view(user))
+
+
+@app.route("/api/screens/projects")
+@login_required
+def api_screen_projects():
+    """The data of the projects list, for `projects_view.html`."""
+    return jsonify(_projects_payload(_projects_view(get_current_user())))
 
 
 def _member_names(family_id) -> dict:

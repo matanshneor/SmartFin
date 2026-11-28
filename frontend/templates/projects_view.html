@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{# The projects list that loads its own data (the frontend/backend split).
+
+   The same markup as `projects.html`, with no project in it: `projects-list.js`
+   asks `/api/screens/projects` and builds the tiles from the `<template>`s
+   below. Still safe to swap in place: after a save the script asks again and
+   redraws, without fetching this page a second time (`sfViews` in core.js). #}
+
+{% block title %}SmartFin – פרויקטים{% endblock %}
+
+{% block soft_reload %} data-soft-reload{% endblock %}
+
+{% block hero %}
+<div class="hero-top projects-hero-top">
+    <h1 class="hero-title">פרויקטים</h1>
+    <a class="projects-new-btn" id="newProjectBtn" href="{{ url_for('project_new') }}" hidden>＋ פרויקט חדש</a>
+</div>
+{# One project: its own numbers. Several: only how many there are. #}
+<div class="projects-summary" id="projectsSummary" hidden>
+    <p class="projects-summary-count" id="projectsSummaryName"></p>
+    <p class="projects-summary-main" id="projectsSummaryMain"></p>
+    <p class="projects-summary-sub" id="projectsSummarySub"></p>
+</div>
+<p class="projects-count" id="projectsCount" hidden></p>
+<p class="hero-note">העסקאות של הפרויקטים לא נכללות במאזן החודש</p>
+{% endblock %}
+
+{% block content %}
+
+<div id="projectsView" data-view-url="{{ url_for('api_screen_projects') }}" aria-busy="true">
+
+<div class="empty-state" id="projectsError" style="margin: 24px 16px;" role="alert" hidden>
+    <p class="empty-text">לא הצלחנו לטעון את הנתונים</p>
+    <p class="empty-sub" id="projectsErrorText"></p>
+    <button type="button" class="btn-sm btn-primary empty-cta" id="projectsRetry">ניסיון נוסף</button>
+</div>
+
+<section class="projects-gallery" id="activeProjects" aria-label="פרויקטים פעילים" hidden>
+    {# One active project: + opens a form with it already selected (transactions.js) #}
+    <span id="sfPageProject" data-project-id="" hidden></span>
+    <div class="project-grid" id="projectsList"></div>
+</section>
+
+<section class="finished-projects" id="finishedProjects" hidden>
+    <h2 class="projects-section-title">הסתיימו</h2>
+    <div class="finished-list" id="finishedList"></div>
+</section>
+
+</div>
+
+{# The link covers the whole tile (`::after`); the + is a button of its own above it #}
+<template id="tplProjectTile">
+    <div class="project-tile">
+        <span class="project-tile-icon" aria-hidden="true" data-slot="icon"></span>
+        <span class="project-tile-body">
+            <span class="project-tile-head">
+                <a class="project-tile-name project-tile-link" data-slot="name"></a>
+                <span class="project-tile-pct" data-slot="pct"></span>
+            </span>
+            <span class="project-tile-sub" data-slot="description"></span>
+            <span class="project-tile-sub project-tile-progress" data-slot="numbers"></span>
+            <span class="project-tile-bar" aria-hidden="true" data-slot="bar"><span></span></span>
+            <span class="project-tile-foot">
+                <span class="project-tile-tags" data-slot="tags"></span>
+                <button type="button" class="project-tile-add" data-slot="add">＋</button>
+            </span>
+        </span>
+    </div>
+</template>
+
+<template id="tplPersonalTag"><span class="project-tile-tag">{{ ui_icon("lock") }} אישי</span></template>
+
+{# No active projects: not "there's nothing", an invitation to start, with ideas #}
+<template id="tplNoProjects">
+    <a class="project-tile project-tile-new" href="{{ url_for('project_new') }}">
+        <span class="project-tile-plus" aria-hidden="true">＋</span>
+        <span class="project-tile-body">
+            <span class="project-tile-name" data-slot="title"></span>
+            <span class="project-tile-sub">תקציב נפרד לדבר אחד גדול — בלי לבלבל את החודש</span>
+        </span>
+    </a>
+    <p class="project-ideas-title">רעיונות להתחלה</p>
+    {# The same four for everyone: a list written here, not data from the route #}
+    {% for icon, name in [('✈️', 'טיול'), ('🔨', 'שיפוץ'), ('🎉', 'אירוע'), ('🚗', 'רכב')] %}
+    <a class="project-tile project-idea tint-{{ loop.index0 % 4 }}" href="{{ url_for('project_new', icon=icon, name=name) }}">
+        <span class="project-tile-icon" aria-hidden="true">{{ icon }}</span>
+        <span class="project-tile-body">
+            <span class="project-tile-name">{{ name }}</span>
+            <span class="project-tile-sub">התחלה מכאן</span>
+        </span>
+    </a>
+    {% endfor %}
+</template>
+
+<template id="tplFinishedRow">
+    <a class="finished-row">
+        <span class="finished-row-name" data-slot="name"><span aria-hidden="true" data-slot="icon"></span></span>
+        <span class="finished-row-sum" data-slot="sum"></span>
+    </a>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/projects-list.js') }}"></script>
+{% endblock %}

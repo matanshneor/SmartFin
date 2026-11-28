@@ -697,6 +697,12 @@ window.softReload = function (selector, pendingToast) {
         window.location.reload();
         return 'reloaded';
     }
+    // A page that loads its own data (the frontend/backend split) has nothing
+    // new in its HTML: its script asks its API again and redraws in place. It
+    // registered how under its holder's id (`window.sfViews`).
+    const view = !selector && document.querySelector('main.main-content [data-view-url]');
+    const again = view && window.sfViews && window.sfViews[view.id];
+    if (again) return Promise.resolve().then(again).then(function () {}, fullReload);
     return sfFetchPage(window.location.href)
         .then(function (html) {
             if (sfApplyHtml(html, regions) === 'full') return fullReload();
