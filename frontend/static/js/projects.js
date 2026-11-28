@@ -8,6 +8,21 @@ const ownerSharedBtn   = document.getElementById('projectOwnerShared');
 const ownerPersonalBtn = document.getElementById('projectOwnerPersonal');
 let isPersonal = false;
 
+// From a starter idea ("✈️ טיול"): `?icon=…&name=…` fills the form. The server
+// used to write them into the page; when it doesn't (the page is the same file
+// for every address, the frontend/backend split), they are read here. The same
+// limits as the server's: trimmed, 16 and 50 characters, counted as characters
+// and not as halves of an emoji.
+(function () {
+    let query;
+    try { query = new URLSearchParams(location.search); } catch (err) { return; }
+    const take = function (key, max) { return Array.from((query.get(key) || '').trim()).slice(0, max).join(''); };
+    const iconEl = document.getElementById('projectIcon'), nameEl = document.getElementById('projectName');
+    const icon = take('icon', 16), name = take('name', 50);
+    if (icon && !iconEl.value) { iconEl.value = icon; iconEl.dataset.autoIcon = '1'; }
+    if (name && !nameEl.value) nameEl.value = name;
+})();
+
 [ownerSharedBtn, ownerPersonalBtn].forEach(function (btn) {
     btn.addEventListener('click', function () {
         ownerSharedBtn.classList.toggle('active', btn === ownerSharedBtn);

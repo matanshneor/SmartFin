@@ -289,7 +289,8 @@ Two things every converted page relies on:
 - **Entrance animations.** The cards of a fixed page enter when its data arrives
   (`sf:view-entered`), not when the document is ready (`motion.js`).
 
-Converted so far: `months`, `projects` (the list).
+Converted so far: `months`, `projects` (the list), `project_new` (it shows no
+family data, so it has no API: the one template serves both versions).
 
 ## Before you change anything
 

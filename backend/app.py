@@ -2171,7 +2171,7 @@ def month_csv():
 #   · `SF_API_SCREENS`          the screens open to everyone: `months,projects`, or `*`
 #   · `SF_API_SCREENS_PREVIEW`  family ids that get every converted screen
 # With neither set nothing changes: every page is rendered as it always was.
-_API_SCREENS = frozenset({"months", "projects"})
+_API_SCREENS = frozenset({"months", "projects", "project_new"})
 
 
 def _env_list(name: str) -> set:
@@ -2520,6 +2520,10 @@ def project_new():
     list (Matan, 5.10). `?icon=…&name=…`: from the starter ideas ("✈️ טיול"),
     which prefill the form."""
     user = get_current_user()
+    if _api_screen("project_new"):
+        # The same page for every address: `projects.js` reads `?icon=…&name=…`
+        # itself. This page shows nothing of the family's, so it needs no API.
+        return render_template("project_new.html", active_page="projects", user=user, icon="", name="")
     return render_template("project_new.html", active_page="projects", user=user,
                            icon=_text(request.args.get("icon"))[:16],
                            name=_text(request.args.get("name"))[:50])
