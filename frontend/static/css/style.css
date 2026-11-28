@@ -4066,10 +4066,21 @@ li.transaction-item.swipe-ready > .swipe-content {
 }
 
 .cat-tx-row.swipe-ready {
-    display: block;
+    /* flex, and stretched: the row is at least 44px tall (see "at least 44px"
+       below) and its content 35px. As a block the content kept its own height,
+       and under it the edit and delete panels showed: a gold strip and a red
+       one beneath every row a finger had touched (Matan, 28.11: "something is
+       stuck here"). Stretched, the content covers the whole row. */
+    display: flex;
+    align-items: stretch;
     padding: 0;
     overflow: hidden;
     position: relative;
+    /* Square, row and content both: clipping the panels to rounded corners
+       left a thin red and gold arc at each corner of a touched row, where the
+       edge of the clip is blended. With nothing rounded, the content covers
+       the panels to the last pixel. */
+    border-radius: 0;
 }
 
 .cat-tx-row.swipe-ready > .swipe-content {
@@ -4079,7 +4090,7 @@ li.transaction-item.swipe-ready > .swipe-content {
     padding: 7px 4px;
     width: 100%;
     box-sizing: border-box;
-    border-radius: var(--radius-xs);
+    border-radius: 0;       /* see the row, above */
     /* An opaque background that hides the action panels until swiped, matching
        the beige background of .cat-tx-list (drilldown on the month page). In a
        standalone list on a project page the background is white; see the
