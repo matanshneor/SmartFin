@@ -4,8 +4,12 @@ const SF_MONTHS_VIEW = window.sfData('sf-view-data');
 
 /* ═══ The chart ═══  (see chart-setup.js)
  * A block separate from "show more" below: when the library doesn't load, the
- * button still works. */
-(function () {
+ * button still works.
+ *
+ * A function and not a block that runs as the file loads: on the page that
+ * loads its own data (`months_view.html`, the frontend/backend split) there is
+ * nothing to draw until `/api/screens/months` answers. See the end of the file. */
+function sfMonthsCharts(SF_MONTHS_VIEW) {
 if (!window.sfCharts.ready) return;
 
 const TEXT_MUTED = window.sfCharts.muted;
@@ -441,7 +445,7 @@ document.addEventListener('click', function (e) {
     });
     rangeListeners.forEach(function (fn) { fn(); });
 });
-})();
+}
 
 
 /* ═══ The page's interactivity ═══ */
@@ -456,4 +460,118 @@ document.addEventListener('click', function (e) {
     if (!row || e.target.closest('a')) return;
     window.location.href = row.dataset.href;
 });
+})();
+
+
+/* ═══ Where the data comes from ═══
+ *
+ * Two pages load this file while the screens move over one at a time:
+ *   · `months.html`: the server built the page and put the data in it
+ *     (`sf-view-data`). Draw, as always.
+ *   · `months_view.html`: the page arrived with no numbers in it. Ask
+ *     `/api/screens/months`, fill the page in, and only then draw.
+ *
+ * Everything is written with `textContent`: a category's name is the user's
+ * own text. A failed request says so and offers another try; it never leaves a
+ * page that looks like "no data" (see `DataUnavailable` on the server). */
+(function () {
+const holder = document.getElementById('monthsView');
+if (!holder) { sfMonthsCharts(SF_MONTHS_VIEW); return; }
+
+const byId = id => document.getElementById(id);
+const make = (tag, cls, text) => {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text != null) el.textContent = text;
+    return el;
+};
+
+function fill(view) {
+    const verdict = view.verdict, line = byId('trendVerdict');
+    if (verdict) {
+        line.textContent = verdict.month_name + ': ';
+        line.append(make('b', '', '₪' + verdict.expense), ' · ' + verdict.of + ': ₪' + verdict.avg);
+        if (verdict.direction !== 'same') {
+            const up = verdict.direction === 'up';
+            line.append(' · ', make('b', up ? 'deficit' : 'surplus', verdict.pct + '% ' + (up ? 'יותר' : 'פחות')));
+        }
+        line.hidden = false;
+    }
+    holder.querySelector('.range-chips').hidden = view.trend.length <= 3;
+
+    const cats = view.cat_trend ? view.cat_trend.categories : [];
+    if (cats.length) {
+        const chips = holder.querySelector('.cat-trend-chips');
+        cats.forEach(function (c, i) {
+            const chip = make('button', 'date-chip tx-cat-chip' + (i ? '' : ' active'), c.icon + ' ' + c.name);
+            chip.type = 'button';
+            chip.dataset.key = c.key;
+            chip.setAttribute('aria-pressed', i ? 'false' : 'true');
+            chips.appendChild(chip);
+        });
+        byId('cat-trend').hidden = false;
+    }
+    if (view.members) byId('memberTrendCard').hidden = false;
+
+    const archive = byId('monthsArchive');
+    const yearTpl = byId('tplYearBlock').content, rowTpl = byId('tplMonthRow').content;
+    view.years.forEach(function (y) {
+        const block = yearTpl.cloneNode(true);
+        block.querySelector('details').open = y.open;
+        block.querySelector('[data-slot="year"]').textContent = y.year;
+        const body = block.querySelector('tbody');
+        y.months.forEach(function (m) {
+            const row = rowTpl.cloneNode(true), tr = row.querySelector('tr');
+            tr.dataset.href = m.href;
+            const link = row.querySelector('[data-slot="name"]');
+            link.href = m.href;
+            link.textContent = m.name;
+            if (m.current) {
+                tr.classList.add('is-current');
+                link.after(' ', make('span', 'current-month-badge', 'החודש'));
+            }
+            ['income', 'expense', 'savings', 'balance'].forEach(function (k) {
+                row.querySelector('[data-slot="' + k + '"]').textContent = m[k];
+            });
+            row.querySelector('[data-slot="balance"]').classList.add(m.deficit ? 'deficit' : 'surplus');
+            body.appendChild(row);
+        });
+        archive.appendChild(block);
+    });
+
+    byId('monthsRecap').dataset.yearRecap = view.recap.year;
+    byId('monthsRecapTitle').textContent = view.recap.title;
+    byId('monthsRecapSub').textContent = view.recap.sub;
+}
+
+function failed() {
+    byId('monthsErrorText').textContent = window.sfNetError ? window.sfNetError() : 'נסו שוב';
+    byId('monthsError').hidden = false;
+    holder.removeAttribute('aria-busy');
+}
+
+function load() {
+    byId('monthsError').hidden = true;
+    holder.setAttribute('aria-busy', 'true');
+    fetch(holder.dataset.viewUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function (r) {
+            // 401: `auth-guard.js` is already sending the user to sign in
+            if (r.status === 401) return null;
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(function (view) {
+            if (!view) return;
+            holder.removeAttribute('aria-busy');
+            if (view.empty) { byId('monthsEmpty').hidden = false; return; }
+            fill(view);
+            // Shown before drawing: Chart.js measures the canvas, and a hidden one is 0×0
+            byId('monthsBody').hidden = false;
+            sfMonthsCharts(view);
+        })
+        .catch(failed);
+}
+
+byId('monthsRetry').addEventListener('click', load);
+load();
 })();

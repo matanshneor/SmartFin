@@ -24,7 +24,7 @@ restrained charts and motion.
 ```
 SmartFin/
 ├── backend/
-│   ├── app.py                  # all 87 routes: pages, API, auth, hardening
+│   ├── app.py                  # all 88 routes: pages, API, auth, hardening
 │   ├── clock.py                # Asia/Jerusalem — every "today" in the app comes from here
 │   ├── money.py                # the one rule for showing an amount (agorot only when present)
 │   ├── wording.py              # Hebrew counts, percentages that sum to 100, day labels, month names
@@ -35,13 +35,15 @@ SmartFin/
 │   ├── templates/              # base, index, month, months, settings, projects,
 │   │                           # project_detail, project_edit, login, onboarding,
 │   │                           # reset_password, landing, privacy, terms, error,
-│   │                           # and the partials _week_card, _notice
+│   │                           # and the partials _week_card, _notice;
+│   │                           # months_view is months as a fixed page that loads
+│   │                           # its own data (see "Splitting frontend and backend")
 │   └── static/
 │       ├── css/style.css       # the entire stylesheet
 │       ├── js/                 # one script per page/feature; vendor/ holds Chart.js
 │       ├── fonts/              # Rubik, self-hosted
 │       ├── sw.js, manifest.json, icons/
-├── tests/                      # 2117 tests: 2076 unit (no network) + 41 against the real DB
+├── tests/                      # 2557 tests: 2493 unit (no network) + 64 against the real DB
 │   └── browser/                # manual Playwright checks (screenshots, not run in CI)
 ├── docs/SPEC.md                # product specification
 ├── Procfile / runtime.txt      # Railway configuration (gunicorn, Python 3.11.9)
@@ -190,6 +192,8 @@ flask --app backend.app run --port 8080
 | `LOGIN_LOOKUP_SECRET` | must match the `login_lookup_secret` Vault secret. Signing in with a phone number needs it: the `email_for_phone` RPC returns nothing without it, so the anon key alone can't be used to collect users' emails. Without it, phone sign-in fails (email sign-in still works) |
 | `LOG_LEVEL` | `INFO` by default |
 | `CSP_REPORT_ONLY` | set while tightening the Content-Security-Policy, so violations are reported instead of blocking |
+| `SF_API_SCREENS` | the screens served as fixed pages that load their own data, for everyone: a comma-separated list (`months`), or `*` for every converted screen. Unset: every page is built on the server, as always |
+| `SF_API_SCREENS_PREVIEW` | family ids (comma-separated) that get every converted screen before it is opened to everyone |
 
 ## Tests
 
@@ -255,6 +259,28 @@ defaults to 8080).
 
 **Supabase Auth:** whenever the domain changes, update `SITE_URL` and
 `URI_ALLOW_LIST` to the new domain, or password-reset links will break.
+
+## Splitting frontend and backend
+
+In progress, one screen at a time. Today the server builds every page: the route
+fetches the data and the template pours it into the HTML. The goal is a frontend
+of fixed files that talk to the backend only through the API, so the two can be
+deployed separately.
+
+A converted screen has three parts:
+
+- a view function (`_months_view`) that gathers the data, used by both versions;
+- `GET /api/screens/<name>`, which sends that data, with amounts already
+  formatted by `money.py`;
+- a fixed template (`months_view.html`) with no family data in it, filled in by
+  the page's script.
+
+Both versions live side by side behind `SF_API_SCREENS` and
+`SF_API_SCREENS_PREVIEW` (see the table above), so a screen is tried by one
+family first and can be taken back by changing a variable. When a screen is open
+to everyone and stable, its old template is deleted.
+
+Converted so far: `months`.
 
 ## Before you change anything
 
