@@ -24,7 +24,7 @@ restrained charts and motion.
 ```
 SmartFin/
 ├── backend/
-│   ├── app.py                  # all 90 routes: pages, API, auth, hardening
+│   ├── app.py                  # all 91 routes: pages, API, auth, hardening
 │   ├── clock.py                # Asia/Jerusalem — every "today" in the app comes from here
 │   ├── money.py                # the one rule for showing an amount (agorot only when present)
 │   ├── wording.py              # Hebrew counts, percentages that sum to 100, day labels, month names
@@ -36,9 +36,10 @@ SmartFin/
 │   │                           # project_detail, project_edit, login, onboarding,
 │   │                           # reset_password, landing, privacy, terms, error,
 │   │                           # and the partials _week_card, _notice;
-│   │                           # months_view, projects_view and project_detail_view
-│   │                           # are the same screens as fixed pages that load
-│   │                           # their own data (see "Splitting frontend and backend")
+│   │                           # months_view, projects_view, project_detail_view and
+│   │                           # project_edit_view are the same screens as fixed pages
+│   │                           # that load their own data (see "Splitting frontend
+│   │                           # and backend")
 │   └── static/
 │       ├── css/style.css       # the entire stylesheet
 │       ├── js/                 # one script per page/feature; vendor/ holds Chart.js
@@ -291,7 +292,10 @@ Two things every converted page relies on:
 
 Converted so far: `months`, `projects` (the list), `project` (one project's page,
 `/api/screens/project/<id>`; a project that isn't there answers 404 and the
-page goes back to the list).
+page goes back to the list). `project_edit` (the project's settings,
+`/api/screens/project/<id>/edit`: the form is filled before the editing script
+starts, so "save" wakes only for a real change; it does not refresh in place,
+since it holds unsaved edits).
 
 ## Before you change anything
 

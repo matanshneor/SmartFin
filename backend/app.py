@@ -2171,7 +2171,7 @@ def month_csv():
 #   · `SF_API_SCREENS`          the screens open to everyone: `months,projects,project`, or `*`
 #   · `SF_API_SCREENS_PREVIEW`  family ids that get every converted screen
 # With neither set nothing changes: every page is rendered as it always was.
-_API_SCREENS = frozenset({"months", "projects", "project"})
+_API_SCREENS = frozenset({"months", "projects", "project", "project_edit"})
 
 
 def _env_list(name: str) -> set:
@@ -2486,6 +2486,15 @@ def _project_gone():
     return redirect(url_for("projects"))
 
 
+def _project_missing():
+    """`_project_gone` for a page that loads its own data: 404, where to go, and
+    the sentence to show there. The page carries the sentence to the list itself
+    (`sfToastAfterReload`) rather than leaving it in the session: the session is
+    a cookie, and a request running alongside this one (the "app opened" ping)
+    could write the cookie back without it, and the notice was lost."""
+    return jsonify({"error": "הפרויקט הזה כבר לא קיים", "redirect": url_for("projects")}), 404
+
+
 def _project_detail_view(user, project_id):
     """Everything one project's page shows, or None when there is no such
     project for this user: read by the page built on the server and by
@@ -2684,11 +2693,10 @@ def project_detail(project_id):
 def api_screen_project(project_id):
     """The data of one project's page, for `project_detail_view.html`. No such
     project (deleted, a truncated link, another member's personal one): 404,
-    with where to go, and the same notice the server-built page leaves."""
+    with where to go and what to say there (`_project_missing`)."""
     view = _project_detail_view(get_current_user(), project_id)
     if view is None:
-        _project_gone()
-        return jsonify({"error": "הפרויקט הזה כבר לא קיים", "redirect": url_for("projects")}), 404
+        return _project_missing()
     return jsonify(_project_detail_payload(view))
 
 
@@ -2704,21 +2712,104 @@ def project_new():
                            name=_text(request.args.get("name"))[:50])
 
 
+def _project_edit_view(user, project_id):
+    """Everything the project's edit screen shows, or None when there is no such
+    project for this user: read by the page built on the server and by
+    `/api/screens/project/<id>/edit`."""
+    family_id = user["family_id"]
+    project = db.get_project_detail(project_id, family_id, user["id"]) if family_id else None
+    if not project:
+        return None
+    return dict(project=project,
+                others_note=_others_contributions(project, user["id"], _member_names(family_id)))
+
+
+def _project_edit_payload(view: dict, user) -> dict:
+    """The edit screen as data, for the page that fills its own form.
+
+    The fields arrive as the form shows them, and every sentence around them
+    (what the amount is called, who sees the project, what deleting it takes
+    with it) is decided here, with the template's words."""
+    project = view["project"]
+    kind = project_kind(project)
+    budget = project.get("budget_target")
+    if budget is not None:
+        budget = float(budget)
+        budget = str(int(budget)) if budget == int(budget) else str(budget)
+
+    personal = bool(project.get("is_personal"))
+    mine = project.get("created_by") == user["id"]
+    if personal:
+        hint = ("הפרויקט הזה גלוי רק למי שיצר אותו. הפיכתו למשותף תפתח אותו לכל בני המשפחה, "
+                "וההוצאות/הכנסות שכבר נרשמו בו יהפכו לשיוך משותף.")
+    elif mine:
+        hint = "כל בני המשפחה רואים ועורכים את הפרויקט הזה. רק מי שיצר אותו יכול להחזיר אותו להיות אישי."
+    else:
+        hint = "כל בני המשפחה רואים ועורכים את הפרויקט הזה."
+
+    labels = {"expense": "הוצאות", "income": "הכנסות", "savings": "חיסכון"}
+    tabs = [{"type": t, "label": labels[t]} for t in ("expense", "income", "savings") if project[f"track_{t}"]]
+
+    n = len(project.get("transactions") or [])
+    amounts = [f"{label} ₪{format_money(project[key])}"
+               for key, label in (("spent", "הוצאות"), ("income", "הכנסות"), ("savings", "חיסכון"))
+               if project.get(key)]
+    if n:
+        warning = (f"הפרויקט יימחק יחד עם {'העסקה' if n == 1 else f'{n} העסקאות'} שבו"
+                   + (f" ({', '.join(amounts)})" if amounts else "")
+                   + ". ההוצאות של הבית לא ישתנו — כסף של פרויקט ממילא לא נספר בהן.")
+    else:
+        warning = "הפרויקט יימחק. אין לו עסקאות, אז שום כסף לא יושפע."
+
+    return {
+        "id": project["id"], "name": project["name"],
+        "title": f"SmartFin – עריכת {project['name']}",
+        "detail_href": url_for("project_detail", project_id=project["id"]),
+        "fields": {"icon": project.get("icon") or "", "name": project["name"],
+                   "description": project.get("description") or "", "budget": budget or "",
+                   "track_expense": bool(project["track_expense"]), "track_income": bool(project["track_income"]),
+                   "track_savings": bool(project["track_savings"])},
+        "kind": kind,
+        # The kind changes only while the project is empty; the server checks it too
+        "kind_locked": n > 0,
+        "ownership": {"personal": personal,
+                      "label": "פרויקט אישי" if personal else "פרויקט משותף", "hint": hint,
+                      "button": "share" if personal else "unshare" if mine else None,
+                      "others_note": view["others_note"] if (not personal and mine) else ""},
+        "tabs": tabs,
+        "delete": {"hint": f"לפרויקט יש {count_of(n, 'עסקה אחת', 'עסקאות')}" if n else "אין לפרויקט עסקאות",
+                   "warning": warning},
+    }
+
+
 @app.route("/projects/<project_id>/edit")
 @login_required
 def project_edit(project_id):
     """The screen for editing the project's settings
     (name/description/target/tracking/sharing) + managing categories, separate
     from the project's clean view page."""
-    user      = get_current_user()
-    family_id = user["family_id"]
-    project = db.get_project_detail(project_id, family_id, user["id"]) if family_id else None
-    if not project:
+    user = get_current_user()
+    if _api_screen("project_edit"):
+        # The form arrives empty: `project-edit.js` asks for the project, fills
+        # it in, and only then starts tracking what changed
+        return render_template("project_edit_view.html", active_page="projects", user=user,
+                               view_url=url_for("api_screen_project_edit", project_id=project_id))
+    view = _project_edit_view(user, project_id)
+    if view is None:
         return _project_gone()
-    return render_template("project_edit.html", active_page="projects", user=user,
-                           project=project,
-                           others_note=_others_contributions(project, user["id"],
-                                                             _member_names(family_id)))
+    return render_template("project_edit.html", active_page="projects", user=user, **view)
+
+
+@app.route("/api/screens/project/<project_id>/edit")
+@login_required
+def api_screen_project_edit(project_id):
+    """The data of the project's edit screen, for `project_edit_view.html`. No
+    such project: 404, as for the project's page."""
+    user = get_current_user()
+    view = _project_edit_view(user, project_id)
+    if view is None:
+        return _project_missing()
+    return jsonify(_project_edit_payload(view, user))
 
 
 def _parse_project_body(body: dict):

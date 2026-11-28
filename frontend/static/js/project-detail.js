@@ -309,6 +309,8 @@ function ask(holder) {
             // where the notice the server left says why
             if (r.status === 404) {
                 return r.json().catch(function () { return {}; }).then(function (d) {
+                    // The list says why (carried in this tab, not in the session)
+                    try { if (d.error) window.sfToastAfterReload(d.error); } catch (e) { /* the move matters more */ }
                     window.location.replace(d.redirect || '/projects');
                     return null;
                 });

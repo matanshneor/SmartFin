@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{# The project's edit screen that loads its own data (the frontend/backend
+   split).
+
+   The same markup as `project_edit.html`, with no project in it: the form
+   arrives empty and hidden. `project-edit.js` asks `view_url`
+   (`/api/screens/project/<id>/edit`, the one value this page gets), fills the
+   fields and the sentences around them, and only then starts tracking what
+   changed, so "nothing changed" is measured from the project's own values. A
+   project that isn't there is answered by the API, which sends the user back
+   to the list. #}
+
+{% block title %}SmartFin – עריכת פרויקט{% endblock %}
+
+{# The floating + is "add a new transaction". On a settings screen it has no
+   meaning, and it sat in the bottom-left corner, exactly on the "delete
+   project" button, so the dangerous action on the page was partly hidden behind
+   a button that didn't belong there.
+   The element stays on the page because `transactions.js` binds to it
+   directly; it is only hidden. #}
+{# No bottom menu here either (Matan, 23.11), like the new-project screen: the
+   save bar sits where it was #}
+{% block body_class %}no-fab no-nav{% endblock %}
+
+{% block hero %}
+<div class="hero-top">
+    <div>
+        <a class="stats-nav-btn" id="projectBackLink" aria-label="חזרה לפרויקט" style="margin-inline-end:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{# Vertex at x=15: the arrow points right. In Hebrew right is "back": the
+                   previous chevron was the "next" one. month.html and
+                   login.html got it right. #}
+                <polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+        <h1 class="hero-title">עריכת פרויקט</h1>
+        <p class="hero-subtitle" id="projectEditSubtitle"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div id="projectEditView" data-view-url="{{ view_url }}" aria-busy="true">
+
+<div class="empty-state" id="projectEditError" style="margin: 24px 16px;" role="alert" hidden>
+    <p class="empty-text">לא הצלחנו לטעון את הנתונים</p>
+    <p class="empty-sub" id="projectEditErrorText"></p>
+    <button type="button" class="btn-sm btn-primary empty-cta" id="projectEditRetry">ניסיון נוסף</button>
+</div>
+
+<div id="projectEditBody" hidden>
+
+{# One continuous menu, not four cards.
+   The page was four separate `chart-card`s with a 16px gap between them, and
+   the fourth (deletion) even in a different style, so one settings screen looked
+   like four screens pasted together. Now it is one container, and the division
+   is done with a dividing line. #}
+<section class="project-settings">
+
+<!-- project settings: name, description, target budget, tracked types -->
+<div class="project-settings-block">
+    <h2 class="chart-title">פרטי הפרויקט</h2>
+
+    <form class="add-cat-form" id="editProjectForm" novalidate style="margin-top:14px;">
+        <div class="form-group">
+            <label class="form-label" for="editProjectName">אייקון ושם</label>
+            <div class="add-cat-row">
+                <input class="form-input emoji-input" type="text" id="editProjectIcon" maxlength="4" value="" placeholder="🎯" aria-label="אייקון הפרויקט">
+                <input class="form-input" type="text" id="editProjectName" maxlength="50" value="" required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="editProjectDescription">תיאור (אופציונלי)</label>
+            <textarea class="form-input" id="editProjectDescription" maxlength="200" rows="1"
+                      placeholder="למשל: טיול משפחתי ליפן, קיץ 2026"></textarea>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="editProjectBudget" id="editProjectBudgetLabel"></label>
+            <div class="amount-input-wrap">
+                <span class="amount-currency">₪</span>
+                <input class="form-input amount-input" type="number" inputmode="numeric" id="editProjectBudget" min="0" step="1" data-thousands
+                       aria-describedby="budgetTargetHint"
+                       value="">
+            </div>
+            {# The field stood without a single word of explanation: two words and a box
+               for an amount, without saying whether it is a ceiling, a
+               forecast or money already set aside. #}
+            <p class="field-hint" id="budgetTargetHint" data-expense="כמה תכננתם להוציא. בעמוד הפרויקט יופיע פס שמראה כמה מהסכום כבר נוצל — בלי לחסום כלום." data-savings="לאיזה סכום אתם חוסכים. בעמוד הפרויקט יופיע פס שמתמלא ככל שהחיסכון גדל.">
+            </p>
+        </div>
+        {# The project's kind: the cards set the three hidden checkboxes #}
+        <div class="form-group">
+            <span class="form-label" id="editProjectKindLabel">איזה פרויקט זה?</span>
+            <div class="kind-cards" role="radiogroup" aria-labelledby="editProjectKindLabel" id="editProjectKind">
+                <button type="button" class="kind-card" role="radio" data-kind="expense" aria-checked="false">
+                    <span class="kind-card-icon" aria-hidden="true">🧾</span>
+                    <span class="kind-card-name">פרויקט הוצאות</span>
+                    <span class="kind-card-rule">משייכים הוצאות והכנסות</span>
+                </button>
+                <button type="button" class="kind-card" role="radio" data-kind="savings" aria-checked="false">
+                    <span class="kind-card-icon" aria-hidden="true">🎯</span>
+                    <span class="kind-card-name">פרויקט חיסכון</span>
+                    <span class="kind-card-rule">משייכים רק חיסכון</span>
+                </button>
+            </div>
+            <p class="field-hint" id="editProjectKindLocked" hidden>אי אפשר להחליף בין הוצאות לחיסכון אחרי שיש בפרויקט עסקאות.</p>
+        </div>
+        <div class="form-group" hidden>
+            <label class="form-label">אילו מחלקות לעקוב?</label>
+            <div class="track-row">
+            <label class="checkbox-label">
+                <input type="checkbox" id="editProjectTrackExpense" class="checkbox-input">
+                <span class="checkbox-custom"></span>
+                <span class="checkbox-text">הוצאות</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="editProjectTrackIncome" class="checkbox-input">
+                <span class="checkbox-custom"></span>
+                <span class="checkbox-text">הכנסות</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="editProjectTrackSavings" class="checkbox-input">
+                <span class="checkbox-custom"></span>
+                <span class="checkbox-text">חיסכון</span>
+            </label>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="group-divider"></div>
+
+<!-- ownership: personal / shared -->
+<div class="project-settings-block">
+    <h2 class="chart-title">בעלות</h2>
+    <div class="group-row" style="margin-top:14px;">
+        <div class="group-row-info">
+            <p class="group-row-label" id="ownershipLabel"></p>
+            <p class="group-row-hint" id="ownershipHint"></p>
+        </div>
+        {# The change is recorded and sent only on "save changes". The script
+           keeps the one button this project has, and removes the other. #}
+        <button type="button" class="btn-sm btn-ghost" id="shareProjectBtn">הפיכה למשותף</button>
+        <button type="button" class="btn-sm btn-ghost" id="unshareProjectBtn" data-others-note="">החזרה לפרויקט אישי</button>
+    </div>
+    <p class="pending-note" id="ownershipPending" hidden></p>
+</div>
+
+<div class="group-divider"></div>
+
+<!-- the project's own categories -->
+<div class="project-settings-block">
+    {# A collapsible heading (Matan, 9.10): categories are edited rarely, and they
+       were most of the page's length. The number, so it is clear there is
+       something there without opening it. #}
+    <h2 class="chart-title settings-collapse-title">
+        <button type="button" class="settings-collapse" id="projectCatToggle"
+                aria-expanded="false" aria-controls="projectCatBody">
+            <span>קטגוריות הפרויקט</span>
+            <span class="settings-collapse-count" id="projectCatCount"></span>
+            <span class="expand-chevron" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+        </button>
+    </h2>
+    <div id="projectCatBody" hidden>
+
+    <div class="type-toggle project-cat-tabs" id="projectCatTabs" role="tablist" aria-label="מחלקה"
+         style="margin-top:14px;"></div>
+
+    <div id="projectCategoriesArea" class="managing" data-project-id="">
+        <ul class="categories-list" id="projectCatList"></ul>
+
+        <form class="add-cat-form" id="addProjectCatForm" novalidate>
+            <div class="add-cat-row">
+                <input class="form-input emoji-input" type="text" id="newProjectCatIcon" placeholder="🏷" maxlength="2" value="🏷" aria-label="אייקון">
+                <input class="form-input" type="text" id="newProjectCatName" placeholder="שם קטגוריה חדשה" maxlength="30" required aria-label="שם קטגוריה חדשה">
+                <button type="submit" class="btn-sm btn-primary">הוספה</button>
+            </div>
+            <p class="form-error" id="addProjectCatError" role="alert"></p>
+        </form>
+    </div>
+    </div>
+</div>
+
+</section>
+
+{# Deleting the project: here, in its settings, since 23.11 (Matan). It opens
+   in place and says how many transactions and how much money go with it. #}
+<section class="chart-card project-finish">
+    {# The button used to sit as a ✕ in the project list, one tap away from the
+       name and with no context about what is about to be deleted. Here, inside
+       the project, you have already seen the amounts and the transactions: it
+       is clear what will be lost. #}
+    <div class="project-danger">
+    <div class="group-row">
+        <div class="group-row-info">
+            <p class="group-row-label">מחיקת הפרויקט</p>
+            <p class="group-row-hint" id="deleteProjectHint"></p>
+        </div>
+        <button type="button" class="btn-sm btn-ghost btn-danger-ghost"
+                id="toggleDeleteProjectBtn" aria-expanded="false" aria-controls="deleteProjectForm">מחיקת הפרויקט</button>
+    </div>
+
+    <div class="password-form" id="deleteProjectForm">
+        {# There is no longer a "keep the transactions" choice: they landed in the
+           household as "uncategorised" and past months became more expensive,
+           while the screen promised "they'll return to their regular category".
+           The amounts here are real, from the project itself. #}
+        <p class="delete-account-warning" id="deleteProjectWarning"></p>
+
+        <p class="form-error" id="deleteProjectError" role="alert"></p>
+        <div class="edit-actions">
+            <button class="btn-sm btn-danger" id="confirmDeleteProjectBtn">מחיקת הפרויקט</button>
+            <button class="btn-sm btn-ghost" id="cancelDeleteProjectBtn">ביטול</button>
+        </div>
+    </div>
+    </div>
+</section>
+
+{# Saving is in a bar that stays at the bottom of the screen (Matan, 9.10): at
+   the top of the page, under the details, it looked like it belonged only to the
+   first part. `form=`: the button is outside the form and still submits it. #}
+<p class="form-error project-save-error" id="projectSaveError" role="alert"></p>
+<div class="project-save-bar">
+    <button type="submit" form="editProjectForm" class="btn-primary project-save-btn">שמירת השינויים</button>
+    <a class="btn-ghost project-save-cancel" id="projectCancelLink">ביטול</a>
+</div>
+
+</div>
+</div>
+
+<template id="tplLock">{{ ui_icon('lock') }}</template>
+<template id="tplCatTab"><button type="button" class="toggle-btn" role="tab" aria-selected="false"></button></template>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/project-edit.js') }}"></script>
+{% endblock %}

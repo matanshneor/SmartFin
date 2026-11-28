@@ -1,5 +1,3 @@
-const SF_VIEW = window.sfData('sf-view-data');
-
 /* ═══ Editing a project: everything is saved at once (Matan, 9.10) ═══
  *
  * Until now only the details waited for the button; a category added, renamed
@@ -12,10 +10,14 @@ const SF_VIEW = window.sfData('sf-view-data');
  * deletions. New ones before deletions, so the transactions of a category being
  * deleted can move to a category added in the same edit. A failed step stops
  * the rest; whatever was already saved leaves the list, and a second "save"
- * continues from the same point. */
-(function () {
+ * continues from the same point.
+ *
+ * A function and not a block that runs as the file loads: everything below
+ * reads the form as it is when it starts ("nothing changed" is measured from
+ * that moment). The server-built page starts it at once; the page that loads
+ * its own data (below) starts it once its form is filled. */
+function sfStartProjectEdit(detailUrl) {
 const projectId = document.getElementById('projectCategoriesArea').dataset.projectId;
-const detailUrl = SF_VIEW.detailUrl;
 const editForm  = document.getElementById('editProjectForm');
 const saveError = document.getElementById('projectSaveError');
 const saveBtn   = document.querySelector('button[form="editProjectForm"]');
@@ -494,7 +496,8 @@ document.addEventListener('click', function (e) {
     });
 });
 syncSave();
-})();
+}
+if (!document.getElementById('projectEditView')) sfStartProjectEdit(window.sfData('sf-view-data').detailUrl);
 
 
 /* ═══ Deleting the project ═══ (on the project page from 9.10 to 23.11; back
@@ -562,4 +565,131 @@ document.addEventListener('click', function (e) {
         go.disabled = false;
     });
 });
+})();
+
+
+/* ═══ The page that loads its own data (`project_edit_view.html`) ═══
+ *
+ * The form arrives empty and hidden. This asks `view_url`
+ * (`/api/screens/project/<id>/edit`), fills every field and the sentences
+ * around them (all ready from the server), shows the form, and only then starts
+ * the editing above, so "save" is enabled only by a real change. Fields get
+ * their values as defaults too (`defaultValue`, `defaultChecked`), as if they
+ * had arrived in the HTML.
+ *
+ * A project that is no longer there (404) sends the user to the list; a failed
+ * load says so and offers another try. There is no refresh in place: this page
+ * holds unsaved edits, and redrawing it would throw them away. Everything is
+ * written with `textContent` or `.value`: the name and description are the
+ * user's own text. */
+(function () {
+const holder = document.getElementById('projectEditView');
+if (!holder) return;
+const byId = id => document.getElementById(id);
+
+function setValue(el, value) {
+    el.value = value;
+    el.defaultValue = value;
+}
+function setChecked(el, on) {
+    el.checked = on;
+    el.defaultChecked = on;
+}
+
+function fill(view) {
+    document.title = view.title;
+    byId('projectEditSubtitle').textContent = view.name;
+    byId('projectBackLink').href = view.detail_href;
+    byId('projectCancelLink').href = view.detail_href;
+
+    const f = view.fields;
+    setValue(byId('editProjectIcon'), f.icon);
+    setValue(byId('editProjectName'), f.name);
+    setValue(byId('editProjectDescription'), f.description);
+    const budget = byId('editProjectBudget');
+    budget.value = f.budget;
+    // "12000" → "12,000", as `sfThousands` did to the server-built field; it
+    // already ran on this one while it was empty, so it formats on `input`
+    budget.dispatchEvent(new Event('input'));
+    budget.defaultValue = budget.value;
+    setChecked(byId('editProjectTrackExpense'), f.track_expense);
+    setChecked(byId('editProjectTrackIncome'), f.track_income);
+    setChecked(byId('editProjectTrackSavings'), f.track_savings);
+
+    byId('editProjectBudgetLabel').textContent = (view.kind === 'savings' ? 'יעד חיסכון' : 'תקציב') + ' (אופציונלי)';
+    const hint = byId('budgetTargetHint');
+    hint.textContent = hint.dataset[view.kind];
+    document.querySelectorAll('#editProjectKind .kind-card').forEach(function (card) {
+        card.setAttribute('aria-checked', card.dataset.kind === view.kind ? 'true' : 'false');
+        card.disabled = view.kind_locked;
+    });
+    byId('editProjectKindLocked').hidden = !view.kind_locked;
+
+    const own = view.ownership, label = byId('ownershipLabel');
+    if (own.personal) label.replaceChildren(byId('tplLock').content.cloneNode(true), ' ' + own.label);
+    else label.textContent = own.label;
+    byId('ownershipHint').textContent = own.hint;
+    // The one button this project has; the script above finds it by its id
+    if (own.button !== 'share') byId('shareProjectBtn').remove();
+    if (own.button !== 'unshare') byId('unshareProjectBtn').remove();
+    else byId('unshareProjectBtn').dataset.othersNote = own.others_note;
+
+    const tabs = byId('projectCatTabs');
+    tabs.style.gridTemplateColumns = 'repeat(' + view.tabs.length + ', 1fr)';
+    tabs.replaceChildren.apply(tabs, view.tabs.map(function (t, i) {
+        const btn = byId('tplCatTab').content.firstElementChild.cloneNode(true);
+        if (!i) btn.classList.add('active');
+        btn.dataset.catTab = t.type;
+        btn.setAttribute('aria-selected', i ? 'false' : 'true');
+        btn.textContent = t.label;
+        return btn;
+    }));
+    byId('projectCategoriesArea').dataset.projectId = view.id;
+
+    byId('deleteProjectHint').textContent = view.delete.hint;
+    byId('deleteProjectWarning').textContent = view.delete.warning;
+    const go = byId('confirmDeleteProjectBtn');
+    go.dataset.id = view.id;
+    go.dataset.name = view.name;
+}
+
+let started = false;
+function load() {
+    if (started || holder.dataset.loading) return;
+    holder.dataset.loading = '1';
+    byId('projectEditError').hidden = true;
+    fetch(holder.dataset.viewUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+        .then(function (r) {
+            // 401: `auth-guard.js` is already sending the user to sign in
+            if (r.status === 401) return null;
+            if (r.status === 404) {
+                return r.json().catch(function () { return {}; }).then(function (d) {
+                    // The list says why (carried in this tab, not in the session)
+                    try { if (d.error) window.sfToastAfterReload(d.error); } catch (e) { /* the move matters more */ }
+                    window.location.replace(d.redirect || '/projects');
+                    return null;
+                });
+            }
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(function (view) {
+            if (!view) return;
+            fill(view);
+            byId('projectEditBody').hidden = false;
+            holder.removeAttribute('aria-busy');
+            started = true;
+            sfStartProjectEdit(view.detail_href);
+            window.dispatchEvent(new CustomEvent('sf:view-entered', { detail: { root: holder } }));
+        })
+        .catch(function () {
+            byId('projectEditErrorText').textContent = window.sfNetError ? window.sfNetError() : 'נסו שוב';
+            byId('projectEditError').hidden = false;
+            holder.removeAttribute('aria-busy');
+        })
+        .finally(function () { delete holder.dataset.loading; });
+}
+
+byId('projectEditRetry').addEventListener('click', load);
+load();
 })();

@@ -336,12 +336,15 @@ def test_the_show_all_button_counts_as_the_old_one(client):
 
 # ─── A project that isn't there, the switch, and who may ask ────────────────
 
-def test_a_missing_project_sends_back_to_the_list_with_the_same_notice(client):
+def test_a_missing_project_sends_back_to_the_list_with_its_notice(client):
     client.state["project"] = None
     r = client.get(f"/api/screens/project/{_PID}")
     assert r.status_code == 404 and r.get_json()["redirect"] == "/projects"
+    assert r.get_json()["error"] == "הפרויקט הזה כבר לא קיים"
+    # Carried by the page (`sfToastAfterReload`), not left in the session: a
+    # request running alongside could write the cookie back without it
     with client.session_transaction() as sess:
-        assert sess["sf_notice"] == "הפרויקט הזה כבר לא קיים"
+        assert "sf_notice" not in sess
     old = client.get(f"/projects/{_PID}")
     assert old.status_code == 302 and old.headers["Location"].endswith("/projects")
 
@@ -420,6 +423,7 @@ def test_after_a_save_the_page_asks_its_api_and_redraws_its_charts():
     assert "Chart.getChart(ctx)" in _JS and "before.destroy()" in _JS, "a redraw must not leak the old charts"
     assert "new CustomEvent('sf:view-entered', { detail: { root: holder } })" in _JS
     assert "r.status === 404" in _JS and "window.location.replace(d.redirect" in _JS
+    assert _JS.index("window.sfToastAfterReload(d.error)") < _JS.index("window.location.replace(d.redirect")
 
 
 def test_not_now_is_honoured_on_a_banner_built_after_the_page_opened():
