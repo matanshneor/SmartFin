@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{# One project's page that loads its own data (the frontend/backend split).
+
+   The same markup as `project_detail.html`, with no project in it: not its
+   name, not an amount, not a transaction. `project-detail.js` asks
+   `view_url` (`/api/screens/project/<id>`, the one value this page gets) and
+   fills it in. Until the answer arrives the hero's numbers and the body are
+   hidden, so a number that isn't known yet is never shown as ₪0. A project that
+   isn't there is answered by the API, which sends the user back to the list.
+
+   The cards, the legend rows and the transaction rows are `<template>`s: the
+   HTML stays here, and the script only copies it and writes text. #}
+
+{% block title %}SmartFin – פרויקט{% endblock %}
+
+{% block soft_reload %} data-soft-reload{% endblock %}
+
+{% block hero %}
+<div class="hero-top">
+    <div>
+        <a href="{{ url_for('projects') }}" class="stats-nav-btn" aria-label="חזרה לפרויקטים" style="margin-inline-end:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+        <h1 class="hero-title" id="projectHeading"></h1>
+        <p class="hero-subtitle" id="projectSubtitle"></p>
+    </div>
+    <div class="stats-month-nav">
+        <button type="button" class="stats-nav-btn project-pin-btn" id="projectPin" data-pin-icon hidden
+                data-pinned="false" aria-pressed="false"
+                aria-label="הצמדה לבית" title="הצמדה לבית"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></button>
+        <a class="stats-nav-btn" id="projectEdit" aria-label="עריכת פרויקט" title="עריכת פרויקט" hidden><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></a>
+    </div>
+</div>
+
+<div class="project-net" id="projectNet" hidden>
+    <p class="kpi-label">עלות / שווי הפרויקט</p>
+    <p class="project-net-value" id="projectNetValue"></p>
+</div>
+<div class="hero-totals" id="projectTotals" hidden></div>
+<div class="hero-bar" id="projectBar" hidden>
+    <div class="balance-bar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+        <div class="balance-bar-fill"></div>
+    </div>
+    <div class="balance-bar-legend"><span></span></div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div id="projectView" data-view-url="{{ view_url }}" aria-busy="true">
+
+{# + on the project page opens a form with the project already selected #}
+<span id="sfPageProject" data-project-id="" hidden></span>
+
+<div class="empty-state" id="projectError" style="margin: 24px 16px;" role="alert" hidden>
+    <p class="empty-text">לא הצלחנו לטעון את הנתונים</p>
+    <p class="empty-sub" id="projectErrorText"></p>
+    <button type="button" class="btn-sm btn-primary empty-cta" id="projectRetry">ניסיון נוסף</button>
+</div>
+
+<div id="projectBody" hidden>
+
+<div class="project-archived-banner" id="projectArchived" role="status" hidden>
+    <span>✓ הפרויקט הסתיים</span>
+    <button type="button" class="btn-sm btn-ghost" data-archived="false" data-slot="archive">פתיחה מחדש</button>
+</div>
+{# "Project finished?": built from `tplQuiet` only when it is due, since
+   "not now" (core.js) shows any banner it finds that wasn't put off #}
+<div id="projectQuietHolder"></div>
+
+<div id="projectCharts"></div>
+
+<section class="chart-card">
+    <h2 class="chart-title" id="projectTxTitle"></h2>
+    <div role="group" class="cat-tx-list cat-tx-list-standalone" id="projectTxList"></div>
+    <button type="button" class="btn-sm btn-ghost show-all-tx" id="showAllProjectTx" hidden
+            aria-expanded="false" aria-controls="projectTxList" data-less="הצגה מקוצרת"></button>
+    <div class="empty-state" id="projectTxEmpty" hidden>
+        {{ empty_illus("target") }}
+        <p class="empty-text">עדיין אין עסקאות בפרויקט הזה</p>
+        <p class="empty-sub" id="projectTxEmptySub"></p>
+    </div>
+</section>
+
+<section class="chart-card project-finish" id="projectFinish" hidden>
+    <div class="group-row">
+        <div class="group-row-info">
+            <p class="group-row-label">סיום הפרויקט</p>
+            <p class="group-row-hint">יוצא מהרשימה ומטופס ההוספה. העסקאות והסכומים נשמרים, ואפשר להחזיר אותו.</p>
+        </div>
+        <button type="button" class="btn-sm btn-ghost" data-archived="true" data-slot="archive">הפרויקט הסתיים</button>
+    </div>
+</section>
+
+</div>
+</div>
+
+<template id="tplPersonalBadge"><span class="hero-badge">אישי</span></template>
+
+<template id="tplKpiChip">
+    <div class="kpi-chip">
+        <p class="kpi-label" data-slot="label"></p>
+        <p class="kpi-value" data-slot="value"></p>
+    </div>
+</template>
+
+<template id="tplQuiet">
+    <div class="project-quiet-banner" role="status">
+        <span data-slot="text"></span>
+        <span class="project-quiet-actions">
+            <button type="button" class="btn-sm btn-primary" data-archived="true" data-slot="archive">הסתיים</button>
+            <button type="button" class="btn-sm btn-ghost" data-quiet-later>לא עכשיו</button>
+        </span>
+    </div>
+</template>
+
+<template id="tplChartCard">
+    <section class="chart-card">
+        <h2 class="chart-title" data-slot="title"></h2>
+        <div class="doughnut-wrap">
+            <canvas role="img" data-slot="canvas"></canvas>
+            <div class="doughnut-center">
+                <p class="doughnut-total" data-slot="total"></p>
+                <p class="doughnut-label" data-slot="label"></p>
+            </div>
+        </div>
+        <ul class="legend-list" data-slot="legend"></ul>
+    </section>
+</template>
+
+<template id="tplLegendItem">
+    <li class="legend-item-wrap">
+        <div class="legend-item">
+            <span class="legend-dot" data-slot="dot"></span>
+            <span class="legend-icon" data-slot="icon"></span>
+            <span class="legend-name" data-slot="name"></span>
+            <span class="legend-pct" data-slot="pct"></span>
+            <span class="legend-amount" data-slot="amount"></span>
+            <span class="expand-chevron" aria-hidden="true" data-slot="chevron">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+        </div>
+        <div role="group" class="cat-tx-list" data-slot="rows"></div>
+    </li>
+</template>
+
+<template id="tplTxRow">
+    <div class="cat-tx-row" role="button" tabindex="0">
+        <span class="cat-tx-date" data-slot="day"></span>
+        <span class="cat-tx-desc" data-slot="desc"></span>
+        <span class="owner-pill owner-pill-sm" data-slot="owner"></span>
+        <span class="receipt-badge" title="צפייה בקבלה" aria-hidden="true" data-slot="receipt">{{ ui_icon("receipt") }}</span>
+        <span class="cat-tx-amount" data-slot="amount"></span>
+    </div>
+</template>
+
+<template id="tplRepeatIcon">{{ ui_icon("repeat") }}</template>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chart-setup.js') }}"></script>
+<script src="{{ url_for('static', filename='js/project-detail.js') }}"></script>
+{% endblock %}

@@ -6283,3 +6283,5 @@ html.small-sheet-typing body > :not(.color-sheet):not(.toast) { visibility: hidd
    `hidden` is made to hold. */
 [data-view-url] [hidden],
 .projects-new-btn[hidden], .projects-summary[hidden], .projects-count[hidden] { display: none !important; }
+/* The project page keeps its hero's pieces too (`project_detail_view.html`) */
+.page-hero .stats-nav-btn[hidden], .project-net[hidden], .hero-totals[hidden], .hero-bar[hidden] { display: none !important; }

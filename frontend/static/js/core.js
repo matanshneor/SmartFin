@@ -1179,6 +1179,8 @@ document.addEventListener('click', function (e) {
     });
     applyQuiet();
     window.addEventListener('sf:refreshed', applyQuiet);
+    // A page that loads its own data builds its banner when the data arrives
+    window.addEventListener('sf:view-entered', applyQuiet);
 })();
 
 

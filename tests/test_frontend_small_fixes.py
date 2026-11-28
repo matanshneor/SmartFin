@@ -431,9 +431,12 @@ def test_the_show_all_button_works_without_the_chart_library():
     """The charts block returns early when there is no Chart.js: the button can't
     sit inside it."""
     js = _strip_comments(_read("frontend/static/js/project-detail.js"))
-    charts_guard = js.index("if (!window.sfCharts.ready) return;")
+    # The charts are a function of their own (the page that loads its own data
+    # calls it after its cards are built), ending at the first top-level `}`
+    charts = js.index("function sfProjectCharts(")
+    charts_guard = js.index("if (!window.sfCharts.ready) return;", charts)
     handler = js.index("#showAllProjectTx")
-    charts_block_end = js.index("})();", charts_guard)
+    charts_block_end = js.index("\n}\n", charts_guard)
     assert handler > charts_block_end
 
 

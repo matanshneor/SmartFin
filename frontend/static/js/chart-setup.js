@@ -52,26 +52,29 @@ window.sfCharts = (function () {
         document.documentElement.style.setProperty('--chart-color-' + i, c);
     });
 
+    // Instead of an empty canvas that looks like a failure: a sentence that
+    // explains, and makes clear the numbers themselves are fine. A function, so
+    // a page that builds its cards after its data arrives (the frontend/backend
+    // split) can do the same for them.
+    function unavailable(wrap) {
+        var canvas = wrap.querySelector('canvas');
+        if (!canvas) return;
+        var note = document.createElement('div');
+        note.className = 'chart-empty';
+        note.innerHTML =
+            '<p>הגרף לא נטען</p>' +
+            '<p>המספרים עצמם מעודכנים ונכונים. רענון העמוד בדרך כלל פותר.</p>';
+        canvas.replaceWith(note);
+        // The number in the middle of the donut is positioned absolutely
+        // over the canvas; without the canvas it has no height to sit in,
+        // and it would fall onto the text
+
+        wrap.classList.add('chart-unavailable');
+    }
+
     if (typeof Chart === 'undefined') {
-        // Instead of an empty canvas that looks like a failure: a sentence that
-        // explains, and makes clear the numbers themselves are fine.
-
-        document.querySelectorAll('.doughnut-wrap, .line-chart-wrap').forEach(function (wrap) {
-            var canvas = wrap.querySelector('canvas');
-            if (!canvas) return;
-            var note = document.createElement('div');
-            note.className = 'chart-empty';
-            note.innerHTML =
-                '<p>הגרף לא נטען</p>' +
-                '<p>המספרים עצמם מעודכנים ונכונים. רענון העמוד בדרך כלל פותר.</p>';
-            canvas.replaceWith(note);
-            // The number in the middle of the donut is positioned absolutely
-            // over the canvas; without the canvas it has no height to sit in,
-            // and it would fall onto the text
-
-            wrap.classList.add('chart-unavailable');
-        });
-        return { ready: false, colors: COLORS, muted: MUTED, grid: GRID, surface: SURFACE };
+        document.querySelectorAll('.doughnut-wrap, .line-chart-wrap').forEach(unavailable);
+        return { ready: false, unavailable: unavailable, colors: COLORS, muted: MUTED, grid: GRID, surface: SURFACE };
     }
 
     Chart.defaults.font.family = "'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -88,5 +91,5 @@ window.sfCharts = (function () {
     Chart.defaults.plugins.tooltip.titleColor = '#FAF7F0';
     Chart.defaults.plugins.tooltip.bodyColor = '#E7E0D2';
 
-    return { ready: true, colors: COLORS, muted: MUTED, grid: GRID, surface: SURFACE };
+    return { ready: true, unavailable: unavailable, colors: COLORS, muted: MUTED, grid: GRID, surface: SURFACE };
 })();

@@ -2168,10 +2168,10 @@ def month_csv():
 #
 # One screen at a time, and each behind a switch, so a converted screen can be
 # tried by one family and taken back without a code change:
-#   · `SF_API_SCREENS`          the screens open to everyone: `months,projects`, or `*`
+#   · `SF_API_SCREENS`          the screens open to everyone: `months,projects,project`, or `*`
 #   · `SF_API_SCREENS_PREVIEW`  family ids that get every converted screen
 # With neither set nothing changes: every page is rendered as it always was.
-_API_SCREENS = frozenset({"months", "projects"})
+_API_SCREENS = frozenset({"months", "projects", "project"})
 
 
 def _env_list(name: str) -> set:
@@ -2486,14 +2486,14 @@ def _project_gone():
     return redirect(url_for("projects"))
 
 
-@app.route("/projects/<project_id>")
-@login_required
-def project_detail(project_id):
-    user      = get_current_user()
+def _project_detail_view(user, project_id):
+    """Everything one project's page shows, or None when there is no such
+    project for this user: read by the page built on the server and by
+    `/api/screens/project/<id>`."""
     family_id = user["family_id"]
     project = db.get_project_detail(project_id, family_id, user["id"]) if family_id else None
     if not project:
-        return _project_gone()
+        return None
     # "Project finished?" (Matan, 12.10): an active project with no new
     # transaction for two months
     quiet_since = None
@@ -2506,11 +2506,190 @@ def project_detail(project_id):
         except ValueError:
             logger.warning("project_detail: bad transaction date %r", last)
     pinned_id = ((family_settings().get("pinned_projects") or {}).get(user["id"]))
-    return render_template("project_detail.html", active_page="projects", user=user,
-                           project=project, quiet_since=quiet_since,
-                           is_pinned=(pinned_id == project["id"]),
-                           member_colors=_member_colors(family_id),
-                           member_names=_member_names(family_id))
+    return dict(project=project, quiet_since=quiet_since,
+                is_pinned=(pinned_id == project["id"]),
+                member_colors=_member_colors(family_id),
+                member_names=_member_names(family_id))
+
+
+# What a recurring transaction says next to its description, in the project's
+# lists. The template keeps its own copy (`freq_labels`); the two are compared
+# in `test_screen_project_api.py`.
+_FREQ_LABELS = {
+    "monthly_same": "כל חודש", "monthly_1": "כל 1 לחודש", "monthly_15": "כל 15 לחודש",
+    "weekly": "כל שבוע", "biweekly": "כל שבועיים", "bimonthly": "כל חודשיים", "yearly": "כל שנה",
+}
+
+
+def _project_detail_payload(view: dict) -> dict:
+    """One project's page as data, for the page that draws itself.
+
+    Every amount and every sentence is sent ready to show, with the template's
+    own rounding (`| round | int | money` for the totals, agorot for a single
+    transaction), and every decision the template makes (which tiles, a goal or a
+    ceiling, which mark on a row) is made here, in the same order."""
+    project = view["project"]
+    names, colors = view["member_names"] or {}, view["member_colors"] or {}
+    # "Whose" on a row: the same rule the template reads (`show_owner`)
+    show_owner = _ShowOwner(family_settings(), _LazySingleMember())
+
+    def shekels(value) -> str:               # `| round | int | money`
+        return "₪" + format_money(int(round(value or 0)))
+
+    kind = project_kind(project)
+    target = project.get("budget_target")
+
+    # ── The hero ──
+    net = None
+    if project["track_income"] and project["track_expense"]:
+        value = round((project.get("income") or 0) - (project.get("spent") or 0), 2)
+        net = {"kind": "surplus" if value > 0 else "deficit" if value < 0 else "",
+               "text": ("+" if value > 0 else "-" if value < 0 else "") + "₪" + format_money(abs(value))}
+
+    chips = []
+    for typ, flag, label in (("expense", "track_expense", "סה״כ הוצאות"), ("income", "track_income", "סה״כ הכנסות"),
+                             ("savings", "track_savings", "סה״כ חיסכון")):
+        if project[flag]:
+            total = project["spent" if typ == "expense" else typ]
+            chips.append({"label": label, "value": shekels(total), "kind": typ, "countup": int(round(total))})
+    bar = None
+    if target:
+        if kind == "savings":
+            missing = target - project["savings"]
+            chips.append({"label": "יעד חיסכון", "value": shekels(target), "kind": "", "countup": None})
+            chips.append({"label": "חסר ליעד" if missing > 0 else "מעבר ליעד", "value": shekels(abs(missing)),
+                          "kind": "" if missing > 0 else "surplus", "countup": None})
+        else:
+            remaining = project["remaining"]
+            chips.append({"label": "תקציב", "value": shekels(target), "kind": "", "countup": None})
+            chips.append({"label": "נשאר" if remaining >= 0 else "חריגה", "value": shekels(abs(remaining)),
+                          "kind": "surplus" if remaining >= 0 else "deficit", "countup": None})
+        saving = kind == "savings"
+        pct = int(round((project["savings"] if saving else project["spent"]) / target * 100))
+        bar = {"pct": pct, "width": min(pct, 100),
+               "text": f"{pct}% מהיעד נחסך" if saving else f"{pct}% מהתקציב נוצל",
+               "kind": "saving" if saving else "danger" if project["spent"] > target else ""}
+    # Equal columns by the number of tiles: two, half and half; four, two by two
+    columns = 2 if len(chips) == 4 else min(len(chips), 3)
+
+    # ── The rows ──
+    def entered_by(tx):
+        if project.get("is_personal") and tx.get("created_by") and tx["created_by"] != project.get("owner_id"):
+            return "הוזנה ע״י " + names.get(tx["created_by"], "בן משפחה לשעבר")
+        return None
+
+    def row(tx, text, signed, recurring_marks):
+        """A `.cat-tx-row`: its `data-*` (what the edit window opens with) and
+        what it says."""
+        out = {
+            "data": {"id": tx["id"], "amount": tx["amount"], "type": tx["type"],
+                     "category_id": tx.get("category_id") or "",
+                     "project_category_id": tx.get("project_category_id") or "",
+                     "description": tx.get("description") or "", "date": tx["date"],
+                     "user_id": tx.get("user_id") or "",
+                     "is_recurring": str(tx.get("is_recurring")).lower(),
+                     "recurring_frequency": tx.get("recurring_frequency") or "",
+                     "recurring_end_date": tx.get("recurring_end_date") or "",
+                     "recurring_parent_id": tx.get("recurring_parent_id") or "",
+                     "project_id": tx.get("project_id") or "",
+                     "installments": tx.get("installments") or "",
+                     "installment_no": tx.get("installment_no") or ""},
+            "day": f"{tx['date'][8:10]}.{tx['date'][5:7]}",
+            "text": text, "installment": None, "recurring": None, "entered_by": entered_by(tx),
+            "owner": None,
+            "receipt": url_for("view_receipt", tx_id=tx["id"]) if tx.get("has_receipt") else None,
+            # A sign and not just a colour where income and expenses are mixed
+            "amount": (("+" if tx["type"] == "income" else "-" if tx["type"] == "expense" else "") if signed else "")
+                      + "₪" + format_money(tx["amount"]),
+        }
+        if recurring_marks:
+            if tx.get("installments") and tx.get("installment_no"):
+                out["installment"] = f"תשלום {tx['installment_no']} מתוך {tx['installments']}"
+            elif tx.get("is_recurring") or tx.get("recurring_parent_id"):
+                out["recurring"] = _FREQ_LABELS.get(tx.get("recurring_frequency"), "חודשי")
+        if show_owner.get(tx["type"]):
+            color = colors.get(tx.get("user_id"))
+            out["owner"] = {"color": color if color is not None else "shared",
+                            "name": tx["user_name"] if tx.get("user_id") else "משותפת"}
+        return out
+
+    # ── A split by category, for every tracked type that has transactions ──
+    titles = {"expense": "הוצאות לפי קטגוריה", "income": "הכנסות לפי קטגוריה", "savings": "חיסכון לפי קטגוריה"}
+    labels = {"expense": "הוצאות", "income": "הכנסות", "savings": "חיסכון"}
+    totals = {"expense": project["spent"], "income": project["income"], "savings": project["savings"]}
+    txs = project.get("transactions") or []
+    charts = []
+    for typ in ("expense", "income", "savings"):
+        items = (project.get("breakdown") or {}).get(typ)
+        if not items:
+            continue
+        of_type = [t for t in txs if t["type"] == typ]
+        legend = []
+        for i, item in enumerate(items):
+            in_cat = [t for t in of_type if t.get("category_name") == item["name"]]
+            if item["name"] == "אחר":
+                in_cat += [t for t in of_type if not t.get("category_name")]
+            legend.append({
+                "color": i % 12, "icon": item["icon"], "name": item["name"], "pct": item["pct"],
+                "amount": "₪" + format_money(item["total"]),
+                "rows": [row(t, (t.get("description") or item["name"])
+                               + (f" · {t['workplace']}" if t.get("workplace") else ""), False, True)
+                         for t in in_cat],
+            })
+        charts.append({"type": typ, "title": titles[typ], "total": shekels(totals[typ]),
+                       "label": labels[typ], "items": legend})
+
+    archived = bool(project.get("archived"))
+    return {
+        "id": project["id"], "name": project["name"], "archived": archived,
+        "title": f"SmartFin – {project['name']}",
+        "hero": {
+            "heading": f"{project.get('icon') or ('🔒' if project.get('is_personal') else '🎯')} {project['name']}",
+            "personal": bool(project.get("is_personal")),
+            "subtitle": project.get("description") or "כל העסקאות של הפרויקט, מכל החודשים",
+            "pin": None if archived else {"pinned": bool(view["is_pinned"])},
+            "edit_href": url_for("project_edit", project_id=project["id"]),
+            "net": net, "chips": chips, "columns": max(columns, 1), "bar": bar,
+        },
+        "quiet_since": (f"לא נוספו כאן עסקאות מאז {view['quiet_since']}. לסמן שהפרויקט הסתיים?"
+                        if view["quiet_since"] else None),
+        "charts": charts,
+        # What Chart.js draws: the same numbers the legends show
+        "breakdown": project.get("breakdown") or {},
+        "transactions": [row(t, f"{t.get('category_icon')} {t.get('description') or t.get('category_name')}",
+                             True, False) for t in txs],
+        "count_title": f"כל העסקאות ({len(txs)})",
+        "show_all": f"הצגת כל העסקאות ({len(txs)})",
+        "empty_sub": f'בהוספת עסקה, בחרו "שייך לפרויקט" ← {project["name"]}',
+    }
+
+
+@app.route("/projects/<project_id>")
+@login_required
+def project_detail(project_id):
+    user = get_current_user()
+    if _api_screen("project"):
+        # The page carries no project: `project-detail.js` asks for it, and a
+        # project that isn't there is answered by the API (`_project_gone`)
+        return render_template("project_detail_view.html", active_page="projects", user=user,
+                               view_url=url_for("api_screen_project", project_id=project_id))
+    view = _project_detail_view(user, project_id)
+    if view is None:
+        return _project_gone()
+    return render_template("project_detail.html", active_page="projects", user=user, **view)
+
+
+@app.route("/api/screens/project/<project_id>")
+@login_required
+def api_screen_project(project_id):
+    """The data of one project's page, for `project_detail_view.html`. No such
+    project (deleted, a truncated link, another member's personal one): 404,
+    with where to go, and the same notice the server-built page leaves."""
+    view = _project_detail_view(get_current_user(), project_id)
+    if view is None:
+        _project_gone()
+        return jsonify({"error": "הפרויקט הזה כבר לא קיים", "redirect": url_for("projects")}), 404
+    return jsonify(_project_detail_payload(view))
 
 
 @app.route("/projects/new")
