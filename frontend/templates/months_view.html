@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{# The comparison page that loads its own data (the frontend/backend split).
+
+   The same markup as `months.html`, with nothing in it that belongs to a
+   family: no amount, no category, no month. `months.js` asks
+   `/api/screens/months` and fills it in. Until the answer arrives everything
+   below is hidden, so a number that isn't known yet is never shown as ₪0.
+
+   The rows of the archive are `<template>`s: the HTML stays here, where the
+   rest of the page's HTML is, and the script only copies it and writes text. #}
+
+{% block title %}SmartFin – השוואה בין חודשים{% endblock %}
+
+{% block hero %}
+<div class="hero-top">
+    <div>
+        <h1 class="hero-title">השוואה בין חודשים</h1>
+        <p class="hero-subtitle">החודש הנוכחי מול החודשים הקודמים</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div id="monthsView" data-view-url="{{ url_for('api_screen_months') }}" aria-busy="true">
+
+{# Couldn't load: said plainly, with a way to try again. Not an empty page, which
+   would read as "no data". #}
+<div class="empty-state" id="monthsError" style="margin: 24px 16px;" role="alert" hidden>
+    <p class="empty-text">לא הצלחנו לטעון את הנתונים</p>
+    <p class="empty-sub" id="monthsErrorText"></p>
+    <button type="button" class="btn-sm btn-primary empty-cta" id="monthsRetry">ניסיון נוסף</button>
+</div>
+
+<div id="monthsBody" hidden>
+
+<!-- Comparison chart -->
+<section class="chart-card">
+    <h2 class="chart-title">הכנסות · הוצאות · חיסכון</h2>
+    <p class="trend-verdict" id="trendVerdict" hidden></p>
+    <div class="range-chips" role="group" aria-label="טווח הגרפים" hidden>
+        <button type="button" class="date-chip range-chip" data-range="3" aria-pressed="false">3 חודשים</button>
+        <button type="button" class="date-chip range-chip active" data-range="6" aria-pressed="true">חצי שנה</button>
+        <button type="button" class="date-chip range-chip" data-range="12" aria-pressed="false">שנה</button>
+    </div>
+    <div class="line-chart-wrap compare-chart-wrap">
+        <canvas id="compareChart" role="img" aria-label="השוואת הכנסות, הוצאות וחיסכון בין חודשים"></canvas>
+    </div>
+</section>
+
+<section class="chart-card cat-trend-card" id="cat-trend" hidden>
+    <h2 class="chart-title">הוצאות לפי קטגוריה</h2>
+    <div class="tx-cat-chips cat-trend-chips" role="group" aria-label="בחירת קטגוריה"></div>
+    <div class="cat-trend-stats" id="catTrendStats" aria-live="polite"></div>
+    <div class="line-chart-wrap cat-trend-wrap">
+        <canvas id="categoryChart" role="img" aria-label="הוצאה בקטגוריה שנבחרה בכל חודש"></canvas>
+    </div>
+</section>
+
+<section class="chart-card member-trend-card" id="memberTrendCard" hidden>
+    <h2 class="chart-title">הוצאות לפי בן משפחה</h2>
+    <div class="line-chart-wrap member-trend-wrap">
+        <canvas id="memberTrendChart" role="img" aria-label="הוצאות של כל בן משפחה בכל חודש"></canvas>
+    </div>
+    <p class="member-trend-avgs" id="memberTrendAvgs" aria-live="polite"></p>
+</section>
+
+<div id="monthsArchive"></div>
+
+<button type="button" class="year-card months-year-card" id="monthsRecap" data-year-recap="">
+    <span class="year-card-text">
+        <span class="year-card-title" id="monthsRecapTitle"></span>
+        <span class="year-card-sub" id="monthsRecapSub"></span>
+    </span>
+    <span class="year-card-arrow" aria-hidden="true">›</span>
+</button>
+
+</div>
+
+<div class="empty-state" id="monthsEmpty" style="margin: 24px 16px;" hidden>
+    {{ empty_illus("calendar") }}
+    <p class="empty-text">אין נתונים היסטוריים עדיין</p>
+    <p class="empty-sub">אחרי שתוסיפו עסקאות, יופיעו כאן החודשים זה מול זה</p>
+    <button type="button" class="btn-sm btn-primary empty-cta" data-add-type="expense" aria-haspopup="dialog">הוספת עסקה ראשונה</button>
+</div>
+
+</div>
+
+{# A table per year, as in `months.html` #}
+<template id="tplYearBlock">
+    <details class="year-block chart-card">
+        <summary class="year-title">
+            <span data-slot="year"></span>
+            <span class="year-chevron" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+        </summary>
+        <div class="months-table-wrap">
+            <table class="months-table">
+                <colgroup><col class="c-month"><col><col><col><col class="c-balance"></colgroup>
+                <thead>
+                    <tr>
+                        <th scope="col">חודש</th>
+                        <th scope="col" class="n">הכנסות</th>
+                        <th scope="col" class="n">הוצאות</th>
+                        <th scope="col" class="n">חיסכון</th>
+                        <th scope="col" class="n">מאזן</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </details>
+</template>
+
+<template id="tplMonthRow">
+    <tr class="month-row">
+        <td class="m"><a data-slot="name"></a></td>
+        <td class="n inc" data-slot="income"></td>
+        <td class="n exp" data-slot="expense"></td>
+        <td class="n sav" data-slot="savings"></td>
+        <td class="n bal" data-slot="balance"></td>
+    </tr>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+{% include "_year_recap.html" %}
+{# Always, and not only when there is something to draw: whether there is isn't
+   known until the data arrives, and switching to this tab without a full load
+   expects the library to come with the page (`sfApplyHtml`). #}
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chart-setup.js') }}"></script>
+<script src="{{ url_for('static', filename='js/months.js') }}"></script>
+{% endblock %}

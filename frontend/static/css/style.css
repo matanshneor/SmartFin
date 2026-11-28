@@ -6274,3 +6274,12 @@ html.small-sheet-typing body > :not(.color-sheet):not(.toast) { visibility: hidd
 .upcoming-row.is-soon .upcoming-day { color: var(--color-gold-text); font-weight: 700; }
 .upcoming-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .upcoming-amount { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Pages that load their own data (the frontend/backend split) ──
+   Such a page keeps its optional pieces in the HTML, hidden, until the data
+   says which to show. A class that sets `display` beats the `hidden`
+   attribute (the "new project" button stayed on screen for a family with no
+   projects), so inside a view, and for the pieces a view keeps in the hero,
+   `hidden` is made to hold. */
+[data-view-url] [hidden],
+.projects-new-btn[hidden], .projects-summary[hidden], .projects-count[hidden] { display: none !important; }
